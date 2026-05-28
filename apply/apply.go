@@ -21,6 +21,8 @@ import (
 	"github.com/OpenUdon/uws/uws1"
 )
 
+const Version = "ramen.apply.v1"
+
 type APISourceInput = tfplan.APISourceInput
 
 type Options struct {
@@ -35,13 +37,15 @@ type Options struct {
 }
 
 type Result struct {
-	StatePath          string
-	RunID              int64
-	Plan               tfplan.Document
-	Summary            Summary
-	Executed           []ExecutedAction
-	GeneratedDocuments []string
-	Errors             []string
+	Version            string                    `json:"version"`
+	StatePath          string                    `json:"state_path"`
+	RunID              int64                     `json:"run_id,omitempty"`
+	Plan               tfplan.Document           `json:"plan"`
+	Summary            Summary                   `json:"summary"`
+	Executed           []ExecutedAction          `json:"executed,omitempty"`
+	Feedback           []executor.FeedbackRecord `json:"feedback,omitempty"`
+	GeneratedDocuments []string                  `json:"generated_documents,omitempty"`
+	Errors             []string                  `json:"errors,omitempty"`
 }
 
 type Summary struct {
@@ -81,11 +85,11 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	var err error
 	if artifact != nil {
 		if err := validateLoadedPlanArtifact(*artifact); err != nil {
-			return &Result{StatePath: opts.StatePath, Plan: *artifact}, err
+			return &Result{Version: Version, StatePath: opts.StatePath, Plan: *artifact}, err
 		}
 		planResult, err = verifyPlanArtifact(ctx, opts, *artifact)
 		if err != nil {
-			return &Result{StatePath: opts.StatePath, Plan: *artifact}, err
+			return &Result{Version: Version, StatePath: opts.StatePath, Plan: *artifact}, err
 		}
 	} else {
 		planResult, err = tfplan.Build(ctx, tfplan.Options{
@@ -99,7 +103,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			return nil, err
 		}
 	}
-	result := &Result{StatePath: opts.StatePath, Plan: planResult.Plan}
+	result := &Result{Version: Version, StatePath: opts.StatePath, Plan: planResult.Plan}
 	if err := rejectErroredPlan(planResult); err != nil {
 		return result, err
 	}
@@ -220,6 +224,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			return result, err
 		}
 		execResult, err := opts.Executor.Execute(ctx, req)
+		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			runStatus = "failed"
 			result.Summary.Failed++

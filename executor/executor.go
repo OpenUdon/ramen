@@ -85,6 +85,25 @@ type Event struct {
 
 type EventSink func(Event)
 
+const FeedbackVersion = "ramen.feedback.v1"
+
+type FeedbackRecord struct {
+	Version    string         `json:"version"`
+	RunID      int64          `json:"run_id,omitempty"`
+	Address    string         `json:"address"`
+	Action     string         `json:"action"`
+	Operation  string         `json:"operation,omitempty"`
+	Success    bool           `json:"success"`
+	Missing    bool           `json:"missing,omitempty"`
+	ErrorClass string         `json:"error_class,omitempty"`
+	Identity   map[string]any `json:"identity,omitempty"`
+	Computed   map[string]any `json:"computed,omitempty"`
+	Messages   []string       `json:"messages,omitempty"`
+	Events     []Event        `json:"events,omitempty"`
+	StartedAt  time.Time      `json:"started_at,omitempty"`
+	FinishedAt time.Time      `json:"finished_at,omitempty"`
+}
+
 // Request is the explicit trusted-executor boundary. Credential material must
 // stay in executor-owned configuration and must not be embedded here.
 type Request struct {
@@ -382,6 +401,32 @@ func RedactResult(result Result) Result {
 	return result
 }
 
+func FeedbackFromResult(req Request, result Result, err error) FeedbackRecord {
+	redacted := RedactResult(result)
+	record := FeedbackRecord{
+		Version:    FeedbackVersion,
+		RunID:      req.RunID,
+		Address:    req.Action.Address,
+		Action:     req.Action.Action,
+		Operation:  firstNonEmpty(redacted.Operation, req.Action.Mapping.OperationID),
+		Success:    redacted.Success && err == nil,
+		Missing:    redacted.Missing,
+		Identity:   redacted.Identity,
+		Computed:   redacted.Computed,
+		Messages:   redacted.Messages,
+		Events:     redacted.Events,
+		StartedAt:  redacted.StartedAt,
+		FinishedAt: redacted.FinishedAt,
+	}
+	if err != nil {
+		record.ErrorClass = "executor_error"
+		record.Messages = append(record.Messages, redact.String(err.Error()))
+	} else if !redacted.Success {
+		record.ErrorClass = "executor_unsuccessful"
+	}
+	return record
+}
+
 func RequestKey(req Request) string {
 	payload := []string{
 		req.Action.Address,
@@ -404,4 +449,13 @@ func contains(values []string, target string) bool {
 		}
 	}
 	return false
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }

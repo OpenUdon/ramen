@@ -54,6 +54,7 @@ type Document struct {
 	ProjectPath string         `json:"project_path,omitempty"`
 	StatePath   string         `json:"state_path"`
 	Action      string         `json:"action"`
+	Rationale   string         `json:"rationale,omitempty"`
 	Controls    Controls       `json:"controls,omitempty"`
 	APISources  []APISourceRef `json:"api_sources,omitempty"`
 	Approval    *Approval      `json:"approval,omitempty"`
@@ -80,6 +81,7 @@ type APISourceRef struct {
 type Approval struct {
 	Version       string         `json:"version"`
 	Digest        string         `json:"digest"`
+	Rationale     string         `json:"rationale,omitempty"`
 	ProjectDigest string         `json:"project_digest,omitempty"`
 	StateDigest   string         `json:"state_digest,omitempty"`
 	Controls      Controls       `json:"controls,omitempty"`
@@ -97,16 +99,17 @@ type Summary struct {
 }
 
 type ResourcePlan struct {
-	Address      string       `json:"address"`
-	Kind         string       `json:"kind"`
-	Type         string       `json:"type"`
-	Name         string       `json:"name"`
-	Provider     string       `json:"provider,omitempty"`
-	Action       string       `json:"action"`
-	Reason       string       `json:"reason"`
-	DesiredHash  string       `json:"desired_hash,omitempty"`
-	Dependencies []string     `json:"dependencies,omitempty"`
-	Mapping      *MappingPlan `json:"mapping,omitempty"`
+	Address      string              `json:"address"`
+	Kind         string              `json:"kind"`
+	Type         string              `json:"type"`
+	Name         string              `json:"name"`
+	Provider     string              `json:"provider,omitempty"`
+	Action       string              `json:"action"`
+	Reason       string              `json:"reason"`
+	DesiredHash  string              `json:"desired_hash,omitempty"`
+	Dependencies []string            `json:"dependencies,omitempty"`
+	Mapping      *MappingPlan        `json:"mapping,omitempty"`
+	AI           *project.AIMetadata `json:"ai,omitempty"`
 }
 
 type MappingPlan struct {
@@ -116,6 +119,7 @@ type MappingPlan struct {
 	SourcePath         string                        `json:"source_path,omitempty"`
 	OperationID        string                        `json:"operation_id,omitempty"`
 	IdentityAttributes []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
+	AI                 *project.AIMetadata           `json:"ai,omitempty"`
 }
 
 type DesiredHashInput struct {
@@ -283,6 +287,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 			ProjectPath: opts.ProjectPath,
 			StatePath:   opts.StatePath,
 			Action:      opts.Action,
+			Rationale:   projectRationale(project.Profile{}),
 			Errored:     true,
 			Diagnostics: diagnostics,
 		}
@@ -353,6 +358,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		ProjectPath: proj.Path,
 		StatePath:   opts.StatePath,
 		Action:      opts.Action,
+		Rationale:   projectRationale(proj.Profile),
 		Controls:    controlsFromOptions(opts),
 		APISources:  apiSourceRefs(apiSources),
 		Errored:     errored,
@@ -634,6 +640,7 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 			DesiredHash:  hash,
 			Dependencies: slices.Clone(dependencies),
 			Mapping:      mapping,
+			AI:           resource.AI,
 		},
 		diagnostics: diagnostics,
 	}
@@ -722,6 +729,7 @@ func mapProjectResource(profile project.Profile, resource project.Resource, purp
 		SourcePath:         sourcePath,
 		OperationID:        role.OperationID,
 		IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes),
+		AI:                 role.AI,
 	}
 	diagnostics := validateProjectOperation(resource, mapping, sources, required)
 	return mapping, diagnostics
@@ -1422,9 +1430,22 @@ func stateBaselineDigest(ctx context.Context, store *state.Store) string {
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
+func projectRationale(profile project.Profile) string {
+	if profile.Metadata == nil {
+		return ""
+	}
+	for _, key := range []string{"rationale", "plan_rationale"} {
+		if value, ok := profile.Metadata[key].(string); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
 func buildApproval(doc Document, projectDigest, stateDigest string) *Approval {
 	approval := &Approval{
 		Version:       "ramen.approval.v1",
+		Rationale:     doc.Rationale,
 		ProjectDigest: projectDigest,
 		StateDigest:   stateDigest,
 		Controls:      doc.Controls,
@@ -1443,6 +1464,7 @@ func approvalDigest(doc Document, approval *Approval) string {
 		StatePath     string         `json:"state_path"`
 		Action        string         `json:"action"`
 		Errored       bool           `json:"errored,omitempty"`
+		Rationale     string         `json:"rationale,omitempty"`
 		Controls      Controls       `json:"controls,omitempty"`
 		APISources    []APISourceRef `json:"api_sources,omitempty"`
 		ProjectDigest string         `json:"project_digest,omitempty"`
@@ -1457,6 +1479,7 @@ func approvalDigest(doc Document, approval *Approval) string {
 		StatePath:     doc.StatePath,
 		Action:        doc.Action,
 		Errored:       doc.Errored,
+		Rationale:     doc.Rationale,
 		Controls:      approval.Controls,
 		APISources:    approval.APISources,
 		ProjectDigest: approval.ProjectDigest,
@@ -1478,6 +1501,9 @@ func VerifyApproval(doc Document) error {
 	}
 	if doc.Approval == nil || strings.TrimSpace(doc.Approval.Digest) == "" {
 		return fmt.Errorf("plan approval artifact is missing")
+	}
+	if doc.Approval.Rationale != doc.Rationale {
+		return fmt.Errorf("plan approval rationale mismatch")
 	}
 	if got := approvalDigest(doc, doc.Approval); got != doc.Approval.Digest {
 		return fmt.Errorf("plan approval digest mismatch")

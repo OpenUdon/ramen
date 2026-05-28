@@ -57,6 +57,7 @@ type Resource struct {
 	IdentityAttributes []IdentityAttribute      `json:"identity_attributes,omitempty"`
 	CredentialBindings []string                 `json:"credential_bindings,omitempty"`
 	Redaction          Redaction                `json:"redaction,omitempty"`
+	AI                 *AIMetadata              `json:"ai,omitempty"`
 	Metadata           map[string]any           `json:"metadata,omitempty"`
 }
 
@@ -68,12 +69,25 @@ type Lifecycle struct {
 }
 
 type OperationRole struct {
-	Purpose            string   `json:"purpose,omitempty"`
-	SourceKind         string   `json:"source_kind,omitempty"`
-	SourceID           string   `json:"source_id,omitempty"`
-	SourcePath         string   `json:"source_path,omitempty"`
-	OperationID        string   `json:"operation_id,omitempty"`
-	CredentialBindings []string `json:"credential_bindings,omitempty"`
+	Purpose            string      `json:"purpose,omitempty"`
+	SourceKind         string      `json:"source_kind,omitempty"`
+	SourceID           string      `json:"source_id,omitempty"`
+	SourcePath         string      `json:"source_path,omitempty"`
+	OperationID        string      `json:"operation_id,omitempty"`
+	CredentialBindings []string    `json:"credential_bindings,omitempty"`
+	AI                 *AIMetadata `json:"ai,omitempty"`
+}
+
+type AIMetadata struct {
+	Confidence  *Confidence `json:"confidence,omitempty"`
+	Uncertainty string      `json:"uncertainty,omitempty"`
+	Rationale   string      `json:"rationale,omitempty"`
+	Citations   []string    `json:"citations,omitempty"`
+}
+
+type Confidence struct {
+	Score  float64 `json:"score"`
+	Reason string  `json:"reason,omitempty"`
 }
 
 type IdentityAttribute struct {
@@ -193,6 +207,9 @@ func ValidateProfile(profile Profile) error {
 		if seenResources[resource.Address] {
 			return fmt.Errorf("duplicate resource %s", resource.Address)
 		}
+		if err := validateAIMetadata(resource.AI); err != nil {
+			return fmt.Errorf("resource %s ai metadata invalid: %w", resource.Address, err)
+		}
 		seenResources[resource.Address] = true
 		for purpose, op := range resource.Operations {
 			if strings.TrimSpace(purpose) == "" {
@@ -201,7 +218,20 @@ func ValidateProfile(profile Profile) error {
 			if strings.TrimSpace(op.OperationID) == "" {
 				return fmt.Errorf("resource %s %s operation requires operation_id", resource.Address, purpose)
 			}
+			if err := validateAIMetadata(op.AI); err != nil {
+				return fmt.Errorf("resource %s %s operation ai metadata invalid: %w", resource.Address, purpose, err)
+			}
 		}
+	}
+	return nil
+}
+
+func validateAIMetadata(meta *AIMetadata) error {
+	if meta == nil || meta.Confidence == nil {
+		return nil
+	}
+	if meta.Confidence.Score < 0 || meta.Confidence.Score > 1 {
+		return fmt.Errorf("confidence score must be between 0 and 1")
 	}
 	return nil
 }

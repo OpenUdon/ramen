@@ -47,6 +47,9 @@ resource "aws_iam_role" "role" {
 	if result.Summary.Create != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("apply result=%#v requests=%d", result.Summary, mock.RequestCount())
 	}
+	if result.Version != Version || len(result.Feedback) != 1 || result.Feedback[0].Version != executor.FeedbackVersion {
+		t.Fatalf("apply feedback/version = version=%q feedback=%#v", result.Version, result.Feedback)
+	}
 	if result.Summary.Skipped != 0 {
 		t.Fatalf("apply skipped=%d, want 0", result.Summary.Skipped)
 	}
@@ -54,7 +57,7 @@ resource "aws_iam_role" "role" {
 		t.Fatalf("generated docs = %#v", result.GeneratedDocuments)
 	}
 	docText := readApplyTestFile(t, result.GeneratedDocuments[0])
-	for _, expected := range []string{"ramen_apply_action", "CreateRole", "aws-smithy", "x-ramen-apply", "RoleName", "apply-role", "AssumeRolePolicyDocument", "Action", "CreateRole", "Version", "2010-05-08"} {
+	for _, expected := range []string{"ramen_apply_action", "CreateRole", "aws-smithy", "x-ramen-apply", "x-ramen-executor", "idempotency", "RoleName", "apply-role", "AssumeRolePolicyDocument", "Action", "CreateRole", "Version", "2010-05-08"} {
 		if !strings.Contains(docText, expected) {
 			t.Fatalf("generated UWS missing %q:\n%s", expected, docText)
 		}

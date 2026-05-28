@@ -815,10 +815,11 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	outDir := fs.String("out", "", "Optional directory for generated read UWS action documents")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -836,6 +837,10 @@ func runRefreshCommand(ctx context.Context, args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+	if *jsonOut {
+		writeJSONOutput(result)
+		return
+	}
 	fmt.Printf("ramen: refresh read=%d changed=%d unchanged=%d missing=%d skipped=%d failed=%d\n", result.Summary.Read, result.Summary.Changed, result.Summary.Unchanged, result.Summary.Missing, result.Summary.Skipped, result.Summary.Failed)
 }
 
@@ -848,10 +853,11 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	outDir := fs.String("out", "", "Optional directory for generated delete UWS action documents")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -881,6 +887,10 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(result)
+		return
 	}
 	fmt.Printf("ramen: destroy delete=%d failed=%d\n", result.Summary.Delete, result.Summary.Failed)
 }
@@ -1015,10 +1025,11 @@ func runApplyCommand(ctx context.Context, args []string) {
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	outDir := fs.String("out", "", "Optional directory for generated executor-ready UWS action documents")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
@@ -1061,6 +1072,10 @@ func runApplyCommand(ctx context.Context, args []string) {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(result)
+		return
 	}
 	fmt.Printf("ramen: apply create=%d update=%d delete=%d no-op=%d skipped=%d failed=%d blocked=%d executed=%d\n", result.Summary.Create, result.Summary.Update, result.Summary.Delete, result.Summary.NoOp, result.Summary.Skipped, result.Summary.Failed, result.Summary.Blocked, len(result.Executed))
 	if result.RunID != 0 {

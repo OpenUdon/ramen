@@ -22,6 +22,8 @@ import (
 	ramenvalidate "github.com/OpenUdon/ramen/validate"
 )
 
+const Version = "ramen.reconcile.v1"
+
 type APISourceInput = tfplan.APISourceInput
 
 type Options struct {
@@ -36,10 +38,12 @@ type Options struct {
 }
 
 type Result struct {
-	StatePath string
-	RunID     int64
-	Summary   Summary
-	Actions   []ActionResult
+	Version   string                    `json:"version"`
+	StatePath string                    `json:"state_path"`
+	RunID     int64                     `json:"run_id,omitempty"`
+	Summary   Summary                   `json:"summary"`
+	Actions   []ActionResult            `json:"actions,omitempty"`
+	Feedback  []executor.FeedbackRecord `json:"feedback,omitempty"`
 }
 
 type Summary struct {
@@ -57,6 +61,10 @@ type ActionResult struct {
 	Address  string `json:"address"`
 	Action   string `json:"action"`
 	Document string `json:"document,omitempty"`
+}
+
+func newResult(statePath string) *Result {
+	return &Result{Version: Version, StatePath: statePath}
 }
 
 type ImportOptions struct {
@@ -81,14 +89,14 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	}
 	readMappings, err := refreshReadMappings(ctx, opts)
 	if err != nil {
-		return &Result{StatePath: opts.StatePath}, err
+		return newResult(opts.StatePath), err
 	}
 	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "create"})
 	if err != nil {
 		return nil, err
 	}
 	if err := rejectPlanExecution(planResult); err != nil {
-		return &Result{StatePath: opts.StatePath}, err
+		return newResult(opts.StatePath), err
 	}
 	result, store, runID, finish, err := startMutation(ctx, opts.StatePath, "refresh")
 	if err != nil {
@@ -145,6 +153,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 			return result, err
 		}
 		execResult, err := opts.Executor.Execute(ctx, req)
+		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			result.Summary.Failed++
 			_ = recordFailedAction(ctx, store, runID, resource, "refresh_failed", err.Error())
@@ -196,7 +205,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	}
 	opts = normalizeOptions(opts)
 	if !opts.AutoApprove {
-		return &Result{StatePath: opts.StatePath}, fmt.Errorf("destroy requires explicit approval; rerun with --auto-approve after reviewing tracked resources")
+		return newResult(opts.StatePath), fmt.Errorf("destroy requires explicit approval; rerun with --auto-approve after reviewing tracked resources")
 	}
 	if opts.Executor == nil {
 		return nil, fmt.Errorf("destroy requires a trusted executor; pass --mock for recorded/mock execution in public builds")
@@ -205,11 +214,11 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	var planResult *tfplan.Result
 	if artifact != nil {
 		if err := validateDestroyArtifact(*artifact); err != nil {
-			return &Result{StatePath: opts.StatePath}, err
+			return newResult(opts.StatePath), err
 		}
 		current, err := verifyDestroyArtifact(ctx, opts, *artifact)
 		if err != nil {
-			return &Result{StatePath: opts.StatePath}, err
+			return newResult(opts.StatePath), err
 		}
 		for _, resource := range current.Plan.Resources {
 			dependencies[resource.Address] = slices.Clone(resource.Dependencies)
@@ -221,7 +230,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			return nil, err
 		}
 		if err := rejectPlanExecution(depPlan); err != nil {
-			return &Result{StatePath: opts.StatePath}, err
+			return newResult(opts.StatePath), err
 		}
 		for _, resource := range depPlan.Plan.Resources {
 			dependencies[resource.Address] = slices.Clone(resource.Dependencies)
@@ -232,7 +241,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 		}
 		planResult = deletePlan
 		if err := rejectPlanExecution(planResult); err != nil {
-			return &Result{StatePath: opts.StatePath}, err
+			return newResult(opts.StatePath), err
 		}
 	}
 	result, store, runID, finish, err := startMutation(ctx, opts.StatePath, "destroy")
@@ -292,6 +301,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			return result, err
 		}
 		execResult, err := opts.Executor.Execute(ctx, req)
+		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			result.Summary.Failed++
 			_ = recordFailedAction(ctx, store, runID, resource, "delete_failed", err.Error())
@@ -411,7 +421,7 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		return nil, err
 	}
 	runFinished = true
-	return &Result{StatePath: opts.StatePath, RunID: runID, Summary: summary, Actions: []ActionResult{{Address: opts.Address, Action: "import"}}}, nil
+	return &Result{Version: Version, StatePath: opts.StatePath, RunID: runID, Summary: summary, Actions: []ActionResult{{Address: opts.Address, Action: "import"}}}, nil
 }
 
 func validateImportMetadata(ctx context.Context, opts ImportOptions) error {
@@ -670,12 +680,12 @@ func startMutation(ctx context.Context, statePath, command string) (*Result, *st
 	}
 	store, err := state.Open(ctx, statePath)
 	if err != nil {
-		return &Result{StatePath: statePath}, nil, 0, nil, err
+		return newResult(statePath), nil, 0, nil, err
 	}
 	lockHolder := fmt.Sprintf("%s-%d", command, time.Now().UTC().UnixNano())
 	if err := store.AcquireLock(ctx, "state", lockHolder, 30*time.Minute); err != nil {
 		_ = store.Close()
-		return &Result{StatePath: statePath}, nil, 0, nil, err
+		return newResult(statePath), nil, 0, nil, err
 	}
 	stopRenewal := store.StartLockRenewal(ctx, "state", lockHolder, 30*time.Minute, 0)
 	runID, err := store.StartRun(ctx, command)
@@ -683,16 +693,16 @@ func startMutation(ctx context.Context, statePath, command string) (*Result, *st
 		stopRenewal()
 		_ = store.ReleaseLock(ctx, "state", lockHolder)
 		_ = store.Close()
-		return &Result{StatePath: statePath}, nil, 0, nil, err
+		return newResult(statePath), nil, 0, nil, err
 	}
 	if err := store.AttachLockRun(ctx, "state", lockHolder, runID); err != nil {
 		stopRenewal()
 		_ = store.FinishRun(context.Background(), runID, "failed", "")
 		_ = store.ReleaseLock(ctx, "state", lockHolder)
 		_ = store.Close()
-		return &Result{StatePath: statePath}, nil, 0, nil, err
+		return newResult(statePath), nil, 0, nil, err
 	}
-	result := &Result{StatePath: statePath, RunID: runID}
+	result := &Result{Version: Version, StatePath: statePath, RunID: runID}
 	finish := func(summary *Summary) {
 		status := "completed"
 		if summary != nil && summary.Failed > 0 {

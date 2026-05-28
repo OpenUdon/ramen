@@ -290,11 +290,15 @@ func TestBuildProjectDestroyReplaceAndApprovalArtifact(t *testing.T) {
 	sourcePath := filepath.Join(root, "iam.json")
 	statePath := filepath.Join(root, "state.db")
 	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.app", nil)
+	resource.AI = &project.AIMetadata{Confidence: &project.Confidence{Score: 0.82, Reason: "operation names match"}, Rationale: "IAM role create/read/update/delete operations are available."}
+	resource.Operations["create"] = project.OperationRole{SourceKind: "aws-smithy", SourceID: "iam", OperationID: "CreateRole", AI: &project.AIMetadata{Confidence: &project.Confidence{Score: 0.91, Reason: "exact operation match"}}}
 	projectPath := writeNativeProjectForPlanTest(t, filepath.Join(root, "project"), project.Profile{
 		Version:    project.Version,
 		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Metadata:   map[string]any{"rationale": "replace app role after review"},
 		Resources: []project.Resource{
-			nativeIAMRoleResourceForPlanControl("aws_iam_role.app", nil),
+			resource,
 		},
 	})
 	store, err := state.Open(context.Background(), statePath)
@@ -319,9 +323,25 @@ func TestBuildProjectDestroyReplaceAndApprovalArtifact(t *testing.T) {
 	if replaced.Plan.Approval == nil || replaced.Plan.Approval.Digest == "" || replaced.Plan.Approval.ProjectDigest == "" || replaced.Plan.Approval.StateDigest == "" {
 		t.Fatalf("approval missing binding fields: %#v", replaced.Plan.Approval)
 	}
+	if replaced.Plan.Rationale != "replace app role after review" || replaced.Plan.Approval.Rationale != replaced.Plan.Rationale {
+		t.Fatalf("rationale not carried into approval: plan=%q approval=%#v", replaced.Plan.Rationale, replaced.Plan.Approval)
+	}
+	if replaced.Plan.Resources[0].AI == nil || replaced.Plan.Resources[0].AI.Confidence.Score != 0.82 || replaced.Plan.Resources[0].Mapping.AI == nil || replaced.Plan.Resources[0].Mapping.AI.Confidence.Score != 0.91 {
+		t.Fatalf("AI confidence metadata not carried into plan: %#v", replaced.Plan.Resources[0])
+	}
 	if err := VerifyApproval(replaced.Plan); err != nil {
 		t.Fatalf("approval did not verify: %v", err)
 	}
+	replaced.Plan.Resources[0].Mapping.AI.Confidence.Score = 0.1
+	if err := VerifyApproval(replaced.Plan); err == nil {
+		t.Fatalf("tampered AI confidence unexpectedly verified")
+	}
+	replaced.Plan.Resources[0].Mapping.AI.Confidence.Score = 0.91
+	replaced.Plan.Rationale = "tampered rationale"
+	if err := VerifyApproval(replaced.Plan); err == nil {
+		t.Fatalf("tampered rationale unexpectedly verified")
+	}
+	replaced.Plan.Rationale = "replace app role after review"
 	replaced.Plan.Resources[0].Reason = "tampered"
 	if err := VerifyApproval(replaced.Plan); err == nil {
 		t.Fatalf("tampered approval unexpectedly verified")
