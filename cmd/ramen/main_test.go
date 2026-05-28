@@ -36,6 +36,7 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		command  []string
 		expected []string
 	}{
+		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--config-dir", "--api-source", "--auto-approve", "--mock", "trusted executor"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--state", "--out", "does not execute Terraform"}},
 	} {
@@ -50,6 +51,59 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 				t.Fatalf("%v help missing %q:\n%s", tt.command, expected, text)
 			}
 		}
+	}
+}
+
+func TestCLIApplyMockWritesState(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, "state.db")
+	outDir := filepath.Join(root, "apply")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`
+resource "aws_iam_role" "role" {
+  name = "cli-apply-role"
+  assume_role_policy = "{}"
+}
+`))
+	mustWriteCLIFile(t, sourcePath, []byte(`{
+  "smithy": "2.0",
+  "shapes": {
+    "com.amazonaws.iam#IAM": {
+      "type": "service",
+      "version": "2010-05-08",
+      "operations": [{"target": "com.amazonaws.iam#CreateRole"}],
+      "traits": {
+        "aws.api#service": {"sdkId": "IAM", "endpointPrefix": "iam"},
+        "aws.auth#sigv4": {"name": "iam"},
+        "aws.protocols#awsQuery": {}
+      }
+    },
+    "com.amazonaws.iam#CreateRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#CreateRoleRequest"}, "output": {"target": "com.amazonaws.iam#CreateRoleResponse"}},
+    "com.amazonaws.iam#CreateRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "AssumeRolePolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}, "traits": {"smithy.api#input": {}}},
+    "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#roleNameType": {"type": "string"},
+    "com.amazonaws.iam#policyDocumentType": {"type": "string"}
+  }
+}`))
+	cmd := helperCommand("apply", "--config-dir", configDir, "--state", statePath, "--api-source", "aws-smithy:iam="+sourcePath, "--auto-approve", "--mock", "--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("apply failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "executed=1") {
+		t.Fatalf("apply output missing summary:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "actions", "aws_iam_role_role.uws.json")); err != nil {
+		t.Fatalf("apply UWS not written: %v", err)
+	}
+	cmd = helperCommand("apply", "--config-dir", configDir, "--state", statePath, "--api-source", "aws-smithy:iam="+sourcePath, "--auto-approve", "--mock")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("second apply failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "no-op=1") || !strings.Contains(string(output), "executed=0") {
+		t.Fatalf("second apply output missing no-op summary:\n%s", output)
 	}
 }
 

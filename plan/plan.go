@@ -77,6 +77,7 @@ type MappingPlan struct {
 	Purpose            string                        `json:"purpose"`
 	SourceKind         string                        `json:"source_kind,omitempty"`
 	SourceID           string                        `json:"source_id,omitempty"`
+	SourcePath         string                        `json:"source_path,omitempty"`
 	OperationID        string                        `json:"operation_id,omitempty"`
 	IdentityAttributes []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
 }
@@ -279,6 +280,7 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc) (*
 			Purpose:            purpose,
 			SourceKind:         source.Kind,
 			SourceID:           firstNonEmpty(operation.DocumentName, source.ID),
+			SourcePath:         source.Path,
 			OperationID:        operation.OperationID,
 			IdentityAttributes: spec.IdentityAttributes,
 		}, diagnostics

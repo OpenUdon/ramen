@@ -34,6 +34,25 @@ type ResourceSnapshot struct {
 	UpdatedAt      time.Time
 }
 
+type Run struct {
+	ID          int64
+	Command     string
+	StartedAt   time.Time
+	FinishedAt  time.Time
+	Status      string
+	SummaryJSON string
+}
+
+type Revision struct {
+	ResourceAddress string
+	RunID           int64
+	Action          string
+	BeforeJSON      string
+	AfterJSON       string
+	DiffJSON        string
+	CreatedAt       time.Time
+}
+
 func DefaultPath(configDir string) string {
 	if strings.TrimSpace(configDir) == "" {
 		configDir = "."
@@ -235,6 +254,73 @@ ON CONFLICT(address) DO UPDATE SET
 	updated_at = excluded.updated_at`,
 		snap.Address, snap.Type, snap.Provider, snap.DesiredHash, snap.IdentityJSON, snap.AttributesJSON, snap.Status, snap.SourceKind, snap.SourceID, snap.OperationID, nullableRunID(snap.UpdatedRunID), snap.UpdatedAt.Format(time.RFC3339Nano))
 	return err
+}
+
+func (s *Store) StartRun(ctx context.Context, command string) (int64, error) {
+	if s == nil || s.db == nil {
+		return 0, fmt.Errorf("state store is nil")
+	}
+	command = strings.TrimSpace(command)
+	if command == "" {
+		command = "unknown"
+	}
+	started := time.Now().UTC()
+	result, err := s.db.ExecContext(ctx, `INSERT INTO runs(command, started_at, status) VALUES(?, ?, ?)`, command, started.Format(time.RFC3339Nano), "running")
+	if err != nil {
+		return 0, err
+	}
+	return result.LastInsertId()
+}
+
+func (s *Store) FinishRun(ctx context.Context, id int64, status, summaryJSON string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	if id == 0 {
+		return nil
+	}
+	status = strings.TrimSpace(status)
+	if status == "" {
+		status = "completed"
+	}
+	_, err := s.db.ExecContext(ctx, `UPDATE runs SET finished_at = ?, status = ?, summary_json = ? WHERE id = ?`, time.Now().UTC().Format(time.RFC3339Nano), status, nullableString(summaryJSON), id)
+	return err
+}
+
+func (s *Store) RecordRevision(ctx context.Context, rev Revision) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	if strings.TrimSpace(rev.ResourceAddress) == "" {
+		return fmt.Errorf("resource address is required")
+	}
+	if strings.TrimSpace(rev.Action) == "" {
+		return fmt.Errorf("revision action is required")
+	}
+	if rev.CreatedAt.IsZero() {
+		rev.CreatedAt = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO state_revisions(resource_address, run_id, action, before_json, after_json, diff_json, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+		rev.ResourceAddress, nullableRunID(rev.RunID), rev.Action, nullableString(rev.BeforeJSON), nullableString(rev.AfterJSON), nullableString(rev.DiffJSON), rev.CreatedAt.Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) DeleteResource(ctx context.Context, address string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	if strings.TrimSpace(address) == "" {
+		return fmt.Errorf("resource address is required")
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM resources WHERE address = ?`, address)
+	return err
+}
+
+func nullableString(value string) any {
+	if strings.TrimSpace(value) == "" {
+		return nil
+	}
+	return value
 }
 
 func nullableRunID(id int64) any {

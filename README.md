@@ -45,19 +45,19 @@ Implemented public commands:
 ramen convert tf
 ramen init
 ramen plan
+ramen apply --auto-approve --mock
 ```
 
 Later lifecycle commands:
 
 ```bash
-ramen apply
 ramen refresh
 ramen destroy
 ramen import
 ```
 
-Mutating commands require trusted execution wiring, credential binding,
-redaction, state locking, and confirmation gates before they land.
+The first `apply` surface is confirmation-gated and mock-backed in default
+public builds. Live executor wiring remains opt-in behind trusted adapters.
 
 ## Milestone Pattern
 

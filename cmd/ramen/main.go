@@ -9,6 +9,8 @@ import (
 	"strings"
 	"syscall"
 
+	tfapply "github.com/OpenUdon/ramen/apply"
+	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
@@ -31,6 +33,7 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: ramen <command>\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Commands:\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved desired-state mutations through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  convert   generate Ramen review scaffolding from supported source formats\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  plan      emit a static desired-state plan without mutation\n")
@@ -43,6 +46,8 @@ func main() {
 		command = flag.Arg(0)
 	}
 	switch command {
+	case "apply":
+		runApplyCommand(flag.Args()[1:])
 	case "convert":
 		runConvertCommand(flag.Args()[1:])
 	case "init":
@@ -57,6 +62,59 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", command)
 		flag.Usage()
 		os.Exit(2)
+	}
+}
+
+func runApplyCommand(args []string) {
+	fs := flag.NewFlagSet("apply", flag.ExitOnError)
+	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
+	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
+	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	outDir := fs.String("out", "", "Optional directory for generated executor-ready UWS action documents")
+	var apiSources repeatedStringFlag
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "\nBuilds a static desired-state plan, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	sources, err := parseApplyAPISourceFlags(apiSources)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	path := *statePath
+	if strings.TrimSpace(path) == "" {
+		path = state.DefaultPath(*configDir)
+	}
+	var exec executor.Executor
+	if *mock {
+		exec = &executor.MockExecutor{}
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	result, err := tfapply.Apply(ctx, tfapply.Options{
+		ConfigDir:   *configDir,
+		StatePath:   path,
+		APISources:  sources,
+		AutoApprove: *autoApprove,
+		OutDir:      *outDir,
+		Executor:    exec,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: apply create=%d update=%d delete=%d no-op=%d skipped=%d executed=%d\n", result.Summary.Create, result.Summary.Update, result.Summary.Delete, result.Summary.NoOp, result.Summary.Skipped, len(result.Executed))
+	if result.RunID != 0 {
+		fmt.Printf("  run:   %d\n", result.RunID)
+	}
+	if len(result.GeneratedDocuments) > 0 {
+		fmt.Printf("  uws:   %s\n", *outDir)
 	}
 }
 
@@ -241,6 +299,18 @@ func parsePlanAPISourceFlags(values []string) ([]tfplan.APISourceInput, error) {
 			return nil, fmt.Errorf("--api-source must be KIND:ID=PATH, got %q", value)
 		}
 		inputs = append(inputs, tfplan.APISourceInput{Kind: strings.TrimSpace(kind), ID: strings.TrimSpace(id), Path: strings.TrimSpace(path)})
+	}
+	return inputs, nil
+}
+
+func parseApplyAPISourceFlags(values []string) ([]tfapply.APISourceInput, error) {
+	planInputs, err := parsePlanAPISourceFlags(values)
+	if err != nil {
+		return nil, err
+	}
+	inputs := make([]tfapply.APISourceInput, len(planInputs))
+	for i, input := range planInputs {
+		inputs[i] = tfapply.APISourceInput(input)
 	}
 	return inputs, nil
 }
