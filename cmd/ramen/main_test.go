@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
 	uwsconvert "github.com/OpenUdon/uws/convert"
@@ -49,6 +50,8 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--api-source", "--identity", "plan-compatible desired hash"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
+		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
+		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "list", "show ADDRESS", "history", "Read-only"}},
 	} {
 		cmd := helperCommand(tt.command...)
 		output, err := cmd.CombinedOutput()
@@ -536,6 +539,106 @@ resource "aws_iam_role" "role" {
 		if !strings.Contains(string(planText), expected) {
 			t.Fatalf("plan JSON missing %q:\n%s", expected, planText)
 		}
+	}
+}
+
+func TestCLIShowAndStateInspectReadOnly(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	statePath := filepath.Join(root, "state.db")
+	planPath := filepath.Join(root, "plan.json")
+	mustWriteCLIFile(t, sourcePath, []byte(`openapi: 3.0.0
+info:
+  title: Show CLI
+  version: v1
+paths:
+  /examples:
+    post:
+      operationId: createExample
+      responses:
+        "200":
+          description: ok
+`))
+	projectPath := writeNativeProjectForCLITest(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+	cmd := helperCommand("plan", "--project", projectPath, "--state", statePath, "--out", planPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("plan failed: %v\n%s", err, output)
+	}
+	cmd = helperCommand("show", planPath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("show failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "ramen: show") || !strings.Contains(string(output), "approval:") {
+		t.Fatalf("show output missing summary:\n%s", output)
+	}
+	cmd = helperCommand("show", planPath, "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("show --json failed: %v\n%s", err, output)
+	}
+	var shown tfplan.Document
+	if err := json.Unmarshal(output, &shown); err != nil || shown.Version != tfplan.Version {
+		t.Fatalf("show JSON invalid doc=%#v err=%v\n%s", shown, err, output)
+	}
+	badPath := filepath.Join(root, "bad.json")
+	mustWriteCLIFile(t, badPath, []byte(`{"version":"bad"}`))
+	cmd = helperCommand("show", badPath)
+	output, err = cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "show.plan_version_invalid") {
+		t.Fatalf("bad show output: err=%v\n%s", err, output)
+	}
+
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "example_resource.test", Type: "example_resource", DesiredHash: "hash", IdentityJSON: `{"id":"test"}`, Status: "managed"}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	if err := store.RecordRevision(context.Background(), state.Revision{ResourceAddress: "example_resource.test", Action: "import", AfterJSON: `{"status":"managed"}`}); err != nil {
+		t.Fatalf("record revision: %v", err)
+	}
+	_ = store.Close()
+	cmd = helperCommand("state", "list", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state list failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "example_resource.test") {
+		t.Fatalf("state list missing address:\n%s", output)
+	}
+	cmd = helperCommand("state", "show", "example_resource.test", "--state", statePath, "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state show failed: %v\n%s", err, output)
+	}
+	var resource state.ResourceSnapshot
+	if err := json.Unmarshal(output, &resource); err != nil || resource.Address != "example_resource.test" {
+		t.Fatalf("state show JSON invalid resource=%#v err=%v\n%s", resource, err, output)
+	}
+	cmd = helperCommand("state", "history", "example_resource.test", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state history failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "action=import") {
+		t.Fatalf("state history missing revision:\n%s", output)
+	}
+	cmd = helperCommand("state", "show", "missing.address", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "state.resource_not_found") {
+		t.Fatalf("missing state show output: err=%v\n%s", err, output)
 	}
 }
 

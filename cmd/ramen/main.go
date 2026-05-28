@@ -53,6 +53,8 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  plan      emit a static desired-state plan without mutation\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  refresh   read tracked resources and update state through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  show      inspect Ramen plan and approval artifacts\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  state     inspect local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  validate  validate a native UWS/Ramen project without mutation\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  version   print version\n")
 	}
@@ -81,6 +83,10 @@ func main() {
 		runPlanCommand(flag.Args()[1:])
 	case "refresh":
 		runRefreshCommand(flag.Args()[1:])
+	case "show":
+		runShowCommand(flag.Args()[1:])
+	case "state":
+		runStateCommand(flag.Args()[1:])
 	case "validate":
 		runValidateCommand(flag.Args()[1:])
 	case "version":
@@ -144,6 +150,248 @@ func runForceUnlockCommand(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("ramen: force-unlocked %s held by %s since %s\n", lock.Name, lock.Holder, lock.AcquiredAt.Format(time.RFC3339Nano))
+}
+
+func runShowCommand(args []string) {
+	fs := flag.NewFlagSet("show", flag.ExitOnError)
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen show PLAN_OR_APPROVAL [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nInspects a Ramen plan/approval artifact without reading state, executing workflows, or mutating files.\n\n")
+		fs.PrintDefaults()
+	}
+	parseArgs := args
+	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
+		parseArgs = append(slices.Clone(args[1:]), args[0])
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 1 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	doc, err := loadPlanForShow(fs.Arg(0))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(doc)
+		return
+	}
+	fmt.Printf("ramen: show version=%s action=%s errored=%t resources=%d diagnostics=%d\n", doc.Version, doc.Action, doc.Errored, len(doc.Resources), len(doc.Diagnostics))
+	fmt.Printf("  summary: create=%d update=%d delete=%d replace=%d no-op=%d read=%d diagnostics=%d\n", doc.Summary.Create, doc.Summary.Update, doc.Summary.Delete, doc.Summary.Replace, doc.Summary.NoOp, doc.Summary.Read, doc.Summary.Diagnostics)
+	if doc.Approval != nil {
+		fmt.Printf("  approval: version=%s digest=%s project=%s state=%s\n", doc.Approval.Version, doc.Approval.Digest, doc.Approval.ProjectDigest, doc.Approval.StateDigest)
+	}
+	if len(doc.Controls.Targets) > 0 || len(doc.Controls.Excludes) > 0 || len(doc.Controls.Replaces) > 0 || doc.Controls.Destroy {
+		fmt.Printf("  controls: targets=%d excludes=%d replaces=%d destroy=%t\n", len(doc.Controls.Targets), len(doc.Controls.Excludes), len(doc.Controls.Replaces), doc.Controls.Destroy)
+	}
+}
+
+func loadPlanForShow(path string) (tfplan.Document, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return tfplan.Document{}, fmt.Errorf("show.plan_read_error: %w", err)
+	}
+	var doc tfplan.Document
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return tfplan.Document{}, fmt.Errorf("show.plan_parse_error: %w", err)
+	}
+	if doc.Version != tfplan.Version {
+		return tfplan.Document{}, fmt.Errorf("show.plan_version_invalid: got %q, want %q", doc.Version, tfplan.Version)
+	}
+	return doc, nil
+}
+
+func runStateCommand(args []string) {
+	if len(args) == 0 {
+		stateUsage(os.Stderr)
+		os.Exit(2)
+	}
+	switch args[0] {
+	case "list":
+		runStateListCommand(args[1:])
+	case "show":
+		runStateShowCommand(args[1:])
+	case "history":
+		runStateHistoryCommand(args[1:])
+	case "-h", "--help", "help":
+		stateUsage(os.Stdout)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown state subcommand %q\n", args[0])
+		stateUsage(os.Stderr)
+		os.Exit(2)
+	}
+}
+
+func stateUsage(out *os.File) {
+	fmt.Fprintf(out, "Usage: ramen state <list|show|history> [args]\n\n")
+	fmt.Fprintf(out, "Read-only local SQLite state inspection. No state surgery, backend access, provider execution, or Terraform/OpenTofu state compatibility is performed.\n\n")
+	fmt.Fprintf(out, "Subcommands:\n")
+	fmt.Fprintf(out, "  list              list current resource addresses\n")
+	fmt.Fprintf(out, "  show ADDRESS      show one current resource\n")
+	fmt.Fprintf(out, "  history [ADDRESS] show revision history\n")
+}
+
+func runStateListCommand(args []string) {
+	fs := flag.NewFlagSet("state list", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state list [--state PATH] [--json]\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(*statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		if *jsonOut {
+			writeJSONOutput([]state.ResourceSnapshot{})
+		} else {
+			fmt.Println("ramen: state resources=0")
+		}
+		return
+	}
+	defer func() { _ = store.Close() }()
+	resources, err := store.ListCurrentResources(commandContext())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(resources)
+		return
+	}
+	fmt.Printf("ramen: state resources=%d\n", len(resources))
+	for _, resource := range resources {
+		fmt.Printf("  %s %s status=%s\n", resource.Address, resource.Type, resource.Status)
+	}
+}
+
+func runStateShowCommand(args []string) {
+	fs := flag.NewFlagSet("state show", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state show ADDRESS [--state PATH] [--json]\n")
+		fs.PrintDefaults()
+	}
+	parseArgs := args
+	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
+		parseArgs = append(slices.Clone(args[1:]), args[0])
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 1 || strings.TrimSpace(fs.Arg(0)) == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(*statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		fmt.Fprintf(os.Stderr, "state.resource_not_found: %s\n", fs.Arg(0))
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+	resource, err := store.CurrentResource(commandContext(), fs.Arg(0))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if resource == nil {
+		fmt.Fprintf(os.Stderr, "state.resource_not_found: %s\n", fs.Arg(0))
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(resource)
+		return
+	}
+	fmt.Printf("ramen: state address=%s type=%s status=%s\n", resource.Address, resource.Type, resource.Status)
+	fmt.Printf("  provider=%s source=%s:%s operation=%s run=%d updated=%s\n", resource.Provider, resource.SourceKind, resource.SourceID, resource.OperationID, resource.UpdatedRunID, resource.UpdatedAt.Format(time.RFC3339Nano))
+}
+
+func runStateHistoryCommand(args []string) {
+	fs := flag.NewFlagSet("state history", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state history [ADDRESS] [--state PATH] [--json]\n")
+		fs.PrintDefaults()
+	}
+	parseArgs := args
+	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
+		parseArgs = append(slices.Clone(args[1:]), args[0])
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() > 1 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	address := ""
+	if fs.NArg() == 1 {
+		address = fs.Arg(0)
+	}
+	store, err := openStateReadOnly(*statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		if *jsonOut {
+			writeJSONOutput([]state.Revision{})
+		} else {
+			fmt.Println("ramen: state revisions=0")
+		}
+		return
+	}
+	defer func() { _ = store.Close() }()
+	revisions, err := store.ListRevisions(commandContext(), address)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(revisions)
+		return
+	}
+	fmt.Printf("ramen: state revisions=%d\n", len(revisions))
+	for _, rev := range revisions {
+		fmt.Printf("  #%d %s action=%s run=%d at=%s\n", rev.ID, rev.ResourceAddress, rev.Action, rev.RunID, rev.CreatedAt.Format(time.RFC3339Nano))
+	}
+}
+
+func openStateReadOnly(path string) (*state.Store, error) {
+	store, err := state.OpenReadOnly(commandContext(), strings.TrimSpace(path))
+	if err != nil {
+		return nil, fmt.Errorf("state.open_read_error: %w", err)
+	}
+	return store, nil
+}
+
+func writeJSONOutput(value any) {
+	data, err := json.MarshalIndent(value, "", "  ")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	_, _ = os.Stdout.Write(append(data, '\n'))
 }
 
 func runGraphCommand(args []string) {
