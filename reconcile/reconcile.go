@@ -29,6 +29,7 @@ type Options struct {
 	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
+	PlanPath    string
 	AutoApprove bool
 	OutDir      string
 	Executor    executor.Executor
@@ -173,6 +174,16 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 }
 
 func Destroy(ctx context.Context, opts Options) (*Result, error) {
+	opts.PlanPath = strings.TrimSpace(opts.PlanPath)
+	var artifact *tfplan.Document
+	if opts.PlanPath != "" {
+		loaded, err := loadPlanArtifact(opts.PlanPath)
+		if err != nil {
+			return nil, err
+		}
+		artifact = loaded
+		opts = reconcileArtifactDefaults(opts, *artifact)
+	}
 	opts = normalizeOptions(opts)
 	if !opts.AutoApprove {
 		return &Result{StatePath: opts.StatePath}, fmt.Errorf("destroy requires explicit approval; rerun with --auto-approve after reviewing tracked resources")
@@ -180,23 +191,39 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Executor == nil {
 		return nil, fmt.Errorf("destroy requires a trusted executor; pass --mock for recorded/mock execution in public builds")
 	}
-	depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "dependency"})
-	if err != nil {
-		return nil, err
-	}
-	if err := rejectPlanExecution(depPlan); err != nil {
-		return &Result{StatePath: opts.StatePath}, err
-	}
 	dependencies := map[string][]string{}
-	for _, resource := range depPlan.Plan.Resources {
-		dependencies[resource.Address] = slices.Clone(resource.Dependencies)
-	}
-	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
-	if err != nil {
-		return nil, err
-	}
-	if err := rejectPlanExecution(planResult); err != nil {
-		return &Result{StatePath: opts.StatePath}, err
+	var planResult *tfplan.Result
+	if artifact != nil {
+		if err := validateDestroyArtifact(*artifact); err != nil {
+			return &Result{StatePath: opts.StatePath}, err
+		}
+		current, err := verifyDestroyArtifact(ctx, opts, *artifact)
+		if err != nil {
+			return &Result{StatePath: opts.StatePath}, err
+		}
+		for _, resource := range current.Plan.Resources {
+			dependencies[resource.Address] = slices.Clone(resource.Dependencies)
+		}
+		planResult = &tfplan.Result{StatePath: current.StatePath, Plan: *artifact, Diagnostics: artifact.Diagnostics}
+	} else {
+		depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "dependency"})
+		if err != nil {
+			return nil, err
+		}
+		if err := rejectPlanExecution(depPlan); err != nil {
+			return &Result{StatePath: opts.StatePath}, err
+		}
+		for _, resource := range depPlan.Plan.Resources {
+			dependencies[resource.Address] = slices.Clone(resource.Dependencies)
+		}
+		deletePlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
+		if err != nil {
+			return nil, err
+		}
+		planResult = deletePlan
+		if err := rejectPlanExecution(planResult); err != nil {
+			return &Result{StatePath: opts.StatePath}, err
+		}
 	}
 	result, store, runID, finish, err := startMutation(ctx, opts.StatePath, "destroy")
 	if err != nil {
@@ -422,6 +449,79 @@ func validateAPISources(inputs []APISourceInput) []ramenvalidate.APISourceInput 
 		out[i] = ramenvalidate.APISourceInput(input)
 	}
 	return out
+}
+
+func loadPlanArtifact(path string) (*tfplan.Document, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("destroy.plan_read_error: %w", err)
+	}
+	var doc tfplan.Document
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("destroy.plan_parse_error: %w", err)
+	}
+	if doc.Version != tfplan.Version {
+		return nil, fmt.Errorf("destroy.plan_version_invalid: got %q, want %q", doc.Version, tfplan.Version)
+	}
+	return &doc, nil
+}
+
+func validateDestroyArtifact(doc tfplan.Document) error {
+	if err := tfplan.VerifyApproval(doc); err != nil {
+		return fmt.Errorf("destroy.approval_invalid: %w", err)
+	}
+	if doc.Action != "delete" && !doc.Controls.Destroy {
+		return fmt.Errorf("destroy.plan_action_invalid: destroy requires a destroy plan artifact")
+	}
+	return nil
+}
+
+func reconcileArtifactDefaults(opts Options, artifact tfplan.Document) Options {
+	if strings.TrimSpace(opts.ConfigDir) == "" {
+		opts.ConfigDir = artifact.ConfigDir
+	}
+	if strings.TrimSpace(opts.ProjectPath) == "" {
+		opts.ProjectPath = artifact.ProjectPath
+	}
+	if strings.TrimSpace(opts.StatePath) == "" {
+		opts.StatePath = artifact.StatePath
+	}
+	if len(opts.APISources) == 0 {
+		opts.APISources = reconcileAPISourceInputsFromPlan(artifact.APISources)
+	}
+	return opts
+}
+
+func reconcileAPISourceInputsFromPlan(refs []tfplan.APISourceRef) []APISourceInput {
+	out := make([]APISourceInput, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, APISourceInput{Kind: ref.Kind, ID: ref.ID, Path: ref.Path})
+	}
+	return out
+}
+
+func verifyDestroyArtifact(ctx context.Context, opts Options, artifact tfplan.Document) (*tfplan.Result, error) {
+	current, err := tfplan.Build(ctx, tfplan.Options{
+		ConfigDir:   opts.ConfigDir,
+		ProjectPath: opts.ProjectPath,
+		StatePath:   opts.StatePath,
+		APISources:  opts.APISources,
+		Action:      artifact.Action,
+		Targets:     artifact.Controls.Targets,
+		Excludes:    artifact.Controls.Excludes,
+		Replaces:    artifact.Controls.Replaces,
+		Destroy:     artifact.Controls.Destroy,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectPlanExecution(current); err != nil {
+		return current, err
+	}
+	if current.Plan.Approval == nil || artifact.Approval == nil || current.Plan.Approval.Digest != artifact.Approval.Digest {
+		return current, fmt.Errorf("destroy.approval_mismatch: plan artifact no longer matches current project, API sources, state baseline, or controls")
+	}
+	return current, nil
 }
 
 func refreshReadMappings(ctx context.Context, opts Options) (map[string]*tfplan.MappingPlan, error) {

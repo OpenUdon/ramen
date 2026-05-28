@@ -407,23 +407,40 @@ func runDestroyCommand(args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	planPath := fs.String("plan", "", "Digest-bound Ramen destroy plan artifact to verify and execute")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	outDir := fs.String("out", "", "Optional directory for generated delete UWS action documents")
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
-		fmt.Fprintf(fs.Output(), "\nDeletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	configDirSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "config-dir" {
+			configDirSet = true
+		}
+	})
 	sources, err := parseReconcileAPISourceFlags(apiSources)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	result, err := reconcile.Destroy(commandContext(), reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	stateValue := *statePath
+	if strings.TrimSpace(stateValue) == "" && strings.TrimSpace(*planPath) == "" {
+		stateValue = statePathOrDefault(*statePath, *projectPath, *configDir)
+	}
+	configDirValue := *configDir
+	if strings.TrimSpace(*planPath) != "" && !configDirSet {
+		configDirValue = ""
+	}
+	result, err := reconcile.Destroy(commandContext(), reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

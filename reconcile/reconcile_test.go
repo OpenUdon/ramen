@@ -367,6 +367,115 @@ func TestDestroyUnsuccessfulExecutorResultPreservesStateAndRecordsFailure(t *tes
 	_ = store.Close()
 }
 
+func TestDestroyExecutesVerifiedPlanArtifactInReverseDependencyOrder(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	planPath := filepath.Join(root, "destroy.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForReconcileTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{
+			destroyProjectRole("aws_iam_role.db", "db-role", nil),
+			destroyProjectRole("aws_iam_role.app", "app-role", []string{"aws_iam_role.db"}),
+		},
+	})
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	for _, snap := range []state.ResourceSnapshot{
+		{Address: "aws_iam_role.db", Type: "aws_iam_role", Provider: "provider.aws", IdentityJSON: `{"role_name":"db-role"}`, Status: "managed"},
+		{Address: "aws_iam_role.app", Type: "aws_iam_role", Provider: "provider.aws", IdentityJSON: `{"role_name":"app-role"}`, Status: "managed"},
+	} {
+		if err := store.RecordResource(context.Background(), snap); err != nil {
+			t.Fatalf("record %s: %v", snap.Address, err)
+		}
+	}
+	_ = store.Close()
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath, Action: "delete", OutPath: planPath}); err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	var order []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		order = append(order, req.Action.Address)
+		if req.Action.Mapping.OperationID != "DeleteRole" {
+			t.Fatalf("destroy used %s, want DeleteRole", req.Action.Mapping.OperationID)
+		}
+		return executor.Result{Success: true}, nil
+	}}
+	result, err := Destroy(context.Background(), Options{PlanPath: planPath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Destroy returned error: %v", err)
+	}
+	if result.Summary.Delete != 2 || strings.Join(order, ",") != "aws_iam_role.app,aws_iam_role.db" {
+		t.Fatalf("summary=%#v order=%v", result.Summary, order)
+	}
+}
+
+func TestDestroyRejectsStaleNonDestroyOrTamperedPlanArtifactBeforeExecutor(t *testing.T) {
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	planPath := filepath.Join(root, "destroy.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForReconcileTest())
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.role", Type: "aws_iam_role", Provider: "provider.aws", IdentityJSON: `{"role_name":"destroy-role"}`, Status: "managed"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{ConfigDir: root, StatePath: statePath, APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}}, Action: "delete", OutPath: planPath}); err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	store, err = state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("reopen state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.extra", Type: "aws_iam_role", Status: "managed"}); err != nil {
+		t.Fatalf("record extra: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{}
+	_, err = Destroy(context.Background(), Options{PlanPath: planPath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "destroy.approval_mismatch") {
+		t.Fatalf("stale artifact error = %v", err)
+	}
+	if mock.RequestCount() != 0 {
+		t.Fatalf("executor was called for stale artifact")
+	}
+	var doc tfplan.Document
+	if err := json.Unmarshal([]byte(readReconcileTestFile(t, planPath)), &doc); err != nil {
+		t.Fatalf("unmarshal plan: %v", err)
+	}
+	doc.Resources[0].DesiredHash = "tampered"
+	tamperedPath := filepath.Join(root, "tampered.json")
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal tampered plan: %v", err)
+	}
+	writeReconcileTestFile(t, tamperedPath, string(append(data, '\n')))
+	_, err = Destroy(context.Background(), Options{PlanPath: tamperedPath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "destroy.approval_invalid") {
+		t.Fatalf("tampered artifact error = %v", err)
+	}
+	createPlanPath := filepath.Join(root, "create.json")
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{ConfigDir: root, StatePath: filepath.Join(root, "create-state.db"), APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}}, OutPath: createPlanPath}); err != nil {
+		t.Fatalf("Build create returned error: %v", err)
+	}
+	_, err = Destroy(context.Background(), Options{PlanPath: createPlanPath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "destroy.plan_action_invalid") {
+		t.Fatalf("non-destroy artifact error = %v", err)
+	}
+	if mock.RequestCount() != 0 {
+		t.Fatalf("executor was called for rejected artifact")
+	}
+}
+
 func TestRefreshActionDocumentIncludesStateIdentity(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
@@ -612,6 +721,15 @@ func writeReconcileTestFile(t *testing.T, path, content string) {
 	}
 }
 
+func readReconcileTestFile(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
+}
+
 func writeReconcileProjectForTest(t *testing.T, dir string, profile project.Profile) string {
 	t.Helper()
 	doc := &uws1.Document{
@@ -645,6 +763,27 @@ func writeReconcileProjectForTest(t *testing.T, dir string, profile project.Prof
 	path := filepath.Join(dir, project.DefaultJSON)
 	writeReconcileTestFile(t, path, string(data))
 	return path
+}
+
+func destroyProjectRole(address, name string, dependencies []string) project.Resource {
+	return project.Resource{
+		Address:      address,
+		Kind:         "resource",
+		Type:         "aws_iam_role",
+		Name:         strings.TrimPrefix(address, "aws_iam_role."),
+		Provider:     "provider.aws",
+		Attributes:   map[string]any{"name": name},
+		Dependencies: dependencies,
+		Operations: map[string]project.OperationRole{
+			"delete": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "DeleteRole"},
+		},
+		IdentityAttributes: []project.IdentityAttribute{{
+			Name:        "role_name",
+			Path:        "name",
+			RequestKeys: []string{"RoleName"},
+			Required:    true,
+		}},
+	}
 }
 
 func refreshProjectRole(address, name string) project.Resource {
