@@ -385,7 +385,9 @@ func runRefreshCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
-	_ = fs.Parse(args)
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
 	sources, err := parseReconcileAPISourceFlags(apiSources)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -447,14 +449,24 @@ func runImportCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
 		fs.PrintDefaults()
 	}
-	_ = fs.Parse(args)
+	parseArgs := args
+	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
+		parseArgs = append(slices.Clone(args[1:]), args[0])
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		os.Exit(2)
+	}
 	if fs.NArg() != 1 {
 		fs.Usage()
 		os.Exit(2)
 	}
 	var identityMap map[string]any
 	if err := json.Unmarshal([]byte(*identity), &identityMap); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+		fmt.Fprintf(os.Stderr, "import.identity_invalid: identity must be a JSON object: %v\n", err)
+		os.Exit(2)
+	}
+	if identityMap == nil {
+		fmt.Fprintln(os.Stderr, "import.identity_invalid: identity must be a JSON object")
 		os.Exit(2)
 	}
 	sources, err := parseReconcileAPISourceFlags(apiSources)

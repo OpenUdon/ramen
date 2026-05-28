@@ -144,6 +144,94 @@ func TestImportThenPlanNoOpForMatchingNativeProject(t *testing.T) {
 	}
 }
 
+func TestImportValidatesNativeProjectMetadataAndStateConflicts(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "imported-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+				"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{
+				Name:     "role_name",
+				Path:     "name",
+				Required: true,
+			}},
+		}},
+	})
+	base := ImportOptions{ProjectPath: projectPath, StatePath: statePath, Address: "aws_iam_role.role", Type: "aws_iam_role", Provider: "provider.aws"}
+	if _, err := Import(context.Background(), base); err == nil || !strings.Contains(err.Error(), "import.identity_missing") {
+		t.Fatalf("missing identity error = %v", err)
+	}
+	unknown := base
+	unknown.Identity = map[string]any{"role_name": "imported-role", "extra": "value"}
+	if _, err := Import(context.Background(), unknown); err == nil || !strings.Contains(err.Error(), "import.identity_unknown") {
+		t.Fatalf("unknown identity error = %v", err)
+	}
+	mismatch := base
+	mismatch.Address = "aws_iam_role.missing"
+	mismatch.Identity = map[string]any{"role_name": "imported-role"}
+	if _, err := Import(context.Background(), mismatch); err == nil || !strings.Contains(err.Error(), "import.address_unknown") {
+		t.Fatalf("address mismatch error = %v", err)
+	}
+	typeMismatch := base
+	typeMismatch.Type = "aws_iam_user"
+	typeMismatch.Identity = map[string]any{"role_name": "imported-role"}
+	if _, err := Import(context.Background(), typeMismatch); err == nil || !strings.Contains(err.Error(), "import.type_mismatch") {
+		t.Fatalf("type mismatch error = %v", err)
+	}
+	noReadDir := filepath.Join(root, "no-read")
+	noReadSourcePath := filepath.Join(noReadDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, noReadSourcePath, minimalIAMSmithyForRefreshTest())
+	noReadProjectPath := writeReconcileProjectForTest(t, noReadDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "imported-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{
+				Name:     "role_name",
+				Path:     "name",
+				Required: true,
+			}},
+		}},
+	})
+	noRead := base
+	noRead.ProjectPath = noReadProjectPath
+	noRead.StatePath = filepath.Join(noReadDir, "state.db")
+	noRead.Identity = map[string]any{"role_name": "imported-role"}
+	if _, err := Import(context.Background(), noRead); err == nil || !strings.Contains(err.Error(), "import.operation_missing") {
+		t.Fatalf("operation missing error = %v", err)
+	}
+	valid := base
+	valid.Identity = map[string]any{"role_name": "imported-role"}
+	if _, err := Import(context.Background(), valid); err != nil {
+		t.Fatalf("valid import returned error: %v", err)
+	}
+	if _, err := Import(context.Background(), valid); err == nil || !strings.Contains(err.Error(), "import.state_conflict") {
+		t.Fatalf("state conflict error = %v", err)
+	}
+}
+
 func TestDestroyDeletesTrackedResourceWithMockExecutor(t *testing.T) {
 	root := t.TempDir()
 	statePath := filepath.Join(root, "state.db")

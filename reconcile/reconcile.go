@@ -16,7 +16,9 @@ import (
 	"github.com/OpenUdon/ramen/graph"
 	"github.com/OpenUdon/ramen/internal/redact"
 	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	ramenvalidate "github.com/OpenUdon/ramen/validate"
 )
 
 type APISourceInput = tfplan.APISourceInput
@@ -251,6 +253,9 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 	if strings.TrimSpace(opts.Address) == "" || strings.TrimSpace(opts.Type) == "" {
 		return nil, fmt.Errorf("import requires address and type")
 	}
+	if err := validateImportMetadata(ctx, opts); err != nil {
+		return nil, err
+	}
 	store, err := state.Open(ctx, opts.StatePath)
 	if err != nil {
 		return nil, err
@@ -261,6 +266,13 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		return nil, err
 	}
 	defer func() { _ = store.ReleaseLock(context.Background(), "state", lockHolder) }()
+	current, err := store.CurrentResource(ctx, opts.Address)
+	if err != nil {
+		return nil, err
+	}
+	if current != nil {
+		return nil, fmt.Errorf("import.state_conflict: %s is already present in state", opts.Address)
+	}
 	runID, err := store.StartRun(ctx, "import")
 	if err != nil {
 		return nil, err
@@ -319,6 +331,68 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 	}
 	runFinished = true
 	return &Result{StatePath: opts.StatePath, RunID: runID, Summary: summary, Actions: []ActionResult{{Address: opts.Address, Action: "import"}}}, nil
+}
+
+func validateImportMetadata(ctx context.Context, opts ImportOptions) error {
+	if strings.TrimSpace(opts.ProjectPath) == "" {
+		return nil
+	}
+	result, err := ramenvalidate.Run(ctx, ramenvalidate.Options{ProjectPath: opts.ProjectPath, APISources: validateAPISources(opts.APISources)})
+	if err != nil {
+		return err
+	}
+	if !result.Valid {
+		if len(result.Diagnostics) > 0 {
+			diag := result.Diagnostics[0]
+			return fmt.Errorf("%s: %s", diag.Code, diag.Message)
+		}
+		return fmt.Errorf("import.project_invalid: native project is invalid")
+	}
+	doc, err := project.Load(opts.ProjectPath)
+	if err != nil {
+		return fmt.Errorf("import.project_load_error: %w", err)
+	}
+	var resource *project.Resource
+	for i := range doc.Profile.Resources {
+		if doc.Profile.Resources[i].Address == opts.Address {
+			resource = &doc.Profile.Resources[i]
+			break
+		}
+	}
+	if resource == nil {
+		return fmt.Errorf("import.address_unknown: %s does not exist in native project", opts.Address)
+	}
+	if resource.Type != "" && opts.Type != "" && resource.Type != opts.Type {
+		return fmt.Errorf("import.type_mismatch: %s has type %s in native project, got %s", opts.Address, resource.Type, opts.Type)
+	}
+	allowed := map[string]project.IdentityAttribute{}
+	for _, attr := range resource.IdentityAttributes {
+		allowed[attr.Name] = attr
+		if attr.Required {
+			if _, ok := opts.Identity[attr.Name]; !ok {
+				return fmt.Errorf("import.identity_missing: %s requires identity attribute %s", opts.Address, attr.Name)
+			}
+		}
+	}
+	for key := range opts.Identity {
+		if _, ok := allowed[key]; !ok {
+			return fmt.Errorf("import.identity_unknown: %s identity attribute %s is not declared in native project", opts.Address, key)
+		}
+	}
+	if _, ok := resource.Operations["import"]; !ok {
+		if _, ok := resource.Operations["read"]; !ok {
+			return fmt.Errorf("import.operation_missing: %s requires an import or read operation role", opts.Address)
+		}
+	}
+	return nil
+}
+
+func validateAPISources(inputs []APISourceInput) []ramenvalidate.APISourceInput {
+	out := make([]ramenvalidate.APISourceInput, len(inputs))
+	for i, input := range inputs {
+		out[i] = ramenvalidate.APISourceInput(input)
+	}
+	return out
 }
 
 func importDesiredHash(ctx context.Context, opts ImportOptions, fallback string) (string, *tfplan.MappingPlan) {

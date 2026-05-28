@@ -63,6 +63,19 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 	}
 }
 
+func TestCLIImportReportsStableIdentityDiagnostics(t *testing.T) {
+	for _, identity := range []string{"{", "null"} {
+		cmd := helperCommand("import", "example_resource.test", "--type", "example_resource", "--identity", identity)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("import with identity %q unexpectedly succeeded:\n%s", identity, output)
+		}
+		if !strings.Contains(string(output), "import.identity_invalid") {
+			t.Fatalf("import identity diagnostic missing stable code:\n%s", output)
+		}
+	}
+}
+
 func TestCLIVersionOutputsPlainTextJSONAndHelp(t *testing.T) {
 	cmd := helperCommand("version")
 	output, err := cmd.CombinedOutput()
