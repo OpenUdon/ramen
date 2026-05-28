@@ -37,9 +37,9 @@ provider plugins, provider SDKs, or private udon packages in default public
 builds. The optional udon adapter is planned behind an explicit `udon` build
 tag.
 
-## Planned Commands
+## Commands
 
-First public commands:
+Implemented public commands:
 
 ```bash
 ramen convert tf
@@ -76,7 +76,7 @@ Current first-pass roadmap:
 - `M01`: harness and boundary bootstrap.
 - `M02`: shared `tfmapping` and source metadata.
 - `M03`: static `init` and `plan` engine.
-- `M04`: udon execution adapter and gated `apply`.
+- `M04`: trusted execution adapter and gated `apply`.
 - `M05`: state history, refresh, destroy, and import.
 
 Sidecar milestones use a separate `S` sequence for cross-repo migrations:
