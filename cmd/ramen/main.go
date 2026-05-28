@@ -16,6 +16,7 @@ import (
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/reconcile"
 	"github.com/OpenUdon/ramen/state"
+	"github.com/OpenUdon/tfconfig"
 )
 
 const version = "0.1.0"
@@ -187,6 +188,37 @@ func statePathOrDefault(path, configDir string) string {
 	return state.DefaultPath(configDir)
 }
 
+func validateStaticConfig(configDir string) error {
+	doc, err := tfconfig.LoadDir(configDir)
+	if err != nil {
+		return err
+	}
+	for _, diag := range doc.Diagnostics {
+		if strings.EqualFold(string(diag.Severity), "error") {
+			return fmt.Errorf("%s", diagnosticText(diag))
+		}
+	}
+	for _, mod := range doc.Modules {
+		for _, diag := range mod.Diagnostics {
+			if strings.EqualFold(string(diag.Severity), "error") {
+				return fmt.Errorf("%s", diagnosticText(diag))
+			}
+		}
+	}
+	return nil
+}
+
+func diagnosticText(diag tfconfig.Diagnostic) string {
+	if strings.TrimSpace(diag.Detail) == "" {
+		return diag.Summary
+	}
+	return diag.Summary + ": " + diag.Detail
+}
+
+func planHasChanges(doc tfplan.Document) bool {
+	return doc.Summary.Create != 0 || doc.Summary.Update != 0 || doc.Summary.Delete != 0
+}
+
 func runApplyCommand(args []string) {
 	fs := flag.NewFlagSet("apply", flag.ExitOnError)
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
@@ -246,7 +278,7 @@ func runInitCommand(args []string) {
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen init [--config-dir DIR] [--state PATH]\n")
-		fmt.Fprintf(fs.Output(), "\nCreates or migrates local Ramen SQLite state. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "\nValidates Terraform/OpenTofu configuration with tfconfig, then creates or migrates local Ramen SQLite state. It does not execute Terraform, providers, API source operations, module downloads, backend initialization, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -258,6 +290,10 @@ func runInitCommand(args []string) {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if err := validateStaticConfig(*configDir); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 	if err := state.Init(ctx, path); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -271,6 +307,7 @@ func runPlanCommand(args []string) {
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	action := fs.String("action", "create", "Desired managed-resource action for absent resources")
 	outPath := fs.String("out", "", "Optional JSON plan output path")
+	detailedExitCode := fs.Bool("detailed-exitcode", false, "Return 2 when the plan has changes, 1 on errors, and 0 when empty")
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
@@ -310,8 +347,16 @@ func runPlanCommand(args []string) {
 	}
 	for _, diag := range result.Diagnostics {
 		if diag.Severity == "error" {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", diag.Code, diag.Message)
+		}
+	}
+	for _, diag := range result.Diagnostics {
+		if diag.Severity == "error" {
 			os.Exit(1)
 		}
+	}
+	if *detailedExitCode && planHasChanges(result.Plan) {
+		os.Exit(2)
 	}
 }
 

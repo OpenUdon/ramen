@@ -70,6 +70,9 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := rejectPlanExecution(planResult); err != nil {
+		return &Result{StatePath: opts.StatePath}, err
+	}
 	result, store, runID, finish, err := startMutation(ctx, opts.StatePath, "refresh")
 	if err != nil {
 		return result, err
@@ -103,7 +106,16 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 		})
 		if err != nil {
 			result.Summary.Failed++
+			_ = recordFailedAction(ctx, store, runID, resource, "refresh_failed", err.Error())
 			return result, err
+		}
+		if !execResult.Success {
+			result.Summary.Failed++
+			msg := fmt.Sprintf("executor reported unsuccessful read for %s", resource.Address)
+			if err := recordFailedAction(ctx, store, runID, resource, "refresh_failed", msg); err != nil {
+				return result, err
+			}
+			return result, fmt.Errorf("%s", msg)
 		}
 		if err := recordRefresh(ctx, store, runID, resource, execResult); err != nil {
 			result.Summary.Failed++
@@ -123,25 +135,23 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Executor == nil {
 		return nil, fmt.Errorf("destroy requires a trusted executor; pass --mock for recorded/mock execution in public builds")
 	}
-	depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, StatePath: opts.StatePath, APISources: opts.APISources, Action: "create"})
+	depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, StatePath: opts.StatePath, APISources: opts.APISources, Action: "dependency"})
 	if err != nil {
 		return nil, err
+	}
+	if err := rejectPlanExecution(depPlan); err != nil {
+		return &Result{StatePath: opts.StatePath}, err
 	}
 	dependencies := map[string][]string{}
 	for _, resource := range depPlan.Plan.Resources {
 		dependencies[resource.Address] = slices.Clone(resource.Dependencies)
 	}
-	emptyConfig, err := os.MkdirTemp("", "ramen-destroy-*")
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
 	if err != nil {
 		return nil, err
 	}
-	defer os.RemoveAll(emptyConfig)
-	if err := os.WriteFile(filepath.Join(emptyConfig, "main.tf"), []byte("\n"), 0o644); err != nil {
-		return nil, err
-	}
-	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: emptyConfig, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
-	if err != nil {
-		return nil, err
+	if err := rejectPlanExecution(planResult); err != nil {
+		return &Result{StatePath: opts.StatePath}, err
 	}
 	result, store, runID, finish, err := startMutation(ctx, opts.StatePath, "destroy")
 	if err != nil {
@@ -157,6 +167,9 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	resources := destroyOrder(planResult.Plan.Resources)
 	sourcePaths := sourcePathIndex(opts.APISources)
 	for _, resource := range resources {
+		if resource.Action != "delete" {
+			continue
+		}
 		if resource.Mapping == nil || resource.Mapping.OperationID == "" {
 			continue
 		}
@@ -171,7 +184,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			result.Summary.Failed++
 			return result, err
 		}
-		_, err = opts.Executor.Execute(ctx, executor.Request{
+		execResult, err := opts.Executor.Execute(ctx, executor.Request{
 			RunID:      runID,
 			Action:     executorAction(resource, "delete"),
 			Document:   doc,
@@ -180,7 +193,16 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 		})
 		if err != nil {
 			result.Summary.Failed++
+			_ = recordFailedAction(ctx, store, runID, resource, "delete_failed", err.Error())
 			return result, err
+		}
+		if !execResult.Success {
+			result.Summary.Failed++
+			msg := fmt.Sprintf("executor reported unsuccessful delete for %s", resource.Address)
+			if err := recordFailedAction(ctx, store, runID, resource, "delete_failed", msg); err != nil {
+				return result, err
+			}
+			return result, fmt.Errorf("%s", msg)
 		}
 		before, _ := store.CurrentResource(ctx, resource.Address)
 		beforeJSON, _ := json.Marshal(before)
@@ -261,6 +283,21 @@ func normalizeOptions(opts Options) Options {
 		opts.StatePath = state.DefaultPath(opts.ConfigDir)
 	}
 	return opts
+}
+
+func rejectPlanExecution(planResult *tfplan.Result) error {
+	if planResult != nil && planResult.Plan.Errored {
+		return fmt.Errorf("plan is marked errored and cannot be executed")
+	}
+	if planResult == nil {
+		return nil
+	}
+	for _, diag := range planResult.Diagnostics {
+		if diag.Severity == "error" {
+			return fmt.Errorf("plan has error diagnostic %s: %s", diag.Code, diag.Message)
+		}
+	}
+	return nil
 }
 
 func startMutation(ctx context.Context, statePath, command string) (*Result, *state.Store, int64, func(*Summary), error) {
@@ -360,6 +397,35 @@ func recordRefresh(ctx context.Context, store *state.Store, runID int64, resourc
 	}
 	afterJSON, _ := json.Marshal(current)
 	return store.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "refresh", AfterJSON: string(afterJSON)})
+}
+
+func recordFailedAction(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, action, message string) error {
+	before, err := store.CurrentResource(ctx, resource.Address)
+	if err != nil {
+		return err
+	}
+	beforeJSON := []byte(nil)
+	if before != nil {
+		beforeJSON, err = json.Marshal(before)
+		if err != nil {
+			return err
+		}
+	}
+	diffJSON, err := json.Marshal(map[string]any{
+		"status":       "failed",
+		"error":        redactString(message),
+		"desired_hash": resource.DesiredHash,
+	})
+	if err != nil {
+		return err
+	}
+	return store.RecordRevision(ctx, state.Revision{
+		ResourceAddress: resource.Address,
+		RunID:           runID,
+		Action:          action,
+		BeforeJSON:      string(beforeJSON),
+		DiffJSON:        string(diffJSON),
+	})
 }
 
 func maybeWriteDocument(outDir, address, action string, doc any) (string, error) {

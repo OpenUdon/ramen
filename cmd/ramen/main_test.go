@@ -203,6 +203,92 @@ resource "aws_iam_role" "role" {
 	}
 }
 
+func TestCLIInitValidatesStaticConfigBeforeCreatingState(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	statePath := filepath.Join(root, "state.db")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`
+resource "aws_iam_role" "role" {
+  name = "broken"
+`))
+	cmd := helperCommand("init", "--config-dir", configDir, "--state", statePath)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("init succeeded unexpectedly:\n%s", output)
+	}
+	if _, statErr := os.Stat(statePath); !os.IsNotExist(statErr) {
+		t.Fatalf("state should not be created after invalid init, stat err=%v", statErr)
+	}
+}
+
+func TestCLIPlanErroredOutAndDetailedExitCode(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	missingSource := filepath.Join(root, "missing.json")
+	planPath := filepath.Join(root, "plan.json")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`
+resource "aws_iam_role" "role" {
+  name = "cli-role"
+  assume_role_policy = "{}"
+}
+`))
+	cmd := helperCommand("plan", "--config-dir", configDir, "--state", filepath.Join(root, "state.db"), "--api-source", "aws-smithy:iam="+missingSource, "--out", planPath, "--detailed-exitcode")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("plan succeeded unexpectedly:\n%s", output)
+	}
+	planText, readErr := os.ReadFile(planPath)
+	if readErr != nil {
+		t.Fatalf("errored plan JSON missing: %v\n%s", readErr, output)
+	}
+	if !strings.Contains(string(planText), `"errored": true`) || !strings.Contains(string(planText), `"resources": null`) {
+		t.Fatalf("plan output should be non-actionable:\n%s", planText)
+	}
+	if !strings.Contains(string(output), "api_source.load_error") {
+		t.Fatalf("plan output missing diagnostic:\n%s", output)
+	}
+}
+
+func TestCLIPlanDetailedExitCodeReturnsTwoForChanges(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`
+resource "aws_iam_role" "role" {
+  name = "cli-role"
+  assume_role_policy = "{}"
+}
+`))
+	mustWriteCLIFile(t, sourcePath, []byte(`{
+  "smithy": "2.0",
+  "shapes": {
+    "com.amazonaws.iam#IAM": {
+      "type": "service",
+      "version": "2010-05-08",
+      "operations": [{"target": "com.amazonaws.iam#CreateRole"}],
+      "traits": {
+        "aws.api#service": {"sdkId": "IAM", "endpointPrefix": "iam"},
+        "aws.auth#sigv4": {"name": "iam"},
+        "aws.protocols#awsQuery": {}
+      }
+    },
+    "com.amazonaws.iam#CreateRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#CreateRoleRequest"}, "output": {"target": "com.amazonaws.iam#CreateRoleResponse"}},
+    "com.amazonaws.iam#CreateRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "AssumeRolePolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}, "traits": {"smithy.api#input": {}}},
+    "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#roleNameType": {"type": "string"},
+    "com.amazonaws.iam#policyDocumentType": {"type": "string"}
+  }
+}`))
+	cmd := helperCommand("plan", "--config-dir", configDir, "--state", filepath.Join(root, "state.db"), "--api-source", "aws-smithy:iam="+sourcePath, "--detailed-exitcode")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("plan should exit 2 for changes but succeeded:\n%s", output)
+	}
+	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("plan exit = %v, output:\n%s", err, output)
+	}
+}
+
 func helperCommand(args ...string) *exec.Cmd {
 	cmd := exec.Command(os.Args[0], append([]string{"-test.run=TestHelperProcess", "--"}, args...)...)
 	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")

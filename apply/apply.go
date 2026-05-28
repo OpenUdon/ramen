@@ -72,7 +72,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 	result := &Result{StatePath: opts.StatePath, Plan: planResult.Plan}
-	if err := rejectErrorDiagnostics(planResult.Diagnostics); err != nil {
+	if err := rejectErroredPlan(planResult); err != nil {
 		return result, err
 	}
 	mutations := mutableResources(planResult.Plan.Resources)
@@ -374,6 +374,16 @@ func rejectErrorDiagnostics(diags []tfplan.Diagnostic) error {
 		}
 	}
 	return nil
+}
+
+func rejectErroredPlan(planResult *tfplan.Result) error {
+	if planResult != nil && planResult.Plan.Errored {
+		return fmt.Errorf("plan is marked errored and cannot be executed")
+	}
+	if planResult == nil {
+		return nil
+	}
+	return rejectErrorDiagnostics(planResult.Diagnostics)
 }
 
 func mutableResources(resources []tfplan.ResourcePlan) []tfplan.ResourcePlan {

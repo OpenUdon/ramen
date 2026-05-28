@@ -12,6 +12,8 @@ github.com/OpenUdon/schema v0.0.0-20260507023912-6ea3308bb955 h1:dwQPNJKFpa6ndPa
 github.com/OpenUdon/schema v0.0.0-20260507023912-6ea3308bb955/go.mod h1:Q0QXMOpiSZlXZpdnMV/FpUaZ85SJWi+h7E5vEU85Rik=
 github.com/OpenUdon/tfconfig v0.0.0-20260509192333-e523c2b30f3e h1:6/q3YipBkZlW3gvmZ00YK/3tPJGY8d6KSBiW2KWxQNI=
 github.com/OpenUdon/tfconfig v0.0.0-20260509192333-e523c2b30f3e/go.mod h1:gB+Sw8dXdxA55wbZ1e2irup+WP6VisUxCchuPwPydWg=
+github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562 h1:p5iOLkyW6stpUqQxawzCSBurcZSI6Xs7mQaYCyTlO6Y=
+github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562/go.mod h1:gB+Sw8dXdxA55wbZ1e2irup+WP6VisUxCchuPwPydWg=
 github.com/OpenUdon/uws v0.0.0-20260527225623-7aa9eade0198 h1:nny//RGjgN3Ca1Qx9LoDKuDgwtE0s6JlVGqPCMNaYhQ=
 github.com/OpenUdon/uws v0.0.0-20260527225623-7aa9eade0198/go.mod h1:SPlgJhiOvj3jGOWWG8qKHWzXGjfpKaN0OrBL9HlzsFk=
 github.com/agext/levenshtein v1.2.1 h1:QmvMAjj2aEICytGiWzmxoE0x2KZvE0fvmqMOfy2tjT8=

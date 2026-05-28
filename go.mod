@@ -4,7 +4,7 @@ go 1.26.3
 
 require (
 	github.com/OpenUdon/apitools v0.0.0-20260528142821-7498ae0c388f
-	github.com/OpenUdon/tfconfig v0.0.0-20260509192333-e523c2b30f3e
+	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
 	github.com/OpenUdon/uws v0.0.0-20260527225623-7aa9eade0198
 	modernc.org/sqlite v1.50.0
 )

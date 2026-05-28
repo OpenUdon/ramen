@@ -47,6 +47,7 @@ type Document struct {
 	ConfigDir   string         `json:"config_dir"`
 	StatePath   string         `json:"state_path"`
 	Action      string         `json:"action"`
+	Errored     bool           `json:"errored,omitempty"`
 	Summary     Summary        `json:"summary"`
 	Resources   []ResourcePlan `json:"resources"`
 	Diagnostics []Diagnostic   `json:"diagnostics,omitempty"`
@@ -97,6 +98,7 @@ type sourceDoc struct {
 	ID         string
 	Kind       string
 	Path       string
+	Digest     string
 	Operations []apitools.OperationSummary
 }
 
@@ -108,8 +110,22 @@ type objectFact struct {
 	Name          string
 	Provider      string
 	Config        []tfconfig.Attribute
+	Lifecycle     *tfconfig.Lifecycle
 	DependsOn     []tfconfig.Reference
 	References    []tfconfig.Reference
+}
+
+type lifecyclePlan struct {
+	PreventDestroy bool
+	IgnoreAll      bool
+	IgnorePaths    []string
+	Diagnostics    []Diagnostic
+	Hash           map[string]any
+}
+
+type operationMatch struct {
+	Operation apitools.OperationSummary
+	Source    sourceDoc
 }
 
 func Build(ctx context.Context, opts Options) (*Result, error) {
@@ -126,6 +142,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	for _, mod := range doc.Modules {
 		diagnostics = append(diagnostics, tfDiagnostics(mod.Diagnostics)...)
 	}
+	diagnostics = append(diagnostics, staticBlockDiagnostics(doc)...)
 
 	apiSources, apiDiagnostics := loadAPISources(ctx, opts.APISources)
 	diagnostics = append(diagnostics, apiDiagnostics...)
@@ -169,11 +186,16 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	diagnostics = append(diagnostics, deleteDiagnostics...)
 	resources = append(resources, deletePlans...)
 	sortDiagnostics(diagnostics)
+	errored := hasErrorDiagnostics(diagnostics)
+	if errored {
+		resources = nil
+	}
 	document := Document{
 		Version:     Version,
 		ConfigDir:   opts.ConfigDir,
 		StatePath:   opts.StatePath,
 		Action:      opts.Action,
+		Errored:     errored,
 		Resources:   resources,
 		Diagnostics: diagnostics,
 	}
@@ -202,7 +224,7 @@ func planDeletes(ctx context.Context, store *state.Store, desiredAddresses map[s
 			continue
 		}
 		obj := objectFact{Address: snap.Address, Kind: "resource", Type: snap.Type, Provider: snap.Provider}
-		mapping, mappingDiagnostics := mapResource(obj, "delete", "delete", sources)
+		mapping, mappingDiagnostics := mapResource(obj, "delete", "delete", sources, true)
 		diagnostics = append(diagnostics, mappingDiagnostics...)
 		resources = append(resources, ResourcePlan{
 			Address:  snap.Address,
@@ -223,24 +245,50 @@ type plannedResource struct {
 }
 
 func planResource(ctx context.Context, store *state.Store, obj objectFact, dependencies []string, requestedAction string, sources []sourceDoc) plannedResource {
-	hash := desiredHash(obj)
+	lifecycle := analyzeLifecycle(obj)
+	diagnostics := slices.Clone(lifecycle.Diagnostics)
+	desiredMapping, desiredMappingDiagnostics := mapResource(obj, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
+	diagnostics = append(diagnostics, desiredMappingDiagnostics...)
+	hash := desiredHash(obj, lifecycle, desiredMapping, sources)
 	action := "create"
 	reason := "resource is not recorded in state"
+	var current *state.ResourceSnapshot
 	if store != nil {
-		current, err := store.CurrentResource(ctx, obj.Address)
+		var err error
+		current, err = store.CurrentResource(ctx, obj.Address)
 		if err != nil {
 			return plannedResource{
 				resource:    ResourcePlan{Address: obj.Address, Kind: obj.Kind, Type: obj.Type, Name: obj.Name, Provider: obj.Provider, Action: "error", Reason: err.Error(), DesiredHash: hash, Dependencies: dependencies},
 				diagnostics: []Diagnostic{{Code: "state.read_error", Severity: "error", Message: err.Error(), Address: obj.Address, ModuleAddress: obj.ModuleAddress}},
 			}
 		}
-		if current != nil && current.DesiredHash == hash {
+		if requestedAction == "delete" {
+			if current != nil {
+				action = "delete"
+				reason = "destroy requested for recorded resource"
+			} else {
+				action = "no-op"
+				reason = "destroy requested but resource is not recorded in state"
+			}
+		} else if current != nil && current.DesiredHash == hash {
 			action = "no-op"
 			reason = "recorded desired hash matches configuration"
 		} else if current != nil {
 			action = "update"
 			reason = "recorded desired hash differs from configuration"
 		}
+	} else if requestedAction == "delete" {
+		action = "no-op"
+		reason = "destroy requested but state is unavailable"
+	}
+	if action == "delete" && lifecycle.PreventDestroy {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:          "plan.prevent_destroy",
+			Severity:      "error",
+			Message:       fmt.Sprintf("%s has prevent_destroy set and cannot be deleted", obj.Address),
+			Address:       obj.Address,
+			ModuleAddress: obj.ModuleAddress,
+		})
 	}
 	purpose := requestedAction
 	if action == "update" {
@@ -249,7 +297,12 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	if action == "no-op" {
 		purpose = "read"
 	}
-	mapping, diagnostics := mapResource(obj, purpose, action, sources)
+	mapping := desiredMapping
+	if purpose != desiredMapping.Purpose || action != requestedAction {
+		actualMapping, actualDiagnostics := mapResource(obj, purpose, action, sources, mappingRequired(requestedAction, action))
+		mapping = actualMapping
+		diagnostics = append(diagnostics, actualDiagnostics...)
+	}
 	return plannedResource{
 		resource: ResourcePlan{
 			Address:      obj.Address,
@@ -267,28 +320,57 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	}
 }
 
-func mapResource(obj objectFact, purpose, action string, sources []sourceDoc) (*MappingPlan, []Diagnostic) {
+func desiredPurpose(action string) string {
+	if action == "delete" {
+		return "delete"
+	}
+	return "create"
+}
+
+func mappingRequired(requestedAction, actualAction string) bool {
+	return requestedAction == "create" && (actualAction == "create" || actualAction == "update") ||
+		requestedAction == "delete" && actualAction == "delete"
+}
+
+func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, required bool) (*MappingPlan, []Diagnostic) {
 	spec := tfmapping.DefaultRegistry().MapObject(tfmapping.Object{Kind: obj.Kind, Type: obj.Type, Provider: obj.Provider}, purpose, action)
 	var diagnostics []Diagnostic
 	for _, diag := range spec.Diagnostics {
-		diagnostics = append(diagnostics, Diagnostic{Code: string(diag.Code), Severity: string(diag.Severity), Message: diag.Message, Address: obj.Address, ModuleAddress: obj.ModuleAddress})
+		severity := string(diag.Severity)
+		if required && len(spec.Target.OperationIDs) == 0 {
+			severity = "error"
+		}
+		diagnostics = append(diagnostics, Diagnostic{Code: string(diag.Code), Severity: severity, Message: diag.Message, Address: obj.Address, ModuleAddress: obj.ModuleAddress})
 	}
 	if len(spec.Target.OperationIDs) == 0 {
 		return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
 	}
-	if operation, source, ok := findOperation(sources, spec.Target); ok {
+	if match, ambiguous := findOperation(sources, spec.Target); ambiguous {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:          "mapping.operation_ambiguous",
+			Severity:      "error",
+			Message:       fmt.Sprintf("multiple loaded API source operations matched %s for %s", strings.Join(spec.Target.OperationIDs, ", "), obj.Address),
+			Address:       obj.Address,
+			ModuleAddress: obj.ModuleAddress,
+		})
+		return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
+	} else if match != nil {
 		return &MappingPlan{
 			Purpose:            purpose,
-			SourceKind:         source.Kind,
-			SourceID:           firstNonEmpty(operation.DocumentName, source.ID),
-			SourcePath:         source.Path,
-			OperationID:        operation.OperationID,
+			SourceKind:         match.Source.Kind,
+			SourceID:           firstNonEmpty(match.Operation.DocumentName, match.Source.ID),
+			SourcePath:         match.Source.Path,
+			OperationID:        match.Operation.OperationID,
 			IdentityAttributes: spec.IdentityAttributes,
 		}, diagnostics
 	}
+	severity := "warning"
+	if required {
+		severity = "error"
+	}
 	diagnostics = append(diagnostics, Diagnostic{
 		Code:          "mapping.operation_unavailable",
-		Severity:      "warning",
+		Severity:      severity,
 		Message:       fmt.Sprintf("no loaded API source operation matched %s for %s", strings.Join(spec.Target.OperationIDs, ", "), obj.Address),
 		Address:       obj.Address,
 		ModuleAddress: obj.ModuleAddress,
@@ -296,47 +378,237 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc) (*
 	return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
 }
 
-func findOperation(sources []sourceDoc, target tfmapping.OperationTarget) (apitools.OperationSummary, sourceDoc, bool) {
+func findOperation(sources []sourceDoc, target tfmapping.OperationTarget) (*operationMatch, bool) {
 	for _, kind := range target.SourceKinds {
 		for _, operationID := range target.OperationIDs {
+			var matches []operationMatch
 			for _, source := range sources {
 				if source.Kind != kind || !sourceIDMatches(source.ID, target.SourceIDs) {
 					continue
 				}
 				for _, op := range source.Operations {
 					if op.OperationID == operationID {
-						return op, source, true
+						matches = append(matches, operationMatch{Operation: op, Source: source})
 					}
 				}
+			}
+			if len(matches) == 1 {
+				return &matches[0], false
+			}
+			if len(matches) > 1 {
+				return nil, true
 			}
 		}
 	}
 	for _, operationID := range target.OperationIDs {
+		var matches []operationMatch
 		for _, source := range sources {
 			for _, op := range source.Operations {
 				if op.OperationID == operationID {
-					return op, source, true
+					matches = append(matches, operationMatch{Operation: op, Source: source})
 				}
 			}
 		}
+		if len(matches) == 1 {
+			return &matches[0], false
+		}
+		if len(matches) > 1 {
+			return nil, true
+		}
 	}
-	return apitools.OperationSummary{}, sourceDoc{}, false
+	return nil, false
 }
 
-func desiredHash(obj objectFact) string {
+func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, sources []sourceDoc) string {
 	attrs := map[string]string{}
-	for _, attr := range obj.Config {
-		attrs[attr.Path] = valueText(attr.Value)
+	if !lifecycle.IgnoreAll {
+		ignored := map[string]bool{}
+		for _, path := range lifecycle.IgnorePaths {
+			ignored[path] = true
+		}
+		for _, attr := range obj.Config {
+			if ignored[attr.Path] {
+				continue
+			}
+			attrs[attr.Path] = valueText(attr.Value)
+		}
+	}
+	sourceDigests := make([]map[string]string, 0, len(sources))
+	for _, source := range sources {
+		sourceDigests = append(sourceDigests, map[string]string{
+			"kind":   source.Kind,
+			"id":     source.ID,
+			"digest": source.Digest,
+		})
+	}
+	mappingHash := map[string]any{}
+	if mapping != nil {
+		mappingHash = map[string]any{
+			"purpose":             mapping.Purpose,
+			"source_kind":         mapping.SourceKind,
+			"source_id":           mapping.SourceID,
+			"operation_id":        mapping.OperationID,
+			"identity_attributes": mapping.IdentityAttributes,
+		}
 	}
 	payload := map[string]any{
-		"address":  obj.Address,
-		"type":     obj.Type,
-		"provider": obj.Provider,
-		"attrs":    attrs,
+		"address":         obj.Address,
+		"type":            obj.Type,
+		"provider":        obj.Provider,
+		"attrs":           attrs,
+		"lifecycle":       lifecycle.Hash,
+		"mapping":         mappingHash,
+		"mapping_targets": mappingTargets(obj),
+		"api_sources":     sourceDigests,
 	}
 	data, _ := json.Marshal(payload)
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func mappingTargets(obj objectFact) map[string]any {
+	registry := tfmapping.DefaultRegistry()
+	tfobj := tfmapping.Object{Kind: obj.Kind, Type: obj.Type, Provider: obj.Provider}
+	out := map[string]any{}
+	for _, item := range []struct {
+		name    string
+		purpose string
+		action  string
+	}{
+		{name: "read", purpose: "read", action: "read"},
+		{name: "create", purpose: "create", action: "create"},
+		{name: "update", purpose: "update", action: "update"},
+		{name: "delete", purpose: "delete", action: "delete"},
+	} {
+		mapping := registry.MapObject(tfobj, item.purpose, item.action)
+		out[item.name] = map[string]any{
+			"target":              mapping.Target,
+			"identity_attributes": mapping.IdentityAttributes,
+			"diagnostics":         mapping.Diagnostics,
+		}
+	}
+	return out
+}
+
+func analyzeLifecycle(obj objectFact) lifecyclePlan {
+	if obj.Lifecycle == nil {
+		return lifecyclePlan{Hash: map[string]any{}}
+	}
+	plan := lifecyclePlan{Hash: map[string]any{}}
+	if obj.Lifecycle.PreventDestroy != nil {
+		value, ok := boolValue(*obj.Lifecycle.PreventDestroy)
+		if !ok {
+			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+				Code:          "plan.lifecycle_unsupported",
+				Severity:      "error",
+				Message:       "prevent_destroy must be a static boolean value",
+				Address:       obj.Address,
+				ModuleAddress: obj.ModuleAddress,
+			})
+		}
+		plan.PreventDestroy = value
+		plan.Hash["prevent_destroy"] = value
+	}
+	for _, value := range obj.Lifecycle.IgnoreChanges {
+		paths, all, ok := ignoreChangesValue(value)
+		if !ok {
+			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+				Code:          "plan.ignore_changes_unsupported",
+				Severity:      "error",
+				Message:       "ignore_changes must be all or a static list of attribute paths",
+				Address:       obj.Address,
+				ModuleAddress: obj.ModuleAddress,
+			})
+			continue
+		}
+		if all {
+			plan.IgnoreAll = true
+		}
+		plan.IgnorePaths = append(plan.IgnorePaths, paths...)
+	}
+	if len(obj.Lifecycle.ReplaceTriggeredBy) > 0 {
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+			Code:          "plan.replace_triggered_by_unsupported",
+			Severity:      "error",
+			Message:       "replace_triggered_by is not supported by static Ramen planning yet",
+			Address:       obj.Address,
+			ModuleAddress: obj.ModuleAddress,
+		})
+	}
+	slices.Sort(plan.IgnorePaths)
+	plan.IgnorePaths = slices.Compact(plan.IgnorePaths)
+	plan.Hash["ignore_all"] = plan.IgnoreAll
+	plan.Hash["ignore_paths"] = slices.Clone(plan.IgnorePaths)
+	return plan
+}
+
+func boolValue(value tfconfig.Value) (bool, bool) {
+	if value.Literal != nil {
+		if b, ok := value.Literal.(bool); ok {
+			return b, true
+		}
+	}
+	switch strings.ToLower(strings.TrimSpace(value.Expression)) {
+	case "true":
+		return true, true
+	case "false":
+		return false, true
+	default:
+		return false, false
+	}
+}
+
+func ignoreChangesValue(value tfconfig.Value) ([]string, bool, bool) {
+	expr := strings.TrimSpace(value.Expression)
+	if strings.EqualFold(expr, "all") {
+		return nil, true, true
+	}
+	if len(value.References) > 0 && !strings.HasPrefix(expr, "[") {
+		return nil, false, false
+	}
+	if literal, ok := value.Literal.(string); ok && strings.EqualFold(strings.TrimSpace(literal), "all") {
+		return nil, true, true
+	}
+	var paths []string
+	switch literal := value.Literal.(type) {
+	case []any:
+		for _, item := range literal {
+			path, ok := item.(string)
+			if !ok || strings.TrimSpace(path) == "" {
+				return nil, false, false
+			}
+			paths = append(paths, strings.TrimSpace(path))
+		}
+	case []string:
+		for _, path := range literal {
+			if strings.TrimSpace(path) == "" {
+				return nil, false, false
+			}
+			paths = append(paths, strings.TrimSpace(path))
+		}
+	default:
+		if strings.HasPrefix(expr, "[") && strings.HasSuffix(expr, "]") {
+			inner := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(expr, "["), "]"))
+			if inner == "" {
+				return nil, false, true
+			}
+			for _, part := range strings.Split(inner, ",") {
+				path := strings.Trim(strings.TrimSpace(part), `"`)
+				if path == "" || strings.ContainsAny(path, "${}") {
+					return nil, false, false
+				}
+				paths = append(paths, path)
+			}
+		} else if expr != "" {
+			path := strings.Trim(expr, `"`)
+			if path == "" || strings.ContainsAny(path, "${}[]") {
+				return nil, false, false
+			}
+			paths = append(paths, path)
+		}
+	}
+	slices.Sort(paths)
+	return slices.Compact(paths), false, true
 }
 
 func collectResources(doc tfconfig.Document) []objectFact {
@@ -351,6 +623,7 @@ func collectResources(doc tfconfig.Document) []objectFact {
 				Name:          res.Name,
 				Provider:      providerAddress(res.Provider),
 				Config:        res.Config,
+				Lifecycle:     res.Lifecycle,
 				DependsOn:     res.DependsOn,
 				References:    res.References,
 			})
@@ -428,6 +701,11 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 			continue
 		}
 		seenIDs[input.ID] = true
+		digest, digestErr := fileDigest(input.Path)
+		if digestErr != nil {
+			diagnostics = append(diagnostics, Diagnostic{Code: "api_source.load_error", Severity: "error", Message: digestErr.Error(), APISourceKind: input.Kind, APISourceID: input.ID})
+			continue
+		}
 		inventory, err := apitools.BuildAPISourceOperationInventory(ctx, apitools.APISourceInventoryOptions{
 			Documents: []apitools.APISourceDocument{{
 				Kind:         input.Kind,
@@ -445,7 +723,7 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 		}
 		ops := slices.Clone(inventory.Operations)
 		slices.SortFunc(ops, func(a, b apitools.OperationSummary) int { return cmp.Compare(a.OperationID, b.OperationID) })
-		docs = append(docs, sourceDoc{ID: input.ID, Kind: input.Kind, Path: input.Path, Operations: ops})
+		docs = append(docs, sourceDoc{ID: input.ID, Kind: input.Kind, Path: input.Path, Digest: digest, Operations: ops})
 	}
 	slices.SortFunc(docs, func(a, b sourceDoc) int {
 		if diff := cmp.Compare(a.Kind, b.Kind); diff != 0 {
@@ -492,6 +770,15 @@ func writeJSON(path string, value any) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func fileDigest(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:]), nil
+}
+
 func summarize(doc Document) Summary {
 	summary := Summary{Diagnostics: len(doc.Diagnostics)}
 	for _, resource := range doc.Resources {
@@ -523,6 +810,49 @@ func tfDiagnostics(diags []tfconfig.Diagnostic) []Diagnostic {
 		})
 	}
 	return out
+}
+
+func staticBlockDiagnostics(doc tfconfig.Document) []Diagnostic {
+	var diagnostics []Diagnostic
+	for _, mod := range doc.Modules {
+		for _, moved := range mod.Moved {
+			diagnostics = append(diagnostics, Diagnostic{
+				Code:          "plan.moved_unsupported",
+				Severity:      "error",
+				Message:       fmt.Sprintf("moved block from %s to %s is not supported by static Ramen planning yet", moved.From, moved.To),
+				Address:       firstNonEmpty(moved.To, moved.From),
+				ModuleAddress: mod.Address,
+			})
+		}
+		for _, imp := range mod.Imports {
+			diagnostics = append(diagnostics, Diagnostic{
+				Code:          "plan.import_unsupported",
+				Severity:      "error",
+				Message:       fmt.Sprintf("import block for %s is not supported by static Ramen planning yet", imp.To),
+				Address:       imp.To,
+				ModuleAddress: mod.Address,
+			})
+		}
+		for _, removed := range mod.Removed {
+			diagnostics = append(diagnostics, Diagnostic{
+				Code:          "plan.removed_unsupported",
+				Severity:      "error",
+				Message:       fmt.Sprintf("removed block for %s is not supported by static Ramen planning yet", removed.From),
+				Address:       removed.From,
+				ModuleAddress: mod.Address,
+			})
+		}
+	}
+	return diagnostics
+}
+
+func hasErrorDiagnostics(diagnostics []Diagnostic) bool {
+	for _, diag := range diagnostics {
+		if diag.Severity == "error" {
+			return true
+		}
+	}
+	return false
 }
 
 func sortDiagnostics(diags []Diagnostic) {

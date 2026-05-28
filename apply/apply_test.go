@@ -218,6 +218,42 @@ resource "aws_iam_role" "role" {
 	}
 }
 
+func TestApplyRejectsErroredPlanBeforeExecutor(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	if err := os.MkdirAll(configDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(configDir, "main.tf"), []byte(`
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mock := &executor.MockExecutor{}
+	result, err := Apply(context.Background(), Options{
+		ConfigDir:   configDir,
+		StatePath:   filepath.Join(root, "state.db"),
+		APISources:  []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: filepath.Join(root, "missing.json")}},
+		AutoApprove: true,
+		Executor:    mock,
+	})
+	if err == nil {
+		t.Fatal("Apply succeeded unexpectedly")
+	}
+	if result == nil || !result.Plan.Errored {
+		t.Fatalf("result = %#v", result)
+	}
+	if !strings.Contains(err.Error(), "errored") {
+		t.Fatalf("error = %v", err)
+	}
+	if mock.RequestCount() != 0 {
+		t.Fatalf("executor was called %d time(s)", mock.RequestCount())
+	}
+}
+
 func writeApplyTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

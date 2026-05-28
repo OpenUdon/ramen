@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/ramen/executor"
+	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
 )
 
@@ -84,6 +85,112 @@ func TestDestroyDeletesTrackedResourceWithMockExecutor(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestDestroyUnsuccessfulExecutorResultPreservesStateAndRecordsFailure(t *testing.T) {
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForReconcileTest())
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.role", Type: "aws_iam_role", Provider: "provider.aws", DesiredHash: "sha256:old", Status: "managed"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(context.Context, executor.Request) (executor.Result, error) {
+		return executor.Result{Success: false}, nil
+	}}
+	result, err := Destroy(context.Background(), Options{
+		ConfigDir:   root,
+		StatePath:   statePath,
+		APISources:  []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		AutoApprove: true,
+		Executor:    mock,
+	})
+	if err == nil {
+		t.Fatal("Destroy succeeded unexpectedly")
+	}
+	if result.Summary.Failed != 1 {
+		t.Fatalf("summary = %#v", result.Summary)
+	}
+	store, _ = state.Open(context.Background(), statePath)
+	snap, err := store.CurrentResource(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current after failed destroy: %v", err)
+	}
+	if snap == nil {
+		t.Fatal("resource was deleted after unsuccessful executor result")
+	}
+	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("list revisions: %v", err)
+	}
+	if len(revs) != 1 || revs[0].Action != "delete_failed" {
+		t.Fatalf("revisions = %#v", revs)
+	}
+	_ = store.Close()
+}
+
+func TestRefreshUnsuccessfulExecutorResultRecordsFailure(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeReconcileTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir: configDir,
+		StatePath: statePath,
+		APISources: []tfplan.APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	role := planResult.Plan.Resources[0]
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: role.Address, Type: role.Type, Provider: role.Provider, DesiredHash: role.DesiredHash, Status: "managed"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(context.Context, executor.Request) (executor.Result, error) {
+		return executor.Result{Success: false}, nil
+	}}
+	result, err := Refresh(context.Background(), Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Executor:   mock,
+	})
+	if err == nil {
+		t.Fatal("Refresh succeeded unexpectedly")
+	}
+	if result.Summary.Failed != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("result=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+	store, _ = state.Open(context.Background(), statePath)
+	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("list revisions: %v", err)
+	}
+	if len(revs) != 1 || revs[0].Action != "refresh_failed" {
+		t.Fatalf("revisions = %#v", revs)
+	}
+	_ = store.Close()
+}
+
 func writeReconcileTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -112,6 +219,32 @@ func minimalIAMSmithyForReconcileTest() string {
     "com.amazonaws.iam#DeleteRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}}},
     "com.amazonaws.iam#DeleteRoleResponse": {"type": "structure", "members": {}},
     "com.amazonaws.iam#roleNameType": {"type": "string"}
+  }
+}`
+}
+
+func minimalIAMSmithyForRefreshTest() string {
+	return `{
+  "smithy": "2.0",
+  "shapes": {
+    "com.amazonaws.iam#IAM": {
+      "type": "service",
+      "version": "2010-05-08",
+      "operations": [{"target": "com.amazonaws.iam#CreateRole"}, {"target": "com.amazonaws.iam#GetRole"}],
+      "traits": {
+        "aws.api#service": {"sdkId": "IAM", "endpointPrefix": "iam"},
+        "aws.auth#sigv4": {"name": "iam"},
+        "aws.protocols#awsQuery": {}
+      }
+    },
+    "com.amazonaws.iam#CreateRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#CreateRoleRequest"}, "output": {"target": "com.amazonaws.iam#CreateRoleResponse"}},
+    "com.amazonaws.iam#GetRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#GetRoleRequest"}, "output": {"target": "com.amazonaws.iam#GetRoleResponse"}},
+    "com.amazonaws.iam#CreateRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "AssumeRolePolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}},
+    "com.amazonaws.iam#GetRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}}},
+    "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#GetRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#roleNameType": {"type": "string"},
+    "com.amazonaws.iam#policyDocumentType": {"type": "string"}
   }
 }`
 }

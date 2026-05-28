@@ -2,6 +2,7 @@ package plan
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -258,11 +259,365 @@ func TestBuildPlansDeleteForStateOnlyResource(t *testing.T) {
 	}
 }
 
+func TestBuildWritesErroredPlanWithoutResourcesOnError(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "missing.json")
+	outPath := filepath.Join(root, "plan.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+		OutPath: outPath,
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || len(result.Plan.Resources) != 0 || result.Plan.Summary.Diagnostics == 0 {
+		t.Fatalf("errored plan = %#v", result.Plan)
+	}
+	var written Document
+	if err := json.Unmarshal([]byte(readPlanTestFile(t, outPath)), &written); err != nil {
+		t.Fatalf("decode written plan: %v", err)
+	}
+	if !written.Errored || len(written.Resources) != 0 {
+		t.Fatalf("written plan should be non-actionable: %#v", written)
+	}
+}
+
+func TestBuildDiagnosesUnsupportedStaticOpenTofuBlocks(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+
+moved {
+  from = aws_iam_role.old
+  to   = aws_iam_role.role
+}
+
+import {
+  to = aws_iam_role.role
+  id = "role"
+}
+
+removed {
+  from = aws_iam_role.gone
+}
+`)
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	for _, code := range []string{"plan.moved_unsupported", "plan.import_unsupported", "plan.removed_unsupported"} {
+		if !hasPlanDiagnostic(result.Diagnostics, code) {
+			t.Fatalf("missing %s in %#v", code, result.Diagnostics)
+		}
+	}
+	if !result.Plan.Errored || len(result.Plan.Resources) != 0 {
+		t.Fatalf("plan should be errored and non-actionable: %#v", result.Plan)
+	}
+}
+
+func TestBuildLifecyclePreventDestroyBlocksDelete(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, "state.db")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+`)
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:     "aws_iam_role.role",
+		Type:        "aws_iam_role",
+		Provider:    "provider.aws",
+		DesiredHash: "sha256:old",
+		Status:      "managed",
+	}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: statePath,
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+		Action: "delete",
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || !hasPlanDiagnostic(result.Diagnostics, "plan.prevent_destroy") {
+		t.Fatalf("prevent_destroy was not enforced: %#v", result)
+	}
+}
+
+func TestBuildLifecycleIgnoreChangesSuppressesHashChanges(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, "state.db")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  description = "old"
+  assume_role_policy = "{}"
+
+  lifecycle {
+    ignore_changes = [description]
+  }
+}
+`)
+	createResult, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: statePath,
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	role := createResult.Plan.Resources[0]
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: role.Address, Type: role.Type, Provider: role.Provider, DesiredHash: role.DesiredHash, Status: "managed"}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  description = "new"
+  assume_role_policy = "{}"
+
+  lifecycle {
+    ignore_changes = [description]
+  }
+}
+`)
+
+	noOpResult, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: statePath,
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if noOpResult.Plan.Errored || noOpResult.Plan.Summary.NoOp != 1 {
+		t.Fatalf("ignore_changes did not suppress update: %#v", noOpResult.Plan)
+	}
+}
+
+func TestBuildDiagnosesUnsupportedReplaceTriggeredBy(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+
+  lifecycle {
+    replace_triggered_by = [aws_iam_role.other]
+  }
+}
+
+resource "aws_iam_role" "other" {
+  name = "other"
+  assume_role_policy = "{}"
+}
+`)
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || !hasPlanDiagnostic(result.Diagnostics, "plan.replace_triggered_by_unsupported") {
+		t.Fatalf("replace_triggered_by was not diagnosed: %#v", result.Diagnostics)
+	}
+}
+
+func TestBuildDiagnosesUnsupportedComplexIgnoreChanges(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+variable "ignored" {}
+
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+
+  lifecycle {
+    ignore_changes = var.ignored
+  }
+}
+`)
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || !hasPlanDiagnostic(result.Diagnostics, "plan.ignore_changes_unsupported") {
+		t.Fatalf("complex ignore_changes was not diagnosed: %#v", result.Diagnostics)
+	}
+}
+
+func TestBuildDetectsAmbiguousOperationMatches(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	firstSource := filepath.Join(root, "iam.json")
+	secondSource := filepath.Join(root, "aws-iam.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+	writePlanTestFile(t, firstSource, minimalIAMSmithyForPlanTest())
+	writePlanTestFile(t, secondSource, minimalIAMSmithyForPlanTest())
+
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{
+			{Kind: "aws-smithy", ID: "iam", Path: firstSource},
+			{Kind: "aws-smithy", ID: "aws-iam", Path: secondSource},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || !hasPlanDiagnostic(result.Diagnostics, "mapping.operation_ambiguous") {
+		t.Fatalf("ambiguous operation was not diagnosed: %#v", result.Diagnostics)
+	}
+}
+
+func TestBuildDesiredHashIncludesAPISourceDigest(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	firstSource := filepath.Join(root, "iam-a.json")
+	secondSource := filepath.Join(root, "iam-b.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+	writePlanTestFile(t, firstSource, minimalIAMSmithyForPlanTest())
+	writePlanTestFile(t, secondSource, strings.Replace(minimalIAMSmithyForPlanTest(), `"version": "2010-05-08"`, `"version": "2010-05-08", "documentation": "changed"`, 1))
+
+	first, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: firstSource,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build first returned error: %v", err)
+	}
+	second, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: secondSource,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build second returned error: %v", err)
+	}
+	if first.Plan.Resources[0].DesiredHash == second.Plan.Resources[0].DesiredHash {
+		t.Fatalf("desired hash did not change with API source digest: %s", first.Plan.Resources[0].DesiredHash)
+	}
+}
+
 func assertPlanSummary(t *testing.T, got Summary, create, update, noOp int) {
 	t.Helper()
 	if got.Create != create || got.Update != update || got.NoOp != noOp || got.Delete != 0 {
 		t.Fatalf("summary = %#v, want create=%d update=%d no-op=%d", got, create, update, noOp)
 	}
+}
+
+func hasPlanDiagnostic(diags []Diagnostic, code string) bool {
+	for _, diag := range diags {
+		if diag.Code == code {
+			return true
+		}
+	}
+	return false
 }
 
 func writePlanTestFile(t *testing.T, path, content string) {
