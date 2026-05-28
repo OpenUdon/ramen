@@ -7,8 +7,7 @@ Google Discovery, and OpenAPI, computes desired-state plans, records SQLite
 state history, and hands approved mutations to an explicit trusted executor
 boundary.
 
-`plan.md` is the original design seed. The canonical roadmap and project memory
-live in the symlinked harness files:
+The canonical roadmap and project memory live in the symlinked harness files:
 
 ```text
 AGENTS.md
@@ -18,7 +17,7 @@ evolution/
 
 In this checkout those paths point to `../tofu/ramen`, so planning history is
 tracked in the shared tofu harness repository while remaining easy to read from
-the Ramen repo.
+the Ramen repo. Short non-roadmap notes belong in [docs/notes.md](docs/notes.md).
 
 ## Scope
 
@@ -55,30 +54,26 @@ The first lifecycle surface is mock-backed in default public builds where
 execution is required. Live executor wiring remains opt-in behind trusted
 adapters.
 
-## Milestone Pattern
+## Status Lanes
 
-Ramen uses one zero-padded milestone sequence:
+Ramen uses zero-padded status lanes:
 
 ```text
 M01, M02, M03, ... M09, M10, M11, ...
+I01, I02, I03, ... I09, I10, I11, ...
+P01, P02, P03, ... P09, P10, P11, ...
+S01, S02, S03, ... S09, S10, S11, ...
 ```
 
-The `M` prefix is the only milestone lane. The two-digit minimum keeps files
-and tables sorting naturally after the roadmap reaches `M10`. Each milestone
-has a matching task file such as `memory-bank/status-M01.md`.
+Lane meanings:
 
-Current first-pass roadmap:
+- `Mxx`: main milestone scope and cross-cutting delivery records.
+- `Ixx`: `ramen init` command-specific tasks.
+- `Pxx`: `ramen plan` command-specific tasks.
+- `Sxx`: sidecar migration or compatibility tracks.
 
-- `M01`: harness and boundary bootstrap.
-- `M02`: shared `tfmapping` and source metadata.
-- `M03`: static `init` and `plan` engine.
-- `M04`: trusted execution adapter and gated `apply`.
-- `M05`: state history, refresh, destroy, and import.
-
-Sidecar milestones use a separate `S` sequence for cross-repo migrations:
-
-- `S01`: move all `openudon convert tf` functionality into Ramen so OpenUdon
-  no longer owns Terraform/OpenTofu conversion or imports `tfconfig`.
+The active/planned plan command track is currently
+[memory-bank/status-P02.md](memory-bank/status-P02.md).
 
 ## Development Checks
 
