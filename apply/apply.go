@@ -32,6 +32,7 @@ type Options struct {
 	APISources  []APISourceInput
 	VarFiles    []string
 	Vars        []string
+	Workspace   string
 	PlanPath    string
 	AutoApprove bool
 	OutDir      string
@@ -101,6 +102,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			APISources:  opts.APISources,
 			VarFiles:    opts.VarFiles,
 			Vars:        opts.Vars,
+			Workspace:   opts.Workspace,
 			Action:      "create",
 		})
 		if err != nil {
@@ -508,6 +510,9 @@ func applyArtifactDefaults(opts Options, artifact tfplan.Document) Options {
 	if strings.TrimSpace(opts.StatePath) == "" {
 		opts.StatePath = artifact.StatePath
 	}
+	if strings.TrimSpace(opts.Workspace) == "" {
+		opts.Workspace = artifact.Workspace
+	}
 	if len(opts.APISources) == 0 {
 		opts.APISources = apiSourceInputsFromPlan(artifact.APISources)
 	}
@@ -530,6 +535,7 @@ func verifyPlanArtifact(ctx context.Context, opts Options, artifact tfplan.Docum
 		APISources:  opts.APISources,
 		VarFiles:    opts.VarFiles,
 		Vars:        opts.Vars,
+		Workspace:   opts.Workspace,
 		Action:      artifact.Action,
 		Targets:     artifact.Controls.Targets,
 		Excludes:    artifact.Controls.Excludes,

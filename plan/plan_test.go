@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
 	uwsconvert "github.com/OpenUdon/uws/convert"
@@ -402,6 +404,64 @@ func TestBuildProjectVariablesAffectHashAndApproval(t *testing.T) {
 		if input.Name == "secret_policy" && (input.Value != "${redacted}" || input.Digest == "") {
 			t.Fatalf("sensitive input not redacted/digested: %#v", input)
 		}
+	}
+}
+
+func TestBuildProjectPolicyDenyAndApprovalRouting(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.app", nil)
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Resources:  []project.Resource{resource},
+	})
+	denyPath := filepath.Join(root, "deny.json")
+	writePlanTestFile(t, denyPath, `{"version":"ramen.policy.v1","name":"deny-create","deny_actions":["create"]}`)
+	denied, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), PolicyFiles: []string{denyPath}})
+	if err != nil {
+		t.Fatalf("denied build: %v", err)
+	}
+	if !denied.Plan.Errored || len(denied.Plan.Resources) != 0 {
+		t.Fatalf("denied plan = errored:%t resources:%#v diagnostics:%#v", denied.Plan.Errored, denied.Plan.Resources, denied.Plan.Diagnostics)
+	}
+	if len(denied.Plan.Governance.Decisions) != 1 || denied.Plan.Governance.Decisions[0].Code != "policy.deny" {
+		t.Fatalf("deny governance = %#v", denied.Plan.Governance)
+	}
+
+	requirePath := filepath.Join(root, "require.json")
+	writePlanTestFile(t, requirePath, `{"version":"ramen.policy.v1","name":"approval","require_approval_actions":["create"],"required_approver_roles":["admin"]}`)
+	unapproved, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), PolicyFiles: []string{requirePath}})
+	if err != nil {
+		t.Fatalf("unapproved build: %v", err)
+	}
+	if unapproved.Plan.Errored || len(unapproved.Plan.Governance.ApprovalRequirements) != 1 {
+		t.Fatalf("unapproved plan = errored:%t governance:%#v diagnostics:%#v", unapproved.Plan.Errored, unapproved.Plan.Governance, unapproved.Plan.Diagnostics)
+	}
+	if err := VerifyApproval(unapproved.Plan); err == nil {
+		t.Fatalf("unapproved policy requirement unexpectedly verified")
+	}
+	approved, err := Build(context.Background(), Options{
+		ProjectPath: projectPath,
+		StatePath:   filepath.Join(root, "state.db"),
+		PolicyFiles: []string{requirePath},
+		Approvers:   []governance.Approver{{Identity: "alice@example.com", Role: "admin", Context: "change-123", ApprovedAt: time.Unix(1700000000, 0)}},
+		Workspace:   "prod",
+	})
+	if err != nil {
+		t.Fatalf("approved build: %v", err)
+	}
+	if approved.Plan.Workspace != "prod" || len(approved.Plan.Approval.Approvers) != 1 {
+		t.Fatalf("approved plan workspace/approvers = workspace:%q approval:%#v", approved.Plan.Workspace, approved.Plan.Approval)
+	}
+	if err := VerifyApproval(approved.Plan); err != nil {
+		t.Fatalf("approved policy requirement did not verify: %v", err)
+	}
+	approved.Plan.Approval.Approvers[0].Role = "viewer"
+	if err := VerifyApproval(approved.Plan); err == nil {
+		t.Fatalf("tampered approver unexpectedly verified")
 	}
 }
 

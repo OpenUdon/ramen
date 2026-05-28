@@ -198,6 +198,43 @@ func TestOpenReadOnlyMissingStateReturnsNil(t *testing.T) {
 	}
 }
 
+func TestWorkspacePathAndAuditDigest(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	workspacePath, err := WorkspacePath(root, "prod")
+	if err != nil {
+		t.Fatalf("workspace path: %v", err)
+	}
+	if !strings.Contains(workspacePath, filepath.Join(".ramen", "workspaces", "prod", "state.db")) {
+		t.Fatalf("workspace path = %s", workspacePath)
+	}
+	if _, err := WorkspacePath(root, "../prod"); err == nil {
+		t.Fatalf("invalid workspace unexpectedly accepted")
+	}
+	store, err := Open(ctx, workspacePath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := store.RecordResource(ctx, ResourceSnapshot{Address: "example.one", Type: "example", DesiredHash: "sha256:one", Status: "managed"}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	runID, err := store.StartRun(ctx, "apply")
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := store.RecordRevision(ctx, Revision{ResourceAddress: "example.one", RunID: runID, Action: "create", AfterJSON: `{"ok":true}`}); err != nil {
+		t.Fatalf("record revision: %v", err)
+	}
+	audit, err := store.Audit(ctx)
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if audit.Version != AuditVersion || !strings.HasPrefix(audit.Digest, "sha256:") || audit.Counts["resources"] != 1 || audit.Counts["revisions"] != 1 || audit.Counts["runs"] != 1 {
+		t.Fatalf("audit = %#v", audit)
+	}
+	_ = store.Close()
+}
+
 func TestMigrateUpgradesV1StateAndPreservesResources(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "state.db")

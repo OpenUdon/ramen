@@ -25,6 +25,6 @@ The remaining seed findings were folded into canonical status files:
   non-delete live success can produce `executor.Result`.
 - M16 added the native variables/values layer with deterministic values files,
   CLI assignments, redaction, and digest-bound approval.
-- Enterprise adoption still needs policy hooks, approval routing, audit export,
-  workspace isolation, packaging, and operational support contracts; see
-  `memory-bank/status-M17.md` and `memory-bank/status-M12.md`.
+- M17 added policy hooks, approval routing, audit export, and local workspace
+  isolation. Enterprise adoption still needs packaging and operational support
+  contracts; see `memory-bank/status-M12.md`.

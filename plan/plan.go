@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/OpenUdon/apitools"
+	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/graph"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
@@ -29,6 +31,9 @@ type Options struct {
 	APISources  []APISourceInput
 	VarFiles    []string
 	Vars        []string
+	PolicyFiles []string
+	Approvers   []governance.Approver
+	Workspace   string
 	Action      string
 	OutPath     string
 	Targets     []string
@@ -55,8 +60,10 @@ type Document struct {
 	ConfigDir   string                 `json:"config_dir"`
 	ProjectPath string                 `json:"project_path,omitempty"`
 	StatePath   string                 `json:"state_path"`
+	Workspace   string                 `json:"workspace,omitempty"`
 	Action      string                 `json:"action"`
 	Inputs      project.ResolvedInputs `json:"inputs,omitempty"`
+	Governance  governance.Result      `json:"governance,omitempty"`
 	Rationale   string                 `json:"rationale,omitempty"`
 	Controls    Controls               `json:"controls,omitempty"`
 	APISources  []APISourceRef         `json:"api_sources,omitempty"`
@@ -82,13 +89,14 @@ type APISourceRef struct {
 }
 
 type Approval struct {
-	Version       string         `json:"version"`
-	Digest        string         `json:"digest"`
-	Rationale     string         `json:"rationale,omitempty"`
-	ProjectDigest string         `json:"project_digest,omitempty"`
-	StateDigest   string         `json:"state_digest,omitempty"`
-	Controls      Controls       `json:"controls,omitempty"`
-	APISources    []APISourceRef `json:"api_sources,omitempty"`
+	Version       string                `json:"version"`
+	Digest        string                `json:"digest"`
+	Rationale     string                `json:"rationale,omitempty"`
+	ProjectDigest string                `json:"project_digest,omitempty"`
+	StateDigest   string                `json:"state_digest,omitempty"`
+	Controls      Controls              `json:"controls,omitempty"`
+	APISources    []APISourceRef        `json:"api_sources,omitempty"`
+	Approvers     []governance.Approver `json:"approvers,omitempty"`
 }
 
 type Summary struct {
@@ -253,6 +261,10 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	deletePlans, deleteDiagnostics := planDeletes(ctx, store, desiredAddresses, apiSources)
 	diagnostics = append(diagnostics, deleteDiagnostics...)
 	resources = append(resources, deletePlans...)
+	governanceResult, governanceDiagnostics := evaluateGovernance(opts, resources, "")
+	diagnostics = append(diagnostics, governanceDiagnostics...)
+	approvers, approverDiagnostics := normalizeApprovers(opts.Approvers)
+	diagnostics = append(diagnostics, approverDiagnostics...)
 	sortDiagnostics(diagnostics)
 	errored := hasErrorDiagnostics(diagnostics)
 	if errored {
@@ -262,7 +274,9 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		Version:     Version,
 		ConfigDir:   opts.ConfigDir,
 		StatePath:   opts.StatePath,
+		Workspace:   opts.Workspace,
 		Action:      opts.Action,
+		Governance:  governanceResult,
 		Controls:    controlsFromOptions(opts),
 		APISources:  apiSourceRefs(apiSources),
 		Errored:     errored,
@@ -270,7 +284,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		Diagnostics: diagnostics,
 	}
 	document.Summary = summarize(document)
-	document.Approval = buildApproval(document, "", stateBaselineDigest(ctx, store))
+	document.Approval = buildApproval(document, "", stateBaselineDigest(ctx, store), approvers)
 	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
 	if opts.OutPath != "" {
 		if err := writeJSON(opts.OutPath, document); err != nil {
@@ -357,6 +371,10 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 	deletePlans, deleteDiagnostics := planDeletes(ctx, store, desiredAddresses, apiSources)
 	diagnostics = append(diagnostics, deleteDiagnostics...)
 	resources = append(resources, deletePlans...)
+	governanceResult, governanceDiagnostics := evaluateGovernance(opts, resources, inputs.Digest)
+	diagnostics = append(diagnostics, governanceDiagnostics...)
+	approvers, approverDiagnostics := normalizeApprovers(opts.Approvers)
+	diagnostics = append(diagnostics, approverDiagnostics...)
 	sortDiagnostics(diagnostics)
 	errored := hasErrorDiagnostics(diagnostics)
 	if errored {
@@ -367,8 +385,10 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		ConfigDir:   opts.ConfigDir,
 		ProjectPath: proj.Path,
 		StatePath:   opts.StatePath,
+		Workspace:   opts.Workspace,
 		Action:      opts.Action,
 		Inputs:      inputs,
+		Governance:  governanceResult,
 		Rationale:   projectRationale(proj.Profile),
 		Controls:    controlsFromOptions(opts),
 		APISources:  apiSourceRefs(apiSources),
@@ -377,7 +397,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		Diagnostics: diagnostics,
 	}
 	document.Summary = summarize(document)
-	document.Approval = buildApproval(document, projectDigest(proj.Profile), stateBaselineDigest(ctx, store))
+	document.Approval = buildApproval(document, projectDigest(proj.Profile), stateBaselineDigest(ctx, store), approvers)
 	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
 	if opts.OutPath != "" {
 		if err := writeJSON(opts.OutPath, document); err != nil {
@@ -1255,6 +1275,58 @@ func valuePlanDiagnostics(diags []project.ValueDiagnostic) []Diagnostic {
 	return out
 }
 
+func evaluateGovernance(opts Options, resources []ResourcePlan, inputsDigest string) (governance.Result, []Diagnostic) {
+	engine, loadDecisions := governance.LoadPolicyFiles(opts.PolicyFiles)
+	result := governance.MergeResults(governance.Result{Version: governance.ResultVersion, Decisions: loadDecisions}, engine.Evaluate(governanceInput(opts, resources, inputsDigest)))
+	return result, governancePlanDiagnostics(result.Decisions)
+}
+
+func governanceInput(opts Options, resources []ResourcePlan, inputsDigest string) governance.Input {
+	input := governance.Input{Action: opts.Action, InputsDigest: inputsDigest, Resources: make([]governance.Resource, 0, len(resources))}
+	for _, resource := range resources {
+		input.Resources = append(input.Resources, governance.Resource{
+			Address:  resource.Address,
+			Type:     resource.Type,
+			Provider: resource.Provider,
+			Action:   resource.Action,
+		})
+	}
+	return input
+}
+
+func governancePlanDiagnostics(decisions []governance.Decision) []Diagnostic {
+	out := make([]Diagnostic, 0, len(decisions))
+	for _, decision := range decisions {
+		if decision.Severity != "error" && decision.Severity != "warning" {
+			continue
+		}
+		out = append(out, Diagnostic{
+			Code:     decision.Code,
+			Severity: normalizeSeverity(decision.Severity),
+			Message:  decision.Message,
+			Address:  decision.Address,
+		})
+	}
+	return out
+}
+
+func normalizeApprovers(approvers []governance.Approver) ([]governance.Approver, []Diagnostic) {
+	out := make([]governance.Approver, 0, len(approvers))
+	var diagnostics []Diagnostic
+	for _, approver := range approvers {
+		normalized, err := governance.NormalizeApprover(approver)
+		if err != nil {
+			diagnostics = append(diagnostics, Diagnostic{Code: "approval.identity_invalid", Severity: "error", Message: err.Error()})
+			continue
+		}
+		out = append(out, normalized)
+	}
+	slices.SortFunc(out, func(a, b governance.Approver) int {
+		return strings.Compare(a.Identity+a.Role+a.ApprovedAt.Format(time.RFC3339Nano), b.Identity+b.Role+b.ApprovedAt.Format(time.RFC3339Nano))
+	})
+	return out, diagnostics
+}
+
 func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
 	var docs []sourceDoc
 	var diagnostics []Diagnostic
@@ -1316,9 +1388,14 @@ func normalizeOptions(opts Options) Options {
 		opts.ConfigDir = "."
 	}
 	if strings.TrimSpace(opts.StatePath) == "" {
-		opts.StatePath = state.DefaultPath(stateBaseDir(opts.ProjectPath, opts.ConfigDir))
+		if path, err := state.WorkspacePath(stateBaseDir(opts.ProjectPath, opts.ConfigDir), opts.Workspace); err == nil {
+			opts.StatePath = path
+		} else {
+			opts.StatePath = state.DefaultPath(stateBaseDir(opts.ProjectPath, opts.ConfigDir))
+		}
 	}
 	opts.ProjectPath = strings.TrimSpace(opts.ProjectPath)
+	opts.Workspace = strings.TrimSpace(opts.Workspace)
 	opts.Action = strings.ToLower(strings.TrimSpace(opts.Action))
 	if opts.Destroy {
 		opts.Action = "delete"
@@ -1468,7 +1545,7 @@ func projectRationale(profile project.Profile) string {
 	return ""
 }
 
-func buildApproval(doc Document, projectDigest, stateDigest string) *Approval {
+func buildApproval(doc Document, projectDigest, stateDigest string, approvers []governance.Approver) *Approval {
 	approval := &Approval{
 		Version:       "ramen.approval.v1",
 		Rationale:     doc.Rationale,
@@ -1476,6 +1553,7 @@ func buildApproval(doc Document, projectDigest, stateDigest string) *Approval {
 		StateDigest:   stateDigest,
 		Controls:      doc.Controls,
 		APISources:    slices.Clone(doc.APISources),
+		Approvers:     slices.Clone(approvers),
 	}
 	approval.Digest = approvalDigest(doc, approval)
 	return approval
@@ -1488,12 +1566,15 @@ func approvalDigest(doc Document, approval *Approval) string {
 		ConfigDir     string                 `json:"config_dir"`
 		ProjectPath   string                 `json:"project_path,omitempty"`
 		StatePath     string                 `json:"state_path"`
+		Workspace     string                 `json:"workspace,omitempty"`
 		Action        string                 `json:"action"`
 		Inputs        project.ResolvedInputs `json:"inputs,omitempty"`
+		Governance    governance.Result      `json:"governance,omitempty"`
 		Errored       bool                   `json:"errored,omitempty"`
 		Rationale     string                 `json:"rationale,omitempty"`
 		Controls      Controls               `json:"controls,omitempty"`
 		APISources    []APISourceRef         `json:"api_sources,omitempty"`
+		Approvers     []governance.Approver  `json:"approvers,omitempty"`
 		ProjectDigest string                 `json:"project_digest,omitempty"`
 		StateDigest   string                 `json:"state_digest,omitempty"`
 		Resources     []ResourcePlan         `json:"resources,omitempty"`
@@ -1504,12 +1585,15 @@ func approvalDigest(doc Document, approval *Approval) string {
 		ConfigDir:     doc.ConfigDir,
 		ProjectPath:   doc.ProjectPath,
 		StatePath:     doc.StatePath,
+		Workspace:     doc.Workspace,
 		Action:        doc.Action,
 		Inputs:        doc.Inputs,
+		Governance:    doc.Governance,
 		Errored:       doc.Errored,
 		Rationale:     doc.Rationale,
 		Controls:      approval.Controls,
 		APISources:    approval.APISources,
+		Approvers:     approval.Approvers,
 		ProjectDigest: approval.ProjectDigest,
 		StateDigest:   approval.StateDigest,
 		Resources:     doc.Resources,
@@ -1532,6 +1616,9 @@ func VerifyApproval(doc Document) error {
 	}
 	if doc.Approval.Rationale != doc.Rationale {
 		return fmt.Errorf("plan approval rationale mismatch")
+	}
+	if err := governance.RequirementsSatisfied(doc.Governance.ApprovalRequirements, doc.Approval.Approvers); err != nil {
+		return fmt.Errorf("plan approval requirement unsatisfied: %w", err)
 	}
 	if got := approvalDigest(doc, doc.Approval); got != doc.Approval.Digest {
 		return fmt.Errorf("plan approval digest mismatch")

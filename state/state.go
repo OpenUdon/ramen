@@ -2,11 +2,15 @@ package state
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -120,7 +124,10 @@ type LockOptions struct {
 	RunID  int64
 }
 
-const ExportVersion = "ramen.state.export.v1"
+const (
+	ExportVersion = "ramen.state.export.v1"
+	AuditVersion  = "ramen.audit.v1"
+)
 
 type MigrationRecord struct {
 	Version   int       `json:"version"`
@@ -137,6 +144,18 @@ type ExportDocument struct {
 	Runs          []Run              `json:"runs"`
 	RunEvents     []RunEvent         `json:"run_events,omitempty"`
 	Locks         []Lock             `json:"locks"`
+}
+
+type AuditDocument struct {
+	Version       string            `json:"version"`
+	SchemaVersion int               `json:"schemaVersion"`
+	ExportedAt    time.Time         `json:"exportedAt"`
+	Digest        string            `json:"digest"`
+	Counts        map[string]int    `json:"counts"`
+	Migrations    []MigrationRecord `json:"migrations,omitempty"`
+	Runs          []Run             `json:"runs,omitempty"`
+	RunEvents     []RunEvent        `json:"run_events,omitempty"`
+	Locks         []Lock            `json:"locks,omitempty"`
 }
 
 func (e LockHeldError) Error() string {
@@ -173,6 +192,22 @@ func DefaultPath(configDir string) string {
 		configDir = "."
 	}
 	return filepath.Join(configDir, ".ramen", "state.db")
+}
+
+var workspaceNamePattern = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+func WorkspacePath(configDir, workspace string) (string, error) {
+	workspace = strings.TrimSpace(workspace)
+	if workspace == "" {
+		return DefaultPath(configDir), nil
+	}
+	if !workspaceNamePattern.MatchString(workspace) || strings.Contains(workspace, "..") {
+		return "", fmt.Errorf("workspace name %q is invalid", workspace)
+	}
+	if strings.TrimSpace(configDir) == "" {
+		configDir = "."
+	}
+	return filepath.Join(configDir, ".ramen", "workspaces", workspace, "state.db"), nil
 }
 
 func Open(ctx context.Context, path string) (*Store, error) {
@@ -583,6 +618,55 @@ func (s *Store) Export(ctx context.Context) (ExportDocument, error) {
 		Runs:          runs,
 		RunEvents:     runEvents,
 		Locks:         locks,
+	}, nil
+}
+
+func (s *Store) Audit(ctx context.Context) (AuditDocument, error) {
+	exported, err := s.Export(ctx)
+	if err != nil {
+		return AuditDocument{}, err
+	}
+	counts := map[string]int{
+		"resources":  len(exported.Resources),
+		"revisions":  len(exported.Revisions),
+		"runs":       len(exported.Runs),
+		"run_events": len(exported.RunEvents),
+		"locks":      len(exported.Locks),
+	}
+	payload := struct {
+		Version       string             `json:"version"`
+		SchemaVersion int                `json:"schemaVersion"`
+		Migrations    []MigrationRecord  `json:"migrations"`
+		Resources     []ResourceSnapshot `json:"resources"`
+		Revisions     []Revision         `json:"revisions"`
+		Runs          []Run              `json:"runs"`
+		RunEvents     []RunEvent         `json:"run_events,omitempty"`
+		Locks         []Lock             `json:"locks"`
+	}{
+		Version:       AuditVersion,
+		SchemaVersion: exported.SchemaVersion,
+		Migrations:    exported.Migrations,
+		Resources:     exported.Resources,
+		Revisions:     exported.Revisions,
+		Runs:          exported.Runs,
+		RunEvents:     exported.RunEvents,
+		Locks:         exported.Locks,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return AuditDocument{}, err
+	}
+	sum := sha256.Sum256(data)
+	return AuditDocument{
+		Version:       AuditVersion,
+		SchemaVersion: exported.SchemaVersion,
+		ExportedAt:    exported.ExportedAt,
+		Digest:        "sha256:" + hex.EncodeToString(sum[:]),
+		Counts:        counts,
+		Migrations:    exported.Migrations,
+		Runs:          exported.Runs,
+		RunEvents:     exported.RunEvents,
+		Locks:         exported.Locks,
 	}, nil
 }
 

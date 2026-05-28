@@ -17,6 +17,7 @@ import (
 
 	tfapply "github.com/OpenUdon/ramen/apply"
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/graph"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	tfplan "github.com/OpenUdon/ramen/plan"
@@ -216,6 +217,8 @@ func runStateCommand(ctx context.Context, args []string) {
 		os.Exit(2)
 	}
 	switch args[0] {
+	case "audit":
+		runStateAuditCommand(ctx, args[1:])
 	case "backup":
 		runStateBackupCommand(ctx, args[1:])
 	case "export":
@@ -242,9 +245,10 @@ func runStateCommand(ctx context.Context, args []string) {
 }
 
 func stateUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: ramen state <backup|export|list|restore|show|history|runs|vacuum> [args]\n\n")
+	fmt.Fprintf(out, "Usage: ramen state <audit|backup|export|list|restore|show|history|runs|vacuum> [args]\n\n")
 	fmt.Fprintf(out, "Local SQLite state inspection and maintenance. No backend access, provider execution, or Terraform/OpenTofu state compatibility is performed.\n\n")
 	fmt.Fprintf(out, "Subcommands:\n")
+	fmt.Fprintf(out, "  audit             export tamper-evident audit summary\n")
 	fmt.Fprintf(out, "  backup            write a consistent SQLite backup snapshot\n")
 	fmt.Fprintf(out, "  export            export redacted state metadata as JSON\n")
 	fmt.Fprintf(out, "  list              list current resource addresses\n")
@@ -253,6 +257,40 @@ func stateUsage(out *os.File) {
 	fmt.Fprintf(out, "  history [ADDRESS] show revision history\n")
 	fmt.Fprintf(out, "  runs              show command run history\n")
 	fmt.Fprintf(out, "  vacuum            compact local SQLite state\n")
+}
+
+func runStateAuditCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state audit", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state audit [--state PATH] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nExports a tamper-evident local audit summary derived from runs, revisions, resources, locks, and migration records without remote backend access.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(ctx, *statePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "state path %s does not exist\n", strings.TrimSpace(*statePath))
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+	doc, err := store.Audit(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(doc)
+		return
+	}
+	fmt.Printf("ramen: state audit version=%s digest=%s resources=%d revisions=%d runs=%d events=%d locks=%d\n", doc.Version, doc.Digest, doc.Counts["resources"], doc.Counts["revisions"], doc.Counts["runs"], doc.Counts["run_events"], doc.Counts["locks"])
 }
 
 func runStateBackupCommand(ctx context.Context, args []string) {
@@ -813,6 +851,7 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	outDir := fs.String("out", "", "Optional directory for generated read UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
@@ -823,7 +862,7 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -836,7 +875,7 @@ func runRefreshCommand(ctx context.Context, args []string) {
 		os.Exit(2)
 	}
 	exec := reconcileExecutor(*mock)
-	result, err := reconcile.Refresh(ctx, reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), OutDir: *outDir, Executor: exec})
+	result, err := reconcile.Refresh(ctx, reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir, *workspace), APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), Workspace: *workspace, OutDir: *outDir, Executor: exec})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -853,6 +892,7 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	planPath := fs.String("plan", "", "Digest-bound Ramen destroy plan artifact to verify and execute")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
@@ -865,7 +905,7 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -885,13 +925,13 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	}
 	stateValue := *statePath
 	if strings.TrimSpace(stateValue) == "" && strings.TrimSpace(*planPath) == "" {
-		stateValue = statePathOrDefault(*statePath, *projectPath, *configDir)
+		stateValue = statePathOrDefault(*statePath, *projectPath, *configDir, *workspace)
 	}
 	configDirValue := *configDir
 	if strings.TrimSpace(*planPath) != "" && !configDirSet {
 		configDirValue = ""
 	}
-	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), Workspace: *workspace, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -908,6 +948,7 @@ func runImportCommand(ctx context.Context, args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory used to compute plan-compatible desired hashes")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory used to compute plan-compatible desired hashes")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	typeName := fs.String("type", "", "Terraform/OpenTofu resource type")
 	provider := fs.String("provider", "", "Provider address")
 	identity := fs.String("identity", "{}", "Identity JSON object")
@@ -921,7 +962,7 @@ func runImportCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value]\n")
 		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
 		fs.PrintDefaults()
 	}
@@ -949,10 +990,11 @@ func runImportCommand(ctx context.Context, args []string) {
 	result, err := reconcile.Import(ctx, reconcile.ImportOptions{
 		ConfigDir:   *configDir,
 		ProjectPath: *projectPath,
-		StatePath:   statePathOrDefault(*statePath, *projectPath, *configDir),
+		StatePath:   statePathOrDefault(*statePath, *projectPath, *configDir, *workspace),
 		APISources:  sources,
 		VarFiles:    []string(varFiles),
 		Vars:        []string(cliVars),
+		Workspace:   *workspace,
 		Address:     fs.Arg(0),
 		Type:        *typeName,
 		Provider:    *provider,
@@ -975,11 +1017,36 @@ func reconcileExecutor(mock bool) executor.Executor {
 	return nil
 }
 
-func statePathOrDefault(path, projectPath, configDir string) string {
+func statePathOrDefault(path, projectPath, configDir, workspace string) string {
 	if strings.TrimSpace(path) != "" {
 		return path
 	}
-	return state.DefaultPath(stateBaseDir(projectPath, configDir))
+	resolved, err := state.WorkspacePath(stateBaseDir(projectPath, configDir), workspace)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	return resolved
+}
+
+func approvalInputsOrExit(identity, role, context, approvedAt string) []governance.Approver {
+	if strings.TrimSpace(identity) == "" && strings.TrimSpace(role) == "" && strings.TrimSpace(context) == "" && strings.TrimSpace(approvedAt) == "" {
+		return nil
+	}
+	if strings.TrimSpace(identity) == "" {
+		fmt.Fprintln(os.Stderr, "--approved-by is required when approval metadata is supplied")
+		os.Exit(2)
+	}
+	if strings.TrimSpace(approvedAt) == "" {
+		fmt.Fprintln(os.Stderr, "--approved-at is required when --approved-by is supplied")
+		os.Exit(2)
+	}
+	parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(approvedAt))
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "--approved-at must be RFC3339: %v\n", err)
+		os.Exit(2)
+	}
+	return []governance.Approver{{Identity: identity, Role: role, Context: context, ApprovedAt: parsed}}
 }
 
 func stateBaseDir(projectPath, configDir string) string {
@@ -1035,6 +1102,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	planPath := fs.String("plan", "", "Digest-bound Ramen plan artifact to verify and execute")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
@@ -1047,7 +1115,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
@@ -1067,7 +1135,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 	}
 	path := *statePath
 	if strings.TrimSpace(path) == "" && strings.TrimSpace(*planPath) == "" {
-		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
+		path = statePathOrDefault(*statePath, *projectPath, *configDir, *workspace)
 	}
 	configDirValue := *configDir
 	if strings.TrimSpace(*planPath) != "" && !configDirSet {
@@ -1084,6 +1152,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 		APISources:  sources,
 		VarFiles:    []string(varFiles),
 		Vars:        []string(cliVars),
+		Workspace:   *workspace,
 		PlanPath:    *planPath,
 		AutoApprove: *autoApprove,
 		OutDir:      *outDir,
@@ -1111,8 +1180,9 @@ func runInitCommand(ctx context.Context, args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen init [--project DIR|FILE | --config-dir DIR] [--state PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen init [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME]\n")
 		fmt.Fprintf(fs.Output(), "\nValidates a native UWS/Ramen project when --project is supplied, otherwise validates Terraform/OpenTofu configuration with tfconfig, then creates or migrates local Ramen SQLite state. It does not execute Terraform, providers, API source operations, module downloads, backend initialization, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
@@ -1121,7 +1191,7 @@ func runInitCommand(ctx context.Context, args []string) {
 	}
 	path := *statePath
 	if strings.TrimSpace(path) == "" {
-		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
+		path = statePathOrDefault(*statePath, *projectPath, *configDir, *workspace)
 	}
 	var validationErr error
 	if strings.TrimSpace(*projectPath) != "" {
@@ -1145,6 +1215,7 @@ func runPlanCommand(ctx context.Context, args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	action := fs.String("action", "create", "Desired managed-resource action for absent resources")
 	destroy := fs.Bool("destroy", false, "Plan deletes for managed resources")
 	outPath := fs.String("out", "", "Optional JSON plan output path")
@@ -1155,14 +1226,20 @@ func runPlanCommand(ctx context.Context, args []string) {
 	var replaces repeatedStringFlag
 	var varFiles repeatedStringFlag
 	var cliVars repeatedStringFlag
+	var policyFiles repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Var(&targets, "target", "Repeatable native resource address to include with dependency closure")
 	fs.Var(&excludes, "exclude", "Repeatable native resource address to exclude with dependent closure")
 	fs.Var(&replaces, "replace", "Repeatable native resource address to force replacement in the plan")
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
+	fs.Var(&policyFiles, "policy-file", "Repeatable Ramen policy file for plan-time governance")
+	approvedBy := fs.String("approved-by", "", "Approver identity to bind into the plan approval artifact")
+	approvalRole := fs.String("approval-role", "", "Approver role for policy approval routing")
+	approvalContext := fs.String("approval-context", "", "Free-form approval context")
+	approvedAt := fs.String("approved-at", "", "Approval timestamp in RFC3339 format")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--destroy] [--out PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] [--policy-file PATH] [--approved-by ID --approved-at RFC3339] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--destroy] [--out PATH]\n")
 		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic desired-state plan from native UWS/Ramen project artifacts or transitional Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
@@ -1176,8 +1253,9 @@ func runPlanCommand(ctx context.Context, args []string) {
 	}
 	path := *statePath
 	if strings.TrimSpace(path) == "" {
-		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
+		path = statePathOrDefault(*statePath, *projectPath, *configDir, *workspace)
 	}
+	approvers := approvalInputsOrExit(*approvedBy, *approvalRole, *approvalContext, *approvedAt)
 	result, err := tfplan.Build(ctx, tfplan.Options{
 		ConfigDir:   *configDir,
 		ProjectPath: *projectPath,
@@ -1185,6 +1263,9 @@ func runPlanCommand(ctx context.Context, args []string) {
 		APISources:  sources,
 		VarFiles:    []string(varFiles),
 		Vars:        []string(cliVars),
+		PolicyFiles: []string(policyFiles),
+		Approvers:   approvers,
+		Workspace:   *workspace,
 		Action:      *action,
 		OutPath:     *outPath,
 		Targets:     []string(targets),

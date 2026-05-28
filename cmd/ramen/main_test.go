@@ -93,13 +93,13 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		command  []string
 		expected []string
 	}{
-		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
-		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
-		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--api-source", "--var-file", "--var", "--identity", "plan-compatible desired hash"}},
-		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
-		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--var-file", "--var", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
+		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
+		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
+		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--identity", "plan-compatible desired hash"}},
+		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "--workspace", "does not execute Terraform"}},
+		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--policy-file", "--approved-by", "--approved-at", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
 		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
-		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "backup", "export", "list", "restore", "show ADDRESS", "history", "runs", "vacuum"}},
+		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "audit", "backup", "export", "list", "restore", "show ADDRESS", "history", "runs", "vacuum"}},
 	} {
 		cmd := helperCommand(tt.command...)
 		output, err := cmd.CombinedOutput()
@@ -689,6 +689,15 @@ paths:
 	var exported state.ExportDocument
 	if err := json.Unmarshal(output, &exported); err != nil || exported.Version != state.ExportVersion || len(exported.Resources) != 1 || len(exported.Revisions) != 1 || len(exported.Runs) != 1 {
 		t.Fatalf("state export JSON invalid export=%#v err=%v\n%s", exported, err, output)
+	}
+	cmd = helperCommand("state", "audit", "--state", statePath, "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state audit failed: %v\n%s", err, output)
+	}
+	var audit state.AuditDocument
+	if err := json.Unmarshal(output, &audit); err != nil || audit.Version != state.AuditVersion || !strings.HasPrefix(audit.Digest, "sha256:") || audit.Counts["resources"] != 1 {
+		t.Fatalf("state audit JSON invalid audit=%#v err=%v\n%s", audit, err, output)
 	}
 	backupPath := filepath.Join(root, "backup.db")
 	cmd = helperCommand("state", "backup", "--state", statePath, "--out", backupPath)
