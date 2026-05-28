@@ -1,6 +1,7 @@
 package plan
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -8,7 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/OpenUdon/apitools"
@@ -259,7 +260,7 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 			Action:       action,
 			Reason:       reason,
 			DesiredHash:  hash,
-			Dependencies: append([]string(nil), dependencies...),
+			Dependencies: slices.Clone(dependencies),
 			Mapping:      mapping,
 		},
 		diagnostics: diagnostics,
@@ -355,7 +356,7 @@ func collectResources(doc tfconfig.Document) []objectFact {
 			})
 		}
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Address < out[j].Address })
+	slices.SortFunc(out, func(a, b objectFact) int { return cmp.Compare(a.Address, b.Address) })
 	return out
 }
 
@@ -364,7 +365,12 @@ func graphNodes(objects []objectFact) []graph.Node {
 	for _, obj := range objects {
 		known = append(known, obj.Address)
 	}
-	sort.Slice(known, func(i, j int) bool { return len(known[i]) > len(known[j]) })
+	slices.SortFunc(known, func(a, b string) int {
+		if diff := cmp.Compare(len(b), len(a)); diff != 0 {
+			return diff
+		}
+		return cmp.Compare(a, b)
+	})
 	var nodes []graph.Node
 	for _, obj := range objects {
 		nodes = append(nodes, graph.Node{Address: obj.Address, DependsOn: dependenciesFor(obj, known)})
@@ -395,7 +401,7 @@ func dependenciesFor(obj objectFact, known []string) []string {
 	for _, ref := range obj.References {
 		add(ref)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }
 
@@ -437,15 +443,15 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 		for _, diag := range inventory.Diagnostics {
 			diagnostics = append(diagnostics, Diagnostic{Code: "api_source." + strings.ReplaceAll(diag.Code, ".", "_"), Severity: normalizeSeverity(diag.Severity), Message: diag.Message, APISourceKind: input.Kind, APISourceID: input.ID})
 		}
-		ops := append([]apitools.OperationSummary(nil), inventory.Operations...)
-		sort.Slice(ops, func(i, j int) bool { return ops[i].OperationID < ops[j].OperationID })
+		ops := slices.Clone(inventory.Operations)
+		slices.SortFunc(ops, func(a, b apitools.OperationSummary) int { return cmp.Compare(a.OperationID, b.OperationID) })
 		docs = append(docs, sourceDoc{ID: input.ID, Kind: input.Kind, Path: input.Path, Operations: ops})
 	}
-	sort.Slice(docs, func(i, j int) bool {
-		if docs[i].Kind != docs[j].Kind {
-			return docs[i].Kind < docs[j].Kind
+	slices.SortFunc(docs, func(a, b sourceDoc) int {
+		if diff := cmp.Compare(a.Kind, b.Kind); diff != 0 {
+			return diff
 		}
-		return docs[i].ID < docs[j].ID
+		return cmp.Compare(a.ID, b.ID)
 	})
 	return docs, diagnostics
 }
@@ -466,10 +472,10 @@ func normalizeOptions(opts Options) Options {
 		opts.APISources[i].ID = strings.TrimSpace(opts.APISources[i].ID)
 		opts.APISources[i].Path = strings.TrimSpace(opts.APISources[i].Path)
 	}
-	sort.Slice(opts.APISources, func(i, j int) bool {
-		left := opts.APISources[i].Kind + "\x00" + opts.APISources[i].ID + "\x00" + opts.APISources[i].Path
-		right := opts.APISources[j].Kind + "\x00" + opts.APISources[j].ID + "\x00" + opts.APISources[j].Path
-		return left < right
+	slices.SortFunc(opts.APISources, func(a, b APISourceInput) int {
+		left := a.Kind + "\x00" + a.ID + "\x00" + a.Path
+		right := b.Kind + "\x00" + b.ID + "\x00" + b.Path
+		return cmp.Compare(left, right)
 	})
 	return opts
 }
@@ -520,10 +526,10 @@ func tfDiagnostics(diags []tfconfig.Diagnostic) []Diagnostic {
 }
 
 func sortDiagnostics(diags []Diagnostic) {
-	sort.Slice(diags, func(i, j int) bool {
-		left := diags[i].Code + "\x00" + diags[i].Address + "\x00" + diags[i].Message
-		right := diags[j].Code + "\x00" + diags[j].Address + "\x00" + diags[j].Message
-		return left < right
+	slices.SortFunc(diags, func(a, b Diagnostic) int {
+		left := a.Code + "\x00" + a.Address + "\x00" + a.Message
+		right := b.Code + "\x00" + b.Address + "\x00" + b.Message
+		return cmp.Compare(left, right)
 	})
 }
 

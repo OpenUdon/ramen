@@ -1,12 +1,13 @@
 package apply
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -358,10 +359,10 @@ func normalizeOptions(opts Options) Options {
 		opts.APISources[i].ID = strings.TrimSpace(opts.APISources[i].ID)
 		opts.APISources[i].Path = strings.TrimSpace(opts.APISources[i].Path)
 	}
-	sort.Slice(opts.APISources, func(i, j int) bool {
-		left := opts.APISources[i].Kind + "\x00" + opts.APISources[i].ID + "\x00" + opts.APISources[i].Path
-		right := opts.APISources[j].Kind + "\x00" + opts.APISources[j].ID + "\x00" + opts.APISources[j].Path
-		return left < right
+	slices.SortFunc(opts.APISources, func(a, b APISourceInput) int {
+		left := a.Kind + "\x00" + a.ID + "\x00" + a.Path
+		right := b.Kind + "\x00" + b.ID + "\x00" + b.Path
+		return cmp.Compare(left, right)
 	})
 	return opts
 }

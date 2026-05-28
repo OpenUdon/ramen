@@ -2,7 +2,7 @@ package graph
 
 import (
 	"fmt"
-	"sort"
+	"slices"
 )
 
 type Node struct {
@@ -23,7 +23,7 @@ func Sort(nodes []Node) ([]Node, error) {
 	for address := range byAddress {
 		addresses = append(addresses, address)
 	}
-	sort.Strings(addresses)
+	slices.Sort(addresses)
 
 	temporary := map[string]bool{}
 	permanent := map[string]bool{}
@@ -71,6 +71,6 @@ func uniqueSorted(values []string) []string {
 		seen[value] = true
 		out = append(out, value)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }

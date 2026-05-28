@@ -1,12 +1,13 @@
 package reconcile
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 	"time"
 
@@ -128,7 +129,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	}
 	dependencies := map[string][]string{}
 	for _, resource := range depPlan.Plan.Resources {
-		dependencies[resource.Address] = append([]string(nil), resource.Dependencies...)
+		dependencies[resource.Address] = slices.Clone(resource.Dependencies)
 	}
 	emptyConfig, err := os.MkdirTemp("", "ramen-destroy-*")
 	if err != nil {
@@ -310,7 +311,7 @@ func destroyOrder(resources []tfplan.ResourcePlan) []tfplan.ResourcePlan {
 		for _, resource := range byAddress {
 			out = append(out, resource)
 		}
-		sort.SliceStable(out, func(i, j int) bool { return out[i].Address > out[j].Address })
+		slices.SortStableFunc(out, func(a, b tfplan.ResourcePlan) int { return cmp.Compare(b.Address, a.Address) })
 		return out
 	}
 	out := make([]tfplan.ResourcePlan, 0, len(sorted))

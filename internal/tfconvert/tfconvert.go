@@ -1,6 +1,7 @@
 package tfconvert
 
 import (
+	"cmp"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,7 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/OpenUdon/apitools"
@@ -260,21 +261,21 @@ func normalizeOptions(opts Options) Options {
 		opts.APISources[i].ID = strings.TrimSpace(opts.APISources[i].ID)
 		opts.APISources[i].Path = strings.TrimSpace(opts.APISources[i].Path)
 	}
-	sort.Slice(opts.OpenAPIs, func(i, j int) bool {
-		if opts.OpenAPIs[i].ID != opts.OpenAPIs[j].ID {
-			return opts.OpenAPIs[i].ID < opts.OpenAPIs[j].ID
+	slices.SortFunc(opts.OpenAPIs, func(a, b OpenAPIInput) int {
+		if diff := cmp.Compare(a.ID, b.ID); diff != 0 {
+			return diff
 		}
-		return opts.OpenAPIs[i].Path < opts.OpenAPIs[j].Path
+		return cmp.Compare(a.Path, b.Path)
 	})
-	sort.Slice(opts.APISources, func(i, j int) bool {
-		left := []string{opts.APISources[i].Kind, opts.APISources[i].ID, opts.APISources[i].Path}
-		right := []string{opts.APISources[j].Kind, opts.APISources[j].ID, opts.APISources[j].Path}
-		return strings.Join(left, "\x00") < strings.Join(right, "\x00")
+	slices.SortFunc(opts.APISources, func(a, b APISourceInput) int {
+		left := []string{a.Kind, a.ID, a.Path}
+		right := []string{b.Kind, b.ID, b.Path}
+		return cmp.Compare(strings.Join(left, "\x00"), strings.Join(right, "\x00"))
 	})
 	for i := range opts.Targets {
 		opts.Targets[i] = strings.TrimSpace(opts.Targets[i])
 	}
-	sort.Strings(opts.Targets)
+	slices.Sort(opts.Targets)
 	return opts
 }
 
@@ -647,7 +648,7 @@ func (c *conversionState) addMappingDiagnostic(obj selectedObject, purpose, acti
 
 func findOperationByTarget(candidates []apitools.OperationSummary, target operationTarget) (apitools.OperationSummary, bool, bool) {
 	var fallback []apitools.OperationSummary
-	for _, kind := range append([]string(nil), target.SourceKinds...) {
+	for _, kind := range slices.Clone(target.SourceKinds) {
 		for _, operationID := range target.OperationIDs {
 			var exact []apitools.OperationSummary
 			for _, candidate := range candidates {
@@ -746,7 +747,7 @@ func (c *conversionState) attributes(address, moduleAddress string, attrs []tfco
 		c.maybeSensitiveDiagnostic(address, moduleAddress, attr.Path, attr.Value)
 		out = append(out, fact)
 	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
+	slices.SortFunc(out, func(a, b attributeFact) int { return cmp.Compare(a.Path, b.Path) })
 	return out
 }
 
@@ -813,21 +814,22 @@ func (c *conversionState) ensureCredentialBindings() {
 }
 
 func (c *conversionState) sortAll() {
-	sort.Slice(c.bindings, func(i, j int) bool {
-		if c.bindings[i].Name != c.bindings[j].Name {
-			return c.bindings[i].Name < c.bindings[j].Name
+	slices.SortFunc(c.bindings, func(a, b binding) int {
+		if diff := cmp.Compare(a.Name, b.Name); diff != 0 {
+			return diff
 		}
-		return c.bindings[i].Address < c.bindings[j].Address
+		return cmp.Compare(a.Address, b.Address)
 	})
-	sort.Slice(c.symbols, func(i, j int) bool {
-		return strings.Join([]string{c.symbols[i].ModuleAddress, c.symbols[i].Kind, c.symbols[i].Name}, "\x00") <
-			strings.Join([]string{c.symbols[j].ModuleAddress, c.symbols[j].Kind, c.symbols[j].Name}, "\x00")
+	slices.SortFunc(c.symbols, func(a, b symbolFact) int {
+		left := strings.Join([]string{a.ModuleAddress, a.Kind, a.Name}, "\x00")
+		right := strings.Join([]string{b.ModuleAddress, b.Kind, b.Name}, "\x00")
+		return cmp.Compare(left, right)
 	})
-	sort.Slice(c.selected, func(i, j int) bool { return c.selected[i].Address < c.selected[j].Address })
-	sort.Slice(c.mappings, func(i, j int) bool {
-		left := []string{c.mappings[i].Object.Address, c.mappings[i].Purpose, c.mappings[i].SourceKind, c.mappings[i].SourceID, c.mappings[i].SourcePath, c.mappings[i].OperationID, c.mappings[i].TodoID}
-		right := []string{c.mappings[j].Object.Address, c.mappings[j].Purpose, c.mappings[j].SourceKind, c.mappings[j].SourceID, c.mappings[j].SourcePath, c.mappings[j].OperationID, c.mappings[j].TodoID}
-		return strings.Join(left, "\x00") < strings.Join(right, "\x00")
+	slices.SortFunc(c.selected, func(a, b selectedObject) int { return cmp.Compare(a.Address, b.Address) })
+	slices.SortFunc(c.mappings, func(a, b objectMapping) int {
+		left := []string{a.Object.Address, a.Purpose, a.SourceKind, a.SourceID, a.SourcePath, a.OperationID, a.TodoID}
+		right := []string{b.Object.Address, b.Purpose, b.SourceKind, b.SourceID, b.SourcePath, b.OperationID, b.TodoID}
+		return cmp.Compare(strings.Join(left, "\x00"), strings.Join(right, "\x00"))
 	})
 	sortDiagnostics(c.diagnostics)
 }
@@ -969,7 +971,7 @@ func writeAPISourceStagingMarker(outDir string, docs []apiDoc) error {
 		seen[dir] = true
 		dirs = append(dirs, dir)
 	}
-	sort.Strings(dirs)
+	slices.Sort(dirs)
 	marker := apiSourceStagingOwnership{Version: apiSourceStagingMarkerFormat, Dirs: dirs}
 	data, err := json.MarshalIndent(marker, "", "  ")
 	if err != nil {
@@ -1238,22 +1240,21 @@ func mappingArtifactFor(mapping objectMapping) mappingArtifact {
 			credentials = append(credentials, name)
 		}
 	}
-	sort.Strings(credentials)
+	slices.Sort(credentials)
 	return mappingArtifact{
-		Address:     mapping.Object.Address,
-		Kind:        mapping.Object.Kind,
-		Type:        mapping.Object.Type,
-		Purpose:     mapping.Purpose,
-		Action:      mapping.Action,
-		SourceKind:  mapping.SourceKind,
-		SourceID:    mapping.SourceID,
-		SourcePath:  mapping.SourcePath,
-		OperationID: mapping.OperationID,
-		IdentityAttributes: append([]tfmapping.IdentityAttribute(nil),
-			mapping.IdentityAttributes...),
-		TodoID:      mapping.TodoID,
-		Ambiguous:   mapping.Ambiguous,
-		Credentials: credentials,
+		Address:            mapping.Object.Address,
+		Kind:               mapping.Object.Kind,
+		Type:               mapping.Object.Type,
+		Purpose:            mapping.Purpose,
+		Action:             mapping.Action,
+		SourceKind:         mapping.SourceKind,
+		SourceID:           mapping.SourceID,
+		SourcePath:         mapping.SourcePath,
+		OperationID:        mapping.OperationID,
+		IdentityAttributes: slices.Clone(mapping.IdentityAttributes),
+		TodoID:             mapping.TodoID,
+		Ambiguous:          mapping.Ambiguous,
+		Credentials:        credentials,
 	}
 }
 
@@ -1460,7 +1461,7 @@ func operationRequest(mapping objectMapping) map[string]any {
 		request["body"] = body
 	}
 	if len(credentials) > 0 {
-		sort.Strings(credentials)
+		slices.Sort(credentials)
 		request["x-ramen-credential-bindings"] = credentials
 	}
 	return request
@@ -1856,10 +1857,10 @@ func normalizeAPISourceKind(kind string) string {
 }
 
 func sortDiagnostics(diags []Diagnostic) {
-	sort.Slice(diags, func(i, j int) bool {
-		left := []string{diags[i].Code, diags[i].Address, diags[i].ModuleAddress, diags[i].TodoID, diags[i].Message}
-		right := []string{diags[j].Code, diags[j].Address, diags[j].ModuleAddress, diags[j].TodoID, diags[j].Message}
-		return strings.Join(left, "\x00") < strings.Join(right, "\x00")
+	slices.SortFunc(diags, func(a, b Diagnostic) int {
+		left := []string{a.Code, a.Address, a.ModuleAddress, a.TodoID, a.Message}
+		right := []string{b.Code, b.Address, b.ModuleAddress, b.TodoID, b.Message}
+		return cmp.Compare(strings.Join(left, "\x00"), strings.Join(right, "\x00"))
 	})
 }
 
