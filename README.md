@@ -1,6 +1,6 @@
 # Ramen
 
-Ramen is a planned public API-source desired-state engine. Its native project
+Ramen is a public API-source desired-state engine. Its native project
 format is a UWS project plus Ramen reconciliation metadata for resource
 identity, lifecycle, operation roles, hashes, state matching, and redaction
 policy. Terraform/OpenTofu HCL remains an optional authoring and migration
@@ -11,6 +11,44 @@ Ramen maps desired API resources to operations from sources such as AWS Smithy
 JSON, Google Discovery, and OpenAPI, computes desired-state plans, records
 SQLite state history, and hands approved UWS execution documents to an
 explicit trusted executor boundary.
+
+## Why Ramen
+
+Ramen is for teams that have API source documents and need desired-state
+workflows without centering the system on provider plugins, backend
+compatibility, module download, or Terraform/OpenTofu plan files. Typical
+adopters include API platform teams, internal developer platform teams,
+operators managing APIs without mature providers, teams migrating HCL-shaped
+declarations, and UWS/OpenUdon users who need stateful reconciliation around
+workflow documents.
+
+Ramen differs from adjacent tools in a narrow way:
+
+- Terraform/OpenTofu are provider-backed infrastructure runtimes; Ramen is an
+  API-source reconciliation engine with HCL conversion as an adapter.
+- Generic workflow runners execute steps; Ramen adds identity matching,
+  dependency graphs, deterministic plans, import, refresh evidence, state
+  history, and approval-artifact checks.
+- Generated SDKs provide imperative API calls; Ramen provides operator
+  workflows and durable desired-state records.
+- OpenUdon owns workflow authoring and review packaging; Ramen owns
+  desired-state graphing, state, diff, and reconciliation.
+
+## Adoption Readiness
+
+Community users should be able to evaluate Ramen locally through native project
+examples, mock execution, readable plans, stable diagnostics, clear non-goals,
+and `ramen convert tf` for HCL migration. Enterprise users should look for
+approval artifacts, redacted SQLite state history, reproducible plans, explicit
+trusted executor boundaries, no credential value storage, and future policy
+integration points.
+
+Ready now: provider-free native validation, graphing, planning, HCL conversion
+scaffolding, local state history, mock-backed apply/refresh/destroy flows,
+plan approval metadata, read-only show/state inspection, and documented safety
+boundaries. Still experimental: broader resource mappings, live executor
+adapters, policy hooks, parameterization ergonomics, release packaging, and
+operational support contracts.
 
 The canonical roadmap and project memory live in the symlinked harness files:
 
@@ -105,10 +143,11 @@ Lane meanings:
 - `Vxx`: `ramen validate` and `ramen version` command-specific tasks.
 
 The native UWS desired-state project model is tracked in the completed
-[memory-bank/status-M08.md](memory-bank/status-M08.md). The active plan-control
-track is [memory-bank/status-P02.md](memory-bank/status-P02.md). Accepted
-subcommand lane normalization is tracked in
-[memory-bank/status-M10.md](memory-bank/status-M10.md).
+[memory-bank/status-M08.md](memory-bank/status-M08.md). Plan approval controls
+are tracked in completed [memory-bank/status-P02.md](memory-bank/status-P02.md).
+Accepted subcommand lane normalization is tracked in completed
+[memory-bank/status-M10.md](memory-bank/status-M10.md). Adoption positioning is
+tracked in completed [memory-bank/status-M12.md](memory-bank/status-M12.md).
 
 ## Development Checks
 
