@@ -223,17 +223,18 @@ type attributeFact struct {
 }
 
 type objectMapping struct {
-	Object      selectedObject
-	Purpose     string
-	Action      string
-	SourceKind  string
-	SourceID    string
-	SourcePath  string
-	OperationID string
-	Operation   apitools.OperationSummary
-	TodoID      string
-	Ambiguous   bool
-	Auth        []apitools.AuthRequirementSummary
+	Object             selectedObject
+	Purpose            string
+	Action             string
+	SourceKind         string
+	SourceID           string
+	SourcePath         string
+	OperationID        string
+	Operation          apitools.OperationSummary
+	IdentityAttributes []tfmapping.IdentityAttribute
+	TodoID             string
+	Ambiguous          bool
+	Auth               []apitools.AuthRequirementSummary
 }
 
 type operationTarget = tfmapping.OperationTarget
@@ -519,9 +520,10 @@ func isProviderLocalDataSource(obj selectedObject) bool {
 func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action string) bool {
 	candidates := c.operationCandidates()
 	provider := objectProviderLocalName(obj)
-	if target := providerOperationTargetForObject(obj, purpose, action); len(target.OperationIDs) > 0 {
+	mappingSpec := tfmapping.DefaultRegistry().MapObject(tfmappingObject(obj), purpose, action)
+	if target := mappingSpec.Target; len(target.OperationIDs) > 0 {
 		if operation, ok, ambiguous := findOperationByTarget(candidates, target); ok {
-			mapping := objectMapping{Object: obj, Purpose: purpose, Action: action}
+			mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, IdentityAttributes: mappingSpec.IdentityAttributes}
 			doc := apiSourceForOperation(c.apiSources, operation)
 			mapping.SourceKind = doc.Kind
 			mapping.SourceID = firstNonEmpty(operation.DocumentName, doc.ID)
@@ -529,10 +531,11 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 			mapping.OperationID = operation.OperationID
 			mapping.Operation = operation
 			mapping.Auth = apitools.AuthRequirementsForOperation(provider, operation)
+			c.addFallbackDiagnosticIfNeeded(obj, purpose, action, target, doc.Kind)
 			c.mappings = append(c.mappings, mapping)
 			return true
 		} else if ambiguous {
-			mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, Ambiguous: true}
+			mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, IdentityAttributes: mappingSpec.IdentityAttributes, Ambiguous: true}
 			mapping.TodoID = todoID(obj.Address, purpose, action)
 			mapping.SourcePath = defaultAPISourcePath(c.apiSources)
 			c.addDiagnostic(Diagnostic{
@@ -554,7 +557,7 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 		Purpose:  purpose,
 		Target:   strings.Join([]string{obj.Address, obj.Type, obj.Name}, " "),
 	}, candidates)
-	mapping := objectMapping{Object: obj, Purpose: purpose, Action: action}
+	mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, IdentityAttributes: mappingSpec.IdentityAttributes}
 	switch {
 	case selection.Found:
 		doc := apiSourceForOperation(c.apiSources, selection.Operation)
@@ -564,6 +567,11 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 		mapping.OperationID = selection.Operation.OperationID
 		mapping.Operation = selection.Operation
 		mapping.Auth = apitools.AuthRequirementsForOperation(provider, selection.Operation)
+		c.addMappingDiagnostic(obj, purpose, action, tfmapping.Diagnostic{
+			Code:     tfmapping.DiagnosticCodeFallbackOnly,
+			Severity: tfmapping.DiagnosticSeverityInfo,
+			Message:  fmt.Sprintf("selected API source operation %s by fallback hints for %s", selection.Operation.OperationID, obj.Address),
+		}, "")
 		c.mappings = append(c.mappings, mapping)
 		return true
 	case selection.Ambiguous:
@@ -583,19 +591,58 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 	default:
 		mapping.TodoID = todoID(obj.Address, purpose, action)
 		mapping.SourcePath = defaultAPISourcePath(c.apiSources)
-		c.addDiagnostic(Diagnostic{
-			Code:          "operation.unresolved",
-			Severity:      "warning",
-			Message:       fmt.Sprintf("no confident API source operation match for %s %s %s", purpose, obj.Kind, obj.Address),
-			Address:       obj.Address,
-			ModuleAddress: obj.ModuleAddress,
-			SourceRange:   convertRange(obj.Range),
-			TodoID:        mapping.TodoID,
-			StrictFailure: true,
-		})
+		c.addMappingDiagnostics(obj, purpose, action, mappingSpec.Diagnostics, mapping.TodoID)
 	}
 	c.mappings = append(c.mappings, mapping)
 	return false
+}
+
+func (c *conversionState) addFallbackDiagnosticIfNeeded(obj selectedObject, purpose, action string, target operationTarget, selectedKind string) {
+	if len(target.SourceKinds) == 0 || normalizeAPISourceKind(target.SourceKinds[0]) == normalizeAPISourceKind(selectedKind) {
+		return
+	}
+	c.addMappingDiagnostic(obj, purpose, action, tfmapping.Diagnostic{
+		Code:     tfmapping.DiagnosticCodeFallbackOnly,
+		Severity: tfmapping.DiagnosticSeverityInfo,
+		Message:  fmt.Sprintf("selected %s API source fallback for %s because preferred %s source was not selected", selectedKind, obj.Address, target.SourceKinds[0]),
+	}, "")
+}
+
+func (c *conversionState) addMappingDiagnostics(obj selectedObject, purpose, action string, diagnostics []tfmapping.Diagnostic, todoID string) {
+	if len(diagnostics) == 0 {
+		diagnostics = []tfmapping.Diagnostic{{
+			Code:     tfmapping.DiagnosticCodeUnsupportedType,
+			Severity: tfmapping.DiagnosticSeverityWarning,
+			Message:  fmt.Sprintf("no Ramen mapping is available for %s %s %s", purpose, obj.Kind, obj.Address),
+		}}
+	}
+	for _, diag := range diagnostics {
+		c.addMappingDiagnostic(obj, purpose, action, diag, todoID)
+	}
+}
+
+func (c *conversionState) addMappingDiagnostic(obj selectedObject, purpose, action string, diag tfmapping.Diagnostic, todoID string) {
+	if diag.Code == "" {
+		diag.Code = tfmapping.DiagnosticCodeUnsupportedType
+	}
+	if diag.Severity == "" {
+		diag.Severity = tfmapping.DiagnosticSeverityWarning
+	}
+	strictFailure := diag.Severity != tfmapping.DiagnosticSeverityInfo && diag.Code != tfmapping.DiagnosticCodeFallbackOnly
+	message := strings.TrimSpace(diag.Message)
+	if message == "" {
+		message = fmt.Sprintf("mapping diagnostic for %s %s %s", purpose, action, obj.Address)
+	}
+	c.addDiagnostic(Diagnostic{
+		Code:          string(diag.Code),
+		Severity:      string(diag.Severity),
+		Message:       message,
+		Address:       obj.Address,
+		ModuleAddress: obj.ModuleAddress,
+		SourceRange:   convertRange(obj.Range),
+		TodoID:        todoID,
+		StrictFailure: strictFailure,
+	})
 }
 
 func findOperationByTarget(candidates []apitools.OperationSummary, target operationTarget) (apitools.OperationSummary, bool, bool) {
@@ -1141,18 +1188,19 @@ type conversionArtifact struct {
 }
 
 type mappingArtifact struct {
-	Address     string   `json:"address"`
-	Kind        string   `json:"kind"`
-	Type        string   `json:"type"`
-	Purpose     string   `json:"purpose"`
-	Action      string   `json:"action"`
-	SourceKind  string   `json:"source_kind,omitempty"`
-	SourceID    string   `json:"source_id,omitempty"`
-	SourcePath  string   `json:"source_path,omitempty"`
-	OperationID string   `json:"operation_id,omitempty"`
-	TodoID      string   `json:"todo_id,omitempty"`
-	Ambiguous   bool     `json:"ambiguous,omitempty"`
-	Credentials []string `json:"credentials,omitempty"`
+	Address            string                        `json:"address"`
+	Kind               string                        `json:"kind"`
+	Type               string                        `json:"type"`
+	Purpose            string                        `json:"purpose"`
+	Action             string                        `json:"action"`
+	SourceKind         string                        `json:"source_kind,omitempty"`
+	SourceID           string                        `json:"source_id,omitempty"`
+	SourcePath         string                        `json:"source_path,omitempty"`
+	OperationID        string                        `json:"operation_id,omitempty"`
+	IdentityAttributes []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
+	TodoID             string                        `json:"todo_id,omitempty"`
+	Ambiguous          bool                          `json:"ambiguous,omitempty"`
+	Credentials        []string                      `json:"credentials,omitempty"`
 }
 
 type planArtifact struct {
@@ -1201,6 +1249,8 @@ func mappingArtifactFor(mapping objectMapping) mappingArtifact {
 		SourceID:    mapping.SourceID,
 		SourcePath:  mapping.SourcePath,
 		OperationID: mapping.OperationID,
+		IdentityAttributes: append([]tfmapping.IdentityAttribute(nil),
+			mapping.IdentityAttributes...),
 		TodoID:      mapping.TodoID,
 		Ambiguous:   mapping.Ambiguous,
 		Credentials: credentials,
@@ -1374,6 +1424,9 @@ func operationRequest(mapping objectMapping) map[string]any {
 			setRequestBinding(requestLocationForKey(mapping.Operation, requestKey), requestKey, attr.Value, path, query, header, cookie, body)
 		}
 	}
+	if len(mapping.IdentityAttributes) > 0 {
+		terraform["identity_attributes"] = mapping.IdentityAttributes
+	}
 	for requestKey, value := range awsQueryProtocolStaticBindings(mapping) {
 		setRequestBinding(requestLocationForKey(mapping.Operation, requestKey), requestKey, value, path, query, header, cookie, body)
 	}
@@ -1520,6 +1573,9 @@ func renderReview(c conversionState) string {
 			ref = mapping.SourcePath + ":" + mapping.OperationID
 		}
 		fmt.Fprintf(&b, "- `%s` %s/%s -> `%s`\n", mapping.Object.Address, mapping.Action, mapping.Purpose, ref)
+		for _, identity := range mapping.IdentityAttributes {
+			fmt.Fprintf(&b, "  - Identity `%s`: Terraform `%s`, request `%s`, response `%s`\n", identity.Name, identity.TerraformPath, strings.Join(identity.RequestKeys, ", "), strings.Join(identity.ResponsePaths, ", "))
+		}
 		for _, auth := range mapping.Auth {
 			fmt.Fprintf(&b, "  - Auth `%s`: %s\n", auth.Scheme, auth.Description)
 		}
@@ -1584,10 +1640,6 @@ func objectProviderLocalName(obj selectedObject) string {
 		return provider
 	}
 	return ""
-}
-
-func providerOperationTargetForObject(obj selectedObject, purpose, action string) operationTarget {
-	return tfmapping.DefaultRegistry().OperationTarget(tfmappingObject(obj), purpose, action)
 }
 
 func awsQueryProtocolStaticBindings(mapping objectMapping) map[string]string {

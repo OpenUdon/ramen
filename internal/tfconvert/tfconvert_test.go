@@ -2,6 +2,7 @@ package tfconvert
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -472,6 +473,15 @@ resource "aws_iam_role" "role" {
 	if _, err := os.Stat(filepath.Join(result.OutDir, "aws-smithy", "iam.json")); err != nil {
 		t.Fatalf("staged Smithy source missing: %v", err)
 	}
+	mappings := readMappingsForTest(t, result.MappingsPath)
+	identity := identityForTest(t, mappings, "aws_iam_role.role", "role_name")
+	if identity.TerraformPath != "name" || !equalStringsForTest(identity.RequestKeys, []string{"RoleName"}) || !equalStringsForTest(identity.ResponsePaths, []string{"Role.RoleName", "Role.Arn"}) {
+		t.Fatalf("unexpected IAM role identity metadata: %#v", identity)
+	}
+	review := readFileForTest(t, result.ReviewPath)
+	if !strings.Contains(review, "Identity `role_name`") || !strings.Contains(review, "Role.Arn") {
+		t.Fatalf("review missing IAM identity metadata:\n%s", review)
+	}
 }
 
 func TestConvertGoogleStorageBucketUsesNativeDiscoverySource(t *testing.T) {
@@ -521,6 +531,15 @@ resource "google_storage_bucket" "bucket" {
 	}
 	if _, err := os.Stat(filepath.Join(result.OutDir, "google-discovery", "storage.json")); err != nil {
 		t.Fatalf("staged Discovery source missing: %v", err)
+	}
+	mappings := readMappingsForTest(t, result.MappingsPath)
+	identity := identityForTest(t, mappings, "google_storage_bucket.bucket", "bucket_name")
+	if identity.TerraformPath != "name" || !equalStringsForTest(identity.RequestKeys, []string{"name"}) || !equalStringsForTest(identity.ResponsePaths, []string{"name", "id"}) {
+		t.Fatalf("unexpected Google bucket identity metadata: %#v", identity)
+	}
+	review := readFileForTest(t, result.ReviewPath)
+	if !strings.Contains(review, "Identity `bucket_name`") || !strings.Contains(review, "name, id") {
+		t.Fatalf("review missing Google identity metadata:\n%s", review)
 	}
 }
 
@@ -839,6 +858,9 @@ paths:
 	if result == nil || !result.StrictFailed {
 		t.Fatalf("result did not report strict failure: %#v", result)
 	}
+	if !hasDiagnostic(result.Diagnostics, "mapping.unsupported_type") {
+		t.Fatalf("diagnostics missing public mapping code: %#v", result.Diagnostics)
+	}
 	if _, statErr := os.Stat(result.DiagnosticsJSON); statErr != nil {
 		t.Fatalf("strict conversion did not write diagnostics: %v", statErr)
 	}
@@ -1045,6 +1067,57 @@ func hasDiagnostic(diags []Diagnostic, code string) bool {
 		}
 	}
 	return false
+}
+
+type mappingArtifactForTest struct {
+	Address            string                     `json:"address"`
+	IdentityAttributes []identityAttributeForTest `json:"identity_attributes"`
+}
+
+type identityAttributeForTest struct {
+	Name          string   `json:"name"`
+	TerraformPath string   `json:"terraform_path"`
+	RequestKeys   []string `json:"request_keys"`
+	ResponsePaths []string `json:"response_paths"`
+	Required      bool     `json:"required"`
+}
+
+func readMappingsForTest(t *testing.T, path string) []mappingArtifactForTest {
+	t.Helper()
+	var mappings []mappingArtifactForTest
+	if err := json.Unmarshal([]byte(readFileForTest(t, path)), &mappings); err != nil {
+		t.Fatalf("failed to parse mappings artifact: %v", err)
+	}
+	return mappings
+}
+
+func identityForTest(t *testing.T, mappings []mappingArtifactForTest, address, name string) identityAttributeForTest {
+	t.Helper()
+	for _, mapping := range mappings {
+		if mapping.Address != address {
+			continue
+		}
+		for _, identity := range mapping.IdentityAttributes {
+			if identity.Name == name {
+				return identity
+			}
+		}
+		t.Fatalf("mapping %s missing identity %s: %#v", address, name, mapping.IdentityAttributes)
+	}
+	t.Fatalf("mapping for %s not found: %#v", address, mappings)
+	return identityAttributeForTest{}
+}
+
+func equalStringsForTest(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i] != right[i] {
+			return false
+		}
+	}
+	return true
 }
 
 func writeFileForTest(t *testing.T, path, content string) {

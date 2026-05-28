@@ -16,16 +16,88 @@ type Object struct {
 	Provider string
 }
 
+type IdentityAttribute struct {
+	Name          string   `json:"name"`
+	TerraformPath string   `json:"terraform_path"`
+	RequestKeys   []string `json:"request_keys,omitempty"`
+	ResponsePaths []string `json:"response_paths,omitempty"`
+	Required      bool     `json:"required,omitempty"`
+}
+
+type DiagnosticCode string
+
+const (
+	DiagnosticCodeUnsupportedProvider DiagnosticCode = "mapping.unsupported_provider"
+	DiagnosticCodeUnsupportedType     DiagnosticCode = "mapping.unsupported_type"
+	DiagnosticCodeUnsupportedAction   DiagnosticCode = "mapping.unsupported_action"
+	DiagnosticCodeMissingIdentity     DiagnosticCode = "mapping.missing_identity"
+	DiagnosticCodeFallbackOnly        DiagnosticCode = "mapping.fallback_only"
+)
+
+type DiagnosticSeverity string
+
+const (
+	DiagnosticSeverityError   DiagnosticSeverity = "error"
+	DiagnosticSeverityWarning DiagnosticSeverity = "warning"
+	DiagnosticSeverityInfo    DiagnosticSeverity = "info"
+)
+
+type Diagnostic struct {
+	Code     DiagnosticCode     `json:"code"`
+	Severity DiagnosticSeverity `json:"severity"`
+	Message  string             `json:"message"`
+}
+
 type OperationTarget struct {
 	SourceKinds  []string `json:"source_kinds,omitempty"`
 	SourceIDs    []string `json:"source_ids,omitempty"`
 	OperationIDs []string `json:"operation_ids,omitempty"`
 }
 
-type Registry struct{}
+type Mapping struct {
+	Object             Object              `json:"object"`
+	Purpose            string              `json:"purpose"`
+	Action             string              `json:"action"`
+	Target             OperationTarget     `json:"target,omitempty"`
+	IdentityAttributes []IdentityAttribute `json:"identity_attributes,omitempty"`
+	Diagnostics        []Diagnostic        `json:"diagnostics,omitempty"`
+}
+
+type ProviderMapper interface {
+	MapObject(obj Object, purpose, action string) Mapping
+}
+
+type RegistryOption func(*Registry)
+
+type Registry struct {
+	providerMappers map[string]ProviderMapper
+}
+
+func NewRegistry(opts ...RegistryOption) Registry {
+	registry := Registry{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&registry)
+		}
+	}
+	return registry
+}
+
+func WithProviderMapper(provider string, mapper ProviderMapper) RegistryOption {
+	return func(registry *Registry) {
+		provider = normalizeProviderName(provider)
+		if provider == "" {
+			return
+		}
+		if registry.providerMappers == nil {
+			registry.providerMappers = map[string]ProviderMapper{}
+		}
+		registry.providerMappers[provider] = mapper
+	}
+}
 
 func DefaultRegistry() Registry {
-	return Registry{}
+	return NewRegistry()
 }
 
 func (Registry) IsProviderLocalDataSource(obj Object) bool {
@@ -40,16 +112,28 @@ func (Registry) IsProviderLocalDataSource(obj Object) bool {
 	}
 }
 
-func (Registry) OperationTarget(obj Object, purpose, action string) OperationTarget {
-	purpose = strings.ToLower(strings.TrimSpace(purpose))
-	action = strings.ToLower(strings.TrimSpace(action))
-	switch objectProviderLocalName(obj) {
+func (r Registry) OperationTarget(obj Object, purpose, action string) OperationTarget {
+	return r.MapObject(obj, purpose, action).Target
+}
+
+func (r Registry) MapObject(obj Object, purpose, action string) Mapping {
+	obj = normalizeObject(obj)
+	purpose = normalizeToken(purpose)
+	action = normalizeToken(action)
+	provider := objectProviderLocalName(obj)
+	if mapper, ok := r.providerMappers[provider]; ok {
+		if mapper == nil {
+			return unsupportedProviderMapping(obj, purpose, action, provider)
+		}
+		return mapper.MapObject(obj, purpose, action)
+	}
+	switch provider {
 	case "aws":
-		return awsOperationTargetForObject(obj, purpose, action)
+		return awsMapper{}.MapObject(obj, purpose, action)
 	case "google":
-		return googleOperationTargetForObject(obj, purpose, action)
+		return googleMapper{}.MapObject(obj, purpose, action)
 	default:
-		return OperationTarget{}
+		return unsupportedProviderMapping(obj, purpose, action, provider)
 	}
 }
 
@@ -95,17 +179,22 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				return []string{"authorization_type"}
 			}
 		case "CreateRole", "POST_CreateRole":
-			if sourceKind == APISourceKindAWSSmithy {
-				switch attrPath {
-				case "name":
-					return []string{"RoleName"}
-				case "assume_role_policy":
-					return []string{"AssumeRolePolicyDocument"}
-				}
+			switch attrPath {
+			case "name":
+				return []string{"RoleName"}
+			case "assume_role_policy":
+				return []string{"AssumeRolePolicyDocument"}
 			}
-		case "DeleteRole", "POST_DeleteRole":
+		case "GetRole", "POST_GetRole", "DeleteRole", "POST_DeleteRole":
 			if attrPath == "name" {
 				return []string{"RoleName"}
+			}
+		case "UpdateRole", "POST_UpdateRole":
+			switch attrPath {
+			case "name":
+				return []string{"RoleName"}
+			case "description":
+				return []string{"Description"}
 			}
 		case "PutRolePolicy", "POST_PutRolePolicy":
 			switch attrPath {
@@ -125,14 +214,26 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 			}
 		}
 	case "google":
-		if sourceKind == APISourceKindGoogleDiscovery && operationID == "storage.buckets.insert" {
-			switch attrPath {
-			case "project":
-				return []string{"project"}
-			case "name":
-				return []string{"name"}
-			case "location":
-				return []string{"location"}
+		if sourceKind == APISourceKindGoogleDiscovery {
+			switch operationID {
+			case "storage.buckets.insert":
+				switch attrPath {
+				case "project":
+					return []string{"project"}
+				case "name":
+					return []string{"name"}
+				case "location":
+					return []string{"location"}
+				}
+			case "storage.buckets.get", "storage.buckets.patch", "storage.buckets.delete":
+				switch attrPath {
+				case "name":
+					return []string{"bucket"}
+				case "project":
+					return []string{"project"}
+				case "location":
+					return []string{"location"}
+				}
 			}
 		}
 	}
@@ -164,72 +265,139 @@ func AWSQueryProtocolAction(operationID string) string {
 	return ""
 }
 
-func awsOperationTargetForObject(obj Object, purpose, action string) OperationTarget {
+type awsMapper struct{}
+
+func (awsMapper) MapObject(obj Object, purpose, action string) Mapping {
+	mapping := Mapping{Object: obj, Purpose: purpose, Action: action}
 	switch obj.Type {
 	case "aws_s3_bucket":
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
-			return awsOperationTarget("s3", "CreateBucket")
+			mapping.Target = awsOperationTarget("s3", "CreateBucket")
+			return mapping
 		}
 		if obj.Kind == "data_source" && purpose == "read" {
-			return awsOperationTarget("s3", "GetBucketLocation")
+			mapping.Target = awsOperationTarget("s3", "GetBucketLocation")
+			return mapping
 		}
 		if obj.Kind == "data_source" && purpose == "list" {
-			return awsOperationTarget("s3", "ListBuckets")
+			mapping.Target = awsOperationTarget("s3", "ListBuckets")
+			return mapping
 		}
 	case "aws_s3_bucket_accelerate_configuration":
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
-			return awsOperationTarget("s3", "PutBucketAccelerateConfiguration")
+			mapping.Target = awsOperationTarget("s3", "PutBucketAccelerateConfiguration")
+			return mapping
 		}
 	case "aws_caller_identity":
 		if obj.Kind == "data_source" && purpose == "read" {
-			return awsOperationTarget("sts", "POST_GetCallerIdentity")
+			mapping.Target = awsOperationTarget("sts", "POST_GetCallerIdentity")
+			return mapping
 		}
 	case "aws_iam_role":
+		if obj.Kind != "resource" {
+			return unsupportedActionMapping(mapping, "AWS IAM role mapping supports managed resources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{{
+			Name:          "role_name",
+			TerraformPath: "name",
+			RequestKeys:   []string{"RoleName"},
+			ResponsePaths: []string{"Role.RoleName", "Role.Arn"},
+			Required:      true,
+		}}
+		if purpose == "read" {
+			mapping.Target = awsOperationTarget("iam", "POST_GetRole")
+			return mapping
+		}
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
-			return awsOperationTarget("iam", "POST_CreateRole")
+			mapping.Target = awsOperationTarget("iam", "POST_CreateRole")
+			return mapping
+		}
+		if purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = awsOperationTarget("iam", "POST_UpdateRole")
+			return mapping
 		}
 		if obj.Kind == "resource" && purpose == "delete" {
-			return awsOperationTarget("iam", "POST_DeleteRole")
+			mapping.Target = awsOperationTarget("iam", "POST_DeleteRole")
+			return mapping
 		}
+		return unsupportedActionMapping(mapping, "AWS IAM role mapping supports read, create, update, and delete")
 	case "aws_iam_role_policy":
 		if obj.Kind == "resource" && (purpose == "create" || purpose == "update") && (action == "create" || action == "update" || action == "replace") {
-			return awsOperationTarget("iam", "POST_PutRolePolicy")
+			mapping.Target = awsOperationTarget("iam", "POST_PutRolePolicy")
+			return mapping
 		}
 		if obj.Kind == "resource" && purpose == "delete" {
-			return awsOperationTarget("iam", "POST_DeleteRolePolicy")
+			mapping.Target = awsOperationTarget("iam", "POST_DeleteRolePolicy")
+			return mapping
 		}
 	case "aws_lambda_function":
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
-			return awsOperationTarget("lambda", "CreateFunction")
+			mapping.Target = awsOperationTarget("lambda", "CreateFunction")
+			return mapping
 		}
 		if obj.Kind == "resource" && purpose == "delete" {
-			return awsOperationTarget("lambda", "DeleteFunction")
+			mapping.Target = awsOperationTarget("lambda", "DeleteFunction")
+			return mapping
 		}
 	case "aws_lambda_function_url":
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
-			return awsOperationTarget("lambda", "CreateFunctionUrlConfig")
+			mapping.Target = awsOperationTarget("lambda", "CreateFunctionUrlConfig")
+			return mapping
 		}
 		if obj.Kind == "resource" && purpose == "update" {
-			return awsOperationTarget("lambda", "UpdateFunctionUrlConfig")
+			mapping.Target = awsOperationTarget("lambda", "UpdateFunctionUrlConfig")
+			return mapping
 		}
 		if obj.Kind == "resource" && purpose == "delete" {
-			return awsOperationTarget("lambda", "DeleteFunctionUrlConfig")
+			mapping.Target = awsOperationTarget("lambda", "DeleteFunctionUrlConfig")
+			return mapping
 		}
+	default:
+		return unsupportedTypeMapping(mapping, "AWS")
 	}
-	return OperationTarget{}
+	return unsupportedActionMapping(mapping, "AWS mapping does not support this object kind, purpose, and action")
 }
 
-func googleOperationTargetForObject(obj Object, purpose, action string) OperationTarget {
+type googleMapper struct{}
+
+func (googleMapper) MapObject(obj Object, purpose, action string) Mapping {
+	mapping := Mapping{Object: obj, Purpose: purpose, Action: action}
 	switch obj.Type {
 	case "google_storage_bucket":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Google Storage bucket mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{{
+			Name:          "bucket_name",
+			TerraformPath: "name",
+			RequestKeys:   []string{"name"},
+			ResponsePaths: []string{"name", "id"},
+			Required:      true,
+		}}
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
-			return googleOperationTarget("storage", "storage.buckets.insert")
+			mapping.Target = googleOperationTarget("storage", "storage.buckets.insert")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = googleOperationTarget("storage", "storage.buckets.get")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = googleOperationTarget("storage", "storage.buckets.patch")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = googleOperationTarget("storage", "storage.buckets.delete")
+			return mapping
 		}
 		if obj.Kind == "data_source" && purpose == "read" {
-			return googleOperationTarget("storage", "storage.buckets.get")
+			mapping.Target = googleOperationTarget("storage", "storage.buckets.get")
+			return mapping
 		}
+		return unsupportedActionMapping(mapping, "Google Storage bucket mapping supports read, create, update, and delete")
+	default:
+		return unsupportedTypeMapping(mapping, "Google")
 	}
-	return OperationTarget{}
 }
 
 func awsOperationTarget(service, operationID string) OperationTarget {
@@ -265,13 +433,30 @@ func awsQueryProtocolVersion(sourceID, sourcePath string) string {
 }
 
 func objectProviderLocalName(obj Object) string {
-	provider := strings.TrimPrefix(strings.TrimSpace(obj.Provider), "provider.")
+	provider := normalizeProviderName(obj.Provider)
 	if provider == "" {
 		if before, _, ok := strings.Cut(obj.Type, "_"); ok {
 			return before
 		}
 		return ""
 	}
+	before, _, _ := strings.Cut(provider, ".")
+	return before
+}
+
+func normalizeObject(obj Object) Object {
+	obj.Kind = normalizeToken(obj.Kind)
+	obj.Type = strings.TrimSpace(obj.Type)
+	obj.Provider = strings.TrimSpace(obj.Provider)
+	return obj
+}
+
+func normalizeToken(value string) string {
+	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func normalizeProviderName(provider string) string {
+	provider = strings.TrimPrefix(strings.TrimSpace(provider), "provider.")
 	before, _, _ := strings.Cut(provider, ".")
 	return before
 }
@@ -293,4 +478,39 @@ func normalizeName(value string) string {
 		}
 	}
 	return strings.Trim(b.String(), "_")
+}
+
+func unsupportedProviderMapping(obj Object, purpose, action, provider string) Mapping {
+	provider = strings.TrimSpace(provider)
+	if provider == "" {
+		provider = "unknown"
+	}
+	return Mapping{
+		Object:  obj,
+		Purpose: purpose,
+		Action:  action,
+		Diagnostics: []Diagnostic{{
+			Code:     DiagnosticCodeUnsupportedProvider,
+			Severity: DiagnosticSeverityWarning,
+			Message:  "no Ramen mapping is registered for provider " + provider,
+		}},
+	}
+}
+
+func unsupportedTypeMapping(mapping Mapping, provider string) Mapping {
+	mapping.Diagnostics = append(mapping.Diagnostics, Diagnostic{
+		Code:     DiagnosticCodeUnsupportedType,
+		Severity: DiagnosticSeverityWarning,
+		Message:  provider + " mapping does not support Terraform type " + mapping.Object.Type,
+	})
+	return mapping
+}
+
+func unsupportedActionMapping(mapping Mapping, message string) Mapping {
+	mapping.Diagnostics = append(mapping.Diagnostics, Diagnostic{
+		Code:     DiagnosticCodeUnsupportedAction,
+		Severity: DiagnosticSeverityWarning,
+		Message:  message,
+	})
+	return mapping
 }

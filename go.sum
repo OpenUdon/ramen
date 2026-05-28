@@ -1,5 +1,5 @@
-github.com/OpenUdon/apitools v0.0.0-20260527233218-38d3be1a361a h1:y0kP1dhWe/xh/UksMoqo7AIu+gGkMgWy5l1i9mgzQVc=
-github.com/OpenUdon/apitools v0.0.0-20260527233218-38d3be1a361a/go.mod h1:h63NNvVGj/O5j0hhvxa8mD36myLs9X0Ky4S7Zop8vW0=
+github.com/OpenUdon/apitools v0.0.0-20260528142821-7498ae0c388f h1:t273cqSfF/1baKaNMRe9jUKwEyLio0h+jkQY4xwT69U=
+github.com/OpenUdon/apitools v0.0.0-20260528142821-7498ae0c388f/go.mod h1:h63NNvVGj/O5j0hhvxa8mD36myLs9X0Ky4S7Zop8vW0=
 github.com/OpenUdon/asyncapi v0.1.0 h1:ZfGDJHknYUKfEZIC6VrhpdiwDVStMoZnyYmr3AVbQH4=
 github.com/OpenUdon/asyncapi v0.1.0/go.mod h1:RvOKMXItIe+XQu06yZQp839fTZpouX2dL9ngvhg/vOk=
 github.com/OpenUdon/awssmithy v0.0.0-20260520213111-549a060a5e28 h1:Xrv5Ccw2QVXfuswbTLP98vt5vyMIVmnsfX43TUHBo+Y=

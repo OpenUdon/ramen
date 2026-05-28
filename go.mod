@@ -3,7 +3,7 @@ module github.com/OpenUdon/ramen
 go 1.26.3
 
 require (
-	github.com/OpenUdon/apitools v0.0.0-20260527233218-38d3be1a361a
+	github.com/OpenUdon/apitools v0.0.0-20260528142821-7498ae0c388f
 	github.com/OpenUdon/tfconfig v0.0.0-20260509192333-e523c2b30f3e
 	github.com/OpenUdon/uws v0.0.0-20260527225623-7aa9eade0198
 )
