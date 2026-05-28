@@ -817,9 +817,13 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	outDir := fs.String("out", "", "Optional directory for generated read UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
+	var varFiles repeatedStringFlag
+	var cliVars repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
+	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -832,7 +836,7 @@ func runRefreshCommand(ctx context.Context, args []string) {
 		os.Exit(2)
 	}
 	exec := reconcileExecutor(*mock)
-	result, err := reconcile.Refresh(ctx, reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, OutDir: *outDir, Executor: exec})
+	result, err := reconcile.Refresh(ctx, reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), OutDir: *outDir, Executor: exec})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -855,9 +859,13 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	outDir := fs.String("out", "", "Optional directory for generated delete UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
+	var varFiles repeatedStringFlag
+	var cliVars repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
+	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -883,7 +891,7 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	if strings.TrimSpace(*planPath) != "" && !configDirSet {
 		configDirValue = ""
 	}
-	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -907,9 +915,13 @@ func runImportCommand(ctx context.Context, args []string) {
 	sourceID := fs.String("source-id", "", "Optional API source ID")
 	operationID := fs.String("operation-id", "", "Optional read/import operation ID")
 	var apiSources repeatedStringFlag
+	var varFiles repeatedStringFlag
+	var cliVars repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; when ADDRESS exists in config, import records the plan-compatible desired hash")
+	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
+	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value]\n")
 		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
 		fs.PrintDefaults()
 	}
@@ -939,6 +951,8 @@ func runImportCommand(ctx context.Context, args []string) {
 		ProjectPath: *projectPath,
 		StatePath:   statePathOrDefault(*statePath, *projectPath, *configDir),
 		APISources:  sources,
+		VarFiles:    []string(varFiles),
+		Vars:        []string(cliVars),
 		Address:     fs.Arg(0),
 		Type:        *typeName,
 		Provider:    *provider,
@@ -1027,9 +1041,13 @@ func runApplyCommand(ctx context.Context, args []string) {
 	outDir := fs.String("out", "", "Optional directory for generated executor-ready UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
+	var varFiles repeatedStringFlag
+	var cliVars repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
+	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
 		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
@@ -1064,6 +1082,8 @@ func runApplyCommand(ctx context.Context, args []string) {
 		ProjectPath: *projectPath,
 		StatePath:   path,
 		APISources:  sources,
+		VarFiles:    []string(varFiles),
+		Vars:        []string(cliVars),
 		PlanPath:    *planPath,
 		AutoApprove: *autoApprove,
 		OutDir:      *outDir,
@@ -1133,12 +1153,16 @@ func runPlanCommand(ctx context.Context, args []string) {
 	var targets repeatedStringFlag
 	var excludes repeatedStringFlag
 	var replaces repeatedStringFlag
+	var varFiles repeatedStringFlag
+	var cliVars repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Var(&targets, "target", "Repeatable native resource address to include with dependency closure")
 	fs.Var(&excludes, "exclude", "Repeatable native resource address to exclude with dependent closure")
 	fs.Var(&replaces, "replace", "Repeatable native resource address to force replacement in the plan")
+	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
+	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--destroy] [--out PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--destroy] [--out PATH]\n")
 		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic desired-state plan from native UWS/Ramen project artifacts or transitional Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
@@ -1159,6 +1183,8 @@ func runPlanCommand(ctx context.Context, args []string) {
 		ProjectPath: *projectPath,
 		StatePath:   path,
 		APISources:  sources,
+		VarFiles:    []string(varFiles),
+		Vars:        []string(cliVars),
 		Action:      *action,
 		OutPath:     *outPath,
 		Targets:     []string(targets),

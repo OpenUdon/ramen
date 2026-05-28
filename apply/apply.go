@@ -30,6 +30,8 @@ type Options struct {
 	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
+	VarFiles    []string
+	Vars        []string
 	PlanPath    string
 	AutoApprove bool
 	OutDir      string
@@ -97,6 +99,8 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			ProjectPath: opts.ProjectPath,
 			StatePath:   opts.StatePath,
 			APISources:  opts.APISources,
+			VarFiles:    opts.VarFiles,
+			Vars:        opts.Vars,
 			Action:      "create",
 		})
 		if err != nil {
@@ -148,7 +152,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	sourcePaths := sourcePathIndex(opts.APISources)
-	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath)
+	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath, opts.VarFiles, opts.Vars)
 	workingDir := opts.ConfigDir
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
@@ -381,12 +385,17 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 	return doc, nil
 }
 
-func loadResourceAttributes(configDir, projectPath string) map[string]map[string]any {
+func loadResourceAttributes(configDir, projectPath string, varFiles, vars []string) map[string]map[string]any {
 	if strings.TrimSpace(projectPath) != "" {
 		proj, err := project.Load(projectPath)
 		if err != nil {
 			return nil
 		}
+		profile, _, diags := project.ResolveProfile(proj.Profile, proj.Dir, project.ValuesOptions{VarFiles: varFiles, Vars: vars})
+		if len(diags) > 0 {
+			return nil
+		}
+		proj.Profile = profile
 		out := map[string]map[string]any{}
 		for _, resource := range proj.Profile.Resources {
 			if len(resource.Attributes) > 0 {
@@ -519,6 +528,8 @@ func verifyPlanArtifact(ctx context.Context, opts Options, artifact tfplan.Docum
 		ProjectPath: opts.ProjectPath,
 		StatePath:   opts.StatePath,
 		APISources:  opts.APISources,
+		VarFiles:    opts.VarFiles,
+		Vars:        opts.Vars,
 		Action:      artifact.Action,
 		Targets:     artifact.Controls.Targets,
 		Excludes:    artifact.Controls.Excludes,

@@ -33,9 +33,18 @@ type Document struct {
 type Profile struct {
 	Version    string         `json:"version"`
 	APISources []APISource    `json:"api_sources,omitempty"`
+	Variables  []Variable     `json:"variables,omitempty"`
 	Resources  []Resource     `json:"resources,omitempty"`
 	Redaction  Redaction      `json:"redaction,omitempty"`
 	Metadata   map[string]any `json:"metadata,omitempty"`
+}
+
+type Variable struct {
+	Name        string `json:"name"`
+	Type        string `json:"type,omitempty"`
+	Description string `json:"description,omitempty"`
+	Default     any    `json:"default,omitempty"`
+	Sensitive   bool   `json:"sensitive,omitempty"`
 }
 
 type APISource struct {
@@ -183,6 +192,29 @@ func ValidateProfile(profile Profile) error {
 		return fmt.Errorf("unsupported version %q", profile.Version)
 	}
 	seenSources := map[string]bool{}
+	seenVariables := map[string]bool{}
+	for _, variable := range profile.Variables {
+		name := strings.TrimSpace(variable.Name)
+		if name == "" {
+			return fmt.Errorf("variables entries require name")
+		}
+		if !variableNamePattern.MatchString(name) {
+			return fmt.Errorf("variable %s has invalid name", name)
+		}
+		if seenVariables[name] {
+			return fmt.Errorf("duplicate variable %s", name)
+		}
+		seenVariables[name] = true
+		typ := strings.TrimSpace(variable.Type)
+		switch typ {
+		case "", "any", "string", "number", "bool", "object", "list":
+		default:
+			return fmt.Errorf("variable %s has unsupported type %q", name, variable.Type)
+		}
+		if variable.Default != nil && !valueMatchesType(variable.Default, typ) {
+			return fmt.Errorf("variable %s default does not match type %q", name, firstNonEmpty(typ, "any"))
+		}
+	}
 	for _, source := range profile.APISources {
 		if strings.TrimSpace(source.Kind) == "" || strings.TrimSpace(source.ID) == "" || strings.TrimSpace(source.Path) == "" {
 			return fmt.Errorf("api_sources entries require kind, id, and path")

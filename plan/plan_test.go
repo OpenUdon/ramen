@@ -356,6 +356,55 @@ func TestBuildProjectDestroyReplaceAndApprovalArtifact(t *testing.T) {
 	}
 }
 
+func TestBuildProjectVariablesAffectHashAndApproval(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	writePlanTestFile(t, filepath.Join(projectDir, "values.json"), `{"role_name":"file-role","secret_policy":"hidden-value"}`)
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.app", nil)
+	resource.Attributes["name"] = "${var.role_name}"
+	resource.Attributes["assume_role_policy"] = "${var.secret_policy}"
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Variables: []project.Variable{
+			{Name: "role_name", Type: "string", Default: "default-role"},
+			{Name: "secret_policy", Type: "string", Sensitive: true},
+		},
+		Resources: []project.Resource{resource},
+	})
+	first, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), VarFiles: []string{"values.json"}})
+	if err != nil {
+		t.Fatalf("first build: %v", err)
+	}
+	second, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), VarFiles: []string{"values.json"}, Vars: []string{"role_name=cli-role"}})
+	if err != nil {
+		t.Fatalf("second build: %v", err)
+	}
+	if first.Plan.Errored || second.Plan.Errored {
+		t.Fatalf("plans errored: first=%#v second=%#v", first.Plan.Diagnostics, second.Plan.Diagnostics)
+	}
+	if first.Plan.Inputs.Version != project.InputsVersion || first.Plan.Inputs.Digest == "" || first.Plan.Inputs.Digest == second.Plan.Inputs.Digest {
+		t.Fatalf("input digests = first=%#v second=%#v", first.Plan.Inputs, second.Plan.Inputs)
+	}
+	if first.Plan.Resources[0].DesiredHash == second.Plan.Resources[0].DesiredHash {
+		t.Fatalf("desired hash did not change with variable input: %s", first.Plan.Resources[0].DesiredHash)
+	}
+	if err := VerifyApproval(first.Plan); err != nil {
+		t.Fatalf("approval did not verify: %v", err)
+	}
+	first.Plan.Inputs.Values[0].Value = "tampered"
+	if err := VerifyApproval(first.Plan); err == nil {
+		t.Fatalf("tampered input unexpectedly verified")
+	}
+	for _, input := range second.Plan.Inputs.Values {
+		if input.Name == "secret_policy" && (input.Value != "${redacted}" || input.Digest == "") {
+			t.Fatalf("sensitive input not redacted/digested: %#v", input)
+		}
+	}
+}
+
 func TestBuildGoogleStorageBucketCreateAndNoOpPlans(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")

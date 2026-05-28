@@ -93,11 +93,11 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		command  []string
 		expected []string
 	}{
-		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--api-source", "--auto-approve", "--mock", "--json", "trusted executor"}},
-		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--api-source", "--auto-approve", "--mock", "--json", "trusted executor"}},
-		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--api-source", "--identity", "plan-compatible desired hash"}},
+		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
+		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
+		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--api-source", "--var-file", "--var", "--identity", "plan-compatible desired hash"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
-		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
+		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--var-file", "--var", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
 		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
 		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "backup", "export", "list", "restore", "show ADDRESS", "history", "runs", "vacuum"}},
 	} {

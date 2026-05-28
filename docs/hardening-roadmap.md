@@ -19,14 +19,12 @@ complete: the CLI now uses one command-scoped signal context, the positional
 argument helper exists, `ramen convert --help` succeeds, and apply skipped
 summary accounting is fixed.
 
-The remaining seed findings are now tracked in canonical status files:
+The remaining seed findings were folded into canonical status files:
 
-- `executor/udon/adapter.go` still returns successful live execution without
-  projecting identity, computed attributes, or missing-state evidence into
-  `executor.Result`; see `memory-bank/status-M14.md`.
-- Ramen still has no native variables/values layer; see
-  `memory-bank/status-M16.md`.
-- Enterprise adoption still needs stronger state durability, executor
-  capability negotiation, policy hooks, packaging, and operational support
-  contracts; see `memory-bank/status-M13.md`, `memory-bank/status-M14.md`,
-  `memory-bank/status-M17.md`, and `memory-bank/status-M12.md`.
+- M14 closed the stale live udon finding by requiring output projection before
+  non-delete live success can produce `executor.Result`.
+- M16 added the native variables/values layer with deterministic values files,
+  CLI assignments, redaction, and digest-bound approval.
+- Enterprise adoption still needs policy hooks, approval routing, audit export,
+  workspace isolation, packaging, and operational support contracts; see
+  `memory-bank/status-M17.md` and `memory-bank/status-M12.md`.

@@ -31,6 +31,8 @@ type Options struct {
 	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
+	VarFiles    []string
+	Vars        []string
 	PlanPath    string
 	AutoApprove bool
 	OutDir      string
@@ -72,6 +74,8 @@ type ImportOptions struct {
 	ConfigDir   string
 	ProjectPath string
 	APISources  []APISourceInput
+	VarFiles    []string
+	Vars        []string
 	Address     string
 	Type        string
 	Provider    string
@@ -91,7 +95,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return newResult(opts.StatePath), err
 	}
-	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "create"})
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, VarFiles: opts.VarFiles, Vars: opts.Vars, Action: "create"})
 	if err != nil {
 		return nil, err
 	}
@@ -225,7 +229,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 		}
 		planResult = &tfplan.Result{StatePath: current.StatePath, Plan: *artifact, Diagnostics: artifact.Diagnostics}
 	} else {
-		depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "dependency"})
+		depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, VarFiles: opts.VarFiles, Vars: opts.Vars, Action: "dependency"})
 		if err != nil {
 			return nil, err
 		}
@@ -235,7 +239,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 		for _, resource := range depPlan.Plan.Resources {
 			dependencies[resource.Address] = slices.Clone(resource.Dependencies)
 		}
-		deletePlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
+		deletePlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, VarFiles: opts.VarFiles, Vars: opts.Vars, Action: "delete"})
 		if err != nil {
 			return nil, err
 		}
@@ -541,6 +545,8 @@ func verifyDestroyArtifact(ctx context.Context, opts Options, artifact tfplan.Do
 		ProjectPath: opts.ProjectPath,
 		StatePath:   opts.StatePath,
 		APISources:  opts.APISources,
+		VarFiles:    opts.VarFiles,
+		Vars:        opts.Vars,
 		Action:      artifact.Action,
 		Targets:     artifact.Controls.Targets,
 		Excludes:    artifact.Controls.Excludes,
@@ -623,6 +629,8 @@ func importDesiredHash(ctx context.Context, opts ImportOptions, fallback string)
 		ProjectPath: opts.ProjectPath,
 		StatePath:   opts.StatePath,
 		APISources:  opts.APISources,
+		VarFiles:    opts.VarFiles,
+		Vars:        opts.Vars,
 		Action:      "create",
 	})
 	if err != nil || result == nil || result.Plan.Errored {

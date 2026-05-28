@@ -27,6 +27,8 @@ type Options struct {
 	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
+	VarFiles    []string
+	Vars        []string
 	Action      string
 	OutPath     string
 	Targets     []string
@@ -49,19 +51,20 @@ type Result struct {
 }
 
 type Document struct {
-	Version     string         `json:"version"`
-	ConfigDir   string         `json:"config_dir"`
-	ProjectPath string         `json:"project_path,omitempty"`
-	StatePath   string         `json:"state_path"`
-	Action      string         `json:"action"`
-	Rationale   string         `json:"rationale,omitempty"`
-	Controls    Controls       `json:"controls,omitempty"`
-	APISources  []APISourceRef `json:"api_sources,omitempty"`
-	Approval    *Approval      `json:"approval,omitempty"`
-	Errored     bool           `json:"errored,omitempty"`
-	Summary     Summary        `json:"summary"`
-	Resources   []ResourcePlan `json:"resources"`
-	Diagnostics []Diagnostic   `json:"diagnostics,omitempty"`
+	Version     string                 `json:"version"`
+	ConfigDir   string                 `json:"config_dir"`
+	ProjectPath string                 `json:"project_path,omitempty"`
+	StatePath   string                 `json:"state_path"`
+	Action      string                 `json:"action"`
+	Inputs      project.ResolvedInputs `json:"inputs,omitempty"`
+	Rationale   string                 `json:"rationale,omitempty"`
+	Controls    Controls               `json:"controls,omitempty"`
+	APISources  []APISourceRef         `json:"api_sources,omitempty"`
+	Approval    *Approval              `json:"approval,omitempty"`
+	Errored     bool                   `json:"errored,omitempty"`
+	Summary     Summary                `json:"summary"`
+	Resources   []ResourcePlan         `json:"resources"`
+	Diagnostics []Diagnostic           `json:"diagnostics,omitempty"`
 }
 
 type Controls struct {
@@ -130,6 +133,7 @@ type DesiredHashInput struct {
 	Lifecycle       map[string]any
 	Mapping         *MappingHashInput
 	APISourceDigest string
+	InputsDigest    string
 }
 
 type MappingHashInput struct {
@@ -300,6 +304,12 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		}
 		return result, nil
 	}
+	resolvedProfile, inputs, valueDiagnostics := project.ResolveProfile(proj.Profile, proj.Dir, project.ValuesOptions{VarFiles: opts.VarFiles, Vars: opts.Vars})
+	diagnostics = append(diagnostics, valuePlanDiagnostics(valueDiagnostics)...)
+	if err := project.ValidateProfile(resolvedProfile); err != nil {
+		diagnostics = append(diagnostics, Diagnostic{Code: "values.profile_invalid", Severity: "error", Message: err.Error()})
+	}
+	proj.Profile = resolvedProfile
 	apiInputs := projectAPISourceInputs(proj.Profile, opts.APISources)
 	apiSources, apiDiagnostics := loadAPISources(ctx, apiInputs)
 	diagnostics = append(diagnostics, apiDiagnostics...)
@@ -340,7 +350,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		}
 		resource := resourcesByAddress[node.Address]
 		desiredAddresses[resource.Address] = true
-		resourcePlan := planProjectResource(ctx, store, proj.Profile, resource, node.DependsOn, opts.Action, apiSources, slices.Contains(opts.Replaces, resource.Address))
+		resourcePlan := planProjectResource(ctx, store, proj.Profile, resource, node.DependsOn, opts.Action, apiSources, slices.Contains(opts.Replaces, resource.Address), inputs.Digest)
 		diagnostics = append(diagnostics, resourcePlan.diagnostics...)
 		resources = append(resources, resourcePlan.resource)
 	}
@@ -358,6 +368,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		ProjectPath: proj.Path,
 		StatePath:   opts.StatePath,
 		Action:      opts.Action,
+		Inputs:      inputs,
 		Rationale:   projectRationale(proj.Profile),
 		Controls:    controlsFromOptions(opts),
 		APISources:  apiSourceRefs(apiSources),
@@ -565,12 +576,12 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	}
 }
 
-func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool) plannedResource {
+func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool, inputsDigest string) plannedResource {
 	lifecycle := analyzeProjectLifecycle(resource)
 	diagnostics := slices.Clone(lifecycle.Diagnostics)
 	desiredMapping, desiredMappingDiagnostics := mapProjectResource(profile, resource, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
 	diagnostics = append(diagnostics, desiredMappingDiagnostics...)
-	hash := desiredProjectHash(resource, lifecycle, desiredMapping, sources)
+	hash := desiredProjectHash(resource, lifecycle, desiredMapping, sources, inputsDigest)
 	action := "create"
 	reason := "resource is not recorded in state"
 	var current *state.ResourceSnapshot
@@ -890,7 +901,7 @@ func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, 
 	})
 }
 
-func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapping *MappingPlan, sources []sourceDoc) string {
+func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapping *MappingPlan, sources []sourceDoc, inputsDigest string) string {
 	attrs := project.AttributeStrings(resource.Attributes)
 	if lifecycle.IgnoreAll {
 		attrs = map[string]string{}
@@ -919,6 +930,7 @@ func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapp
 		Lifecycle:       lifecycle.Hash,
 		Mapping:         mappingHash,
 		APISourceDigest: selectedDigest,
+		InputsDigest:    inputsDigest,
 	})
 }
 
@@ -931,6 +943,7 @@ func DesiredHash(input DesiredHashInput) string {
 		"lifecycle":         input.Lifecycle,
 		"mapping":           input.Mapping,
 		"api_source_digest": input.APISourceDigest,
+		"inputs_digest":     input.InputsDigest,
 	}
 	data, _ := json.Marshal(payload)
 	sum := sha256.Sum256(data)
@@ -1229,6 +1242,19 @@ func projectAPISourceInputs(profile project.Profile, overrides []APISourceInput)
 	return inputs
 }
 
+func valuePlanDiagnostics(diags []project.ValueDiagnostic) []Diagnostic {
+	out := make([]Diagnostic, 0, len(diags))
+	for _, diag := range diags {
+		out = append(out, Diagnostic{
+			Code:     diag.Code,
+			Severity: normalizeSeverity(diag.Severity),
+			Message:  diag.Message,
+			Address:  diag.Path,
+		})
+	}
+	return out
+}
+
 func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
 	var docs []sourceDoc
 	var diagnostics []Diagnostic
@@ -1457,20 +1483,21 @@ func buildApproval(doc Document, projectDigest, stateDigest string) *Approval {
 
 func approvalDigest(doc Document, approval *Approval) string {
 	payload := struct {
-		Version       string         `json:"version"`
-		PlanVersion   string         `json:"plan_version"`
-		ConfigDir     string         `json:"config_dir"`
-		ProjectPath   string         `json:"project_path,omitempty"`
-		StatePath     string         `json:"state_path"`
-		Action        string         `json:"action"`
-		Errored       bool           `json:"errored,omitempty"`
-		Rationale     string         `json:"rationale,omitempty"`
-		Controls      Controls       `json:"controls,omitempty"`
-		APISources    []APISourceRef `json:"api_sources,omitempty"`
-		ProjectDigest string         `json:"project_digest,omitempty"`
-		StateDigest   string         `json:"state_digest,omitempty"`
-		Resources     []ResourcePlan `json:"resources,omitempty"`
-		Diagnostics   []Diagnostic   `json:"diagnostics,omitempty"`
+		Version       string                 `json:"version"`
+		PlanVersion   string                 `json:"plan_version"`
+		ConfigDir     string                 `json:"config_dir"`
+		ProjectPath   string                 `json:"project_path,omitempty"`
+		StatePath     string                 `json:"state_path"`
+		Action        string                 `json:"action"`
+		Inputs        project.ResolvedInputs `json:"inputs,omitempty"`
+		Errored       bool                   `json:"errored,omitempty"`
+		Rationale     string                 `json:"rationale,omitempty"`
+		Controls      Controls               `json:"controls,omitempty"`
+		APISources    []APISourceRef         `json:"api_sources,omitempty"`
+		ProjectDigest string                 `json:"project_digest,omitempty"`
+		StateDigest   string                 `json:"state_digest,omitempty"`
+		Resources     []ResourcePlan         `json:"resources,omitempty"`
+		Diagnostics   []Diagnostic           `json:"diagnostics,omitempty"`
 	}{
 		Version:       approval.Version,
 		PlanVersion:   doc.Version,
@@ -1478,6 +1505,7 @@ func approvalDigest(doc Document, approval *Approval) string {
 		ProjectPath:   doc.ProjectPath,
 		StatePath:     doc.StatePath,
 		Action:        doc.Action,
+		Inputs:        doc.Inputs,
 		Errored:       doc.Errored,
 		Rationale:     doc.Rationale,
 		Controls:      approval.Controls,
