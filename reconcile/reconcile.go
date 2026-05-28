@@ -378,7 +378,7 @@ func rejectPlanExecution(planResult *tfplan.Result) error {
 			return fmt.Errorf("plan has error diagnostic %s: %s", diag.Code, diag.Message)
 		}
 	}
-	return nil
+	return tfplan.VerifyApproval(planResult.Plan)
 }
 
 func startMutation(ctx context.Context, statePath, command string) (*Result, *state.Store, int64, func(*Summary), error) {

@@ -56,7 +56,8 @@ ramen init
 ramen validate --project DIR --json
 ramen graph --project DIR --format json
 ramen force-unlock LOCK_HOLDER --state PATH
-ramen plan
+ramen plan --project DIR --target ADDRESS --exclude ADDRESS --replace ADDRESS
+ramen plan --project DIR --destroy --out plan.json
 ramen apply --auto-approve --mock
 ramen refresh --mock
 ramen destroy --auto-approve --mock

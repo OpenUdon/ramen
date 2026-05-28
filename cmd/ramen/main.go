@@ -550,7 +550,7 @@ func diagnosticText(diag tfconfig.Diagnostic) string {
 }
 
 func planHasChanges(doc tfplan.Document) bool {
-	return doc.Summary.Create != 0 || doc.Summary.Update != 0 || doc.Summary.Delete != 0
+	return doc.Summary.Create != 0 || doc.Summary.Update != 0 || doc.Summary.Delete != 0 || doc.Summary.Replace != 0
 }
 
 func runApplyCommand(args []string) {
@@ -650,12 +650,19 @@ func runPlanCommand(args []string) {
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	action := fs.String("action", "create", "Desired managed-resource action for absent resources")
+	destroy := fs.Bool("destroy", false, "Plan deletes for managed resources")
 	outPath := fs.String("out", "", "Optional JSON plan output path")
 	detailedExitCode := fs.Bool("detailed-exitcode", false, "Return 2 when the plan has changes, 1 on errors, and 0 when empty")
 	var apiSources repeatedStringFlag
+	var targets repeatedStringFlag
+	var excludes repeatedStringFlag
+	var replaces repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&targets, "target", "Repeatable native resource address to include with dependency closure")
+	fs.Var(&excludes, "exclude", "Repeatable native resource address to exclude with dependent closure")
+	fs.Var(&replaces, "replace", "Repeatable native resource address to force replacement in the plan")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--action create] [--out PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--destroy] [--out PATH]\n")
 		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic desired-state plan from native UWS/Ramen project artifacts or transitional Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
@@ -680,13 +687,17 @@ func runPlanCommand(args []string) {
 		APISources:  sources,
 		Action:      *action,
 		OutPath:     *outPath,
+		Targets:     []string(targets),
+		Excludes:    []string(excludes),
+		Replaces:    []string(replaces),
+		Destroy:     *destroy,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	summary := result.Plan.Summary
-	fmt.Printf("ramen: plan create=%d update=%d delete=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.NoOp, summary.Diagnostics)
+	fmt.Printf("ramen: plan create=%d update=%d delete=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Replace, summary.NoOp, summary.Diagnostics)
 	if result.OutPath != "" {
 		fmt.Printf("  plan: %s\n", result.OutPath)
 	}

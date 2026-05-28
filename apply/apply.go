@@ -416,7 +416,10 @@ func rejectErroredPlan(planResult *tfplan.Result) error {
 	if planResult == nil {
 		return nil
 	}
-	return rejectErrorDiagnostics(planResult.Diagnostics)
+	if err := rejectErrorDiagnostics(planResult.Diagnostics); err != nil {
+		return err
+	}
+	return tfplan.VerifyApproval(planResult.Plan)
 }
 
 func mutableResources(resources []tfplan.ResourcePlan) []tfplan.ResourcePlan {

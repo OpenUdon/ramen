@@ -29,6 +29,10 @@ type Options struct {
 	APISources  []APISourceInput
 	Action      string
 	OutPath     string
+	Targets     []string
+	Excludes    []string
+	Replaces    []string
+	Destroy     bool
 }
 
 type APISourceInput struct {
@@ -50,16 +54,43 @@ type Document struct {
 	ProjectPath string         `json:"project_path,omitempty"`
 	StatePath   string         `json:"state_path"`
 	Action      string         `json:"action"`
+	Controls    Controls       `json:"controls,omitempty"`
+	APISources  []APISourceRef `json:"api_sources,omitempty"`
+	Approval    *Approval      `json:"approval,omitempty"`
 	Errored     bool           `json:"errored,omitempty"`
 	Summary     Summary        `json:"summary"`
 	Resources   []ResourcePlan `json:"resources"`
 	Diagnostics []Diagnostic   `json:"diagnostics,omitempty"`
 }
 
+type Controls struct {
+	Targets  []string `json:"targets,omitempty"`
+	Excludes []string `json:"excludes,omitempty"`
+	Replaces []string `json:"replaces,omitempty"`
+	Destroy  bool     `json:"destroy,omitempty"`
+}
+
+type APISourceRef struct {
+	Kind   string `json:"kind"`
+	ID     string `json:"id"`
+	Path   string `json:"path,omitempty"`
+	Digest string `json:"digest,omitempty"`
+}
+
+type Approval struct {
+	Version       string         `json:"version"`
+	Digest        string         `json:"digest"`
+	ProjectDigest string         `json:"project_digest,omitempty"`
+	StateDigest   string         `json:"state_digest,omitempty"`
+	Controls      Controls       `json:"controls,omitempty"`
+	APISources    []APISourceRef `json:"api_sources,omitempty"`
+}
+
 type Summary struct {
 	Create      int `json:"create"`
 	Update      int `json:"update"`
 	Delete      int `json:"delete"`
+	Replace     int `json:"replace"`
 	NoOp        int `json:"no_op"`
 	Read        int `json:"read"`
 	Diagnostics int `json:"diagnostics"`
@@ -189,6 +220,8 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		diagnostics = append(diagnostics, Diagnostic{Code: "graph.cycle", Severity: "error", Message: err.Error()})
 		sortedNodes = nodes
 	}
+	selection, selectionDiagnostics := selectNodes(sortedNodes, controlsFromOptions(opts))
+	diagnostics = append(diagnostics, selectionDiagnostics...)
 	objectsByAddress := map[string]objectFact{}
 	for _, obj := range objects {
 		objectsByAddress[obj.Address] = obj
@@ -197,12 +230,15 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	var resources []ResourcePlan
 	desiredAddresses := map[string]bool{}
 	for _, node := range sortedNodes {
+		if !selection[node.Address] {
+			continue
+		}
 		obj, ok := objectsByAddress[node.Address]
 		if !ok || obj.Kind != "resource" {
 			continue
 		}
 		desiredAddresses[obj.Address] = true
-		resourcePlan := planResource(ctx, store, obj, node.DependsOn, opts.Action, apiSources)
+		resourcePlan := planResource(ctx, store, obj, node.DependsOn, opts.Action, apiSources, slices.Contains(opts.Replaces, obj.Address))
 		diagnostics = append(diagnostics, resourcePlan.diagnostics...)
 		resources = append(resources, resourcePlan.resource)
 	}
@@ -219,11 +255,14 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		ConfigDir:   opts.ConfigDir,
 		StatePath:   opts.StatePath,
 		Action:      opts.Action,
+		Controls:    controlsFromOptions(opts),
+		APISources:  apiSourceRefs(apiSources),
 		Errored:     errored,
 		Resources:   resources,
 		Diagnostics: diagnostics,
 	}
 	document.Summary = summarize(document)
+	document.Approval = buildApproval(document, "", stateBaselineDigest(ctx, store))
 	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
 	if opts.OutPath != "" {
 		if err := writeJSON(opts.OutPath, document); err != nil {
@@ -285,13 +324,18 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		diagnostics = append(diagnostics, Diagnostic{Code: "graph.cycle", Severity: "error", Message: err.Error()})
 		sortedNodes = nodes
 	}
+	selection, selectionDiagnostics := selectNodes(sortedNodes, controlsFromOptions(opts))
+	diagnostics = append(diagnostics, selectionDiagnostics...)
 
 	var resources []ResourcePlan
 	desiredAddresses := map[string]bool{}
 	for _, node := range sortedNodes {
+		if !selection[node.Address] {
+			continue
+		}
 		resource := resourcesByAddress[node.Address]
 		desiredAddresses[resource.Address] = true
-		resourcePlan := planProjectResource(ctx, store, proj.Profile, resource, node.DependsOn, opts.Action, apiSources)
+		resourcePlan := planProjectResource(ctx, store, proj.Profile, resource, node.DependsOn, opts.Action, apiSources, slices.Contains(opts.Replaces, resource.Address))
 		diagnostics = append(diagnostics, resourcePlan.diagnostics...)
 		resources = append(resources, resourcePlan.resource)
 	}
@@ -309,11 +353,14 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		ProjectPath: proj.Path,
 		StatePath:   opts.StatePath,
 		Action:      opts.Action,
+		Controls:    controlsFromOptions(opts),
+		APISources:  apiSourceRefs(apiSources),
 		Errored:     errored,
 		Resources:   resources,
 		Diagnostics: diagnostics,
 	}
 	document.Summary = summarize(document)
+	document.Approval = buildApproval(document, projectDigest(proj.Profile), stateBaselineDigest(ctx, store))
 	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
 	if opts.OutPath != "" {
 		if err := writeJSON(opts.OutPath, document); err != nil {
@@ -353,12 +400,85 @@ func planDeletes(ctx context.Context, store *state.Store, desiredAddresses map[s
 	return resources, diagnostics
 }
 
+func selectNodes(nodes []graph.Node, controls Controls) (map[string]bool, []Diagnostic) {
+	byAddress := map[string]graph.Node{}
+	reverse := map[string][]string{}
+	for _, node := range nodes {
+		byAddress[node.Address] = node
+		for _, dep := range node.DependsOn {
+			reverse[dep] = append(reverse[dep], node.Address)
+		}
+	}
+	selected := map[string]bool{}
+	var diagnostics []Diagnostic
+	targets := uniqueNonEmpty(controls.Targets)
+	excludes := uniqueNonEmpty(controls.Excludes)
+	replaces := uniqueNonEmpty(controls.Replaces)
+	if len(targets) == 0 {
+		for _, node := range nodes {
+			selected[node.Address] = true
+		}
+	} else {
+		for _, target := range targets {
+			if _, ok := byAddress[target]; !ok {
+				diagnostics = append(diagnostics, Diagnostic{Code: "plan.target_unknown", Severity: "error", Message: fmt.Sprintf("target %s does not match a native resource address", target), Address: target})
+				continue
+			}
+			addDependencyClosure(selected, byAddress, target)
+		}
+	}
+	excluded := map[string]bool{}
+	for _, exclude := range excludes {
+		if _, ok := byAddress[exclude]; !ok {
+			diagnostics = append(diagnostics, Diagnostic{Code: "plan.exclude_unknown", Severity: "error", Message: fmt.Sprintf("exclude %s does not match a native resource address", exclude), Address: exclude})
+			continue
+		}
+		addDependentClosure(excluded, reverse, exclude)
+	}
+	for _, replace := range replaces {
+		if _, ok := byAddress[replace]; !ok {
+			diagnostics = append(diagnostics, Diagnostic{Code: "plan.replace_unknown", Severity: "error", Message: fmt.Sprintf("replace %s does not match a native resource address", replace), Address: replace})
+		}
+	}
+	for address := range excluded {
+		if len(targets) > 0 && selected[address] {
+			diagnostics = append(diagnostics, Diagnostic{Code: "plan.selection_conflict", Severity: "error", Message: fmt.Sprintf("resource %s is both selected and excluded", address), Address: address})
+		}
+		delete(selected, address)
+	}
+	return selected, diagnostics
+}
+
+func addDependencyClosure(selected map[string]bool, byAddress map[string]graph.Node, address string) {
+	if selected[address] {
+		return
+	}
+	node, ok := byAddress[address]
+	if !ok {
+		return
+	}
+	selected[address] = true
+	for _, dep := range node.DependsOn {
+		addDependencyClosure(selected, byAddress, dep)
+	}
+}
+
+func addDependentClosure(selected map[string]bool, reverse map[string][]string, address string) {
+	if selected[address] {
+		return
+	}
+	selected[address] = true
+	for _, dependent := range reverse[address] {
+		addDependentClosure(selected, reverse, dependent)
+	}
+}
+
 type plannedResource struct {
 	resource    ResourcePlan
 	diagnostics []Diagnostic
 }
 
-func planResource(ctx context.Context, store *state.Store, obj objectFact, dependencies []string, requestedAction string, sources []sourceDoc) plannedResource {
+func planResource(ctx context.Context, store *state.Store, obj objectFact, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool) plannedResource {
 	lifecycle := analyzeLifecycle(obj)
 	diagnostics := slices.Clone(lifecycle.Diagnostics)
 	desiredMapping, desiredMappingDiagnostics := mapResource(obj, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
@@ -384,6 +504,9 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 				action = "no-op"
 				reason = "destroy requested but resource is not recorded in state"
 			}
+		} else if forcedReplace && current != nil {
+			action = "replace"
+			reason = "replacement forced by plan control"
 		} else if current != nil && current.DesiredHash == hash {
 			action = "no-op"
 			reason = "recorded desired hash matches configuration"
@@ -394,12 +517,14 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	} else if requestedAction == "delete" {
 		action = "no-op"
 		reason = "destroy requested but state is unavailable"
+	} else if forcedReplace {
+		reason = "replacement requested but state is unavailable; create planned"
 	}
-	if action == "delete" && lifecycle.PreventDestroy {
+	if (action == "delete" || action == "replace") && lifecycle.PreventDestroy {
 		diagnostics = append(diagnostics, Diagnostic{
 			Code:          "plan.prevent_destroy",
 			Severity:      "error",
-			Message:       fmt.Sprintf("%s has prevent_destroy set and cannot be deleted", obj.Address),
+			Message:       fmt.Sprintf("%s has prevent_destroy set and cannot be deleted or replaced", obj.Address),
 			Address:       obj.Address,
 			ModuleAddress: obj.ModuleAddress,
 		})
@@ -434,7 +559,7 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	}
 }
 
-func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc) plannedResource {
+func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool) plannedResource {
 	lifecycle := analyzeProjectLifecycle(resource)
 	diagnostics := slices.Clone(lifecycle.Diagnostics)
 	desiredMapping, desiredMappingDiagnostics := mapProjectResource(profile, resource, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
@@ -460,6 +585,9 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 				action = "no-op"
 				reason = "destroy requested but resource is not recorded in state"
 			}
+		} else if forcedReplace && current != nil {
+			action = "replace"
+			reason = "replacement forced by plan control"
 		} else if current != nil && current.DesiredHash == hash {
 			action = "no-op"
 			reason = "recorded desired hash matches native project"
@@ -470,12 +598,14 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 	} else if requestedAction == "delete" {
 		action = "no-op"
 		reason = "destroy requested but state is unavailable"
+	} else if forcedReplace {
+		reason = "replacement requested but state is unavailable; create planned"
 	}
-	if action == "delete" && lifecycle.PreventDestroy {
+	if (action == "delete" || action == "replace") && lifecycle.PreventDestroy {
 		diagnostics = append(diagnostics, Diagnostic{
 			Code:     "plan.prevent_destroy",
 			Severity: "error",
-			Message:  fmt.Sprintf("%s has prevent_destroy set and cannot be deleted", resource.Address),
+			Message:  fmt.Sprintf("%s has prevent_destroy set and cannot be deleted or replaced", resource.Address),
 			Address:  resource.Address,
 		})
 	}
@@ -517,7 +647,7 @@ func desiredPurpose(action string) string {
 }
 
 func mappingRequired(requestedAction, actualAction string) bool {
-	return requestedAction == "create" && (actualAction == "create" || actualAction == "update") ||
+	return requestedAction == "create" && (actualAction == "create" || actualAction == "update" || actualAction == "replace") ||
 		requestedAction == "delete" && actualAction == "delete"
 }
 
@@ -1156,9 +1286,15 @@ func normalizeOptions(opts Options) Options {
 	}
 	opts.ProjectPath = strings.TrimSpace(opts.ProjectPath)
 	opts.Action = strings.ToLower(strings.TrimSpace(opts.Action))
+	if opts.Destroy {
+		opts.Action = "delete"
+	}
 	if opts.Action == "" {
 		opts.Action = "create"
 	}
+	opts.Targets = uniqueNonEmpty(opts.Targets)
+	opts.Excludes = uniqueNonEmpty(opts.Excludes)
+	opts.Replaces = uniqueNonEmpty(opts.Replaces)
 	for i := range opts.APISources {
 		opts.APISources[i].Kind = normalizeAPISourceKind(opts.APISources[i].Kind)
 		opts.APISources[i].ID = strings.TrimSpace(opts.APISources[i].ID)
@@ -1170,6 +1306,30 @@ func normalizeOptions(opts Options) Options {
 		return cmp.Compare(left, right)
 	})
 	return opts
+}
+
+func controlsFromOptions(opts Options) Controls {
+	return Controls{
+		Targets:  slices.Clone(opts.Targets),
+		Excludes: slices.Clone(opts.Excludes),
+		Replaces: slices.Clone(opts.Replaces),
+		Destroy:  opts.Destroy || opts.Action == "delete",
+	}
+}
+
+func uniqueNonEmpty(values []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || seen[value] {
+			continue
+		}
+		seen[value] = true
+		out = append(out, value)
+	}
+	slices.Sort(out)
+	return out
 }
 
 func stateBaseDir(projectPath, configDir string) string {
@@ -1208,6 +1368,123 @@ func fileDigest(path string) (string, error) {
 	return "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
+func apiSourceRefs(sources []sourceDoc) []APISourceRef {
+	refs := make([]APISourceRef, 0, len(sources))
+	for _, source := range sources {
+		refs = append(refs, APISourceRef{Kind: source.Kind, ID: source.ID, Path: source.Path, Digest: source.Digest})
+	}
+	slices.SortFunc(refs, func(a, b APISourceRef) int {
+		left := a.Kind + "\x00" + a.ID + "\x00" + a.Path
+		right := b.Kind + "\x00" + b.ID + "\x00" + b.Path
+		return cmp.Compare(left, right)
+	})
+	return refs
+}
+
+func projectDigest(profile project.Profile) string {
+	data, err := json.Marshal(profile)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func stateBaselineDigest(ctx context.Context, store *state.Store) string {
+	if store == nil {
+		return ""
+	}
+	current, err := store.ListCurrentResources(ctx)
+	if err != nil {
+		return ""
+	}
+	type row struct {
+		Address        string `json:"address"`
+		Type           string `json:"type,omitempty"`
+		Provider       string `json:"provider,omitempty"`
+		DesiredHash    string `json:"desired_hash,omitempty"`
+		IdentityJSON   string `json:"identity_json,omitempty"`
+		AttributesJSON string `json:"attributes_json,omitempty"`
+		Status         string `json:"status,omitempty"`
+		SourceKind     string `json:"source_kind,omitempty"`
+		SourceID       string `json:"source_id,omitempty"`
+		OperationID    string `json:"operation_id,omitempty"`
+	}
+	rows := make([]row, 0, len(current))
+	for _, snap := range current {
+		rows = append(rows, row{Address: snap.Address, Type: snap.Type, Provider: snap.Provider, DesiredHash: snap.DesiredHash, IdentityJSON: snap.IdentityJSON, AttributesJSON: snap.AttributesJSON, Status: snap.Status, SourceKind: snap.SourceKind, SourceID: snap.SourceID, OperationID: snap.OperationID})
+	}
+	data, err := json.Marshal(rows)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func buildApproval(doc Document, projectDigest, stateDigest string) *Approval {
+	approval := &Approval{
+		Version:       "ramen.approval.v1",
+		ProjectDigest: projectDigest,
+		StateDigest:   stateDigest,
+		Controls:      doc.Controls,
+		APISources:    slices.Clone(doc.APISources),
+	}
+	approval.Digest = approvalDigest(doc, approval)
+	return approval
+}
+
+func approvalDigest(doc Document, approval *Approval) string {
+	payload := struct {
+		Version       string         `json:"version"`
+		PlanVersion   string         `json:"plan_version"`
+		ConfigDir     string         `json:"config_dir"`
+		ProjectPath   string         `json:"project_path,omitempty"`
+		StatePath     string         `json:"state_path"`
+		Action        string         `json:"action"`
+		Errored       bool           `json:"errored,omitempty"`
+		Controls      Controls       `json:"controls,omitempty"`
+		APISources    []APISourceRef `json:"api_sources,omitempty"`
+		ProjectDigest string         `json:"project_digest,omitempty"`
+		StateDigest   string         `json:"state_digest,omitempty"`
+		Resources     []ResourcePlan `json:"resources,omitempty"`
+		Diagnostics   []Diagnostic   `json:"diagnostics,omitempty"`
+	}{
+		Version:       approval.Version,
+		PlanVersion:   doc.Version,
+		ConfigDir:     doc.ConfigDir,
+		ProjectPath:   doc.ProjectPath,
+		StatePath:     doc.StatePath,
+		Action:        doc.Action,
+		Errored:       doc.Errored,
+		Controls:      approval.Controls,
+		APISources:    approval.APISources,
+		ProjectDigest: approval.ProjectDigest,
+		StateDigest:   approval.StateDigest,
+		Resources:     doc.Resources,
+		Diagnostics:   doc.Diagnostics,
+	}
+	data, err := json.Marshal(payload)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(data)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func VerifyApproval(doc Document) error {
+	if doc.Errored {
+		return fmt.Errorf("plan is marked errored")
+	}
+	if doc.Approval == nil || strings.TrimSpace(doc.Approval.Digest) == "" {
+		return fmt.Errorf("plan approval artifact is missing")
+	}
+	if got := approvalDigest(doc, doc.Approval); got != doc.Approval.Digest {
+		return fmt.Errorf("plan approval digest mismatch")
+	}
+	return nil
+}
+
 func summarize(doc Document) Summary {
 	summary := Summary{Diagnostics: len(doc.Diagnostics)}
 	for _, resource := range doc.Resources {
@@ -1218,6 +1495,8 @@ func summarize(doc Document) Summary {
 			summary.Update++
 		case "delete":
 			summary.Delete++
+		case "replace":
+			summary.Replace++
 		case "no-op":
 			summary.NoOp++
 		case "read":

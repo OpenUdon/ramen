@@ -243,6 +243,99 @@ func TestBuildNativeGoogleStorageProjectWithoutHCL(t *testing.T) {
 	}
 }
 
+func TestBuildProjectTargetExcludeAndConflictControls(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	projectPath := writeNativeProjectForPlanTest(t, filepath.Join(root, "project"), project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Resources: []project.Resource{
+			nativeIAMRoleResourceForPlanControl("aws_iam_role.db", nil),
+			nativeIAMRoleResourceForPlanControl("aws_iam_role.app", []string{"aws_iam_role.db"}),
+			nativeIAMRoleResourceForPlanControl("aws_iam_role.other", nil),
+		},
+	})
+
+	targeted, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), Targets: []string{"aws_iam_role.app"}})
+	if err != nil {
+		t.Fatalf("targeted build: %v", err)
+	}
+	if targeted.Plan.Errored || targeted.Plan.Summary.Create != 2 || len(targeted.Plan.Resources) != 2 {
+		t.Fatalf("targeted plan = %#v", targeted.Plan)
+	}
+	if targeted.Plan.Resources[0].Address != "aws_iam_role.db" || targeted.Plan.Resources[1].Address != "aws_iam_role.app" {
+		t.Fatalf("targeted resources = %#v", targeted.Plan.Resources)
+	}
+
+	excluded, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), Excludes: []string{"aws_iam_role.db"}})
+	if err != nil {
+		t.Fatalf("excluded build: %v", err)
+	}
+	if excluded.Plan.Errored || excluded.Plan.Summary.Create != 1 || excluded.Plan.Resources[0].Address != "aws_iam_role.other" {
+		t.Fatalf("excluded plan = %#v", excluded.Plan)
+	}
+
+	conflict, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(root, "state.db"), Targets: []string{"aws_iam_role.app"}, Excludes: []string{"aws_iam_role.db"}})
+	if err != nil {
+		t.Fatalf("conflict build: %v", err)
+	}
+	if !conflict.Plan.Errored || !hasPlanDiagnostic(conflict.Diagnostics, "plan.selection_conflict") {
+		t.Fatalf("conflict plan = %#v diagnostics=%#v", conflict.Plan, conflict.Diagnostics)
+	}
+}
+
+func TestBuildProjectDestroyReplaceAndApprovalArtifact(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, "state.db")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	projectPath := writeNativeProjectForPlanTest(t, filepath.Join(root, "project"), project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Resources: []project.Resource{
+			nativeIAMRoleResourceForPlanControl("aws_iam_role.app", nil),
+		},
+	})
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.app", Type: "aws_iam_role", DesiredHash: "old", Status: "managed"}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+
+	replaced, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Replaces: []string{"aws_iam_role.app"}})
+	if err != nil {
+		t.Fatalf("replace build: %v", err)
+	}
+	if replaced.Plan.Errored || replaced.Plan.Summary.Replace != 1 || replaced.Plan.Resources[0].Action != "replace" {
+		t.Fatalf("replace plan = %#v", replaced.Plan)
+	}
+	if replaced.Plan.Resources[0].Mapping == nil || replaced.Plan.Resources[0].Mapping.Purpose != "create" || replaced.Plan.Resources[0].Mapping.OperationID != "CreateRole" {
+		t.Fatalf("replace should use create mapping: %#v", replaced.Plan.Resources[0].Mapping)
+	}
+	if replaced.Plan.Approval == nil || replaced.Plan.Approval.Digest == "" || replaced.Plan.Approval.ProjectDigest == "" || replaced.Plan.Approval.StateDigest == "" {
+		t.Fatalf("approval missing binding fields: %#v", replaced.Plan.Approval)
+	}
+	if err := VerifyApproval(replaced.Plan); err != nil {
+		t.Fatalf("approval did not verify: %v", err)
+	}
+	replaced.Plan.Resources[0].Reason = "tampered"
+	if err := VerifyApproval(replaced.Plan); err == nil {
+		t.Fatalf("tampered approval unexpectedly verified")
+	}
+
+	destroyed, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Destroy: true})
+	if err != nil {
+		t.Fatalf("destroy build: %v", err)
+	}
+	if destroyed.Plan.Errored || destroyed.Plan.Action != "delete" || !destroyed.Plan.Controls.Destroy || destroyed.Plan.Summary.Delete != 1 {
+		t.Fatalf("destroy plan = %#v", destroyed.Plan)
+	}
+}
+
 func TestBuildGoogleStorageBucketCreateAndNoOpPlans(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
@@ -928,6 +1021,35 @@ func writeNativeProjectForPlanTest(t *testing.T, dir string, profile project.Pro
 	path := filepath.Join(dir, project.DefaultJSON)
 	writePlanTestFile(t, path, string(data))
 	return path
+}
+
+func nativeIAMRoleResourceForPlanControl(address string, dependencies []string) project.Resource {
+	name := strings.TrimPrefix(address, "aws_iam_role.")
+	return project.Resource{
+		Address:      address,
+		Kind:         "resource",
+		Type:         "aws_iam_role",
+		Name:         name,
+		Provider:     "provider.aws",
+		Attributes:   map[string]any{"name": name, "assume_role_policy": "{}"},
+		Dependencies: slicesCloneForPlanTest(dependencies),
+		Operations: map[string]project.OperationRole{
+			"create": {SourceKind: "aws-smithy", SourceID: "iam", OperationID: "CreateRole"},
+			"read":   {SourceKind: "aws-smithy", SourceID: "iam", OperationID: "GetRole"},
+			"update": {SourceKind: "aws-smithy", SourceID: "iam", OperationID: "PutRolePolicy"},
+			"delete": {SourceKind: "aws-smithy", SourceID: "iam", OperationID: "DeleteRole"},
+		},
+		IdentityAttributes: []project.IdentityAttribute{{Name: "role_name", Path: "name", RequestKeys: []string{"RoleName"}, ResponsePaths: []string{"Role.RoleName"}, Required: true}},
+	}
+}
+
+func slicesCloneForPlanTest(values []string) []string {
+	if values == nil {
+		return nil
+	}
+	out := make([]string, len(values))
+	copy(out, values)
+	return out
 }
 
 func minimalIAMSmithyForPlanTest() string {
