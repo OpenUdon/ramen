@@ -483,6 +483,125 @@ resource "aws_iam_role" "role" {
 	_ = store.Close()
 }
 
+func TestRefreshNativeReadRolesAndDriftSummary(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	resources := []project.Resource{
+		refreshProjectRole("aws_iam_role.changed", "changed-role"),
+		refreshProjectRole("aws_iam_role.same", "same-role"),
+		refreshProjectRole("aws_iam_role.missing", "missing-role"),
+		refreshProjectRole("aws_iam_role.skipped", "skipped-role"),
+	}
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  resources,
+	})
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	hashes := map[string]string{}
+	for _, resource := range planResult.Plan.Resources {
+		hashes[resource.Address] = resource.DesiredHash
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	for _, snap := range []state.ResourceSnapshot{
+		{Address: "aws_iam_role.changed", Type: "aws_iam_role", Provider: "provider.aws", DesiredHash: hashes["aws_iam_role.changed"], IdentityJSON: mustReconcileJSON(t, map[string]any{"role_name": "changed-role"}), AttributesJSON: mustReconcileJSON(t, map[string]any{"arn": "old"}), Status: "managed"},
+		{Address: "aws_iam_role.same", Type: "aws_iam_role", Provider: "provider.aws", DesiredHash: hashes["aws_iam_role.same"], IdentityJSON: mustReconcileJSON(t, map[string]any{"role_name": "same-role"}), AttributesJSON: mustReconcileJSON(t, map[string]any{"arn": "same"}), Status: "managed"},
+		{Address: "aws_iam_role.missing", Type: "aws_iam_role", Provider: "provider.aws", DesiredHash: hashes["aws_iam_role.missing"], IdentityJSON: mustReconcileJSON(t, map[string]any{"role_name": "missing-role"}), AttributesJSON: mustReconcileJSON(t, map[string]any{"arn": "missing"}), Status: "managed"},
+	} {
+		if err := store.RecordResource(context.Background(), snap); err != nil {
+			t.Fatalf("record %s: %v", snap.Address, err)
+		}
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Mapping.OperationID != "GetRole" {
+			t.Fatalf("refresh used %s, want GetRole", req.Action.Mapping.OperationID)
+		}
+		switch req.Action.Address {
+		case "aws_iam_role.changed":
+			return executor.Result{Success: true, Identity: map[string]any{"role_name": "changed-role"}, Computed: map[string]any{"arn": "new"}}, nil
+		case "aws_iam_role.same":
+			return executor.Result{Success: true, Identity: map[string]any{"role_name": "same-role"}, Computed: map[string]any{"arn": "same"}}, nil
+		case "aws_iam_role.missing":
+			return executor.Result{Success: true, Missing: true}, nil
+		default:
+			t.Fatalf("unexpected refresh request for %s", req.Action.Address)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Refresh(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Executor: mock})
+	if err != nil {
+		t.Fatalf("Refresh returned error: %v", err)
+	}
+	if result.Summary.Read != 3 || result.Summary.Changed != 1 || result.Summary.Unchanged != 1 || result.Summary.Missing != 1 || result.Summary.Skipped != 1 || result.Summary.Failed != 0 {
+		t.Fatalf("summary = %#v", result.Summary)
+	}
+	store, _ = state.Open(context.Background(), statePath)
+	changed, err := store.CurrentResource(context.Background(), "aws_iam_role.changed")
+	if err != nil {
+		t.Fatalf("current changed: %v", err)
+	}
+	if changed == nil || !strings.Contains(changed.AttributesJSON, `"new"`) {
+		t.Fatalf("changed state = %#v", changed)
+	}
+	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.missing")
+	if err != nil {
+		t.Fatalf("missing revisions: %v", err)
+	}
+	if len(revs) != 1 || revs[0].Action != "refresh_missing" {
+		t.Fatalf("missing revisions = %#v", revs)
+	}
+	_ = store.Close()
+}
+
+func TestRefreshRequiresNativeReadRole(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+			},
+		}},
+	})
+	statePath := filepath.Join(projectDir, "state.db")
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.role", Type: "aws_iam_role", Provider: "provider.aws", DesiredHash: planResult.Plan.Resources[0].DesiredHash, Status: "managed"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	_, err = Refresh(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Executor: &executor.MockExecutor{}})
+	if err == nil || !strings.Contains(err.Error(), "refresh.read_operation_missing") {
+		t.Fatalf("read role error = %v", err)
+	}
+}
+
 func writeReconcileTestFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
@@ -526,6 +645,36 @@ func writeReconcileProjectForTest(t *testing.T, dir string, profile project.Prof
 	path := filepath.Join(dir, project.DefaultJSON)
 	writeReconcileTestFile(t, path, string(data))
 	return path
+}
+
+func refreshProjectRole(address, name string) project.Resource {
+	return project.Resource{
+		Address:    address,
+		Kind:       "resource",
+		Type:       "aws_iam_role",
+		Name:       strings.TrimPrefix(address, "aws_iam_role."),
+		Provider:   "provider.aws",
+		Attributes: map[string]any{"name": name, "assume_role_policy": "{}"},
+		Operations: map[string]project.OperationRole{
+			"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+			"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+		},
+		IdentityAttributes: []project.IdentityAttribute{{
+			Name:        "role_name",
+			Path:        "name",
+			RequestKeys: []string{"RoleName"},
+			Required:    true,
+		}},
+	}
+}
+
+func mustReconcileJSON(t *testing.T, value any) string {
+	t.Helper()
+	data, err := json.Marshal(value)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return string(data)
 }
 
 func minimalIAMSmithyForReconcileTest() string {

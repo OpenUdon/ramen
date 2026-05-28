@@ -18,6 +18,7 @@ import (
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	"github.com/OpenUdon/ramen/tfmapping"
 	ramenvalidate "github.com/OpenUdon/ramen/validate"
 )
 
@@ -41,10 +42,14 @@ type Result struct {
 }
 
 type Summary struct {
-	Read     int `json:"read"`
-	Delete   int `json:"delete"`
-	Imported int `json:"imported"`
-	Failed   int `json:"failed"`
+	Read      int `json:"read"`
+	Delete    int `json:"delete"`
+	Imported  int `json:"imported"`
+	Changed   int `json:"changed"`
+	Unchanged int `json:"unchanged"`
+	Missing   int `json:"missing"`
+	Skipped   int `json:"skipped"`
+	Failed    int `json:"failed"`
 }
 
 type ActionResult struct {
@@ -73,6 +78,10 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Executor == nil {
 		return nil, fmt.Errorf("refresh requires a trusted executor; pass --mock for recorded/mock execution in public builds")
 	}
+	readMappings, err := refreshReadMappings(ctx, opts)
+	if err != nil {
+		return &Result{StatePath: opts.StatePath}, err
+	}
 	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "create"})
 	if err != nil {
 		return nil, err
@@ -93,10 +102,15 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	}
 	for _, resource := range planResult.Plan.Resources {
 		if resource.Action != "no-op" && resource.Action != "update" {
+			result.Summary.Skipped++
 			continue
 		}
+		if mapping := readMappings[resource.Address]; mapping != nil {
+			resource.Mapping = mapping
+		}
 		if resource.Mapping == nil || resource.Mapping.OperationID == "" {
-			continue
+			result.Summary.Failed++
+			return result, fmt.Errorf("refresh.read_operation_missing: %s has no usable read operation metadata", resource.Address)
 		}
 		identity, err := stateIdentity(ctx, store, resource.Address)
 		if err != nil {
@@ -133,11 +147,26 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 			}
 			return result, fmt.Errorf("%s", msg)
 		}
-		if err := recordRefresh(ctx, store, runID, resource, execResult); err != nil {
+		result.Summary.Read++
+		if execResult.Missing {
+			if err := recordMissingRefresh(ctx, store, runID, resource); err != nil {
+				result.Summary.Failed++
+				return result, err
+			}
+			result.Summary.Missing++
+			result.Actions = append(result.Actions, ActionResult{Address: resource.Address, Action: "read", Document: docPath})
+			continue
+		}
+		changed, err := recordRefresh(ctx, store, runID, resource, execResult)
+		if err != nil {
 			result.Summary.Failed++
 			return result, err
 		}
-		result.Summary.Read++
+		if changed {
+			result.Summary.Changed++
+		} else {
+			result.Summary.Unchanged++
+		}
 		result.Actions = append(result.Actions, ActionResult{Address: resource.Address, Action: "read", Document: docPath})
 	}
 	return result, nil
@@ -395,6 +424,61 @@ func validateAPISources(inputs []APISourceInput) []ramenvalidate.APISourceInput 
 	return out
 }
 
+func refreshReadMappings(ctx context.Context, opts Options) (map[string]*tfplan.MappingPlan, error) {
+	if strings.TrimSpace(opts.ProjectPath) == "" {
+		return nil, nil
+	}
+	result, err := ramenvalidate.Run(ctx, ramenvalidate.Options{ProjectPath: opts.ProjectPath, APISources: validateAPISources(opts.APISources)})
+	if err != nil {
+		return nil, err
+	}
+	if !result.Valid {
+		if len(result.Diagnostics) > 0 {
+			diag := result.Diagnostics[0]
+			return nil, fmt.Errorf("%s: %s", diag.Code, diag.Message)
+		}
+		return nil, fmt.Errorf("refresh.project_invalid: native project is invalid")
+	}
+	doc, err := project.Load(opts.ProjectPath)
+	if err != nil {
+		return nil, fmt.Errorf("refresh.project_load_error: %w", err)
+	}
+	out := map[string]*tfplan.MappingPlan{}
+	for _, resource := range doc.Profile.Resources {
+		if resource.Kind != "resource" {
+			continue
+		}
+		role, ok := resource.Operations["read"]
+		if !ok || strings.TrimSpace(role.OperationID) == "" {
+			continue
+		}
+		source := project.SourceForRole(doc.Profile, role)
+		out[resource.Address] = &tfplan.MappingPlan{
+			Purpose:            "read",
+			SourceKind:         firstNonEmpty(role.SourceKind, source.Kind),
+			SourceID:           firstNonEmpty(role.SourceID, source.ID),
+			SourcePath:         firstNonEmpty(role.SourcePath, source.Path),
+			OperationID:        role.OperationID,
+			IdentityAttributes: reconcileProjectIdentityAttributes(resource.IdentityAttributes),
+		}
+	}
+	return out, nil
+}
+
+func reconcileProjectIdentityAttributes(attrs []project.IdentityAttribute) []tfmapping.IdentityAttribute {
+	out := make([]tfmapping.IdentityAttribute, 0, len(attrs))
+	for _, attr := range attrs {
+		out = append(out, tfmapping.IdentityAttribute{
+			Name:          attr.Name,
+			TerraformPath: attr.Path,
+			RequestKeys:   slices.Clone(attr.RequestKeys),
+			ResponsePaths: slices.Clone(attr.ResponsePaths),
+			Required:      attr.Required,
+		})
+	}
+	return out
+}
+
 func importDesiredHash(ctx context.Context, opts ImportOptions, fallback string) (string, *tfplan.MappingPlan) {
 	if strings.TrimSpace(opts.ProjectPath) == "" && (strings.TrimSpace(opts.ConfigDir) == "" || len(opts.APISources) == 0) {
 		return fallback, nil
@@ -529,31 +613,61 @@ func executorAction(resource tfplan.ResourcePlan, action string) executor.Action
 	return out
 }
 
-func recordRefresh(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, execResult executor.Result) error {
+func recordRefresh(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, execResult executor.Result) (bool, error) {
 	current, err := store.CurrentResource(ctx, resource.Address)
 	if err != nil {
-		return err
+		return false, err
 	}
 	if current == nil {
-		return nil
+		return false, nil
 	}
+	changed := false
 	if len(execResult.Identity) > 0 {
 		data, _ := json.Marshal(redact.Map(execResult.Identity))
+		if current.IdentityJSON != string(data) {
+			changed = true
+		}
 		current.IdentityJSON = string(data)
 	}
 	if len(execResult.Computed) > 0 {
 		data, _ := json.Marshal(redact.Map(execResult.Computed))
+		if current.AttributesJSON != string(data) {
+			changed = true
+		}
 		current.AttributesJSON = string(data)
 	}
 	current.UpdatedRunID = runID
 	current.UpdatedAt = time.Now().UTC()
 	afterJSON, _ := json.Marshal(current)
-	return store.WithTx(ctx, func(tx *state.Tx) error {
+	err = store.WithTx(ctx, func(tx *state.Tx) error {
 		if err := tx.RecordResource(ctx, *current); err != nil {
 			return err
 		}
 		return tx.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "refresh", AfterJSON: string(afterJSON)})
 	})
+	return changed, err
+}
+
+func recordMissingRefresh(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan) error {
+	before, err := store.CurrentResource(ctx, resource.Address)
+	if err != nil {
+		return err
+	}
+	beforeJSON := []byte(nil)
+	if before != nil {
+		beforeJSON, err = json.Marshal(before)
+		if err != nil {
+			return err
+		}
+	}
+	diffJSON, err := json.Marshal(map[string]any{
+		"status":       "missing",
+		"desired_hash": resource.DesiredHash,
+	})
+	if err != nil {
+		return err
+	}
+	return store.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "refresh_missing", BeforeJSON: string(beforeJSON), DiffJSON: string(diffJSON)})
 }
 
 func recordSuccessfulDestroy(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan) error {

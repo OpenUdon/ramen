@@ -399,7 +399,7 @@ func runRefreshCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("ramen: refresh read=%d failed=%d\n", result.Summary.Read, result.Summary.Failed)
+	fmt.Printf("ramen: refresh read=%d changed=%d unchanged=%d missing=%d skipped=%d failed=%d\n", result.Summary.Read, result.Summary.Changed, result.Summary.Unchanged, result.Summary.Missing, result.Summary.Skipped, result.Summary.Failed)
 }
 
 func runDestroyCommand(args []string) {

@@ -43,6 +43,7 @@ type Result struct {
 	Address    string         `json:"address,omitempty"`
 	Operation  string         `json:"operation,omitempty"`
 	Success    bool           `json:"success"`
+	Missing    bool           `json:"missing,omitempty"`
 	Identity   map[string]any `json:"identity,omitempty"`
 	Computed   map[string]any `json:"computed,omitempty"`
 	Messages   []string       `json:"messages,omitempty"`
