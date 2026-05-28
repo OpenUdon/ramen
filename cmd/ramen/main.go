@@ -570,27 +570,38 @@ func runApplyCommand(args []string) {
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	planPath := fs.String("plan", "", "Digest-bound Ramen plan artifact to verify and execute")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	outDir := fs.String("out", "", "Optional directory for generated executor-ready UWS action documents")
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
-		fmt.Fprintf(fs.Output(), "\nBuilds a static desired-state plan, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
 	}
+	configDirSet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "config-dir" {
+			configDirSet = true
+		}
+	})
 	sources, err := parseApplyAPISourceFlags(apiSources)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
 	path := *statePath
-	if strings.TrimSpace(path) == "" {
+	if strings.TrimSpace(path) == "" && strings.TrimSpace(*planPath) == "" {
 		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
+	}
+	configDirValue := *configDir
+	if strings.TrimSpace(*planPath) != "" && !configDirSet {
+		configDirValue = ""
 	}
 	var exec executor.Executor
 	if *mock {
@@ -599,10 +610,11 @@ func runApplyCommand(args []string) {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	result, err := tfapply.Apply(ctx, tfapply.Options{
-		ConfigDir:   *configDir,
+		ConfigDir:   configDirValue,
 		ProjectPath: *projectPath,
 		StatePath:   path,
 		APISources:  sources,
+		PlanPath:    *planPath,
 		AutoApprove: *autoApprove,
 		OutDir:      *outDir,
 		Executor:    exec,

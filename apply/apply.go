@@ -28,6 +28,7 @@ type Options struct {
 	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
+	PlanPath    string
 	AutoApprove bool
 	OutDir      string
 	Executor    executor.Executor
@@ -65,16 +66,38 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	opts.PlanPath = strings.TrimSpace(opts.PlanPath)
+	var artifact *tfplan.Document
+	if opts.PlanPath != "" {
+		loaded, err := loadPlanArtifact(opts.PlanPath)
+		if err != nil {
+			return nil, err
+		}
+		artifact = loaded
+		opts = applyArtifactDefaults(opts, *artifact)
+	}
 	opts = normalizeOptions(opts)
-	planResult, err := tfplan.Build(ctx, tfplan.Options{
-		ConfigDir:   opts.ConfigDir,
-		ProjectPath: opts.ProjectPath,
-		StatePath:   opts.StatePath,
-		APISources:  opts.APISources,
-		Action:      "create",
-	})
-	if err != nil {
-		return nil, err
+	var planResult *tfplan.Result
+	var err error
+	if artifact != nil {
+		if err := validateLoadedPlanArtifact(*artifact); err != nil {
+			return &Result{StatePath: opts.StatePath, Plan: *artifact}, err
+		}
+		planResult, err = verifyPlanArtifact(ctx, opts, *artifact)
+		if err != nil {
+			return &Result{StatePath: opts.StatePath, Plan: *artifact}, err
+		}
+	} else {
+		planResult, err = tfplan.Build(ctx, tfplan.Options{
+			ConfigDir:   opts.ConfigDir,
+			ProjectPath: opts.ProjectPath,
+			StatePath:   opts.StatePath,
+			APISources:  opts.APISources,
+			Action:      "create",
+		})
+		if err != nil {
+			return nil, err
+		}
 	}
 	result := &Result{StatePath: opts.StatePath, Plan: planResult.Plan}
 	if err := rejectErroredPlan(planResult); err != nil {
@@ -386,6 +409,79 @@ func normalizeOptions(opts Options) Options {
 		return cmp.Compare(left, right)
 	})
 	return opts
+}
+
+func loadPlanArtifact(path string) (*tfplan.Document, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("apply.plan_read_error: %w", err)
+	}
+	var doc tfplan.Document
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return nil, fmt.Errorf("apply.plan_parse_error: %w", err)
+	}
+	if doc.Version != tfplan.Version {
+		return nil, fmt.Errorf("apply.plan_version_invalid: got %q, want %q", doc.Version, tfplan.Version)
+	}
+	return &doc, nil
+}
+
+func validateLoadedPlanArtifact(doc tfplan.Document) error {
+	if err := tfplan.VerifyApproval(doc); err != nil {
+		return fmt.Errorf("apply.approval_invalid: %w", err)
+	}
+	if doc.Action == "delete" || doc.Controls.Destroy {
+		return fmt.Errorf("apply.plan_action_invalid: apply requires a non-destroy plan artifact")
+	}
+	return nil
+}
+
+func applyArtifactDefaults(opts Options, artifact tfplan.Document) Options {
+	if strings.TrimSpace(opts.ConfigDir) == "" {
+		opts.ConfigDir = artifact.ConfigDir
+	}
+	if strings.TrimSpace(opts.ProjectPath) == "" {
+		opts.ProjectPath = artifact.ProjectPath
+	}
+	if strings.TrimSpace(opts.StatePath) == "" {
+		opts.StatePath = artifact.StatePath
+	}
+	if len(opts.APISources) == 0 {
+		opts.APISources = apiSourceInputsFromPlan(artifact.APISources)
+	}
+	return opts
+}
+
+func apiSourceInputsFromPlan(refs []tfplan.APISourceRef) []APISourceInput {
+	out := make([]APISourceInput, 0, len(refs))
+	for _, ref := range refs {
+		out = append(out, APISourceInput{Kind: ref.Kind, ID: ref.ID, Path: ref.Path})
+	}
+	return out
+}
+
+func verifyPlanArtifact(ctx context.Context, opts Options, artifact tfplan.Document) (*tfplan.Result, error) {
+	current, err := tfplan.Build(ctx, tfplan.Options{
+		ConfigDir:   opts.ConfigDir,
+		ProjectPath: opts.ProjectPath,
+		StatePath:   opts.StatePath,
+		APISources:  opts.APISources,
+		Action:      artifact.Action,
+		Targets:     artifact.Controls.Targets,
+		Excludes:    artifact.Controls.Excludes,
+		Replaces:    artifact.Controls.Replaces,
+		Destroy:     artifact.Controls.Destroy,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := rejectErroredPlan(current); err != nil {
+		return current, err
+	}
+	if current.Plan.Approval == nil || artifact.Approval == nil || current.Plan.Approval.Digest != artifact.Approval.Digest {
+		return current, fmt.Errorf("apply.approval_mismatch: plan artifact no longer matches current project, API sources, state baseline, or controls")
+	}
+	return &tfplan.Result{StatePath: current.StatePath, OutPath: current.OutPath, Plan: artifact, Diagnostics: artifact.Diagnostics}, nil
 }
 
 func stateBaseDir(projectPath, configDir string) string {

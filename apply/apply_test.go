@@ -2,6 +2,7 @@ package apply
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/ramen/executor"
+	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
 )
 
@@ -218,6 +220,98 @@ resource "aws_iam_role" "role" {
 	}
 }
 
+func TestApplyExecutesVerifiedPlanArtifact(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, "state.db")
+	planPath := filepath.Join(root, "plan.json")
+	writeApplyTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "artifact-role"
+  assume_role_policy = "{}"
+}
+`)
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		OutPath:    planPath,
+	}); err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	mock := &executor.MockExecutor{Results: map[string]executor.Result{
+		"aws_iam_role.role": {Identity: map[string]any{"role_name": "artifact-role"}},
+	}}
+	result, err := Apply(context.Background(), Options{PlanPath: planPath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Create != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("result=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+}
+
+func TestApplyRejectsStaleOrTamperedPlanArtifactBeforeExecutor(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, "state.db")
+	planPath := filepath.Join(root, "plan.json")
+	writeApplyTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "artifact-role"
+  assume_role_policy = "{}"
+}
+`)
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		OutPath:    planPath,
+	}); err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	var planned tfplan.Document
+	if err := json.Unmarshal([]byte(readApplyTestFile(t, planPath)), &planned); err != nil {
+		t.Fatalf("unmarshal plan: %v", err)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.role", Type: "aws_iam_role", DesiredHash: planned.Resources[0].DesiredHash, Status: "managed"}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{}
+	_, err = Apply(context.Background(), Options{PlanPath: planPath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.approval_mismatch") {
+		t.Fatalf("stale plan error = %v", err)
+	}
+	if mock.RequestCount() != 0 {
+		t.Fatalf("executor was called for stale plan")
+	}
+
+	doc := planned
+	doc.Resources[0].DesiredHash = "tampered"
+	tamperedPath := filepath.Join(root, "tampered.json")
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal tampered plan: %v", err)
+	}
+	writeApplyTestFile(t, tamperedPath, string(append(data, '\n')))
+	_, err = Apply(context.Background(), Options{PlanPath: tamperedPath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.approval_invalid") {
+		t.Fatalf("tampered plan error = %v", err)
+	}
+	if mock.RequestCount() != 0 {
+		t.Fatalf("executor was called for tampered plan")
+	}
+}
+
 func TestApplyRejectsErroredPlanBeforeExecutor(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
@@ -251,6 +345,37 @@ resource "aws_iam_role" "role" {
 	}
 	if mock.RequestCount() != 0 {
 		t.Fatalf("executor was called %d time(s)", mock.RequestCount())
+	}
+}
+
+func TestApplyRejectsErroredPlanArtifactBeforeExecutor(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	planPath := filepath.Join(root, "errored.json")
+	writeApplyTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir:  configDir,
+		StatePath:  filepath.Join(root, "state.db"),
+		APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: filepath.Join(root, "missing.json")}},
+		OutPath:    planPath,
+	}); err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	mock := &executor.MockExecutor{}
+	result, err := Apply(context.Background(), Options{PlanPath: planPath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.approval_invalid") {
+		t.Fatalf("errored artifact error = %v", err)
+	}
+	if result == nil || !result.Plan.Errored {
+		t.Fatalf("result = %#v", result)
+	}
+	if mock.RequestCount() != 0 {
+		t.Fatalf("executor was called for errored artifact")
 	}
 }
 
