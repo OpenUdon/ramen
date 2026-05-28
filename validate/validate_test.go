@@ -1,0 +1,237 @@
+package validate
+
+import (
+	"context"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/OpenUdon/ramen/project"
+	uwsconvert "github.com/OpenUdon/uws/convert"
+	"github.com/OpenUdon/uws/uws1"
+)
+
+func TestRunValidatesNativeProjectAndAPISourceOperations(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{{
+			Kind: "openapi",
+			ID:   "api",
+			Path: sourcePath,
+		}},
+		Resources: []project.Resource{{
+			Address: "example_resource.test",
+			Kind:    "resource",
+			Type:    "example_resource",
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "id", Path: "id"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !result.Valid || result.Summary.Diagnostics != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestRunReportsUnknownOperation(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "missingOperation"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.Valid || !hasValidateCode(result, "validate.operation_unknown") {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestRunReportsProjectStructuralDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Redaction:  project.Redaction{Paths: []string{""}},
+		Resources: []project.Resource{
+			{
+				Address:            "example_resource.a",
+				Kind:               "resource",
+				Type:               "example_resource",
+				Dependencies:       []string{"example_resource.b", "example_resource.missing"},
+				IdentityAttributes: []project.IdentityAttribute{{Name: "", Path: ""}},
+				Operations:         map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+			},
+			{
+				Address: "example_resource.b",
+				Kind:    "resource",
+				Type:    "example_resource",
+				Dependencies: []string{
+					"example_resource.a",
+				},
+				Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+			},
+		},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	for _, code := range []string{"validate.dependency_missing", "validate.dependency_cycle", "validate.identity_invalid", "validate.redaction_invalid"} {
+		if !hasValidateCode(result, code) {
+			t.Fatalf("result missing %s: %#v", code, result.Diagnostics)
+		}
+	}
+}
+
+func TestRunTreatsWarningsAsErrorsInStrictMode(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	unusedPath := writeValidateOpenAPI(t, root, "unused.yaml", "unusedOperation")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{
+			{Kind: "openapi", ID: "api", Path: sourcePath},
+			{Kind: "openapi", ID: "unused", Path: unusedPath},
+		},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !result.Valid || result.Summary.Warnings != 1 || !hasValidateCode(result, "validate.api_source_unused") {
+		t.Fatalf("non-strict result = %#v", result)
+	}
+	result, err = Run(context.Background(), Options{ProjectPath: projectPath, Strict: true})
+	if err != nil {
+		t.Fatalf("Run strict returned error: %v", err)
+	}
+	if result.Valid || result.Summary.Errors != 1 || result.Diagnostics[0].Severity != "error" {
+		t.Fatalf("strict result = %#v", result)
+	}
+}
+
+func TestRunReportsLoadAndMissingSourceErrors(t *testing.T) {
+	root := t.TempDir()
+	missing := filepath.Join(root, "missing.yaml")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: missing}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.Valid || !hasValidateCode(result, "validate.api_source_document_read") {
+		t.Fatalf("result = %#v", result.Diagnostics)
+	}
+
+	badPath := filepath.Join(root, "bad.uws.json")
+	if err := os.WriteFile(badPath, []byte(`{"uws":"1.4.0"`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err = Run(context.Background(), Options{ProjectPath: badPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.Valid || !hasValidateCode(result, "validate.project_load_error") {
+		t.Fatalf("bad project result = %#v", result)
+	}
+}
+
+func hasValidateCode(result *Result, code string) bool {
+	for _, diag := range result.Diagnostics {
+		if diag.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func writeValidateProject(t *testing.T, dir string, profile project.Profile) string {
+	t.Helper()
+	path := filepath.Join(dir, project.DefaultJSON)
+	doc := &uws1.Document{
+		UWS: "1.4.0",
+		Info: &uws1.Info{
+			Title:   "validate_fixture",
+			Version: "1.0.0",
+		},
+		Operations: []*uws1.Operation{{
+			OperationID: "review",
+			Request:     map[string]any{"x-test": true},
+			Extensions:  map[string]any{uws1.ExtensionOperationProfile: "ramen-validate-test"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main",
+			Type:       uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{{
+				StepID:       "review",
+				OperationRef: "review",
+			}},
+		}},
+		Extensions: map[string]any{project.ExtensionKey: profile},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
+func writeValidateOpenAPI(t *testing.T, dir, name, operationID string) string {
+	t.Helper()
+	path := filepath.Join(dir, name)
+	data := []byte(`openapi: 3.0.0
+info:
+  title: Validate Test
+  version: v1
+paths:
+  /examples:
+    post:
+      operationId: ` + operationID + `
+      responses:
+        "200":
+          description: ok
+`)
+	if err := os.WriteFile(path, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}

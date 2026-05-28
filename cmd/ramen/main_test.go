@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/OpenUdon/ramen/project"
+	uwsconvert "github.com/OpenUdon/uws/convert"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 func TestCLIConvertTFHelpIncludesContract(t *testing.T) {
@@ -92,6 +96,90 @@ func TestCLIVersionOutputsPlainTextJSONAndHelp(t *testing.T) {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("version help missing %q:\n%s", expected, text)
 		}
+	}
+}
+
+func TestCLIValidateOutputsHumanJSONAndHelp(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	mustWriteCLIFile(t, sourcePath, []byte(`openapi: 3.0.0
+info:
+  title: Validate CLI
+  version: v1
+paths:
+  /examples:
+    post:
+      operationId: createExample
+      responses:
+        "200":
+          description: ok
+`))
+	projectPath := writeNativeProjectForCLITest(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+
+	cmd := helperCommand("validate", "--project", projectPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("validate failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "valid=true") {
+		t.Fatalf("validate output missing success:\n%s", output)
+	}
+
+	cmd = helperCommand("validate", "--project", projectPath, "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("validate --json failed: %v\n%s", err, output)
+	}
+	var result struct {
+		Version string `json:"version"`
+		Valid   bool   `json:"valid"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("validate JSON is not parseable: %v\n%s", err, output)
+	}
+	if result.Version != "ramen.validate.v1" || !result.Valid {
+		t.Fatalf("validate JSON result = %#v\n%s", result, output)
+	}
+
+	cmd = helperCommand("validate", "--help")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("validate help failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, expected := range []string{"Usage: ramen validate", "--project", "--api-source", "--json", "--strict", "without planning"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("validate help missing %q:\n%s", expected, text)
+		}
+	}
+
+	missingPath := filepath.Join(root, "missing.yaml")
+	badProjectPath := writeNativeProjectForCLITest(t, filepath.Join(root, "bad"), project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: missingPath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+	cmd = helperCommand("validate", "--project", badProjectPath, "--json")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("validate unexpectedly succeeded:\n%s", output)
+	}
+	if !strings.Contains(string(output), `"valid": false`) || !strings.Contains(string(output), "validate.api_source_document_read") {
+		t.Fatalf("validate failure JSON missing diagnostics:\n%s", output)
 	}
 }
 
@@ -369,4 +457,36 @@ func mustWriteCLIFile(t *testing.T, path string, data []byte) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeNativeProjectForCLITest(t *testing.T, dir string, profile project.Profile) string {
+	t.Helper()
+	doc := &uws1.Document{
+		UWS: "1.4.0",
+		Info: &uws1.Info{
+			Title:   "cli_validate_fixture",
+			Version: "1.0.0",
+		},
+		Operations: []*uws1.Operation{{
+			OperationID: "review",
+			Request:     map[string]any{"x-test": true},
+			Extensions:  map[string]any{uws1.ExtensionOperationProfile: "ramen-cli-test"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main",
+			Type:       uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{{
+				StepID:       "review",
+				OperationRef: "review",
+			}},
+		}},
+		Extensions: map[string]any{project.ExtensionKey: profile},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, project.DefaultJSON)
+	mustWriteCLIFile(t, path, data)
+	return path
 }

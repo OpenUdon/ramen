@@ -19,6 +19,7 @@ import (
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/reconcile"
 	"github.com/OpenUdon/ramen/state"
+	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/tfconfig"
 )
 
@@ -46,6 +47,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  plan      emit a static desired-state plan without mutation\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  refresh   read tracked resources and update state through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  validate  validate a native UWS/Ramen project without mutation\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  version   print version\n")
 	}
 	flag.Parse()
@@ -69,6 +71,8 @@ func main() {
 		runPlanCommand(flag.Args()[1:])
 	case "refresh":
 		runRefreshCommand(flag.Args()[1:])
+	case "validate":
+		runValidateCommand(flag.Args()[1:])
 	case "version":
 		runVersionCommand(flag.Args()[1:])
 	case "-h", "--help", "help":
@@ -77,6 +81,53 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", command)
 		flag.Usage()
 		os.Exit(2)
+	}
+}
+
+func runValidateCommand(args []string) {
+	fs := flag.NewFlagSet("validate", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
+	jsonOutput := fs.Bool("json", false, "Print machine-readable validation diagnostics")
+	strict := fs.Bool("strict", false, "Treat validation warnings as errors")
+	var apiSources repeatedStringFlag
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen validate --project DIR|FILE [--api-source KIND:ID=PATH] [--json] [--strict]\n")
+		fmt.Fprintf(fs.Output(), "\nValidates a native UWS/Ramen project, optional local API source operation references, and diagnostics without planning, executing, touching state, reading Terraform/OpenTofu HCL, or performing network access.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	sources, err := parseValidateAPISourceFlags(apiSources)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	result, err := ramenvalidate.Run(commandContext(), ramenvalidate.Options{ProjectPath: *projectPath, APISources: sources, Strict: *strict})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOutput {
+		data, err := json.MarshalIndent(result, "", "  ")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+	} else {
+		fmt.Printf("ramen: validate valid=%t errors=%d warnings=%d diagnostics=%d\n", result.Valid, result.Summary.Errors, result.Summary.Warnings, result.Summary.Diagnostics)
+		for _, diag := range result.Diagnostics {
+			fmt.Fprintf(os.Stderr, "%s: %s\n", diag.Code, diag.Message)
+		}
+	}
+	if !result.Valid {
+		os.Exit(1)
 	}
 }
 
@@ -614,6 +665,18 @@ func parseApplyAPISourceFlags(values []string) ([]tfapply.APISourceInput, error)
 	inputs := make([]tfapply.APISourceInput, len(planInputs))
 	for i, input := range planInputs {
 		inputs[i] = tfapply.APISourceInput(input)
+	}
+	return inputs, nil
+}
+
+func parseValidateAPISourceFlags(values []string) ([]ramenvalidate.APISourceInput, error) {
+	planInputs, err := parsePlanAPISourceFlags(values)
+	if err != nil {
+		return nil, err
+	}
+	inputs := make([]ramenvalidate.APISourceInput, len(planInputs))
+	for i, input := range planInputs {
+		inputs[i] = ramenvalidate.APISourceInput(input)
 	}
 	return inputs, nil
 }

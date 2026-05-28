@@ -53,6 +53,7 @@ Implemented public commands:
 ```bash
 ramen convert tf
 ramen init
+ramen validate --project DIR --json
 ramen plan
 ramen apply --auto-approve --mock
 ramen refresh --mock
