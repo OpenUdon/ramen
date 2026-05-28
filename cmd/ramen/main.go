@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"syscall"
 
@@ -69,7 +70,7 @@ func main() {
 	case "refresh":
 		runRefreshCommand(flag.Args()[1:])
 	case "version":
-		fmt.Println(version)
+		runVersionCommand(flag.Args()[1:])
 	case "-h", "--help", "help":
 		flag.Usage()
 	default:
@@ -77,6 +78,87 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
+}
+
+type versionInfo struct {
+	Version   string            `json:"version"`
+	Module    string            `json:"module"`
+	MainPath  string            `json:"main_path,omitempty"`
+	GoVersion string            `json:"go_version,omitempty"`
+	Revision  string            `json:"revision,omitempty"`
+	BuildTags []string          `json:"build_tags,omitempty"`
+	Settings  map[string]string `json:"settings,omitempty"`
+}
+
+func runVersionCommand(args []string) {
+	fs := flag.NewFlagSet("version", flag.ExitOnError)
+	jsonOutput := fs.Bool("json", false, "Print version and local build metadata as JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen version [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nPrints the Ramen CLI version. With --json, prints local build metadata only; it does not check networks, releases, updates, or telemetry.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	info := collectVersionInfo()
+	if *jsonOutput {
+		data, err := json.MarshalIndent(info, "", "  ")
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		fmt.Println(string(data))
+		return
+	}
+	fmt.Println(info.Version)
+}
+
+func collectVersionInfo() versionInfo {
+	info := versionInfo{
+		Version: version,
+		Module:  "github.com/OpenUdon/ramen",
+	}
+	if build, ok := debug.ReadBuildInfo(); ok {
+		info.GoVersion = build.GoVersion
+		if build.Main.Path != "" {
+			info.MainPath = build.Main.Path
+		}
+		settings := make(map[string]string)
+		for _, setting := range build.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				info.Revision = setting.Value
+			case "-tags":
+				if strings.TrimSpace(setting.Value) != "" {
+					info.BuildTags = splitBuildTags(setting.Value)
+				}
+			case "vcs.modified", "vcs.time", "vcs":
+				settings[setting.Key] = setting.Value
+			}
+		}
+		if len(settings) > 0 {
+			info.Settings = settings
+		}
+	}
+	return info
+}
+
+func splitBuildTags(value string) []string {
+	fields := strings.FieldsFunc(value, func(r rune) bool {
+		return r == ',' || r == ' '
+	})
+	tags := make([]string, 0, len(fields))
+	for _, field := range fields {
+		if trimmed := strings.TrimSpace(field); trimmed != "" {
+			tags = append(tags, trimmed)
+		}
+	}
+	return tags
 }
 
 func runRefreshCommand(args []string) {

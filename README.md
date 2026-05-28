@@ -58,6 +58,7 @@ ramen apply --auto-approve --mock
 ramen refresh --mock
 ramen destroy --auto-approve --mock
 ramen import
+ramen version --json
 ```
 
 The current implementation supports native UWS/Ramen project input through
@@ -65,7 +66,8 @@ The current implementation supports native UWS/Ramen project input through
 milestones as transitional compatibility. `ramen convert tf` writes
 `project.uws.yaml` in that native format. The first lifecycle surface is
 mock-backed in default public builds where execution is required. Live executor
-wiring remains opt-in behind trusted adapters.
+wiring remains opt-in behind trusted adapters. `ramen version --json` reports
+local build metadata without network checks.
 
 ## Status Lanes
 
@@ -73,21 +75,36 @@ Ramen uses zero-padded status lanes:
 
 ```text
 M01, M02, M03, ... M09, M10, M11, ...
+A01, A02, A03, ... A09, A10, A11, ...
+D01, D02, D03, ... D09, D10, D11, ...
+F01, F02, F03, ... F09, F10, F11, ...
+G01, G02, G03, ... G09, G10, G11, ...
 I01, I02, I03, ... I09, I10, I11, ...
 P01, P02, P03, ... P09, P10, P11, ...
+R01, R02, R03, ... R09, R10, R11, ...
 S01, S02, S03, ... S09, S10, S11, ...
+V01, V02, V03, ... V09, V10, V11, ...
 ```
 
 Lane meanings:
 
-- `Mxx`: main milestone scope and cross-cutting delivery records.
-- `Ixx`: `ramen init` command-specific tasks.
+- `Mxx`: main milestone scope, cross-cutting delivery records, common command
+  infrastructure, and non-subcommand migration history.
+- `Axx`: `ramen apply` command-specific tasks.
+- `Dxx`: `ramen destroy` command-specific tasks.
+- `Fxx`: `ramen force-unlock` command-specific tasks.
+- `Gxx`: `ramen graph` command-specific tasks.
+- `Ixx`: `ramen init` and `ramen import` command-specific tasks.
 - `Pxx`: `ramen plan` command-specific tasks.
-- `Sxx`: sidecar migration or compatibility tracks.
+- `Rxx`: `ramen refresh` command-specific tasks.
+- `Sxx`: `ramen show` and `ramen state` command-specific tasks.
+- `Vxx`: `ramen validate` and `ramen version` command-specific tasks.
 
 The native UWS desired-state project model is tracked in the completed
 [memory-bank/status-M08.md](memory-bank/status-M08.md). The active plan-control
-track is [memory-bank/status-P02.md](memory-bank/status-P02.md).
+track is [memory-bank/status-P02.md](memory-bank/status-P02.md). Accepted
+subcommand lane normalization is tracked in
+[memory-bank/status-M10.md](memory-bank/status-M10.md).
 
 ## Development Checks
 

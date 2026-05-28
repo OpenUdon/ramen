@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -51,6 +52,45 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 			if !strings.Contains(text, expected) {
 				t.Fatalf("%v help missing %q:\n%s", tt.command, expected, text)
 			}
+		}
+	}
+}
+
+func TestCLIVersionOutputsPlainTextJSONAndHelp(t *testing.T) {
+	cmd := helperCommand("version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version failed: %v\n%s", err, output)
+	}
+	if got := strings.TrimSpace(string(output)); got != version {
+		t.Fatalf("version output = %q, want %q", got, version)
+	}
+
+	cmd = helperCommand("version", "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version --json failed: %v\n%s", err, output)
+	}
+	var info versionInfo
+	if err := json.Unmarshal(output, &info); err != nil {
+		t.Fatalf("version JSON is not parseable: %v\n%s", err, output)
+	}
+	if info.Version != version {
+		t.Fatalf("version JSON version = %q, want %q", info.Version, version)
+	}
+	if info.Module != "github.com/OpenUdon/ramen" {
+		t.Fatalf("version JSON module = %q, want github.com/OpenUdon/ramen", info.Module)
+	}
+
+	cmd = helperCommand("version", "--help")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("version help failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, expected := range []string{"Usage: ramen version", "--json", "does not check networks"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("version help missing %q:\n%s", expected, text)
 		}
 	}
 }
