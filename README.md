@@ -55,6 +55,7 @@ ramen convert tf
 ramen init
 ramen validate --project DIR --json
 ramen graph --project DIR --format json
+ramen force-unlock LOCK_HOLDER --state PATH
 ramen plan
 ramen apply --auto-approve --mock
 ramen refresh --mock

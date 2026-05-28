@@ -98,6 +98,52 @@ func TestStoreRevisionsAndLocks(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestForceUnlockRequiresExactHolderAndPrunesExpiredLocks(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := store.AcquireLock(ctx, "state", "holder-1", time.Minute); err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+	if _, err := store.ForceUnlock(ctx, "state", "wrong-holder"); err == nil {
+		t.Fatalf("force unlock succeeded with wrong holder")
+	} else {
+		var mismatch LockHolderMismatchError
+		if !errors.As(err, &mismatch) || mismatch.Holder != "holder-1" || mismatch.Expected != "wrong-holder" {
+			t.Fatalf("mismatch error = %#v %[1]v", err)
+		}
+	}
+	lock, err := store.ForceUnlock(ctx, "state", "holder-1")
+	if err != nil {
+		t.Fatalf("force unlock: %v", err)
+	}
+	if lock.Holder != "holder-1" || lock.AcquiredAt.IsZero() {
+		t.Fatalf("unlocked lock = %#v", lock)
+	}
+	if current, err := store.CurrentLock(ctx, "state"); err != nil || current != nil {
+		t.Fatalf("current lock after unlock = %#v err=%v", current, err)
+	}
+	if _, err := store.ForceUnlock(ctx, "state", "holder-1"); err == nil {
+		t.Fatalf("force unlock unexpectedly found missing lock")
+	} else {
+		var missing LockNotFoundError
+		if !errors.As(err, &missing) {
+			t.Fatalf("missing error = %T %[1]v", err)
+		}
+	}
+	if err := store.AcquireLock(ctx, "state", "expired-holder", time.Nanosecond); err != nil {
+		t.Fatalf("acquire expiring lock: %v", err)
+	}
+	time.Sleep(time.Millisecond)
+	if current, err := store.CurrentLock(ctx, "state"); err != nil || current != nil {
+		t.Fatalf("expired lock should be pruned, got %#v err=%v", current, err)
+	}
+	_ = store.Close()
+}
+
 func TestWithTxRollsBackResourceAndRevision(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))

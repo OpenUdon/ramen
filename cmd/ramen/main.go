@@ -3,14 +3,17 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"syscall"
+	"time"
 
 	tfapply "github.com/OpenUdon/ramen/apply"
 	"github.com/OpenUdon/ramen/executor"
@@ -44,6 +47,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved desired-state mutations through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  convert   generate Ramen review scaffolding from supported source formats\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  destroy   delete tracked resources through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  force-unlock release a local Ramen state lock by exact holder token\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  graph     emit the native resource dependency graph\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  import    attach an existing resource identity to state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
@@ -65,6 +69,8 @@ func main() {
 		runConvertCommand(flag.Args()[1:])
 	case "destroy":
 		runDestroyCommand(flag.Args()[1:])
+	case "force-unlock":
+		runForceUnlockCommand(flag.Args()[1:])
 	case "graph":
 		runGraphCommand(flag.Args()[1:])
 	case "import":
@@ -86,6 +92,58 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
+}
+
+func runForceUnlockCommand(args []string) {
+	fs := flag.NewFlagSet("force-unlock", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	lockName := fs.String("name", "state", "Lock name to release")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen force-unlock LOCK_HOLDER [--state PATH] [--name state]\n")
+		fmt.Fprintf(fs.Output(), "\nReleases a local SQLite state lock only when LOCK_HOLDER exactly matches the stored holder. It does not modify resources, revisions, runs, project files, API source documents, or remote systems.\n\n")
+		fs.PrintDefaults()
+	}
+	parseArgs := args
+	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
+		parseArgs = append(slices.Clone(args[1:]), args[0])
+	}
+	if err := fs.Parse(parseArgs); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 1 || strings.TrimSpace(fs.Arg(0)) == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	path := strings.TrimSpace(*statePath)
+	if _, err := os.Stat(path); err != nil {
+		if os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "state path %s does not exist\n", path)
+			os.Exit(1)
+		}
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	store, err := state.Open(commandContext(), path)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+	lock, err := store.ForceUnlock(commandContext(), *lockName, fs.Arg(0))
+	if err != nil {
+		var missing state.LockNotFoundError
+		var mismatch state.LockHolderMismatchError
+		switch {
+		case errors.As(err, &missing):
+			fmt.Fprintln(os.Stderr, missing.Error())
+		case errors.As(err, &mismatch):
+			fmt.Fprintln(os.Stderr, mismatch.Error())
+		default:
+			fmt.Fprintln(os.Stderr, err)
+		}
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: force-unlocked %s held by %s since %s\n", lock.Name, lock.Holder, lock.AcquiredAt.Format(time.RFC3339Nano))
 }
 
 func runGraphCommand(args []string) {

@@ -1,14 +1,17 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/OpenUdon/ramen/project"
+	"github.com/OpenUdon/ramen/state"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -286,6 +289,81 @@ func TestCLIGraphReportsValidationDiagnostics(t *testing.T) {
 	}
 	if !strings.Contains(string(output), `"diagnostics"`) || !strings.Contains(string(output), "validate.dependency_cycle") {
 		t.Fatalf("graph JSON missing diagnostics:\n%s", output)
+	}
+}
+
+func TestCLIForceUnlockRequiresExactHolder(t *testing.T) {
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.AcquireLock(context.Background(), "state", "holder-1", time.Minute); err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+	_ = store.Close()
+
+	cmd := helperCommand("force-unlock", "wrong-holder", "--state", statePath)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("force-unlock unexpectedly succeeded:\n%s", output)
+	}
+	if !strings.Contains(string(output), "holder-1") || !strings.Contains(string(output), "wrong-holder") {
+		t.Fatalf("force-unlock mismatch output missing holder detail:\n%s", output)
+	}
+
+	cmd = helperCommand("force-unlock", "holder-1", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("force-unlock failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "force-unlocked state held by holder-1") {
+		t.Fatalf("force-unlock output missing summary:\n%s", output)
+	}
+	verify, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("reopen state: %v", err)
+	}
+	if lock, err := verify.CurrentLock(context.Background(), "state"); err != nil || lock != nil {
+		t.Fatalf("lock after force unlock = %#v err=%v", lock, err)
+	}
+	_ = verify.Close()
+
+	cmd = helperCommand("force-unlock", "holder-1", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("force-unlock missing lock unexpectedly succeeded:\n%s", output)
+	}
+	if !strings.Contains(string(output), `state lock "state" is not held`) {
+		t.Fatalf("force-unlock missing output:\n%s", output)
+	}
+
+	expired, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open expired state: %v", err)
+	}
+	if err := expired.AcquireLock(context.Background(), "state", "expired-holder", time.Nanosecond); err != nil {
+		t.Fatalf("acquire expired lock: %v", err)
+	}
+	_ = expired.Close()
+	time.Sleep(time.Millisecond)
+	cmd = helperCommand("force-unlock", "expired-holder", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("force-unlock expired unexpectedly succeeded:\n%s", output)
+	}
+	if !strings.Contains(string(output), `state lock "state" is not held`) {
+		t.Fatalf("force-unlock expired output:\n%s", output)
+	}
+
+	cmd = helperCommand("force-unlock", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("force-unlock malformed args unexpectedly succeeded:\n%s", output)
+	}
+	if !strings.Contains(string(output), "Usage: ramen force-unlock") {
+		t.Fatalf("force-unlock malformed output missing usage:\n%s", output)
 	}
 }
 

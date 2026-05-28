@@ -72,8 +72,35 @@ type LockHeldError struct {
 	ExpiresAt  time.Time
 }
 
+type LockNotFoundError struct {
+	Name string
+}
+
+type LockHolderMismatchError struct {
+	Name       string
+	Holder     string
+	Expected   string
+	AcquiredAt time.Time
+	ExpiresAt  time.Time
+}
+
 func (e LockHeldError) Error() string {
 	msg := fmt.Sprintf("state lock %q is held by %q since %s", e.Name, e.Holder, e.AcquiredAt.Format(time.RFC3339Nano))
+	if !e.ExpiresAt.IsZero() {
+		msg += fmt.Sprintf(" until %s", e.ExpiresAt.Format(time.RFC3339Nano))
+	}
+	return msg
+}
+
+func (e LockNotFoundError) Error() string {
+	return fmt.Sprintf("state lock %q is not held", e.Name)
+}
+
+func (e LockHolderMismatchError) Error() string {
+	msg := fmt.Sprintf("state lock %q is held by %q, not %q", e.Name, e.Holder, e.Expected)
+	if !e.AcquiredAt.IsZero() {
+		msg += fmt.Sprintf(" since %s", e.AcquiredAt.Format(time.RFC3339Nano))
+	}
 	if !e.ExpiresAt.IsZero() {
 		msg += fmt.Sprintf(" until %s", e.ExpiresAt.Format(time.RFC3339Nano))
 	}
@@ -539,6 +566,19 @@ func (s *Store) AcquireLock(ctx context.Context, name, holder string, ttl time.D
 	return nil
 }
 
+func (s *Store) CurrentLock(ctx context.Context, name string) (*Lock, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, fmt.Errorf("lock name is required")
+	}
+	now := time.Now().UTC()
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND expires_at IS NOT NULL AND expires_at <= ?`, name, now.Format(time.RFC3339Nano))
+	return s.currentLock(ctx, name)
+}
+
 func (s *Store) currentLock(ctx context.Context, name string) (*Lock, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT name, holder, acquired_at, expires_at FROM locks WHERE name = ?`, name)
 	var lock Lock
@@ -559,6 +599,38 @@ func (s *Store) currentLock(ctx context.Context, name string) (*Lock, error) {
 		}
 	}
 	return &lock, nil
+}
+
+func (s *Store) ForceUnlock(ctx context.Context, name, holder string) (*Lock, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	name = strings.TrimSpace(name)
+	holder = strings.TrimSpace(holder)
+	if name == "" {
+		return nil, fmt.Errorf("lock name is required")
+	}
+	if holder == "" {
+		return nil, fmt.Errorf("lock holder is required")
+	}
+	lock, err := s.CurrentLock(ctx, name)
+	if err != nil {
+		return nil, err
+	}
+	if lock == nil {
+		return nil, LockNotFoundError{Name: name}
+	}
+	if lock.Holder != holder {
+		return nil, LockHolderMismatchError{Name: lock.Name, Holder: lock.Holder, Expected: holder, AcquiredAt: lock.AcquiredAt, ExpiresAt: lock.ExpiresAt}
+	}
+	result, err := s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND holder = ?`, name, holder)
+	if err != nil {
+		return nil, err
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		return nil, LockNotFoundError{Name: name}
+	}
+	return lock, nil
 }
 
 func (s *Store) ReleaseLock(ctx context.Context, name, holder string) error {
