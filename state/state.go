@@ -44,6 +44,7 @@ type Run struct {
 }
 
 type Revision struct {
+	ID              int64
 	ResourceAddress string
 	RunID           int64
 	Action          string
@@ -51,6 +52,13 @@ type Revision struct {
 	AfterJSON       string
 	DiffJSON        string
 	CreatedAt       time.Time
+}
+
+type Lock struct {
+	Name       string
+	Holder     string
+	AcquiredAt time.Time
+	ExpiresAt  time.Time
 }
 
 func DefaultPath(configDir string) string {
@@ -305,6 +313,45 @@ func (s *Store) RecordRevision(ctx context.Context, rev Revision) error {
 	return err
 }
 
+func (s *Store) ListRevisions(ctx context.Context, address string) ([]Revision, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	query := `SELECT id, resource_address, run_id, action, before_json, after_json, diff_json, created_at FROM state_revisions`
+	var args []any
+	if strings.TrimSpace(address) != "" {
+		query += ` WHERE resource_address = ?`
+		args = append(args, address)
+	}
+	query += ` ORDER BY id`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Revision
+	for rows.Next() {
+		var rev Revision
+		var runID sql.NullInt64
+		var beforeJSON, afterJSON, diffJSON sql.NullString
+		var createdAt string
+		if err := rows.Scan(&rev.ID, &rev.ResourceAddress, &runID, &rev.Action, &beforeJSON, &afterJSON, &diffJSON, &createdAt); err != nil {
+			return nil, err
+		}
+		if runID.Valid {
+			rev.RunID = runID.Int64
+		}
+		rev.BeforeJSON = beforeJSON.String
+		rev.AfterJSON = afterJSON.String
+		rev.DiffJSON = diffJSON.String
+		if t, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
+			rev.CreatedAt = t
+		}
+		out = append(out, rev)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) DeleteResource(ctx context.Context, address string) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("state store is nil")
@@ -313,6 +360,39 @@ func (s *Store) DeleteResource(ctx context.Context, address string) error {
 		return fmt.Errorf("resource address is required")
 	}
 	_, err := s.db.ExecContext(ctx, `DELETE FROM resources WHERE address = ?`, address)
+	return err
+}
+
+func (s *Store) AcquireLock(ctx context.Context, name, holder string, ttl time.Duration) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	name = strings.TrimSpace(name)
+	holder = strings.TrimSpace(holder)
+	if name == "" {
+		return fmt.Errorf("lock name is required")
+	}
+	if holder == "" {
+		return fmt.Errorf("lock holder is required")
+	}
+	now := time.Now().UTC()
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND expires_at IS NOT NULL AND expires_at <= ?`, name, now.Format(time.RFC3339Nano))
+	var expires any
+	if ttl > 0 {
+		expires = now.Add(ttl).Format(time.RFC3339Nano)
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO locks(name, holder, acquired_at, expires_at) VALUES(?, ?, ?, ?)`, name, holder, now.Format(time.RFC3339Nano), expires)
+	if err != nil {
+		return fmt.Errorf("state lock %q is held", name)
+	}
+	return nil
+}
+
+func (s *Store) ReleaseLock(ctx context.Context, name, holder string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	_, err := s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND holder = ?`, strings.TrimSpace(name), strings.TrimSpace(holder))
 	return err
 }
 

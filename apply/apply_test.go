@@ -2,6 +2,7 @@ package apply
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -88,6 +89,60 @@ resource "aws_iam_role" "role" {
 	if result.Summary.NoOp != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("second apply result=%#v requests=%d", result.Summary, mock.RequestCount())
 	}
+}
+
+func TestApplyRecordsFailureAndBlocksDependentResources(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, ".ramen", "state.db")
+	writeApplyTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "failed-role"
+  assume_role_policy = "{}"
+}
+
+resource "aws_iam_role_policy" "policy" {
+  name   = "policy"
+  role   = aws_iam_role.role.name
+  policy = "{}"
+}
+`)
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyFailureTest())
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Address == "aws_iam_role.role" {
+			return executor.Result{}, fmt.Errorf("token ABCDEFG should redact")
+		}
+		return executor.Result{Success: true}, nil
+	}}
+	result, err := Apply(context.Background(), Options{
+		ConfigDir:   configDir,
+		StatePath:   statePath,
+		APISources:  []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		AutoApprove: true,
+		Executor:    mock,
+	})
+	if err == nil {
+		t.Fatalf("expected apply failure")
+	}
+	if result.Summary.Failed != 1 || result.Summary.Blocked != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("result=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	revs, err := store.ListRevisions(context.Background(), "")
+	if err != nil {
+		t.Fatalf("list revisions: %v", err)
+	}
+	if len(revs) != 2 || revs[0].Action != "failed" || revs[1].Action != "blocked" {
+		t.Fatalf("revisions = %#v", revs)
+	}
+	if strings.Contains(revs[0].DiffJSON, "ABCDEFG") || !strings.Contains(revs[0].DiffJSON, "${redacted}") {
+		t.Fatalf("failure revision was not redacted: %s", revs[0].DiffJSON)
+	}
+	_ = store.Close()
 }
 
 func TestApplyGoogleStorageBucketCreateThenNoOpWithMockExecutor(t *testing.T) {
@@ -245,6 +300,36 @@ func minimalStorageDiscoveryForApplyTest() string {
         }
       }
     }
+  }
+}`
+}
+
+func minimalIAMSmithyForApplyFailureTest() string {
+	return `{
+  "smithy": "2.0",
+  "shapes": {
+    "com.amazonaws.iam#IAM": {
+      "type": "service",
+      "version": "2010-05-08",
+      "operations": [
+        {"target": "com.amazonaws.iam#CreateRole"},
+        {"target": "com.amazonaws.iam#PutRolePolicy"}
+      ],
+      "traits": {
+        "aws.api#service": {"sdkId": "IAM", "endpointPrefix": "iam"},
+        "aws.auth#sigv4": {"name": "iam"},
+        "aws.protocols#awsQuery": {}
+      }
+    },
+    "com.amazonaws.iam#CreateRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#CreateRoleRequest"}, "output": {"target": "com.amazonaws.iam#CreateRoleResponse"}},
+    "com.amazonaws.iam#PutRolePolicy": {"type": "operation", "input": {"target": "com.amazonaws.iam#PutRolePolicyRequest"}, "output": {"target": "com.amazonaws.iam#PutRolePolicyResponse"}},
+    "com.amazonaws.iam#CreateRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "AssumeRolePolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}, "traits": {"smithy.api#input": {}}},
+    "com.amazonaws.iam#PutRolePolicyRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "PolicyName": {"target": "com.amazonaws.iam#policyNameType"}, "PolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}},
+    "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#PutRolePolicyResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#roleNameType": {"type": "string"},
+    "com.amazonaws.iam#policyNameType": {"type": "string"},
+    "com.amazonaws.iam#policyDocumentType": {"type": "string"}
   }
 }`
 }

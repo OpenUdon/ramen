@@ -46,18 +46,14 @@ ramen convert tf
 ramen init
 ramen plan
 ramen apply --auto-approve --mock
-```
-
-Later lifecycle commands:
-
-```bash
-ramen refresh
-ramen destroy
+ramen refresh --mock
+ramen destroy --auto-approve --mock
 ramen import
 ```
 
-The first `apply` surface is confirmation-gated and mock-backed in default
-public builds. Live executor wiring remains opt-in behind trusted adapters.
+The first lifecycle surface is mock-backed in default public builds where
+execution is required. Live executor wiring remains opt-in behind trusted
+adapters.
 
 ## Milestone Pattern
 

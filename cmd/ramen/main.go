@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -13,6 +14,7 @@ import (
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/reconcile"
 	"github.com/OpenUdon/ramen/state"
 )
 
@@ -35,8 +37,11 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Commands:\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved desired-state mutations through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  convert   generate Ramen review scaffolding from supported source formats\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  destroy   delete tracked resources through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  import    attach an existing resource identity to state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  plan      emit a static desired-state plan without mutation\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  refresh   read tracked resources and update state through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  version   print version\n")
 	}
 	flag.Parse()
@@ -50,10 +55,16 @@ func main() {
 		runApplyCommand(flag.Args()[1:])
 	case "convert":
 		runConvertCommand(flag.Args()[1:])
+	case "destroy":
+		runDestroyCommand(flag.Args()[1:])
+	case "import":
+		runImportCommand(flag.Args()[1:])
 	case "init":
 		runInitCommand(flag.Args()[1:])
 	case "plan":
 		runPlanCommand(flag.Args()[1:])
+	case "refresh":
+		runRefreshCommand(flag.Args()[1:])
 	case "version":
 		fmt.Println(version)
 	case "-h", "--help", "help":
@@ -63,6 +74,117 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
+}
+
+func runRefreshCommand(args []string) {
+	fs := flag.NewFlagSet("refresh", flag.ExitOnError)
+	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
+	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	outDir := fs.String("out", "", "Optional directory for generated read UWS action documents")
+	var apiSources repeatedStringFlag
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	sources, err := parseReconcileAPISourceFlags(apiSources)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	exec := reconcileExecutor(*mock)
+	result, err := reconcile.Refresh(commandContext(), reconcile.Options{ConfigDir: *configDir, StatePath: statePathOrDefault(*statePath, *configDir), APISources: sources, OutDir: *outDir, Executor: exec})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: refresh read=%d failed=%d\n", result.Summary.Read, result.Summary.Failed)
+}
+
+func runDestroyCommand(args []string) {
+	fs := flag.NewFlagSet("destroy", flag.ExitOnError)
+	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
+	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
+	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
+	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	outDir := fs.String("out", "", "Optional directory for generated delete UWS action documents")
+	var apiSources repeatedStringFlag
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "\nDeletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	sources, err := parseReconcileAPISourceFlags(apiSources)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	result, err := reconcile.Destroy(commandContext(), reconcile.Options{ConfigDir: *configDir, StatePath: statePathOrDefault(*statePath, *configDir), APISources: sources, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: destroy delete=%d failed=%d\n", result.Summary.Delete, result.Summary.Failed)
+}
+
+func runImportCommand(args []string) {
+	fs := flag.NewFlagSet("import", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	typeName := fs.String("type", "", "Terraform/OpenTofu resource type")
+	provider := fs.String("provider", "", "Provider address")
+	identity := fs.String("identity", "{}", "Identity JSON object")
+	sourceKind := fs.String("source-kind", "", "Optional API source kind")
+	sourceID := fs.String("source-id", "", "Optional API source ID")
+	operationID := fs.String("operation-id", "", "Optional read/import operation ID")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--state PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
+		fs.PrintDefaults()
+	}
+	_ = fs.Parse(args)
+	if fs.NArg() != 1 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	var identityMap map[string]any
+	if err := json.Unmarshal([]byte(*identity), &identityMap); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	result, err := reconcile.Import(commandContext(), reconcile.ImportOptions{StatePath: *statePath, Address: fs.Arg(0), Type: *typeName, Provider: *provider, Identity: identityMap, SourceKind: *sourceKind, SourceID: *sourceID, OperationID: *operationID})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: import imported=%d run=%d\n", result.Summary.Imported, result.RunID)
+}
+
+func commandContext() context.Context {
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	go func() {
+		<-ctx.Done()
+		stop()
+	}()
+	return ctx
+}
+
+func reconcileExecutor(mock bool) executor.Executor {
+	if mock {
+		return &executor.MockExecutor{}
+	}
+	return nil
+}
+
+func statePathOrDefault(path, configDir string) string {
+	if strings.TrimSpace(path) != "" {
+		return path
+	}
+	return state.DefaultPath(configDir)
 }
 
 func runApplyCommand(args []string) {
@@ -109,7 +231,7 @@ func runApplyCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	fmt.Printf("ramen: apply create=%d update=%d delete=%d no-op=%d skipped=%d executed=%d\n", result.Summary.Create, result.Summary.Update, result.Summary.Delete, result.Summary.NoOp, result.Summary.Skipped, len(result.Executed))
+	fmt.Printf("ramen: apply create=%d update=%d delete=%d no-op=%d skipped=%d failed=%d blocked=%d executed=%d\n", result.Summary.Create, result.Summary.Update, result.Summary.Delete, result.Summary.NoOp, result.Summary.Skipped, result.Summary.Failed, result.Summary.Blocked, len(result.Executed))
 	if result.RunID != 0 {
 		fmt.Printf("  run:   %d\n", result.RunID)
 	}
@@ -311,6 +433,18 @@ func parseApplyAPISourceFlags(values []string) ([]tfapply.APISourceInput, error)
 	inputs := make([]tfapply.APISourceInput, len(planInputs))
 	for i, input := range planInputs {
 		inputs[i] = tfapply.APISourceInput(input)
+	}
+	return inputs, nil
+}
+
+func parseReconcileAPISourceFlags(values []string) ([]reconcile.APISourceInput, error) {
+	planInputs, err := parsePlanAPISourceFlags(values)
+	if err != nil {
+		return nil, err
+	}
+	inputs := make([]reconcile.APISourceInput, len(planInputs))
+	for i, input := range planInputs {
+		inputs[i] = reconcile.APISourceInput(input)
 	}
 	return inputs, nil
 }

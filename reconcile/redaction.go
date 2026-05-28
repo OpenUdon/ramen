@@ -1,24 +1,13 @@
-package apply
+package reconcile
 
 import (
 	"regexp"
 	"strings"
-
-	"github.com/OpenUdon/ramen/executor"
 )
 
 const redactedValue = "${redacted}"
 
 var secretValuePattern = regexp.MustCompile(`(?i)(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
-
-func redactExecutorResult(result executor.Result) executor.Result {
-	result.Identity = redactMap(result.Identity)
-	result.Computed = redactMap(result.Computed)
-	for i, msg := range result.Messages {
-		result.Messages[i] = redactString(msg)
-	}
-	return result
-}
 
 func redactMap(in map[string]any) map[string]any {
 	if len(in) == 0 {
@@ -30,26 +19,17 @@ func redactMap(in map[string]any) map[string]any {
 			out[key] = redactedValue
 			continue
 		}
-		out[key] = redactValue(value)
+		if nested, ok := value.(map[string]any); ok {
+			out[key] = redactMap(nested)
+			continue
+		}
+		if text, ok := value.(string); ok {
+			out[key] = redactString(text)
+			continue
+		}
+		out[key] = value
 	}
 	return out
-}
-
-func redactValue(value any) any {
-	switch v := value.(type) {
-	case map[string]any:
-		return redactMap(v)
-	case []any:
-		out := make([]any, len(v))
-		for i := range v {
-			out[i] = redactValue(v[i])
-		}
-		return out
-	case string:
-		return redactString(v)
-	default:
-		return value
-	}
 }
 
 func sensitiveKey(key string) bool {

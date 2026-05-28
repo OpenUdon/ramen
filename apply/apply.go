@@ -35,6 +35,7 @@ type Result struct {
 	Summary            Summary
 	Executed           []ExecutedAction
 	GeneratedDocuments []string
+	Errors             []string
 }
 
 type Summary struct {
@@ -43,6 +44,8 @@ type Summary struct {
 	Delete  int `json:"delete"`
 	NoOp    int `json:"no_op"`
 	Skipped int `json:"skipped"`
+	Failed  int `json:"failed"`
+	Blocked int `json:"blocked"`
 }
 
 type ExecutedAction struct {
@@ -89,6 +92,11 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		return result, err
 	}
 	defer store.Close()
+	lockHolder := fmt.Sprintf("apply-%d", time.Now().UTC().UnixNano())
+	if err := store.AcquireLock(ctx, "state", lockHolder, 30*time.Minute); err != nil {
+		return result, err
+	}
+	defer func() { _ = store.ReleaseLock(context.Background(), "state", lockHolder) }()
 	runID, err := store.StartRun(ctx, "apply")
 	if err != nil {
 		return result, err
@@ -102,15 +110,40 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 
 	sourcePaths := sourcePathIndex(opts.APISources)
 	attrsByAddress := loadResourceAttributes(opts.ConfigDir)
+	failed := map[string]bool{}
 	for _, resource := range mutations {
+		if blockedByFailure(resource, failed) {
+			runStatus = "failed"
+			result.Summary.Blocked++
+			failed[resource.Address] = true
+			msg := fmt.Sprintf("blocked %s because a dependency failed", resource.Address)
+			result.Errors = append(result.Errors, msg)
+			if err := recordFailedMutation(ctx, store, runID, resource, "blocked", msg); err != nil {
+				return result, err
+			}
+			continue
+		}
 		if resource.Action == "delete" {
 			runStatus = "failed"
-			return result, fmt.Errorf("apply delete for %s is reserved for destroy support in M05", resource.Address)
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			msg := fmt.Sprintf("apply delete for %s is handled by ramen destroy", resource.Address)
+			result.Errors = append(result.Errors, msg)
+			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
+				return result, err
+			}
+			continue
 		}
 		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address])
 		if err != nil {
 			runStatus = "failed"
-			return result, err
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			result.Errors = append(result.Errors, err.Error())
+			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", err.Error()); recErr != nil {
+				return result, recErr
+			}
+			continue
 		}
 		docPath := ""
 		if opts.OutDir != "" {
@@ -136,11 +169,24 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		execResult, err := opts.Executor.Execute(ctx, req)
 		if err != nil {
 			runStatus = "failed"
-			return result, err
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			result.Errors = append(result.Errors, err.Error())
+			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", err.Error()); recErr != nil {
+				return result, recErr
+			}
+			continue
 		}
 		if !execResult.Success {
 			runStatus = "failed"
-			return result, fmt.Errorf("executor reported unsuccessful %s for %s", resource.Action, resource.Address)
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			msg := fmt.Sprintf("executor reported unsuccessful %s for %s", resource.Action, resource.Address)
+			result.Errors = append(result.Errors, msg)
+			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
+				return result, err
+			}
+			continue
 		}
 		if err := recordSuccessfulMutation(ctx, store, runID, resource, before, execResult); err != nil {
 			runStatus = "failed"
@@ -162,6 +208,9 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	}
 	result.Summary.NoOp = planResult.Plan.Summary.NoOp
 	result.Summary.Skipped = planResult.Plan.Summary.NoOp
+	if len(result.Errors) > 0 {
+		return result, fmt.Errorf("apply failed for %d resource(s) and blocked %d resource(s)", result.Summary.Failed, result.Summary.Blocked)
+	}
 	return result, nil
 }
 
@@ -337,6 +386,15 @@ func mutableResources(resources []tfplan.ResourcePlan) []tfplan.ResourcePlan {
 	return out
 }
 
+func blockedByFailure(resource tfplan.ResourcePlan, failed map[string]bool) bool {
+	for _, dependency := range resource.Dependencies {
+		if failed[dependency] {
+			return true
+		}
+	}
+	return false
+}
+
 func executorAction(resource tfplan.ResourcePlan) executor.Action {
 	action := executor.Action{
 		Address:     resource.Address,
@@ -409,6 +467,23 @@ func recordSuccessfulMutation(ctx context.Context, store *state.Store, runID int
 		Action:          resource.Action,
 		BeforeJSON:      string(beforeJSON),
 		AfterJSON:       string(afterJSON),
+		DiffJSON:        string(diffJSON),
+	})
+}
+
+func recordFailedMutation(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, action, message string) error {
+	diffJSON, err := json.Marshal(map[string]any{
+		"status":       action,
+		"error":        redactString(message),
+		"desired_hash": resource.DesiredHash,
+	})
+	if err != nil {
+		return err
+	}
+	return store.RecordRevision(ctx, state.Revision{
+		ResourceAddress: resource.Address,
+		RunID:           runID,
+		Action:          action,
 		DiffJSON:        string(diffJSON),
 	})
 }
