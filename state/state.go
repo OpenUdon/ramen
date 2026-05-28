@@ -108,6 +108,24 @@ type LockOptions struct {
 	RunID  int64
 }
 
+const ExportVersion = "ramen.state.export.v1"
+
+type MigrationRecord struct {
+	Version   int       `json:"version"`
+	AppliedAt time.Time `json:"appliedAt"`
+}
+
+type ExportDocument struct {
+	Version       string             `json:"version"`
+	SchemaVersion int                `json:"schemaVersion"`
+	ExportedAt    time.Time          `json:"exportedAt"`
+	Migrations    []MigrationRecord  `json:"migrations"`
+	Resources     []ResourceSnapshot `json:"resources"`
+	Revisions     []Revision         `json:"revisions"`
+	Runs          []Run              `json:"runs"`
+	Locks         []Lock             `json:"locks"`
+}
+
 func (e LockHeldError) Error() string {
 	msg := fmt.Sprintf("state lock %q is held by %q since %s", e.Name, e.Holder, e.AcquiredAt.Format(time.RFC3339Nano))
 	if e.Host != "" || e.PID != 0 || e.RunID != 0 {
@@ -403,6 +421,142 @@ func (s *Store) CheckIntegrity(ctx context.Context) error {
 	return nil
 }
 
+func (s *Store) Backup(ctx context.Context, outPath string) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	outPath = strings.TrimSpace(outPath)
+	if outPath == "" {
+		return fmt.Errorf("state backup output path is required")
+	}
+	if _, err := os.Stat(outPath); err == nil {
+		return fmt.Errorf("state backup output already exists: %s", outPath)
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+		return err
+	}
+	if _, err := s.db.ExecContext(ctx, `VACUUM main INTO ?`, outPath); err != nil {
+		_ = os.Remove(outPath)
+		return err
+	}
+	return nil
+}
+
+func Restore(ctx context.Context, statePath, fromPath string, force bool) error {
+	statePath = strings.TrimSpace(statePath)
+	fromPath = strings.TrimSpace(fromPath)
+	if statePath == "" {
+		return fmt.Errorf("state path is required")
+	}
+	if fromPath == "" {
+		return fmt.Errorf("state restore input path is required")
+	}
+	if !force {
+		return fmt.Errorf("state restore requires --force")
+	}
+	source, err := OpenReadOnly(ctx, fromPath)
+	if err != nil {
+		return fmt.Errorf("state.restore_source_invalid: %w", err)
+	}
+	if source == nil {
+		return fmt.Errorf("state.restore_source_missing: %s", fromPath)
+	}
+	if err := os.MkdirAll(filepath.Dir(statePath), 0o755); err != nil {
+		_ = source.Close()
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(statePath), ".restore-*.db")
+	if err != nil {
+		_ = source.Close()
+		return err
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Close(); err != nil {
+		_ = source.Close()
+		return err
+	}
+	if err := os.Remove(tmpPath); err != nil {
+		_ = source.Close()
+		return err
+	}
+	defer func() { _ = os.Remove(tmpPath) }()
+	defer removeSQLiteSidecars(tmpPath)
+	if err := source.Backup(ctx, tmpPath); err != nil {
+		_ = source.Close()
+		return err
+	}
+	if err := source.Close(); err != nil {
+		return err
+	}
+	copied, err := OpenReadOnly(ctx, tmpPath)
+	if err != nil {
+		return fmt.Errorf("state.restore_copy_invalid: %w", err)
+	}
+	if copied == nil {
+		return fmt.Errorf("state.restore_copy_missing: %s", tmpPath)
+	}
+	if err := copied.Close(); err != nil {
+		return err
+	}
+	removeSQLiteSidecars(statePath)
+	if err := os.Rename(tmpPath, statePath); err != nil {
+		return err
+	}
+	removeSQLiteSidecars(statePath)
+	return nil
+}
+
+func (s *Store) Vacuum(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	_, err := s.db.ExecContext(ctx, `VACUUM`)
+	return err
+}
+
+func (s *Store) Export(ctx context.Context) (ExportDocument, error) {
+	if s == nil || s.db == nil {
+		return ExportDocument{}, fmt.Errorf("state store is nil")
+	}
+	migrations, err := s.ListMigrationRecords(ctx)
+	if err != nil {
+		return ExportDocument{}, err
+	}
+	resources, err := s.ListCurrentResources(ctx)
+	if err != nil {
+		return ExportDocument{}, err
+	}
+	revisions, err := s.ListRevisions(ctx, "")
+	if err != nil {
+		return ExportDocument{}, err
+	}
+	runs, err := s.ListRuns(ctx, "")
+	if err != nil {
+		return ExportDocument{}, err
+	}
+	locks, err := s.ListLocks(ctx)
+	if err != nil {
+		return ExportDocument{}, err
+	}
+	return ExportDocument{
+		Version:       ExportVersion,
+		SchemaVersion: SchemaVersion,
+		ExportedAt:    time.Now().UTC(),
+		Migrations:    migrations,
+		Resources:     resources,
+		Revisions:     revisions,
+		Runs:          runs,
+		Locks:         locks,
+	}, nil
+}
+
+func removeSQLiteSidecars(path string) {
+	_ = os.Remove(path + "-wal")
+	_ = os.Remove(path + "-shm")
+}
+
 func (s *Store) WithTx(ctx context.Context, fn func(*Tx) error) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("state store is nil")
@@ -604,6 +758,30 @@ func (s *Store) ListRuns(ctx context.Context, status string) ([]Run, error) {
 			return nil, err
 		}
 		out = append(out, *run)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) ListMigrationRecords(ctx context.Context) ([]MigrationRecord, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	rows, err := s.db.QueryContext(ctx, `SELECT version, applied_at FROM schema_migrations ORDER BY version`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []MigrationRecord
+	for rows.Next() {
+		var record MigrationRecord
+		var appliedAt string
+		if err := rows.Scan(&record.Version, &appliedAt); err != nil {
+			return nil, err
+		}
+		if t, err := time.Parse(time.RFC3339Nano, appliedAt); err == nil {
+			record.AppliedAt = t
+		}
+		out = append(out, record)
 	}
 	return out, rows.Err()
 }
@@ -899,6 +1077,28 @@ func (s *Store) StartLockRenewal(ctx context.Context, name, holder string, ttl, 
 	}
 }
 
+func (s *Store) ListLocks(ctx context.Context) ([]Lock, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	now := time.Now().UTC()
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM locks WHERE expires_at IS NOT NULL AND expires_at <= ?`, now.Format(time.RFC3339Nano))
+	rows, err := s.db.QueryContext(ctx, `SELECT name, holder, acquired_at, expires_at, host, pid, run_id, heartbeat_at FROM locks ORDER BY name`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Lock
+	for rows.Next() {
+		lock, err := scanLock(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *lock)
+	}
+	return out, rows.Err()
+}
+
 func (s *Store) CurrentLock(ctx context.Context, name string) (*Lock, error) {
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("state store is nil")
@@ -914,11 +1114,15 @@ func (s *Store) CurrentLock(ctx context.Context, name string) (*Lock, error) {
 
 func (s *Store) currentLock(ctx context.Context, name string) (*Lock, error) {
 	row := s.db.QueryRowContext(ctx, `SELECT name, holder, acquired_at, expires_at, host, pid, run_id, heartbeat_at FROM locks WHERE name = ?`, name)
+	return scanLock(row)
+}
+
+func scanLock(scanner snapshotScanner) (*Lock, error) {
 	var lock Lock
 	var acquiredAt string
 	var expiresAt, host, heartbeatAt sql.NullString
 	var pid, runID sql.NullInt64
-	if err := row.Scan(&lock.Name, &lock.Holder, &acquiredAt, &expiresAt, &host, &pid, &runID, &heartbeatAt); err != nil {
+	if err := scanner.Scan(&lock.Name, &lock.Holder, &acquiredAt, &expiresAt, &host, &pid, &runID, &heartbeatAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}

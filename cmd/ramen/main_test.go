@@ -99,7 +99,7 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
 		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
-		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "list", "show ADDRESS", "history", "runs", "Read-only"}},
+		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "backup", "export", "list", "restore", "show ADDRESS", "history", "runs", "vacuum"}},
 	} {
 		cmd := helperCommand(tt.command...)
 		output, err := cmd.CombinedOutput()
@@ -680,6 +680,43 @@ paths:
 	}
 	if !strings.Contains(string(output), "apply") || !strings.Contains(string(output), "completed") {
 		t.Fatalf("state runs missing run summary:\n%s", output)
+	}
+	cmd = helperCommand("state", "export", "--state", statePath, "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state export failed: %v\n%s", err, output)
+	}
+	var exported state.ExportDocument
+	if err := json.Unmarshal(output, &exported); err != nil || exported.Version != state.ExportVersion || len(exported.Resources) != 1 || len(exported.Revisions) != 1 || len(exported.Runs) != 1 {
+		t.Fatalf("state export JSON invalid export=%#v err=%v\n%s", exported, err, output)
+	}
+	backupPath := filepath.Join(root, "backup.db")
+	cmd = helperCommand("state", "backup", "--state", statePath, "--out", backupPath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state backup failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "state backup written") {
+		t.Fatalf("state backup output missing summary:\n%s", output)
+	}
+	restorePath := filepath.Join(root, "restored.db")
+	cmd = helperCommand("state", "restore", "--state", restorePath, "--from", backupPath)
+	output, err = cmd.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "--force") {
+		t.Fatalf("state restore without force output: err=%v\n%s", err, output)
+	}
+	cmd = helperCommand("state", "restore", "--state", restorePath, "--from", backupPath, "--force")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state restore failed: %v\n%s", err, output)
+	}
+	cmd = helperCommand("state", "vacuum", "--state", restorePath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state vacuum failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "state vacuum completed") {
+		t.Fatalf("state vacuum output missing summary:\n%s", output)
 	}
 	cmd = helperCommand("state", "show", "example_resource.test", "--state", statePath, "--json")
 	output, err = cmd.CombinedOutput()

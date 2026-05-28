@@ -206,20 +206,32 @@ func positionalFirstLast(args []string) []string {
 	return args
 }
 
+func maintenanceLockHolder(command string) string {
+	return fmt.Sprintf("state-%s-%d-%d", command, os.Getpid(), time.Now().UTC().UnixNano())
+}
+
 func runStateCommand(ctx context.Context, args []string) {
 	if len(args) == 0 {
 		stateUsage(os.Stderr)
 		os.Exit(2)
 	}
 	switch args[0] {
+	case "backup":
+		runStateBackupCommand(ctx, args[1:])
+	case "export":
+		runStateExportCommand(ctx, args[1:])
 	case "list":
 		runStateListCommand(ctx, args[1:])
+	case "restore":
+		runStateRestoreCommand(ctx, args[1:])
 	case "show":
 		runStateShowCommand(ctx, args[1:])
 	case "history":
 		runStateHistoryCommand(ctx, args[1:])
 	case "runs":
 		runStateRunsCommand(ctx, args[1:])
+	case "vacuum":
+		runStateVacuumCommand(ctx, args[1:])
 	case "-h", "--help", "help":
 		stateUsage(os.Stdout)
 	default:
@@ -230,13 +242,145 @@ func runStateCommand(ctx context.Context, args []string) {
 }
 
 func stateUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: ramen state <list|show|history> [args]\n\n")
-	fmt.Fprintf(out, "Read-only local SQLite state inspection. No state surgery, backend access, provider execution, or Terraform/OpenTofu state compatibility is performed.\n\n")
+	fmt.Fprintf(out, "Usage: ramen state <backup|export|list|restore|show|history|runs|vacuum> [args]\n\n")
+	fmt.Fprintf(out, "Local SQLite state inspection and maintenance. No backend access, provider execution, or Terraform/OpenTofu state compatibility is performed.\n\n")
 	fmt.Fprintf(out, "Subcommands:\n")
+	fmt.Fprintf(out, "  backup            write a consistent SQLite backup snapshot\n")
+	fmt.Fprintf(out, "  export            export redacted state metadata as JSON\n")
 	fmt.Fprintf(out, "  list              list current resource addresses\n")
+	fmt.Fprintf(out, "  restore           replace local state from a backup with --force\n")
 	fmt.Fprintf(out, "  show ADDRESS      show one current resource\n")
 	fmt.Fprintf(out, "  history [ADDRESS] show revision history\n")
 	fmt.Fprintf(out, "  runs              show command run history\n")
+	fmt.Fprintf(out, "  vacuum            compact local SQLite state\n")
+}
+
+func runStateBackupCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state backup", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	outPath := fs.String("out", "", "Backup output path")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state backup --state PATH --out PATH\n")
+		fmt.Fprintf(fs.Output(), "\nWrites a consistent local SQLite backup snapshot. It does not read or write remote backends or Terraform/OpenTofu state.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*outPath) == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(ctx, *statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		fmt.Fprintf(os.Stderr, "state path %s does not exist\n", strings.TrimSpace(*statePath))
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+	if err := store.Backup(ctx, *outPath); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: state backup written %s\n", strings.TrimSpace(*outPath))
+}
+
+func runStateExportCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state export", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state export --state PATH --json\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(ctx, *statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		fmt.Fprintf(os.Stderr, "state path %s does not exist\n", strings.TrimSpace(*statePath))
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+	doc, err := store.Export(ctx)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(doc)
+		return
+	}
+	fmt.Printf("ramen: state export version=%s resources=%d revisions=%d runs=%d locks=%d\n", doc.Version, len(doc.Resources), len(doc.Revisions), len(doc.Runs), len(doc.Locks))
+}
+
+func runStateRestoreCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state restore", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	fromPath := fs.String("from", "", "Backup input path")
+	force := fs.Bool("force", false, "Required confirmation to overwrite local state")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state restore --state PATH --from PATH --force\n")
+		fmt.Fprintf(fs.Output(), "\nReplaces the local SQLite state file from a validated Ramen backup. This is local state surgery only and never reads remote backends or Terraform/OpenTofu state.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*fromPath) == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	if err := state.Restore(ctx, *statePath, *fromPath, *force); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: state restored %s from %s\n", strings.TrimSpace(*statePath), strings.TrimSpace(*fromPath))
+}
+
+func runStateVacuumCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state vacuum", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state vacuum [--state PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nCompacts local SQLite state after taking the cooperative state lock. It does not read or write remote backends or Terraform/OpenTofu state.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := state.Open(ctx, strings.TrimSpace(*statePath))
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer func() { _ = store.Close() }()
+	holder := maintenanceLockHolder("vacuum")
+	if err := store.AcquireLock(ctx, "state", holder, 30*time.Minute); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	defer func() { _ = store.ReleaseLock(context.Background(), "state", holder) }()
+	if err := store.Vacuum(ctx); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("ramen: state vacuum completed %s\n", strings.TrimSpace(*statePath))
 }
 
 func runStateListCommand(ctx context.Context, args []string) {

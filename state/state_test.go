@@ -367,6 +367,67 @@ func TestRenewLockPrunesExpiredLock(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestBackupRestoreExportAndVacuum(t *testing.T) {
+	ctx := context.Background()
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	backupPath := filepath.Join(root, "backup.db")
+	restorePath := filepath.Join(root, "restored.db")
+	store, err := Open(ctx, statePath)
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := store.RecordResource(ctx, ResourceSnapshot{Address: "example.one", Type: "example", DesiredHash: "sha256:test", Status: "managed"}); err != nil {
+		t.Fatalf("RecordResource: %v", err)
+	}
+	if err := store.RecordRevision(ctx, Revision{ResourceAddress: "example.one", Action: "create"}); err != nil {
+		t.Fatalf("RecordRevision: %v", err)
+	}
+	runID, err := store.StartRun(ctx, "apply")
+	if err != nil {
+		t.Fatalf("StartRun: %v", err)
+	}
+	if err := store.FinishRun(ctx, runID, "completed", `{"ok":true}`); err != nil {
+		t.Fatalf("FinishRun: %v", err)
+	}
+	if err := store.AcquireLockWithOptions(ctx, LockOptions{Name: "maintenance", Holder: "test", TTL: time.Hour, RunID: runID}); err != nil {
+		t.Fatalf("AcquireLockWithOptions: %v", err)
+	}
+	doc, err := store.Export(ctx)
+	if err != nil {
+		t.Fatalf("Export: %v", err)
+	}
+	if doc.Version != ExportVersion || doc.SchemaVersion != SchemaVersion || len(doc.Migrations) == 0 || len(doc.Resources) != 1 || len(doc.Revisions) != 1 || len(doc.Runs) != 1 || len(doc.Locks) != 1 {
+		t.Fatalf("export document = %#v", doc)
+	}
+	if err := store.Backup(ctx, backupPath); err != nil {
+		t.Fatalf("Backup: %v", err)
+	}
+	if err := store.Vacuum(ctx); err != nil {
+		t.Fatalf("Vacuum: %v", err)
+	}
+	_ = store.Close()
+
+	if err := Restore(ctx, restorePath, backupPath, false); err == nil || !strings.Contains(err.Error(), "--force") {
+		t.Fatalf("Restore without force error = %v, want force requirement", err)
+	}
+	if err := Restore(ctx, restorePath, backupPath, true); err != nil {
+		t.Fatalf("Restore: %v", err)
+	}
+	restored, err := OpenReadOnly(ctx, restorePath)
+	if err != nil {
+		t.Fatalf("OpenReadOnly restored: %v", err)
+	}
+	snap, err := restored.CurrentResource(ctx, "example.one")
+	if err != nil {
+		t.Fatalf("CurrentResource restored: %v", err)
+	}
+	if snap == nil || snap.DesiredHash != "sha256:test" {
+		t.Fatalf("restored snapshot = %#v", snap)
+	}
+	_ = restored.Close()
+}
+
 func TestMarkAbandonedRunsSkipsActiveLockedRuns(t *testing.T) {
 	ctx := context.Background()
 	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
