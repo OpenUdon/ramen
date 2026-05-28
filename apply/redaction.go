@@ -13,6 +13,10 @@ func redactExecutorResult(result executor.Result) executor.Result {
 	for i, msg := range result.Messages {
 		result.Messages[i] = redactString(msg)
 	}
+	for i := range result.Events {
+		result.Events[i].Message = redactString(result.Events[i].Message)
+		result.Events[i].Metadata = redactMap(result.Events[i].Metadata)
+	}
 	return result
 }
 

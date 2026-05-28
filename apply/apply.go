@@ -193,12 +193,26 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			}
 			result.GeneratedDocuments = append(result.GeneratedDocuments, docPath)
 		}
+		action := executorAction(resource)
 		req := executor.Request{
 			RunID:      runID,
-			Action:     executorAction(resource),
+			Action:     action,
 			Document:   doc,
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
+		}
+		req.Capabilities = executor.RequirementsForAction(action)
+		req.Idempotency = executor.IdempotencyForAction(action)
+		req.Events = ExecutorEventSink(store)
+		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
+			runStatus = "failed"
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			result.Errors = append(result.Errors, err.Error())
+			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", err.Error()); recErr != nil {
+				return result, recErr
+			}
+			continue
 		}
 		before, err := store.CurrentResource(ctx, resource.Address)
 		if err != nil {
@@ -251,6 +265,31 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		return result, fmt.Errorf("apply failed for %d resource(s) and blocked %d resource(s)", result.Summary.Failed, result.Summary.Blocked)
 	}
 	return result, nil
+}
+
+func ExecutorEventSink(store *state.Store) executor.EventSink {
+	return func(event executor.Event) {
+		if store == nil {
+			return
+		}
+		metadataJSON := ""
+		if len(event.Metadata) > 0 {
+			data, err := json.Marshal(redactMap(event.Metadata))
+			if err == nil {
+				metadataJSON = string(data)
+			}
+		}
+		_ = store.RecordRunEvent(context.Background(), state.RunEvent{
+			RunID:           event.RunID,
+			ResourceAddress: event.Address,
+			Action:          event.Action,
+			OperationID:     event.Operation,
+			Phase:           event.Phase,
+			Message:         redactString(event.Message),
+			MetadataJSON:    metadataJSON,
+			CreatedAt:       event.Time,
+		})
+	}
 }
 
 func BuildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]string) (*uws1.Document, error) {
@@ -326,6 +365,9 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 		}},
 		Extensions: map[string]any{
 			"x-ramen-plan-version": tfplan.Version,
+			"x-ramen-executor": map[string]any{
+				"idempotency": executor.IdempotencyForAction(executorAction(resource)),
+			},
 		},
 	}
 	if err := doc.Validate(); err != nil {

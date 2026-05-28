@@ -14,7 +14,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 2
+const SchemaVersion = 3
 
 type Store struct {
 	db *sql.DB
@@ -59,6 +59,18 @@ type Revision struct {
 	AfterJSON       string
 	DiffJSON        string
 	CreatedAt       time.Time
+}
+
+type RunEvent struct {
+	ID              int64     `json:"id,omitempty"`
+	RunID           int64     `json:"run_id,omitempty"`
+	ResourceAddress string    `json:"resource_address,omitempty"`
+	Action          string    `json:"action,omitempty"`
+	OperationID     string    `json:"operation_id,omitempty"`
+	Phase           string    `json:"phase"`
+	Message         string    `json:"message,omitempty"`
+	MetadataJSON    string    `json:"metadata_json,omitempty"`
+	CreatedAt       time.Time `json:"created_at,omitempty"`
 }
 
 type Lock struct {
@@ -123,6 +135,7 @@ type ExportDocument struct {
 	Resources     []ResourceSnapshot `json:"resources"`
 	Revisions     []Revision         `json:"revisions"`
 	Runs          []Run              `json:"runs"`
+	RunEvents     []RunEvent         `json:"run_events,omitempty"`
 	Locks         []Lock             `json:"locks"`
 }
 
@@ -370,6 +383,22 @@ var stateMigrations = []migration{
 			`ALTER TABLE locks ADD COLUMN heartbeat_at TEXT`,
 		},
 	},
+	{
+		Version: 3,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS run_events (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				run_id INTEGER,
+				resource_address TEXT,
+				action TEXT,
+				operation_id TEXT,
+				phase TEXT NOT NULL,
+				message TEXT,
+				metadata_json TEXT,
+				created_at TEXT NOT NULL
+			)`,
+		},
+	},
 }
 
 func (s *Store) appliedMigrationVersions(ctx context.Context) (map[int]bool, int, error) {
@@ -536,6 +565,10 @@ func (s *Store) Export(ctx context.Context) (ExportDocument, error) {
 	if err != nil {
 		return ExportDocument{}, err
 	}
+	runEvents, err := s.ListRunEvents(ctx, 0)
+	if err != nil {
+		return ExportDocument{}, err
+	}
 	locks, err := s.ListLocks(ctx)
 	if err != nil {
 		return ExportDocument{}, err
@@ -548,6 +581,7 @@ func (s *Store) Export(ctx context.Context) (ExportDocument, error) {
 		Resources:     resources,
 		Revisions:     revisions,
 		Runs:          runs,
+		RunEvents:     runEvents,
 		Locks:         locks,
 	}, nil
 }
@@ -782,6 +816,62 @@ func (s *Store) ListMigrationRecords(ctx context.Context) ([]MigrationRecord, er
 			record.AppliedAt = t
 		}
 		out = append(out, record)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) RecordRunEvent(ctx context.Context, event RunEvent) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	if strings.TrimSpace(event.Phase) == "" {
+		return fmt.Errorf("run event phase is required")
+	}
+	if event.CreatedAt.IsZero() {
+		event.CreatedAt = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO run_events(run_id, resource_address, action, operation_id, phase, message, metadata_json, created_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, nullableRunID(event.RunID), nullableString(event.ResourceAddress), nullableString(event.Action), nullableString(event.OperationID), event.Phase, nullableString(event.Message), nullableString(event.MetadataJSON), event.CreatedAt.Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) ListRunEvents(ctx context.Context, runID int64) ([]RunEvent, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	query := `SELECT id, run_id, resource_address, action, operation_id, phase, message, metadata_json, created_at FROM run_events`
+	var args []any
+	if runID != 0 {
+		query += ` WHERE run_id = ?`
+		args = append(args, runID)
+	}
+	query += ` ORDER BY id`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []RunEvent
+	for rows.Next() {
+		var event RunEvent
+		var runID sql.NullInt64
+		var resourceAddress, action, operationID, message, metadataJSON sql.NullString
+		var createdAt string
+		if err := rows.Scan(&event.ID, &runID, &resourceAddress, &action, &operationID, &event.Phase, &message, &metadataJSON, &createdAt); err != nil {
+			return nil, err
+		}
+		if runID.Valid {
+			event.RunID = runID.Int64
+		}
+		event.ResourceAddress = resourceAddress.String
+		event.Action = action.String
+		event.OperationID = operationID.String
+		event.Message = message.String
+		event.MetadataJSON = metadataJSON.String
+		if t, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
+			event.CreatedAt = t
+		}
+		out = append(out, event)
 	}
 	return out, rows.Err()
 }

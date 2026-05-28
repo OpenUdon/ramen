@@ -128,13 +128,23 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 			result.Summary.Failed++
 			return result, err
 		}
-		execResult, err := opts.Executor.Execute(ctx, executor.Request{
+		action := executorAction(resource, "read")
+		req := executor.Request{
 			RunID:      runID,
-			Action:     executorAction(resource, "read"),
+			Action:     action,
 			Document:   doc,
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
-		})
+		}
+		req.Capabilities = executor.RequirementsForAction(action)
+		req.Idempotency = executor.IdempotencyForAction(action)
+		req.Events = tfapply.ExecutorEventSink(store)
+		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
+			result.Summary.Failed++
+			_ = recordFailedAction(ctx, store, runID, resource, "refresh_failed", err.Error())
+			return result, err
+		}
+		execResult, err := opts.Executor.Execute(ctx, req)
 		if err != nil {
 			result.Summary.Failed++
 			_ = recordFailedAction(ctx, store, runID, resource, "refresh_failed", err.Error())
@@ -265,13 +275,23 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			result.Summary.Failed++
 			return result, err
 		}
-		execResult, err := opts.Executor.Execute(ctx, executor.Request{
+		action := executorAction(resource, "delete")
+		req := executor.Request{
 			RunID:      runID,
-			Action:     executorAction(resource, "delete"),
+			Action:     action,
 			Document:   doc,
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
-		})
+		}
+		req.Capabilities = executor.RequirementsForAction(action)
+		req.Idempotency = executor.IdempotencyForAction(action)
+		req.Events = tfapply.ExecutorEventSink(store)
+		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
+			result.Summary.Failed++
+			_ = recordFailedAction(ctx, store, runID, resource, "delete_failed", err.Error())
+			return result, err
+		}
+		execResult, err := opts.Executor.Execute(ctx, req)
 		if err != nil {
 			result.Summary.Failed++
 			_ = recordFailedAction(ctx, store, runID, resource, "delete_failed", err.Error())

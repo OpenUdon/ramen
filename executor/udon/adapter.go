@@ -4,6 +4,7 @@ package udon
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"time"
 
@@ -13,11 +14,33 @@ import (
 )
 
 type Executor struct {
-	OutputDir string
+	OutputDir       string
+	OutputProjector func(context.Context, executor.Request, string) (executor.Result, error)
+}
+
+func (e Executor) Capabilities() executor.CapabilityDescriptor {
+	return executor.CapabilityDescriptor{
+		Protocols:   []string{"aws-smithy", "openapi", "google-discovery"},
+		AuthSchemes: []string{"executor-configured"},
+		Features: []string{
+			executor.FeatureIdempotency,
+			executor.FeatureProgressEvents,
+			executor.FeatureRetry,
+			executor.FeatureWaiter,
+			executor.FeaturePagination,
+			executor.FeatureOutputIdentity,
+			executor.FeatureOutputComputed,
+			executor.FeatureMissingEvidence,
+		},
+	}
 }
 
 func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.Result, error) {
 	started := time.Now().UTC()
+	if err := executor.EnsureSupported(e, req); err != nil {
+		return executor.Result{}, err
+	}
+	startEvent := executor.Emit(req, "started", "udon executor started", nil)
 	plan, err := generator.NewRuntimePlanFromUWSDocument(req.Document, req.WorkingDir)
 	if err != nil {
 		return executor.Result{}, err
@@ -32,11 +55,28 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	if err := runner.ExecuteRuntimePlan(ctx, plan, outputDir); err != nil {
 		return executor.Result{}, err
 	}
-	return executor.Result{
+	if e.OutputProjector == nil && req.Action.Action != "delete" {
+		return executor.Result{}, fmt.Errorf("udon output projection is required for %s %s", req.Action.Action, req.Action.Address)
+	}
+	result := executor.Result{
 		Address:    req.Action.Address,
 		Operation:  req.Action.Mapping.OperationID,
 		Success:    true,
+		Events:     []executor.Event{startEvent},
 		StartedAt:  started,
 		FinishedAt: time.Now().UTC(),
-	}, nil
+	}
+	if e.OutputProjector != nil {
+		projected, err := e.OutputProjector(ctx, req, outputDir)
+		if err != nil {
+			return executor.Result{}, err
+		}
+		result.Identity = projected.Identity
+		result.Computed = projected.Computed
+		result.Missing = projected.Missing
+		result.Messages = projected.Messages
+		result.Events = append(result.Events, projected.Events...)
+	}
+	result.Events = append(result.Events, executor.Emit(req, "finished", "udon executor finished", nil))
+	return result, nil
 }

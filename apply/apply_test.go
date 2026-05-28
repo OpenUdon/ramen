@@ -80,6 +80,18 @@ resource "aws_iam_role" "role" {
 	if strings.Contains(snap.IdentityJSON, "should-not-persist") || !strings.Contains(snap.IdentityJSON, "${redacted}") {
 		t.Fatalf("identity was not redacted: %s", snap.IdentityJSON)
 	}
+	store, err = state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("reopen state: %v", err)
+	}
+	events, err := store.ListRunEvents(context.Background(), 0)
+	if err != nil {
+		t.Fatalf("list run events: %v", err)
+	}
+	_ = store.Close()
+	if len(events) < 2 || events[0].ResourceAddress != "aws_iam_role.role" || events[0].Phase != "started" {
+		t.Fatalf("run events = %#v", events)
+	}
 
 	result, err = Apply(context.Background(), Options{
 		ConfigDir:   configDir,
