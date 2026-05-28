@@ -12,6 +12,7 @@ import (
 
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
+	ramenrun "github.com/OpenUdon/ramen/run"
 	"github.com/OpenUdon/ramen/state"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
@@ -98,6 +99,7 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--identity", "plan-compatible desired hash"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "--workspace", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--policy-file", "--approved-by", "--approved-at", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
+		{command: []string{"run", "--help"}, expected: []string{"Usage: ramen run", "--target", "--policy-file", "--check", "--approval-digest", "--auto-approve", "--mock", "trusted executor"}},
 		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
 		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "audit", "backup", "export", "list", "restore", "show ADDRESS", "history", "runs", "vacuum"}},
 	} {
@@ -125,6 +127,33 @@ func TestCLIImportReportsStableIdentityDiagnostics(t *testing.T) {
 		if !strings.Contains(string(output), "import.identity_invalid") {
 			t.Fatalf("import identity diagnostic missing stable code:\n%s", output)
 		}
+	}
+}
+
+func TestCLIRunCheckAndApprovedExecution(t *testing.T) {
+	root := t.TempDir()
+	docPath := writeNativeProjectForCLITest(t, root, project.Profile{Version: project.Version})
+	statePath := filepath.Join(root, "run-state.db")
+	cmd := helperCommand("run", docPath, "--target", "a", "--target", "b", "--state", statePath, "--check", "--json")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("run check failed: %v\n%s", err, output)
+	}
+	var preview ramenrun.Result
+	if err := json.Unmarshal(output, &preview); err != nil || preview.Version != ramenrun.Version || !preview.Check || preview.Summary.Skipped != 2 || preview.ApprovalDigest == "" {
+		t.Fatalf("preview invalid: %#v err=%v\n%s", preview, err, output)
+	}
+	if _, err := os.Stat(statePath); !os.IsNotExist(err) {
+		t.Fatalf("check mode created state: %v", err)
+	}
+	cmd = helperCommand("run", docPath, "--target", "a", "--target", "b", "--state", statePath, "--approval-digest", preview.ApprovalDigest, "--mock", "--json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("approved run failed: %v\n%s", err, output)
+	}
+	var executed ramenrun.Result
+	if err := json.Unmarshal(output, &executed); err != nil || executed.RunID == 0 || executed.Summary.Executed != 2 {
+		t.Fatalf("executed invalid: %#v err=%v\n%s", executed, err, output)
 	}
 }
 

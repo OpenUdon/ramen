@@ -216,7 +216,7 @@ type MockExecutor struct {
 
 func (m *MockExecutor) Capabilities() CapabilityDescriptor {
 	return CapabilityDescriptor{
-		Protocols:   []string{"aws-smithy", "openapi", "google-discovery", "unknown"},
+		Protocols:   []string{"aws-smithy", "openapi", "google-discovery", "uws", "unknown"},
 		AuthSchemes: []string{"mock"},
 		Features: []string{
 			FeatureOutputIdentity,

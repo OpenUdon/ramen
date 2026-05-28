@@ -23,6 +23,7 @@ import (
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/reconcile"
+	ramenrun "github.com/OpenUdon/ramen/run"
 	"github.com/OpenUdon/ramen/state"
 	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/tfconfig"
@@ -54,6 +55,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  plan      emit a static desired-state plan without mutation\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  refresh   read tracked resources and update state through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  run       execute approved imperative UWS runbooks through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  show      inspect Ramen plan and approval artifacts\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  state     inspect local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  validate  validate a native UWS/Ramen project without mutation\n")
@@ -86,6 +88,8 @@ func main() {
 		runPlanCommand(ctx, flag.Args()[1:])
 	case "refresh":
 		runRefreshCommand(ctx, flag.Args()[1:])
+	case "run":
+		runRunCommand(ctx, flag.Args()[1:])
 	case "show":
 		runShowCommand(flag.Args()[1:])
 	case "state":
@@ -844,6 +848,71 @@ func splitBuildTags(value string) []string {
 		}
 	}
 	return tags
+}
+
+func runRunCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("run", flag.ExitOnError)
+	statePath := fs.String("state", "", "SQLite state path; defaults to the UWS document directory .ramen/state.db")
+	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
+	checkMode := fs.Bool("check", false, "Validate and preview without executor calls or state writes")
+	autoApprove := fs.Bool("auto-approve", false, "Approve imperative execution after reviewing the approval digest")
+	approvalDigest := fs.String("approval-digest", "", "Digest-bound approval for this UWS document and target set")
+	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	outDir := fs.String("out", "", "Optional executor output directory")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	var targets repeatedStringFlag
+	var policyFiles repeatedStringFlag
+	fs.Var(&targets, "target", "Repeatable run target; defaults to one target named default")
+	fs.Var(&policyFiles, "policy-file", "Repeatable Ramen policy file for run governance")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen run UWS_FILE [--target NAME] [--policy-file PATH] [--state PATH] [--workspace NAME] [--check | --auto-approve | --approval-digest DIGEST] --mock [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nExecutes an approved imperative UWS runbook through the trusted executor boundary without treating outputs as desired-state resources. --check validates and previews without executor calls or state writes.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(positionalFirstLast(args)); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 1 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	docPath := strings.TrimSpace(fs.Arg(0))
+	path := *statePath
+	if strings.TrimSpace(path) == "" {
+		path = statePathOrDefault("", docPath, filepath.Dir(docPath), *workspace)
+	}
+	var exec executor.Executor
+	if *mock {
+		exec = &executor.MockExecutor{}
+	}
+	result, err := ramenrun.Execute(ctx, ramenrun.Options{
+		DocumentPath:   docPath,
+		StatePath:      path,
+		Workspace:      *workspace,
+		Targets:        []string(targets),
+		PolicyFiles:    []string(policyFiles),
+		Check:          *checkMode,
+		AutoApprove:    *autoApprove,
+		ApprovalDigest: *approvalDigest,
+		OutDir:         *outDir,
+		Executor:       exec,
+	})
+	if err != nil {
+		if result != nil && *jsonOut {
+			writeJSONOutput(result)
+		}
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(result)
+		return
+	}
+	fmt.Printf("ramen: run targets=%d executed=%d skipped=%d failed=%d\n", result.Summary.Targets, result.Summary.Executed, result.Summary.Skipped, result.Summary.Failed)
+	fmt.Printf("  approval_digest: %s\n", result.ApprovalDigest)
+	if result.RunID != 0 {
+		fmt.Printf("  run: %d\n", result.RunID)
+	}
 }
 
 func runRefreshCommand(ctx context.Context, args []string) {

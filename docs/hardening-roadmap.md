@@ -28,3 +28,5 @@ The remaining seed findings were folded into canonical status files:
 - M17 added policy hooks, approval routing, audit export, and local workspace
   isolation. Enterprise adoption still needs packaging and operational support
   contracts; see `memory-bank/status-M12.md`.
+- M18 added approved imperative UWS run mode for runbooks and one-off
+  operations without treating them as desired-state resources.
