@@ -322,6 +322,8 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		return nil, err
 	}
 	defer func() { _ = store.ReleaseLock(context.Background(), "state", lockHolder) }()
+	stopRenewal := store.StartLockRenewal(ctx, "state", lockHolder, 30*time.Minute, 0)
+	defer stopRenewal()
 	current, err := store.CurrentResource(ctx, opts.Address)
 	if err != nil {
 		return nil, err
@@ -339,6 +341,9 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 			_ = store.FinishRun(context.Background(), runID, "failed", "")
 		}
 	}()
+	if err := store.AttachLockRun(ctx, "state", lockHolder, runID); err != nil {
+		return nil, err
+	}
 	identityJSON, err := json.Marshal(redact.Map(opts.Identity))
 	if err != nil {
 		return nil, err
@@ -652,8 +657,17 @@ func startMutation(ctx context.Context, statePath, command string) (*Result, *st
 		_ = store.Close()
 		return &Result{StatePath: statePath}, nil, 0, nil, err
 	}
+	stopRenewal := store.StartLockRenewal(ctx, "state", lockHolder, 30*time.Minute, 0)
 	runID, err := store.StartRun(ctx, command)
 	if err != nil {
+		stopRenewal()
+		_ = store.ReleaseLock(ctx, "state", lockHolder)
+		_ = store.Close()
+		return &Result{StatePath: statePath}, nil, 0, nil, err
+	}
+	if err := store.AttachLockRun(ctx, "state", lockHolder, runID); err != nil {
+		stopRenewal()
+		_ = store.FinishRun(context.Background(), runID, "failed", "")
 		_ = store.ReleaseLock(ctx, "state", lockHolder)
 		_ = store.Close()
 		return &Result{StatePath: statePath}, nil, 0, nil, err
@@ -666,6 +680,7 @@ func startMutation(ctx context.Context, statePath, command string) (*Result, *st
 		}
 		data, _ := json.Marshal(summary)
 		_ = store.FinishRun(context.Background(), runID, status, string(data))
+		stopRenewal()
 		_ = store.ReleaseLock(context.Background(), "state", lockHolder)
 	}
 	return result, store, runID, finish, nil

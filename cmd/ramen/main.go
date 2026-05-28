@@ -218,6 +218,8 @@ func runStateCommand(ctx context.Context, args []string) {
 		runStateShowCommand(ctx, args[1:])
 	case "history":
 		runStateHistoryCommand(ctx, args[1:])
+	case "runs":
+		runStateRunsCommand(ctx, args[1:])
 	case "-h", "--help", "help":
 		stateUsage(os.Stdout)
 	default:
@@ -234,6 +236,7 @@ func stateUsage(out *os.File) {
 	fmt.Fprintf(out, "  list              list current resource addresses\n")
 	fmt.Fprintf(out, "  show ADDRESS      show one current resource\n")
 	fmt.Fprintf(out, "  history [ADDRESS] show revision history\n")
+	fmt.Fprintf(out, "  runs              show command run history\n")
 }
 
 func runStateListCommand(ctx context.Context, args []string) {
@@ -367,6 +370,55 @@ func runStateHistoryCommand(ctx context.Context, args []string) {
 	fmt.Printf("ramen: state revisions=%d\n", len(revisions))
 	for _, rev := range revisions {
 		fmt.Printf("  #%d %s action=%s run=%d at=%s\n", rev.ID, rev.ResourceAddress, rev.Action, rev.RunID, rev.CreatedAt.Format(time.RFC3339Nano))
+	}
+}
+
+func runStateRunsCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state runs", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	status := fs.String("status", "", "Optional run status filter")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state runs [--state PATH] [--status STATUS] [--json]\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(ctx, *statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		if *jsonOut {
+			writeJSONOutput([]state.Run{})
+		} else {
+			fmt.Println("ramen: state runs=0")
+		}
+		return
+	}
+	defer func() { _ = store.Close() }()
+	runs, err := store.ListRuns(ctx, *status)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(runs)
+		return
+	}
+	fmt.Printf("ramen: state runs=%d\n", len(runs))
+	for _, run := range runs {
+		finished := ""
+		if !run.FinishedAt.IsZero() {
+			finished = " finished=" + run.FinishedAt.Format(time.RFC3339Nano)
+		}
+		fmt.Printf("  #%d %s status=%s started=%s%s\n", run.ID, run.Command, run.Status, run.StartedAt.Format(time.RFC3339Nano), finished)
 	}
 }
 

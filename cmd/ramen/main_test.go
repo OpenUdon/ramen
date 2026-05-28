@@ -99,7 +99,7 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
 		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
-		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "list", "show ADDRESS", "history", "Read-only"}},
+		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "list", "show ADDRESS", "history", "runs", "Read-only"}},
 	} {
 		cmd := helperCommand(tt.command...)
 		output, err := cmd.CombinedOutput()
@@ -657,6 +657,13 @@ paths:
 	if err := store.RecordRevision(context.Background(), state.Revision{ResourceAddress: "example_resource.test", Action: "import", AfterJSON: `{"status":"managed"}`}); err != nil {
 		t.Fatalf("record revision: %v", err)
 	}
+	runID, err := store.StartRun(context.Background(), "apply")
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := store.FinishRun(context.Background(), runID, "completed", `{"ok":true}`); err != nil {
+		t.Fatalf("finish run: %v", err)
+	}
 	_ = store.Close()
 	cmd = helperCommand("state", "list", "--state", statePath)
 	output, err = cmd.CombinedOutput()
@@ -665,6 +672,14 @@ paths:
 	}
 	if !strings.Contains(string(output), "example_resource.test") {
 		t.Fatalf("state list missing address:\n%s", output)
+	}
+	cmd = helperCommand("state", "runs", "--state", statePath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state runs failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "apply") || !strings.Contains(string(output), "completed") {
+		t.Fatalf("state runs missing run summary:\n%s", output)
 	}
 	cmd = helperCommand("state", "show", "example_resource.test", "--state", statePath, "--json")
 	output, err = cmd.CombinedOutput()

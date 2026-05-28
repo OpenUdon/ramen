@@ -126,6 +126,8 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		return result, err
 	}
 	defer func() { _ = store.ReleaseLock(context.Background(), "state", lockHolder) }()
+	stopRenewal := store.StartLockRenewal(ctx, "state", lockHolder, 30*time.Minute, 0)
+	defer stopRenewal()
 	runID, err := store.StartRun(ctx, "apply")
 	if err != nil {
 		return result, err
@@ -136,6 +138,10 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		summary, _ := json.Marshal(result.Summary)
 		_ = store.FinishRun(context.Background(), runID, runStatus, string(summary))
 	}()
+	if err := store.AttachLockRun(ctx, "state", lockHolder, runID); err != nil {
+		runStatus = "failed"
+		return result, err
+	}
 
 	sourcePaths := sourcePathIndex(opts.APISources)
 	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath)

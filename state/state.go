@@ -8,12 +8,13 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 1
+const SchemaVersion = 2
 
 type Store struct {
 	db *sql.DB
@@ -24,18 +25,20 @@ type Tx struct {
 }
 
 type ResourceSnapshot struct {
-	Address        string
-	Type           string
-	Provider       string
-	DesiredHash    string
-	IdentityJSON   string
-	AttributesJSON string
-	Status         string
-	SourceKind     string
-	SourceID       string
-	OperationID    string
-	UpdatedRunID   int64
-	UpdatedAt      time.Time
+	Address             string
+	Type                string
+	Provider            string
+	DesiredHash         string
+	IdentityJSON        string
+	AttributesJSON      string
+	IdentitySecretRef   string
+	AttributesSecretRef string
+	Status              string
+	SourceKind          string
+	SourceID            string
+	OperationID         string
+	UpdatedRunID        int64
+	UpdatedAt           time.Time
 }
 
 type Run struct {
@@ -59,17 +62,25 @@ type Revision struct {
 }
 
 type Lock struct {
-	Name       string
-	Holder     string
-	AcquiredAt time.Time
-	ExpiresAt  time.Time
+	Name        string
+	Holder      string
+	Host        string
+	PID         int
+	RunID       int64
+	AcquiredAt  time.Time
+	ExpiresAt   time.Time
+	HeartbeatAt time.Time
 }
 
 type LockHeldError struct {
-	Name       string
-	Holder     string
-	AcquiredAt time.Time
-	ExpiresAt  time.Time
+	Name        string
+	Holder      string
+	Host        string
+	PID         int
+	RunID       int64
+	AcquiredAt  time.Time
+	ExpiresAt   time.Time
+	HeartbeatAt time.Time
 }
 
 type LockNotFoundError struct {
@@ -77,15 +88,31 @@ type LockNotFoundError struct {
 }
 
 type LockHolderMismatchError struct {
-	Name       string
-	Holder     string
-	Expected   string
-	AcquiredAt time.Time
-	ExpiresAt  time.Time
+	Name        string
+	Holder      string
+	Expected    string
+	Host        string
+	PID         int
+	RunID       int64
+	AcquiredAt  time.Time
+	ExpiresAt   time.Time
+	HeartbeatAt time.Time
+}
+
+type LockOptions struct {
+	Name   string
+	Holder string
+	TTL    time.Duration
+	Host   string
+	PID    int
+	RunID  int64
 }
 
 func (e LockHeldError) Error() string {
 	msg := fmt.Sprintf("state lock %q is held by %q since %s", e.Name, e.Holder, e.AcquiredAt.Format(time.RFC3339Nano))
+	if e.Host != "" || e.PID != 0 || e.RunID != 0 {
+		msg += fmt.Sprintf(" host=%s pid=%d run=%d", e.Host, e.PID, e.RunID)
+	}
 	if !e.ExpiresAt.IsZero() {
 		msg += fmt.Sprintf(" until %s", e.ExpiresAt.Format(time.RFC3339Nano))
 	}
@@ -98,6 +125,9 @@ func (e LockNotFoundError) Error() string {
 
 func (e LockHolderMismatchError) Error() string {
 	msg := fmt.Sprintf("state lock %q is held by %q, not %q", e.Name, e.Holder, e.Expected)
+	if e.Host != "" || e.PID != 0 || e.RunID != 0 {
+		msg += fmt.Sprintf(" host=%s pid=%d run=%d", e.Host, e.PID, e.RunID)
+	}
 	if !e.AcquiredAt.IsZero() {
 		msg += fmt.Sprintf(" since %s", e.AcquiredAt.Format(time.RFC3339Nano))
 	}
@@ -129,6 +159,10 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	store := &Store{db: db}
 	if err := configureWriteConnection(ctx, db); err != nil {
 		_ = db.Close()
+		return nil, fmt.Errorf("state.integrity_check_failed: %w", err)
+	}
+	if err := store.CheckIntegrity(ctx); err != nil {
+		_ = db.Close()
 		return nil, err
 	}
 	if err := store.Migrate(ctx); err != nil {
@@ -156,6 +190,10 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 	configureDB(db)
 	store := &Store{db: db}
 	if err := configureReadConnection(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, fmt.Errorf("state.integrity_check_failed: %w", err)
+	}
+	if err := store.CheckIntegrity(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
 	}
@@ -216,56 +254,151 @@ func (s *Store) Migrate(ctx context.Context) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("state store is nil")
 	}
-	stmts := []string{
-		`PRAGMA foreign_keys = ON`,
-		`CREATE TABLE IF NOT EXISTS schema_migrations (
-			version INTEGER PRIMARY KEY,
-			applied_at TEXT NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS runs (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			command TEXT NOT NULL,
-			started_at TEXT NOT NULL,
-			finished_at TEXT,
-			status TEXT NOT NULL,
-			summary_json TEXT
-		)`,
-		`CREATE TABLE IF NOT EXISTS resources (
-			address TEXT PRIMARY KEY,
-			type TEXT NOT NULL,
-			provider TEXT,
-			desired_hash TEXT,
-			identity_json TEXT,
-			attributes_json TEXT,
-			status TEXT NOT NULL,
-			source_kind TEXT,
-			source_id TEXT,
-			operation_id TEXT,
-			updated_run_id INTEGER,
-			updated_at TEXT NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS state_revisions (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			resource_address TEXT NOT NULL,
-			run_id INTEGER,
-			action TEXT NOT NULL,
-			before_json TEXT,
-			after_json TEXT,
-			diff_json TEXT,
-			created_at TEXT NOT NULL
-		)`,
-		`CREATE TABLE IF NOT EXISTS locks (
-			name TEXT PRIMARY KEY,
-			holder TEXT NOT NULL,
-			acquired_at TEXT NOT NULL,
-			expires_at TEXT
-		)`,
-		`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES(1, strftime('%Y-%m-%dT%H:%M:%fZ','now'))`,
+	if _, err := s.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS schema_migrations (
+		version INTEGER PRIMARY KEY,
+		applied_at TEXT NOT NULL
+	)`); err != nil {
+		return err
 	}
-	for _, stmt := range stmts {
-		if _, err := s.db.ExecContext(ctx, stmt); err != nil {
+	applied, maxVersion, err := s.appliedMigrationVersions(ctx)
+	if err != nil {
+		return err
+	}
+	if maxVersion > SchemaVersion {
+		return fmt.Errorf("state schema version %d is newer than this binary supports (%d)", maxVersion, SchemaVersion)
+	}
+	for _, migration := range stateMigrations {
+		if applied[migration.Version] {
+			continue
+		}
+		tx, err := s.db.BeginTx(ctx, nil)
+		if err != nil {
 			return err
 		}
+		for _, stmt := range migration.Statements {
+			if _, err := tx.ExecContext(ctx, stmt); err != nil {
+				_ = tx.Rollback()
+				return fmt.Errorf("apply state migration %d: %w", migration.Version, err)
+			}
+		}
+		if _, err := tx.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)`, migration.Version, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+			_ = tx.Rollback()
+			return err
+		}
+		if err := tx.Commit(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type migration struct {
+	Version    int
+	Statements []string
+}
+
+var stateMigrations = []migration{
+	{
+		Version: 1,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS runs (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				command TEXT NOT NULL,
+				started_at TEXT NOT NULL,
+				finished_at TEXT,
+				status TEXT NOT NULL,
+				summary_json TEXT
+			)`,
+			`CREATE TABLE IF NOT EXISTS resources (
+				address TEXT PRIMARY KEY,
+				type TEXT NOT NULL,
+				provider TEXT,
+				desired_hash TEXT,
+				identity_json TEXT,
+				attributes_json TEXT,
+				status TEXT NOT NULL,
+				source_kind TEXT,
+				source_id TEXT,
+				operation_id TEXT,
+				updated_run_id INTEGER,
+				updated_at TEXT NOT NULL
+			)`,
+			`CREATE TABLE IF NOT EXISTS state_revisions (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				resource_address TEXT NOT NULL,
+				run_id INTEGER,
+				action TEXT NOT NULL,
+				before_json TEXT,
+				after_json TEXT,
+				diff_json TEXT,
+				created_at TEXT NOT NULL
+			)`,
+			`CREATE TABLE IF NOT EXISTS locks (
+				name TEXT PRIMARY KEY,
+				holder TEXT NOT NULL,
+				acquired_at TEXT NOT NULL,
+				expires_at TEXT
+			)`,
+		},
+	},
+	{
+		Version: 2,
+		Statements: []string{
+			`ALTER TABLE resources ADD COLUMN identity_secret_ref TEXT`,
+			`ALTER TABLE resources ADD COLUMN attributes_secret_ref TEXT`,
+			`ALTER TABLE locks ADD COLUMN host TEXT`,
+			`ALTER TABLE locks ADD COLUMN pid INTEGER`,
+			`ALTER TABLE locks ADD COLUMN run_id INTEGER`,
+			`ALTER TABLE locks ADD COLUMN heartbeat_at TEXT`,
+		},
+	},
+}
+
+func (s *Store) appliedMigrationVersions(ctx context.Context) (map[int]bool, int, error) {
+	rows, err := s.db.QueryContext(ctx, `SELECT version FROM schema_migrations`)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer rows.Close()
+	applied := map[int]bool{}
+	maxVersion := 0
+	for rows.Next() {
+		var version int
+		if err := rows.Scan(&version); err != nil {
+			return nil, 0, err
+		}
+		applied[version] = true
+		if version > maxVersion {
+			maxVersion = version
+		}
+	}
+	return applied, maxVersion, rows.Err()
+}
+
+func (s *Store) CheckIntegrity(ctx context.Context) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	rows, err := s.db.QueryContext(ctx, `PRAGMA quick_check`)
+	if err != nil {
+		return fmt.Errorf("state.integrity_check_failed: %w", err)
+	}
+	defer rows.Close()
+	var failures []string
+	for rows.Next() {
+		var result string
+		if err := rows.Scan(&result); err != nil {
+			return fmt.Errorf("state.integrity_check_failed: %w", err)
+		}
+		if !strings.EqualFold(strings.TrimSpace(result), "ok") {
+			failures = append(failures, result)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("state.integrity_check_failed: %w", err)
+	}
+	if len(failures) > 0 {
+		return fmt.Errorf("state.integrity_check_failed: %s", strings.Join(failures, "; "))
 	}
 	return nil
 }
@@ -293,6 +426,16 @@ func (s *Store) SchemaReady(ctx context.Context) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("state store is nil")
 	}
+	_, maxVersion, err := s.appliedMigrationVersions(ctx)
+	if err != nil {
+		if strings.Contains(err.Error(), "no such table") {
+			return fmt.Errorf("state schema version %d is not applied; run ramen init", SchemaVersion)
+		}
+		return err
+	}
+	if maxVersion > SchemaVersion {
+		return fmt.Errorf("state schema version %d is newer than this binary supports (%d)", maxVersion, SchemaVersion)
+	}
 	row := s.db.QueryRowContext(ctx, `SELECT 1 FROM schema_migrations WHERE version = ?`, SchemaVersion)
 	var one int
 	if err := row.Scan(&one); err != nil {
@@ -308,7 +451,7 @@ func (s *Store) CurrentResource(ctx context.Context, address string) (*ResourceS
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("state store is nil")
 	}
-	row := s.db.QueryRowContext(ctx, `SELECT address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at FROM resources WHERE address = ?`, address)
+	row := s.db.QueryRowContext(ctx, resourceSnapshotSelect+` WHERE address = ?`, address)
 	snap, err := scanSnapshot(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -323,7 +466,7 @@ func (tx *Tx) CurrentResource(ctx context.Context, address string) (*ResourceSna
 	if tx == nil || tx.tx == nil {
 		return nil, fmt.Errorf("state transaction is nil")
 	}
-	row := tx.tx.QueryRowContext(ctx, `SELECT address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at FROM resources WHERE address = ?`, address)
+	row := tx.tx.QueryRowContext(ctx, resourceSnapshotSelect+` WHERE address = ?`, address)
 	snap, err := scanSnapshot(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -338,7 +481,7 @@ func (s *Store) ListCurrentResources(ctx context.Context) ([]ResourceSnapshot, e
 	if s == nil || s.db == nil {
 		return nil, fmt.Errorf("state store is nil")
 	}
-	rows, err := s.db.QueryContext(ctx, `SELECT address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at FROM resources ORDER BY address`)
+	rows, err := s.db.QueryContext(ctx, resourceSnapshotSelect+` ORDER BY address`)
 	if err != nil {
 		return nil, err
 	}
@@ -387,21 +530,23 @@ func execRecordResource(ctx context.Context, exec sqlExecutor, snap ResourceSnap
 	if snap.UpdatedAt.IsZero() {
 		snap.UpdatedAt = time.Now().UTC()
 	}
-	_, err := exec.ExecContext(ctx, `INSERT INTO resources(address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at)
-VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+	_, err := exec.ExecContext(ctx, `INSERT INTO resources(address, type, provider, desired_hash, identity_json, attributes_json, identity_secret_ref, attributes_secret_ref, status, source_kind, source_id, operation_id, updated_run_id, updated_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(address) DO UPDATE SET
 	type = excluded.type,
 	provider = excluded.provider,
 	desired_hash = excluded.desired_hash,
 	identity_json = excluded.identity_json,
 	attributes_json = excluded.attributes_json,
+	identity_secret_ref = excluded.identity_secret_ref,
+	attributes_secret_ref = excluded.attributes_secret_ref,
 	status = excluded.status,
 	source_kind = excluded.source_kind,
 	source_id = excluded.source_id,
 	operation_id = excluded.operation_id,
 	updated_run_id = excluded.updated_run_id,
 	updated_at = excluded.updated_at`,
-		snap.Address, snap.Type, snap.Provider, snap.DesiredHash, snap.IdentityJSON, snap.AttributesJSON, snap.Status, snap.SourceKind, snap.SourceID, snap.OperationID, nullableRunID(snap.UpdatedRunID), snap.UpdatedAt.Format(time.RFC3339Nano))
+		snap.Address, snap.Type, snap.Provider, snap.DesiredHash, snap.IdentityJSON, snap.AttributesJSON, nullableString(snap.IdentitySecretRef), nullableString(snap.AttributesSecretRef), snap.Status, snap.SourceKind, snap.SourceID, snap.OperationID, nullableRunID(snap.UpdatedRunID), snap.UpdatedAt.Format(time.RFC3339Nano))
 	return err
 }
 
@@ -434,6 +579,79 @@ func (s *Store) FinishRun(ctx context.Context, id int64, status, summaryJSON str
 	}
 	_, err := s.db.ExecContext(ctx, `UPDATE runs SET finished_at = ?, status = ?, summary_json = ? WHERE id = ?`, time.Now().UTC().Format(time.RFC3339Nano), status, nullableString(summaryJSON), id)
 	return err
+}
+
+func (s *Store) ListRuns(ctx context.Context, status string) ([]Run, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	query := `SELECT id, command, started_at, finished_at, status, summary_json FROM runs`
+	var args []any
+	if strings.TrimSpace(status) != "" {
+		query += ` WHERE status = ?`
+		args = append(args, strings.TrimSpace(status))
+	}
+	query += ` ORDER BY id`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []Run
+	for rows.Next() {
+		run, err := scanRun(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *run)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) MarkAbandonedRuns(ctx context.Context, olderThan time.Duration) ([]Run, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	if olderThan <= 0 {
+		return nil, fmt.Errorf("abandoned run age must be positive")
+	}
+	now := time.Now().UTC()
+	before := now.Add(-olderThan)
+	rows, err := s.db.QueryContext(ctx, `SELECT id, command, started_at, finished_at, status, summary_json
+FROM runs
+WHERE status = 'running'
+  AND started_at <= ?
+  AND NOT EXISTS (
+    SELECT 1 FROM locks
+    WHERE locks.run_id = runs.id
+      AND (locks.expires_at IS NULL OR locks.expires_at > ?)
+  )
+ORDER BY id`, before.Format(time.RFC3339Nano), now.Format(time.RFC3339Nano))
+	if err != nil {
+		return nil, err
+	}
+	var abandoned []Run
+	for rows.Next() {
+		run, err := scanRun(rows)
+		if err != nil {
+			_ = rows.Close()
+			return nil, err
+		}
+		abandoned = append(abandoned, *run)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if len(abandoned) == 0 {
+		return nil, nil
+	}
+	finishedAt := now.Format(time.RFC3339Nano)
+	for _, run := range abandoned {
+		if _, err := s.db.ExecContext(ctx, `UPDATE runs SET finished_at = ?, status = ?, summary_json = COALESCE(summary_json, ?) WHERE id = ? AND status = 'running'`, finishedAt, "abandoned", `{"abandoned":true}`, run.ID); err != nil {
+			return nil, err
+		}
+	}
+	return abandoned, nil
 }
 
 func (s *Store) RecordRevision(ctx context.Context, rev Revision) error {
@@ -539,6 +757,78 @@ func execDeleteResource(ctx context.Context, exec sqlExecutor, address string) e
 }
 
 func (s *Store) AcquireLock(ctx context.Context, name, holder string, ttl time.Duration) error {
+	return s.AcquireLockWithOptions(ctx, LockOptions{Name: name, Holder: holder, TTL: ttl})
+}
+
+func (s *Store) AcquireLockWithOptions(ctx context.Context, opts LockOptions) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	name := strings.TrimSpace(opts.Name)
+	holder := strings.TrimSpace(opts.Holder)
+	if name == "" {
+		return fmt.Errorf("lock name is required")
+	}
+	if holder == "" {
+		return fmt.Errorf("lock holder is required")
+	}
+	host := strings.TrimSpace(opts.Host)
+	if host == "" {
+		host, _ = os.Hostname()
+	}
+	pid := opts.PID
+	if pid == 0 {
+		pid = os.Getpid()
+	}
+	now := time.Now().UTC()
+	_, _ = s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND expires_at IS NOT NULL AND expires_at <= ?`, name, now.Format(time.RFC3339Nano))
+	var expires any
+	if opts.TTL > 0 {
+		expires = now.Add(opts.TTL).Format(time.RFC3339Nano)
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO locks(name, holder, acquired_at, expires_at, host, pid, run_id, heartbeat_at) VALUES(?, ?, ?, ?, ?, ?, ?, ?)`, name, holder, now.Format(time.RFC3339Nano), expires, nullableString(host), nullableInt(pid), nullableRunID(opts.RunID), now.Format(time.RFC3339Nano))
+	if err != nil {
+		if held, heldErr := s.currentLock(ctx, name); heldErr == nil && held != nil {
+			return LockHeldError{Name: held.Name, Holder: held.Holder, Host: held.Host, PID: held.PID, RunID: held.RunID, AcquiredAt: held.AcquiredAt, ExpiresAt: held.ExpiresAt, HeartbeatAt: held.HeartbeatAt}
+		}
+		return err
+	}
+	return nil
+}
+
+func (s *Store) AttachLockRun(ctx context.Context, name, holder string, runID int64) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	name = strings.TrimSpace(name)
+	holder = strings.TrimSpace(holder)
+	if name == "" {
+		return fmt.Errorf("lock name is required")
+	}
+	if holder == "" {
+		return fmt.Errorf("lock holder is required")
+	}
+	if runID == 0 {
+		return fmt.Errorf("run id is required")
+	}
+	result, err := s.db.ExecContext(ctx, `UPDATE locks SET run_id = ? WHERE name = ? AND holder = ?`, runID, name, holder)
+	if err != nil {
+		return err
+	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		lock, lockErr := s.CurrentLock(ctx, name)
+		if lockErr != nil {
+			return lockErr
+		}
+		if lock == nil {
+			return LockNotFoundError{Name: name}
+		}
+		return LockHolderMismatchError{Name: lock.Name, Holder: lock.Holder, Expected: holder, Host: lock.Host, PID: lock.PID, RunID: lock.RunID, AcquiredAt: lock.AcquiredAt, ExpiresAt: lock.ExpiresAt, HeartbeatAt: lock.HeartbeatAt}
+	}
+	return nil
+}
+
+func (s *Store) RenewLock(ctx context.Context, name, holder string, ttl time.Duration) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("state store is nil")
 	}
@@ -551,19 +841,62 @@ func (s *Store) AcquireLock(ctx context.Context, name, holder string, ttl time.D
 		return fmt.Errorf("lock holder is required")
 	}
 	now := time.Now().UTC()
-	_, _ = s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND expires_at IS NOT NULL AND expires_at <= ?`, name, now.Format(time.RFC3339Nano))
 	var expires any
 	if ttl > 0 {
 		expires = now.Add(ttl).Format(time.RFC3339Nano)
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO locks(name, holder, acquired_at, expires_at) VALUES(?, ?, ?, ?)`, name, holder, now.Format(time.RFC3339Nano), expires)
+	result, err := s.db.ExecContext(ctx, `UPDATE locks SET expires_at = ?, heartbeat_at = ? WHERE name = ? AND holder = ? AND (expires_at IS NULL OR expires_at > ?)`, expires, now.Format(time.RFC3339Nano), name, holder, now.Format(time.RFC3339Nano))
 	if err != nil {
-		if held, heldErr := s.currentLock(ctx, name); heldErr == nil && held != nil {
-			return LockHeldError{Name: held.Name, Holder: held.Holder, AcquiredAt: held.AcquiredAt, ExpiresAt: held.ExpiresAt}
-		}
 		return err
 	}
+	if rows, err := result.RowsAffected(); err == nil && rows == 0 {
+		lock, lockErr := s.CurrentLock(ctx, name)
+		if lockErr != nil {
+			return lockErr
+		}
+		if lock == nil {
+			return LockNotFoundError{Name: name}
+		}
+		return LockHolderMismatchError{Name: lock.Name, Holder: lock.Holder, Expected: holder, Host: lock.Host, PID: lock.PID, RunID: lock.RunID, AcquiredAt: lock.AcquiredAt, ExpiresAt: lock.ExpiresAt, HeartbeatAt: lock.HeartbeatAt}
+	}
 	return nil
+}
+
+func (s *Store) StartLockRenewal(ctx context.Context, name, holder string, ttl, interval time.Duration) func() {
+	if ttl <= 0 {
+		return func() {}
+	}
+	if interval <= 0 || interval >= ttl {
+		interval = ttl / 3
+	}
+	if interval <= 0 {
+		interval = time.Second
+	}
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	renewCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	var once sync.Once
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-renewCtx.Done():
+				return
+			case <-ticker.C:
+				_ = s.RenewLock(context.Background(), name, holder, ttl)
+			}
+		}
+	}()
+	return func() {
+		once.Do(func() {
+			cancel()
+			<-done
+		})
+	}
 }
 
 func (s *Store) CurrentLock(ctx context.Context, name string) (*Lock, error) {
@@ -580,15 +913,23 @@ func (s *Store) CurrentLock(ctx context.Context, name string) (*Lock, error) {
 }
 
 func (s *Store) currentLock(ctx context.Context, name string) (*Lock, error) {
-	row := s.db.QueryRowContext(ctx, `SELECT name, holder, acquired_at, expires_at FROM locks WHERE name = ?`, name)
+	row := s.db.QueryRowContext(ctx, `SELECT name, holder, acquired_at, expires_at, host, pid, run_id, heartbeat_at FROM locks WHERE name = ?`, name)
 	var lock Lock
 	var acquiredAt string
-	var expiresAt sql.NullString
-	if err := row.Scan(&lock.Name, &lock.Holder, &acquiredAt, &expiresAt); err != nil {
+	var expiresAt, host, heartbeatAt sql.NullString
+	var pid, runID sql.NullInt64
+	if err := row.Scan(&lock.Name, &lock.Holder, &acquiredAt, &expiresAt, &host, &pid, &runID, &heartbeatAt); err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil
 		}
 		return nil, err
+	}
+	lock.Host = host.String
+	if pid.Valid {
+		lock.PID = int(pid.Int64)
+	}
+	if runID.Valid {
+		lock.RunID = runID.Int64
 	}
 	if t, err := time.Parse(time.RFC3339Nano, acquiredAt); err == nil {
 		lock.AcquiredAt = t
@@ -596,6 +937,11 @@ func (s *Store) currentLock(ctx context.Context, name string) (*Lock, error) {
 	if expiresAt.Valid {
 		if t, err := time.Parse(time.RFC3339Nano, expiresAt.String); err == nil {
 			lock.ExpiresAt = t
+		}
+	}
+	if heartbeatAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, heartbeatAt.String); err == nil {
+			lock.HeartbeatAt = t
 		}
 	}
 	return &lock, nil
@@ -621,7 +967,7 @@ func (s *Store) ForceUnlock(ctx context.Context, name, holder string) (*Lock, er
 		return nil, LockNotFoundError{Name: name}
 	}
 	if lock.Holder != holder {
-		return nil, LockHolderMismatchError{Name: lock.Name, Holder: lock.Holder, Expected: holder, AcquiredAt: lock.AcquiredAt, ExpiresAt: lock.ExpiresAt}
+		return nil, LockHolderMismatchError{Name: lock.Name, Holder: lock.Holder, Expected: holder, Host: lock.Host, PID: lock.PID, RunID: lock.RunID, AcquiredAt: lock.AcquiredAt, ExpiresAt: lock.ExpiresAt, HeartbeatAt: lock.HeartbeatAt}
 	}
 	result, err := s.db.ExecContext(ctx, `DELETE FROM locks WHERE name = ? AND holder = ?`, name, holder)
 	if err != nil {
@@ -655,6 +1001,13 @@ func nullableRunID(id int64) any {
 	return id
 }
 
+func nullableInt(value int) any {
+	if value == 0 {
+		return nil
+	}
+	return value
+}
+
 type snapshotScanner interface {
 	Scan(dest ...any) error
 }
@@ -663,18 +1016,22 @@ type sqlExecutor interface {
 	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
+const resourceSnapshotSelect = `SELECT address, type, provider, desired_hash, identity_json, attributes_json, identity_secret_ref, attributes_secret_ref, status, source_kind, source_id, operation_id, updated_run_id, updated_at FROM resources`
+
 func scanSnapshot(scanner snapshotScanner) (*ResourceSnapshot, error) {
 	var snap ResourceSnapshot
-	var provider, desiredHash, identityJSON, attributesJSON, sourceKind, sourceID, operationID sql.NullString
+	var provider, desiredHash, identityJSON, attributesJSON, identitySecretRef, attributesSecretRef, sourceKind, sourceID, operationID sql.NullString
 	var updatedRunID sql.NullInt64
 	var updatedAt string
-	if err := scanner.Scan(&snap.Address, &snap.Type, &provider, &desiredHash, &identityJSON, &attributesJSON, &snap.Status, &sourceKind, &sourceID, &operationID, &updatedRunID, &updatedAt); err != nil {
+	if err := scanner.Scan(&snap.Address, &snap.Type, &provider, &desiredHash, &identityJSON, &attributesJSON, &identitySecretRef, &attributesSecretRef, &snap.Status, &sourceKind, &sourceID, &operationID, &updatedRunID, &updatedAt); err != nil {
 		return nil, err
 	}
 	snap.Provider = provider.String
 	snap.DesiredHash = desiredHash.String
 	snap.IdentityJSON = identityJSON.String
 	snap.AttributesJSON = attributesJSON.String
+	snap.IdentitySecretRef = identitySecretRef.String
+	snap.AttributesSecretRef = attributesSecretRef.String
 	snap.SourceKind = sourceKind.String
 	snap.SourceID = sourceID.String
 	snap.OperationID = operationID.String
@@ -685,4 +1042,23 @@ func scanSnapshot(scanner snapshotScanner) (*ResourceSnapshot, error) {
 		snap.UpdatedAt = t
 	}
 	return &snap, nil
+}
+
+func scanRun(scanner snapshotScanner) (*Run, error) {
+	var run Run
+	var finishedAt, summaryJSON sql.NullString
+	var startedAt string
+	if err := scanner.Scan(&run.ID, &run.Command, &startedAt, &finishedAt, &run.Status, &summaryJSON); err != nil {
+		return nil, err
+	}
+	if t, err := time.Parse(time.RFC3339Nano, startedAt); err == nil {
+		run.StartedAt = t
+	}
+	if finishedAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, finishedAt.String); err == nil {
+			run.FinishedAt = t
+		}
+	}
+	run.SummaryJSON = summaryJSON.String
+	return &run, nil
 }

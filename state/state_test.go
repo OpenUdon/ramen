@@ -2,11 +2,15 @@ package state
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
+
+	_ "modernc.org/sqlite"
 )
 
 func TestInitCreatesSchemaAndRecordResource(t *testing.T) {
@@ -192,4 +196,218 @@ func TestOpenReadOnlyMissingStateReturnsNil(t *testing.T) {
 	if store != nil {
 		t.Fatalf("store = %#v, want nil", store)
 	}
+}
+
+func TestMigrateUpgradesV1StateAndPreservesResources(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open raw db: %v", err)
+	}
+	for _, stmt := range []string{
+		`CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`,
+		`INSERT INTO schema_migrations(version, applied_at) VALUES(1, '2026-01-01T00:00:00Z')`,
+		`CREATE TABLE runs (id INTEGER PRIMARY KEY AUTOINCREMENT, command TEXT NOT NULL, started_at TEXT NOT NULL, finished_at TEXT, status TEXT NOT NULL, summary_json TEXT)`,
+		`CREATE TABLE resources (address TEXT PRIMARY KEY, type TEXT NOT NULL, provider TEXT, desired_hash TEXT, identity_json TEXT, attributes_json TEXT, status TEXT NOT NULL, source_kind TEXT, source_id TEXT, operation_id TEXT, updated_run_id INTEGER, updated_at TEXT NOT NULL)`,
+		`CREATE TABLE state_revisions (id INTEGER PRIMARY KEY AUTOINCREMENT, resource_address TEXT NOT NULL, run_id INTEGER, action TEXT NOT NULL, before_json TEXT, after_json TEXT, diff_json TEXT, created_at TEXT NOT NULL)`,
+		`CREATE TABLE locks (name TEXT PRIMARY KEY, holder TEXT NOT NULL, acquired_at TEXT NOT NULL, expires_at TEXT)`,
+		`INSERT INTO resources(address, type, desired_hash, status, updated_at) VALUES('example.one', 'example', 'sha256:v1', 'managed', '2026-01-01T00:00:00Z')`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			t.Fatalf("exec %q: %v", stmt, err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		t.Fatalf("close raw db: %v", err)
+	}
+
+	store, err := Open(ctx, path)
+	if err != nil {
+		t.Fatalf("Open returned error: %v", err)
+	}
+	snap, err := store.CurrentResource(ctx, "example.one")
+	if err != nil {
+		t.Fatalf("CurrentResource returned error: %v", err)
+	}
+	if snap == nil || snap.DesiredHash != "sha256:v1" {
+		t.Fatalf("snapshot after migration = %#v", snap)
+	}
+	if err := store.RecordResource(ctx, ResourceSnapshot{Address: "example.one", Type: "example", DesiredHash: "sha256:v2", IdentitySecretRef: "secret://identity", AttributesSecretRef: "secret://attrs", Status: "managed"}); err != nil {
+		t.Fatalf("RecordResource with secret refs returned error: %v", err)
+	}
+	snap, err = store.CurrentResource(ctx, "example.one")
+	if err != nil {
+		t.Fatalf("CurrentResource after secret refs returned error: %v", err)
+	}
+	if snap.IdentitySecretRef != "secret://identity" || snap.AttributesSecretRef != "secret://attrs" {
+		t.Fatalf("secret refs not preserved: %#v", snap)
+	}
+	if err := store.SchemaReady(ctx); err != nil {
+		t.Fatalf("SchemaReady returned error: %v", err)
+	}
+	_ = store.Close()
+}
+
+func TestOpenRejectsNewerStateSchema(t *testing.T) {
+	ctx := context.Background()
+	path := filepath.Join(t.TempDir(), "state.db")
+	db, err := sql.Open("sqlite", path)
+	if err != nil {
+		t.Fatalf("open raw db: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)`); err != nil {
+		t.Fatalf("create migrations: %v", err)
+	}
+	if _, err := db.ExecContext(ctx, `INSERT INTO schema_migrations(version, applied_at) VALUES(?, '2026-01-01T00:00:00Z')`, SchemaVersion+1); err != nil {
+		t.Fatalf("insert newer migration: %v", err)
+	}
+	_ = db.Close()
+
+	_, err = Open(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "newer than this binary") {
+		t.Fatalf("Open error = %v, want newer schema rejection", err)
+	}
+	_, err = OpenReadOnly(ctx, path)
+	if err == nil || !strings.Contains(err.Error(), "newer than this binary") {
+		t.Fatalf("OpenReadOnly error = %v, want newer schema rejection", err)
+	}
+}
+
+func TestOpenRejectsCorruptStateFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "state.db")
+	if err := os.WriteFile(path, []byte("not sqlite"), 0o644); err != nil {
+		t.Fatalf("write corrupt db: %v", err)
+	}
+	_, err := Open(context.Background(), path)
+	if err == nil || !strings.Contains(err.Error(), "state.integrity_check_failed") {
+		t.Fatalf("Open corrupt error = %v", err)
+	}
+}
+
+func TestLockMetadataRenewalAndRunAttachment(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := store.AcquireLockWithOptions(ctx, LockOptions{Name: "state", Holder: "holder", TTL: 80 * time.Millisecond, Host: "host-a", PID: 123}); err != nil {
+		t.Fatalf("AcquireLockWithOptions: %v", err)
+	}
+	runID, err := store.StartRun(ctx, "apply")
+	if err != nil {
+		t.Fatalf("StartRun: %v", err)
+	}
+	if err := store.AttachLockRun(ctx, "state", "holder", runID); err != nil {
+		t.Fatalf("AttachLockRun: %v", err)
+	}
+	lock, err := store.CurrentLock(ctx, "state")
+	if err != nil {
+		t.Fatalf("CurrentLock: %v", err)
+	}
+	if lock == nil || lock.Host != "host-a" || lock.PID != 123 || lock.RunID != runID || lock.HeartbeatAt.IsZero() {
+		t.Fatalf("lock metadata = %#v", lock)
+	}
+	initialExpiry := lock.ExpiresAt
+	stop := store.StartLockRenewal(ctx, "state", "holder", 80*time.Millisecond, 10*time.Millisecond)
+	time.Sleep(120 * time.Millisecond)
+	stop()
+	lock, err = store.CurrentLock(ctx, "state")
+	if err != nil {
+		t.Fatalf("CurrentLock after renewal: %v", err)
+	}
+	if lock == nil || !lock.ExpiresAt.After(initialExpiry) {
+		t.Fatalf("lock was not renewed: initial=%s current=%#v", initialExpiry, lock)
+	}
+	_ = store.Close()
+}
+
+func TestAttachLockRunReportsHolderMismatch(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := store.AcquireLockWithOptions(ctx, LockOptions{Name: "state", Holder: "holder-a", TTL: time.Hour, Host: "host-a", PID: 123}); err != nil {
+		t.Fatalf("AcquireLockWithOptions: %v", err)
+	}
+	runID, err := store.StartRun(ctx, "apply")
+	if err != nil {
+		t.Fatalf("StartRun: %v", err)
+	}
+	err = store.AttachLockRun(ctx, "state", "holder-b", runID)
+	var mismatch LockHolderMismatchError
+	if !errors.As(err, &mismatch) {
+		t.Fatalf("AttachLockRun error = %T %[1]v, want LockHolderMismatchError", err)
+	}
+	if mismatch.Holder != "holder-a" || mismatch.Expected != "holder-b" || mismatch.Host != "host-a" || mismatch.PID != 123 {
+		t.Fatalf("mismatch metadata = %#v", mismatch)
+	}
+	_ = store.Close()
+}
+
+func TestRenewLockPrunesExpiredLock(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	if err := store.AcquireLock(ctx, "state", "holder", time.Nanosecond); err != nil {
+		t.Fatalf("AcquireLock: %v", err)
+	}
+	time.Sleep(time.Millisecond)
+	err = store.RenewLock(ctx, "state", "holder", time.Minute)
+	var missing LockNotFoundError
+	if !errors.As(err, &missing) {
+		t.Fatalf("RenewLock error = %T %[1]v, want LockNotFoundError", err)
+	}
+	if lock, err := store.CurrentLock(ctx, "state"); err != nil || lock != nil {
+		t.Fatalf("CurrentLock after expired renewal = %#v err=%v", lock, err)
+	}
+	_ = store.Close()
+}
+
+func TestMarkAbandonedRunsSkipsActiveLockedRuns(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	abandonedID, err := store.StartRun(ctx, "apply")
+	if err != nil {
+		t.Fatalf("StartRun abandoned: %v", err)
+	}
+	activeID, err := store.StartRun(ctx, "destroy")
+	if err != nil {
+		t.Fatalf("StartRun active: %v", err)
+	}
+	old := time.Now().UTC().Add(-2 * time.Hour).Format(time.RFC3339Nano)
+	if _, err := store.db.ExecContext(ctx, `UPDATE runs SET started_at = ? WHERE id IN (?, ?)`, old, abandonedID, activeID); err != nil {
+		t.Fatalf("age runs: %v", err)
+	}
+	if err := store.AcquireLockWithOptions(ctx, LockOptions{Name: "state", Holder: "active", TTL: time.Hour, RunID: activeID}); err != nil {
+		t.Fatalf("AcquireLockWithOptions active: %v", err)
+	}
+	abandoned, err := store.MarkAbandonedRuns(ctx, time.Hour)
+	if err != nil {
+		t.Fatalf("MarkAbandonedRuns: %v", err)
+	}
+	if len(abandoned) != 1 || abandoned[0].ID != abandonedID {
+		t.Fatalf("abandoned runs = %#v", abandoned)
+	}
+	running, err := store.ListRuns(ctx, "running")
+	if err != nil {
+		t.Fatalf("ListRuns running: %v", err)
+	}
+	if len(running) != 1 || running[0].ID != activeID {
+		t.Fatalf("running runs = %#v", running)
+	}
+	abandonedRuns, err := store.ListRuns(ctx, "abandoned")
+	if err != nil {
+		t.Fatalf("ListRuns abandoned: %v", err)
+	}
+	if len(abandonedRuns) != 1 || abandonedRuns[0].ID != abandonedID || abandonedRuns[0].FinishedAt.IsZero() {
+		t.Fatalf("abandoned status rows = %#v", abandonedRuns)
+	}
+	_ = store.Close()
 }
