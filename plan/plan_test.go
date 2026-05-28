@@ -8,7 +8,10 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	uwsconvert "github.com/OpenUdon/uws/convert"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 func TestBuildAWSIAMRoleCreateAndNoOpPlans(t *testing.T) {
@@ -103,6 +106,140 @@ resource "aws_iam_role" "role" {
 	}
 	if !strings.Contains(first, `"action": "create"`) {
 		t.Fatalf("create plan JSON missing create action:\n%s", first)
+	}
+}
+
+func TestBuildNativeAWSIAMRoleProjectWithoutHCL(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, ".ramen", "state.db")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: "aws-smithy/iam.json",
+		}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "native-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+				"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+				"update": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "PutRolePolicy"},
+				"delete": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "DeleteRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{
+				Name:          "role_name",
+				Path:          "name",
+				RequestKeys:   []string{"RoleName"},
+				ResponsePaths: []string{"Role.RoleName", "Role.Arn"},
+				Required:      true,
+			}},
+		}},
+	})
+
+	result, err := Build(context.Background(), Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		OutPath:     filepath.Join(root, "native-plan.json"),
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	assertPlanSummaryWithDiagnostics(t, result.Plan.Summary, result.Diagnostics, 1, 0, 0)
+	role := result.Plan.Resources[0]
+	if role.Action != "create" || role.Mapping == nil || role.Mapping.OperationID != "CreateRole" || role.Mapping.SourceKind != "aws-smithy" {
+		t.Fatalf("unexpected native create plan resource: %#v", role)
+	}
+	if role.Mapping.SourcePath != sourcePath {
+		t.Fatalf("native source path was not resolved relative to project: %q", role.Mapping.SourcePath)
+	}
+	if _, err := os.Stat(filepath.Join(root, "tf")); !os.IsNotExist(err) {
+		t.Fatalf("test should not create HCL config dir, stat err=%v", err)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:     role.Address,
+		Type:        role.Type,
+		Provider:    role.Provider,
+		DesiredHash: role.DesiredHash,
+		Status:      "managed",
+		SourceKind:  role.Mapping.SourceKind,
+		SourceID:    role.Mapping.SourceID,
+		OperationID: role.Mapping.OperationID,
+	}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
+	noOp, err := Build(context.Background(), Options{ProjectPath: projectDir, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build no-op returned error: %v", err)
+	}
+	assertPlanSummaryWithDiagnostics(t, noOp.Plan.Summary, noOp.Diagnostics, 0, 0, 1)
+	role = noOp.Plan.Resources[0]
+	if role.Action != "no-op" || role.Mapping == nil || role.Mapping.OperationID != "GetRole" {
+		t.Fatalf("unexpected native no-op plan resource: %#v", role)
+	}
+}
+
+func TestBuildNativeGoogleStorageProjectWithoutHCL(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "google-discovery", "storage.json")
+	writePlanTestFile(t, sourcePath, minimalStorageDiscoveryForPlanTest())
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{{
+			Kind: "google-discovery",
+			ID:   "storage",
+			Path: "google-discovery/storage.json",
+		}},
+		Resources: []project.Resource{{
+			Address:    "google_storage_bucket.bucket",
+			Kind:       "resource",
+			Type:       "google_storage_bucket",
+			Name:       "bucket",
+			Provider:   "provider.google",
+			Attributes: map[string]any{"name": "native-bucket", "location": "US", "project": "review-project"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "google-discovery", SourceID: "storage", SourcePath: "google-discovery/storage.json", OperationID: "storage.buckets.insert"},
+				"read":   {SourceKind: "google-discovery", SourceID: "storage", SourcePath: "google-discovery/storage.json", OperationID: "storage.buckets.get"},
+				"update": {SourceKind: "google-discovery", SourceID: "storage", SourcePath: "google-discovery/storage.json", OperationID: "storage.buckets.patch"},
+				"delete": {SourceKind: "google-discovery", SourceID: "storage", SourcePath: "google-discovery/storage.json", OperationID: "storage.buckets.delete"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{
+				Name:          "bucket_name",
+				Path:          "name",
+				RequestKeys:   []string{"bucket", "name"},
+				ResponsePaths: []string{"name", "id"},
+				Required:      true,
+			}},
+		}},
+	})
+
+	result, err := Build(context.Background(), Options{
+		ProjectPath: projectPath,
+		StatePath:   filepath.Join(projectDir, ".ramen", "state.db"),
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	assertPlanSummaryWithDiagnostics(t, result.Plan.Summary, result.Diagnostics, 1, 0, 0)
+	bucket := result.Plan.Resources[0]
+	if bucket.Action != "create" || bucket.Mapping == nil || bucket.Mapping.OperationID != "storage.buckets.insert" || bucket.Mapping.SourceKind != "google-discovery" {
+		t.Fatalf("unexpected native bucket create plan: %#v", bucket)
 	}
 }
 
@@ -721,6 +858,13 @@ func assertPlanSummary(t *testing.T, got Summary, create, update, noOp int) {
 	}
 }
 
+func assertPlanSummaryWithDiagnostics(t *testing.T, got Summary, diagnostics []Diagnostic, create, update, noOp int) {
+	t.Helper()
+	if got.Create != create || got.Update != update || got.NoOp != noOp || got.Delete != 0 {
+		t.Fatalf("summary = %#v, diagnostics = %#v, want create=%d update=%d no-op=%d", got, diagnostics, create, update, noOp)
+	}
+}
+
 func hasPlanDiagnostic(diags []Diagnostic, code string) bool {
 	for _, diag := range diags {
 		if diag.Code == code {
@@ -747,6 +891,43 @@ func readPlanTestFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func writeNativeProjectForPlanTest(t *testing.T, dir string, profile project.Profile) string {
+	t.Helper()
+	doc := &uws1.Document{
+		UWS: "1.4.0",
+		Info: &uws1.Info{
+			Title:       "native_project_fixture",
+			Description: "Native Ramen project fixture.",
+			Version:     "1.0.0",
+		},
+		Operations: []*uws1.Operation{{
+			OperationID: "review",
+			Description: "Review native desired-state metadata.",
+			Request:     map[string]any{"x-ramen-test": true},
+			Extensions:  map[string]any{uws1.ExtensionOperationProfile: "ramen-project-fixture"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main",
+			Type:       uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{{
+				StepID:       "review",
+				OperationRef: "review",
+			}},
+		}},
+		Extensions: map[string]any{
+			project.ExtensionKey: profile,
+		},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal native project: %v", err)
+	}
+	data = append(data, '\n')
+	path := filepath.Join(dir, project.DefaultJSON)
+	writePlanTestFile(t, path, string(data))
+	return path
 }
 
 func minimalIAMSmithyForPlanTest() string {

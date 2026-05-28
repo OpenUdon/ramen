@@ -14,6 +14,7 @@ import (
 
 	"github.com/OpenUdon/apitools"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
@@ -22,11 +23,12 @@ import (
 const Version = "ramen.plan.v1"
 
 type Options struct {
-	ConfigDir  string
-	StatePath  string
-	APISources []APISourceInput
-	Action     string
-	OutPath    string
+	ConfigDir   string
+	ProjectPath string
+	StatePath   string
+	APISources  []APISourceInput
+	Action      string
+	OutPath     string
 }
 
 type APISourceInput struct {
@@ -45,6 +47,7 @@ type Result struct {
 type Document struct {
 	Version     string         `json:"version"`
 	ConfigDir   string         `json:"config_dir"`
+	ProjectPath string         `json:"project_path,omitempty"`
 	StatePath   string         `json:"state_path"`
 	Action      string         `json:"action"`
 	Errored     bool           `json:"errored,omitempty"`
@@ -151,6 +154,9 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 		ctx = context.Background()
 	}
 	opts = normalizeOptions(opts)
+	if strings.TrimSpace(opts.ProjectPath) != "" {
+		return buildProject(ctx, opts)
+	}
 	doc, loadErr := tfconfig.LoadDir(opts.ConfigDir)
 	var diagnostics []Diagnostic
 	if loadErr != nil {
@@ -211,6 +217,96 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	document := Document{
 		Version:     Version,
 		ConfigDir:   opts.ConfigDir,
+		StatePath:   opts.StatePath,
+		Action:      opts.Action,
+		Errored:     errored,
+		Resources:   resources,
+		Diagnostics: diagnostics,
+	}
+	document.Summary = summarize(document)
+	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
+	if opts.OutPath != "" {
+		if err := writeJSON(opts.OutPath, document); err != nil {
+			return result, err
+		}
+	}
+	return result, nil
+}
+
+func buildProject(ctx context.Context, opts Options) (*Result, error) {
+	proj, err := project.Load(opts.ProjectPath)
+	var diagnostics []Diagnostic
+	if err != nil {
+		diagnostics = append(diagnostics, Diagnostic{Code: "project.load_error", Severity: "error", Message: err.Error()})
+		document := Document{
+			Version:     Version,
+			ConfigDir:   opts.ConfigDir,
+			ProjectPath: opts.ProjectPath,
+			StatePath:   opts.StatePath,
+			Action:      opts.Action,
+			Errored:     true,
+			Diagnostics: diagnostics,
+		}
+		document.Summary = summarize(document)
+		result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
+		if opts.OutPath != "" {
+			if writeErr := writeJSON(opts.OutPath, document); writeErr != nil {
+				return result, writeErr
+			}
+		}
+		return result, nil
+	}
+	apiInputs := projectAPISourceInputs(proj.Profile, opts.APISources)
+	apiSources, apiDiagnostics := loadAPISources(ctx, apiInputs)
+	diagnostics = append(diagnostics, apiDiagnostics...)
+
+	var store *state.Store
+	if strings.TrimSpace(opts.StatePath) != "" {
+		opened, err := state.OpenReadOnly(ctx, opts.StatePath)
+		if err != nil {
+			diagnostics = append(diagnostics, Diagnostic{Code: "state.open_error", Severity: "error", Message: err.Error()})
+		} else {
+			store = opened
+			defer store.Close()
+		}
+	}
+
+	resourcesByAddress := map[string]project.Resource{}
+	var nodes []graph.Node
+	for _, resource := range proj.Profile.Resources {
+		if resource.Kind != "resource" {
+			continue
+		}
+		resourcesByAddress[resource.Address] = resource
+		nodes = append(nodes, graph.Node{Address: resource.Address, DependsOn: slices.Clone(resource.Dependencies)})
+	}
+	sortedNodes, err := graph.Sort(nodes)
+	if err != nil {
+		diagnostics = append(diagnostics, Diagnostic{Code: "graph.cycle", Severity: "error", Message: err.Error()})
+		sortedNodes = nodes
+	}
+
+	var resources []ResourcePlan
+	desiredAddresses := map[string]bool{}
+	for _, node := range sortedNodes {
+		resource := resourcesByAddress[node.Address]
+		desiredAddresses[resource.Address] = true
+		resourcePlan := planProjectResource(ctx, store, proj.Profile, resource, node.DependsOn, opts.Action, apiSources)
+		diagnostics = append(diagnostics, resourcePlan.diagnostics...)
+		resources = append(resources, resourcePlan.resource)
+	}
+	deletePlans, deleteDiagnostics := planDeletes(ctx, store, desiredAddresses, apiSources)
+	diagnostics = append(diagnostics, deleteDiagnostics...)
+	resources = append(resources, deletePlans...)
+	sortDiagnostics(diagnostics)
+	errored := hasErrorDiagnostics(diagnostics)
+	if errored {
+		resources = nil
+	}
+	document := Document{
+		Version:     Version,
+		ConfigDir:   opts.ConfigDir,
+		ProjectPath: proj.Path,
 		StatePath:   opts.StatePath,
 		Action:      opts.Action,
 		Errored:     errored,
@@ -338,6 +434,81 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	}
 }
 
+func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc) plannedResource {
+	lifecycle := analyzeProjectLifecycle(resource)
+	diagnostics := slices.Clone(lifecycle.Diagnostics)
+	desiredMapping, desiredMappingDiagnostics := mapProjectResource(profile, resource, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
+	diagnostics = append(diagnostics, desiredMappingDiagnostics...)
+	hash := desiredProjectHash(resource, lifecycle, desiredMapping, sources)
+	action := "create"
+	reason := "resource is not recorded in state"
+	var current *state.ResourceSnapshot
+	if store != nil {
+		var err error
+		current, err = store.CurrentResource(ctx, resource.Address)
+		if err != nil {
+			return plannedResource{
+				resource:    ResourcePlan{Address: resource.Address, Kind: resource.Kind, Type: resource.Type, Name: resource.Name, Provider: resource.Provider, Action: "error", Reason: err.Error(), DesiredHash: hash, Dependencies: dependencies},
+				diagnostics: []Diagnostic{{Code: "state.read_error", Severity: "error", Message: err.Error(), Address: resource.Address}},
+			}
+		}
+		if requestedAction == "delete" {
+			if current != nil {
+				action = "delete"
+				reason = "destroy requested for recorded resource"
+			} else {
+				action = "no-op"
+				reason = "destroy requested but resource is not recorded in state"
+			}
+		} else if current != nil && current.DesiredHash == hash {
+			action = "no-op"
+			reason = "recorded desired hash matches native project"
+		} else if current != nil {
+			action = "update"
+			reason = "recorded desired hash differs from native project"
+		}
+	} else if requestedAction == "delete" {
+		action = "no-op"
+		reason = "destroy requested but state is unavailable"
+	}
+	if action == "delete" && lifecycle.PreventDestroy {
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:     "plan.prevent_destroy",
+			Severity: "error",
+			Message:  fmt.Sprintf("%s has prevent_destroy set and cannot be deleted", resource.Address),
+			Address:  resource.Address,
+		})
+	}
+	purpose := requestedAction
+	if action == "update" {
+		purpose = "update"
+	}
+	if action == "no-op" {
+		purpose = "read"
+	}
+	mapping := desiredMapping
+	if mapping == nil || purpose != desiredMapping.Purpose || action != requestedAction {
+		actualMapping, actualDiagnostics := mapProjectResource(profile, resource, purpose, action, sources, mappingRequired(requestedAction, action))
+		mapping = actualMapping
+		diagnostics = append(diagnostics, actualDiagnostics...)
+	}
+	return plannedResource{
+		resource: ResourcePlan{
+			Address:      resource.Address,
+			Kind:         resource.Kind,
+			Type:         resource.Type,
+			Name:         resource.Name,
+			Provider:     resource.Provider,
+			Action:       action,
+			Reason:       reason,
+			DesiredHash:  hash,
+			Dependencies: slices.Clone(dependencies),
+			Mapping:      mapping,
+		},
+		diagnostics: diagnostics,
+	}
+}
+
 func desiredPurpose(action string) string {
 	if action == "delete" {
 		return "delete"
@@ -394,6 +565,113 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, re
 		ModuleAddress: obj.ModuleAddress,
 	})
 	return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
+}
+
+func mapProjectResource(profile project.Profile, resource project.Resource, purpose, action string, sources []sourceDoc, required bool) (*MappingPlan, []Diagnostic) {
+	role, ok := projectOperationRole(resource, purpose, action)
+	if !ok {
+		severity := "warning"
+		if required {
+			severity = "error"
+		}
+		return &MappingPlan{Purpose: purpose, IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes)}, []Diagnostic{{
+			Code:     "project.operation_missing",
+			Severity: severity,
+			Message:  fmt.Sprintf("native project resource %s has no %s operation role", resource.Address, purpose),
+			Address:  resource.Address,
+		}}
+	}
+	source := project.SourceForRole(profile, role)
+	sourceKind := firstNonEmpty(role.SourceKind, source.Kind)
+	sourceID := firstNonEmpty(role.SourceID, source.ID)
+	sourcePath := firstNonEmpty(role.SourcePath, source.Path)
+	mapping := &MappingPlan{
+		Purpose:            purpose,
+		SourceKind:         sourceKind,
+		SourceID:           sourceID,
+		SourcePath:         sourcePath,
+		OperationID:        role.OperationID,
+		IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes),
+	}
+	diagnostics := validateProjectOperation(resource, mapping, sources, required)
+	return mapping, diagnostics
+}
+
+func projectOperationRole(resource project.Resource, purpose, action string) (project.OperationRole, bool) {
+	keys := []string{purpose}
+	if action != "" && action != purpose {
+		keys = append(keys, action)
+	}
+	for _, key := range keys {
+		if role, ok := resource.Operations[key]; ok {
+			return role, true
+		}
+	}
+	return project.OperationRole{}, false
+}
+
+func validateProjectOperation(resource project.Resource, mapping *MappingPlan, sources []sourceDoc, required bool) []Diagnostic {
+	if mapping == nil || strings.TrimSpace(mapping.OperationID) == "" {
+		return nil
+	}
+	var matches []sourceDoc
+	for _, source := range sources {
+		if mapping.SourceKind != "" && source.Kind != mapping.SourceKind {
+			continue
+		}
+		if mapping.SourceID != "" && source.ID != mapping.SourceID {
+			continue
+		}
+		if mapping.SourceID == "" && mapping.SourcePath != "" && filepath.Clean(source.Path) != filepath.Clean(mapping.SourcePath) {
+			continue
+		}
+		for _, op := range source.Operations {
+			if op.OperationID == mapping.OperationID {
+				matches = append(matches, source)
+				break
+			}
+		}
+	}
+	switch len(matches) {
+	case 0:
+		severity := "warning"
+		if required {
+			severity = "error"
+		}
+		return []Diagnostic{{
+			Code:          "project.operation_unavailable",
+			Severity:      severity,
+			Message:       fmt.Sprintf("native project operation %s for %s was not found in loaded API sources", mapping.OperationID, resource.Address),
+			Address:       resource.Address,
+			APISourceKind: mapping.SourceKind,
+			APISourceID:   mapping.SourceID,
+		}}
+	case 1:
+		return nil
+	default:
+		return []Diagnostic{{
+			Code:          "project.operation_ambiguous",
+			Severity:      "error",
+			Message:       fmt.Sprintf("native project operation %s for %s matched multiple loaded API sources", mapping.OperationID, resource.Address),
+			Address:       resource.Address,
+			APISourceKind: mapping.SourceKind,
+			APISourceID:   mapping.SourceID,
+		}}
+	}
+}
+
+func projectIdentityAttributes(attrs []project.IdentityAttribute) []tfmapping.IdentityAttribute {
+	out := make([]tfmapping.IdentityAttribute, 0, len(attrs))
+	for _, attr := range attrs {
+		out = append(out, tfmapping.IdentityAttribute{
+			Name:          attr.Name,
+			TerraformPath: attr.Path,
+			RequestKeys:   slices.Clone(attr.RequestKeys),
+			ResponsePaths: slices.Clone(attr.ResponsePaths),
+			Required:      attr.Required,
+		})
+	}
+	return out
 }
 
 func findOperation(sources []sourceDoc, target tfmapping.OperationTarget) (*operationMatch, bool) {
@@ -467,6 +745,38 @@ func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, 
 		Address:         obj.Address,
 		Type:            obj.Type,
 		Provider:        obj.Provider,
+		Attributes:      attrs,
+		Lifecycle:       lifecycle.Hash,
+		Mapping:         mappingHash,
+		APISourceDigest: selectedDigest,
+	})
+}
+
+func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapping *MappingPlan, sources []sourceDoc) string {
+	attrs := project.AttributeStrings(resource.Attributes)
+	if lifecycle.IgnoreAll {
+		attrs = map[string]string{}
+	} else {
+		for _, path := range lifecycle.IgnorePaths {
+			delete(attrs, path)
+		}
+	}
+	var mappingHash *MappingHashInput
+	selectedDigest := ""
+	if mapping != nil {
+		mappingHash = &MappingHashInput{
+			Purpose:            mapping.Purpose,
+			SourceKind:         mapping.SourceKind,
+			SourceID:           mapping.SourceID,
+			OperationID:        mapping.OperationID,
+			IdentityAttributes: mapping.IdentityAttributes,
+		}
+		selectedDigest = selectedSourceDigest(mapping, sources)
+	}
+	return DesiredHash(DesiredHashInput{
+		Address:         resource.Address,
+		Type:            resource.Type,
+		Provider:        resource.Provider,
 		Attributes:      attrs,
 		Lifecycle:       lifecycle.Hash,
 		Mapping:         mappingHash,
@@ -602,6 +912,24 @@ func analyzeLifecycle(obj objectFact) lifecyclePlan {
 	}
 	slices.Sort(plan.IgnorePaths)
 	plan.IgnorePaths = slices.Compact(plan.IgnorePaths)
+	plan.Hash["ignore_all"] = plan.IgnoreAll
+	plan.Hash["ignore_paths"] = slices.Clone(plan.IgnorePaths)
+	return plan
+}
+
+func analyzeProjectLifecycle(resource project.Resource) lifecyclePlan {
+	plan := lifecyclePlan{Hash: map[string]any{}}
+	plan.PreventDestroy = resource.Lifecycle.PreventDestroy
+	plan.IgnoreAll = resource.Lifecycle.IgnoreAll
+	plan.IgnorePaths = slices.Clone(resource.Lifecycle.IgnorePaths)
+	slices.Sort(plan.IgnorePaths)
+	plan.IgnorePaths = slices.Compact(plan.IgnorePaths)
+	if len(resource.Lifecycle.ReplaceTriggeredBy) > 0 {
+		values := slices.Clone(resource.Lifecycle.ReplaceTriggeredBy)
+		slices.Sort(values)
+		plan.Hash["replace_triggered_by"] = values
+	}
+	plan.Hash["prevent_destroy"] = plan.PreventDestroy
 	plan.Hash["ignore_all"] = plan.IgnoreAll
 	plan.Hash["ignore_paths"] = slices.Clone(plan.IgnorePaths)
 	return plan
@@ -743,6 +1071,26 @@ func dependenciesFor(obj objectFact, known []string) []string {
 	return out
 }
 
+func projectAPISourceInputs(profile project.Profile, overrides []APISourceInput) []APISourceInput {
+	inputs := make([]APISourceInput, 0, len(profile.APISources))
+	index := map[string]int{}
+	for _, source := range profile.APISources {
+		key := source.Kind + "\x00" + source.ID
+		index[key] = len(inputs)
+		inputs = append(inputs, APISourceInput{Kind: source.Kind, ID: source.ID, Path: source.Path})
+	}
+	for _, override := range overrides {
+		key := normalizeAPISourceKind(override.Kind) + "\x00" + strings.TrimSpace(override.ID)
+		if pos, ok := index[key]; ok {
+			inputs[pos] = override
+			continue
+		}
+		index[key] = len(inputs)
+		inputs = append(inputs, override)
+	}
+	return inputs
+}
+
 func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
 	var docs []sourceDoc
 	var diagnostics []Diagnostic
@@ -804,8 +1152,9 @@ func normalizeOptions(opts Options) Options {
 		opts.ConfigDir = "."
 	}
 	if strings.TrimSpace(opts.StatePath) == "" {
-		opts.StatePath = state.DefaultPath(opts.ConfigDir)
+		opts.StatePath = state.DefaultPath(stateBaseDir(opts.ProjectPath, opts.ConfigDir))
 	}
+	opts.ProjectPath = strings.TrimSpace(opts.ProjectPath)
 	opts.Action = strings.ToLower(strings.TrimSpace(opts.Action))
 	if opts.Action == "" {
 		opts.Action = "create"
@@ -821,6 +1170,21 @@ func normalizeOptions(opts Options) Options {
 		return cmp.Compare(left, right)
 	})
 	return opts
+}
+
+func stateBaseDir(projectPath, configDir string) string {
+	projectPath = strings.TrimSpace(projectPath)
+	if projectPath == "" {
+		return configDir
+	}
+	info, err := os.Stat(projectPath)
+	if err == nil && info.IsDir() {
+		return projectPath
+	}
+	if projectPath != "" {
+		return filepath.Dir(projectPath)
+	}
+	return configDir
 }
 
 func writeJSON(path string, value any) error {

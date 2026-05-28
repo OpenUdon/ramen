@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/OpenUdon/apitools"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
 	"github.com/OpenUdon/uws/convert"
@@ -50,18 +51,19 @@ type APISourceInput struct {
 }
 
 type Result struct {
-	OutDir          string
-	ProjectPath     string
-	ConversionPath  string
-	MappingsPath    string
-	DiagnosticsJSON string
-	DiagnosticsMD   string
-	ReviewPath      string
-	UWSPath         string
-	PlanJSONPath    string
-	PlanMDPath      string
-	Diagnostics     []Diagnostic
-	StrictFailed    bool
+	OutDir            string
+	ProjectPath       string
+	NativeProjectPath string
+	ConversionPath    string
+	MappingsPath      string
+	DiagnosticsJSON   string
+	DiagnosticsMD     string
+	ReviewPath        string
+	UWSPath           string
+	PlanJSONPath      string
+	PlanMDPath        string
+	Diagnostics       []Diagnostic
+	StrictFailed      bool
 }
 
 type apiSourceStagingOwnership struct {
@@ -137,18 +139,19 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	conversion.sortAll()
 
 	result := &Result{
-		OutDir:          opts.OutDir,
-		ProjectPath:     filepath.Join(opts.OutDir, "project.md"),
-		ConversionPath:  filepath.Join(opts.OutDir, "expected", "conversion.json"),
-		MappingsPath:    filepath.Join(opts.OutDir, "expected", "mappings.json"),
-		DiagnosticsJSON: filepath.Join(opts.OutDir, "expected", "diagnostics.json"),
-		DiagnosticsMD:   filepath.Join(opts.OutDir, "expected", "diagnostics.md"),
-		ReviewPath:      filepath.Join(opts.OutDir, "expected", "review.md"),
-		UWSPath:         filepath.Join(opts.OutDir, "workflows", "workflow.uws.yaml"),
-		PlanJSONPath:    filepath.Join(opts.OutDir, "expected", "plan.json"),
-		PlanMDPath:      filepath.Join(opts.OutDir, "expected", "plan.md"),
-		Diagnostics:     conversion.diagnostics,
-		StrictFailed:    opts.Strict && hasStrictFailure(conversion.diagnostics),
+		OutDir:            opts.OutDir,
+		ProjectPath:       filepath.Join(opts.OutDir, "project.md"),
+		NativeProjectPath: filepath.Join(opts.OutDir, project.DefaultFile),
+		ConversionPath:    filepath.Join(opts.OutDir, "expected", "conversion.json"),
+		MappingsPath:      filepath.Join(opts.OutDir, "expected", "mappings.json"),
+		DiagnosticsJSON:   filepath.Join(opts.OutDir, "expected", "diagnostics.json"),
+		DiagnosticsMD:     filepath.Join(opts.OutDir, "expected", "diagnostics.md"),
+		ReviewPath:        filepath.Join(opts.OutDir, "expected", "review.md"),
+		UWSPath:           filepath.Join(opts.OutDir, "workflows", "workflow.uws.yaml"),
+		PlanJSONPath:      filepath.Join(opts.OutDir, "expected", "plan.json"),
+		PlanMDPath:        filepath.Join(opts.OutDir, "expected", "plan.md"),
+		Diagnostics:       conversion.diagnostics,
+		StrictFailed:      opts.Strict && hasStrictFailure(conversion.diagnostics),
 	}
 
 	if err := writeArtifacts(result, conversion); err != nil {
@@ -213,6 +216,7 @@ type selectedObject struct {
 	Provider      string
 	Binding       string
 	Config        []attributeFact
+	Dependencies  []string
 	Range         *tfconfig.SourceRange
 }
 
@@ -455,6 +459,7 @@ func (c *conversionState) selectObjects() {
 			})
 		}
 	}
+	c.assignSelectedDependencies()
 }
 
 func targetSelected(targets map[string]bool, addr string) bool {
@@ -463,6 +468,60 @@ func targetSelected(targets map[string]bool, addr string) bool {
 		return true
 	}
 	return false
+}
+
+func (c *conversionState) assignSelectedDependencies() {
+	known := make([]string, 0, len(c.selected))
+	for _, obj := range c.selected {
+		known = append(known, obj.Address)
+	}
+	slices.SortFunc(known, func(a, b string) int {
+		if diff := cmp.Compare(len(b), len(a)); diff != 0 {
+			return diff
+		}
+		return cmp.Compare(a, b)
+	})
+	dependencies := map[string][]string{}
+	for _, mod := range c.doc.Modules {
+		for _, res := range mod.Resources {
+			addr := fullAddress(mod.Address, res.Address)
+			dependencies[addr] = selectedDependencies(addr, res.DependsOn, res.References, known)
+		}
+		for _, ds := range mod.DataSources {
+			addr := fullAddress(mod.Address, ds.Address)
+			dependencies[addr] = selectedDependencies(addr, ds.DependsOn, ds.References, known)
+		}
+	}
+	for i := range c.selected {
+		c.selected[i].Dependencies = dependencies[c.selected[i].Address]
+	}
+}
+
+func selectedDependencies(address string, dependsOn, references []tfconfig.Reference, known []string) []string {
+	seen := map[string]bool{}
+	var out []string
+	add := func(ref tfconfig.Reference) {
+		for _, candidate := range known {
+			if candidate == address {
+				continue
+			}
+			if ref.Traversal == candidate || ref.Subject == candidate || strings.HasPrefix(ref.Traversal, candidate+".") {
+				if !seen[candidate] {
+					seen[candidate] = true
+					out = append(out, candidate)
+				}
+				return
+			}
+		}
+	}
+	for _, ref := range dependsOn {
+		add(ref)
+	}
+	for _, ref := range references {
+		add(ref)
+	}
+	slices.Sort(out)
+	return out
 }
 
 func (c *conversionState) validateAction() {
@@ -857,6 +916,9 @@ func writeArtifacts(result *Result, c conversionState) error {
 		return err
 	}
 	if err := writeFile(result.ProjectPath, renderProject(c)); err != nil {
+		return err
+	}
+	if err := writeNativeProject(result.NativeProjectPath, c); err != nil {
 		return err
 	}
 	diagJSON, err := json.MarshalIndent(c.diagnostics, "", "  ")
@@ -1305,6 +1367,23 @@ func writeUWSDocument(path string, c conversionState) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func writeNativeProject(path string, c conversionState) error {
+	doc := renderUWSDocument(c)
+	doc.Info.Title = "ramen_native_project"
+	doc.Info.Description = "Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration."
+	if err := doc.Validate(); err != nil {
+		return err
+	}
+	data, err := convert.MarshalYAML(doc)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(path, data, 0o644)
+}
+
 func renderUWSDocument(c conversionState) *uws1.Document {
 	doc := &uws1.Document{
 		UWS: "1.4.0",
@@ -1320,6 +1399,9 @@ func renderUWSDocument(c conversionState) *uws1.Document {
 			Description: "Review mapped Terraform/OpenTofu objects as API source operations.",
 			Steps:       []*uws1.Step{},
 		}},
+		Extensions: map[string]any{
+			project.ExtensionKey: renderNativeProfile(c),
+		},
 	}
 	sourceNames := map[string]string{}
 	for _, mapping := range c.mappings {
@@ -1355,6 +1437,117 @@ func renderUWSDocument(c conversionState) *uws1.Document {
 		})
 	}
 	return doc
+}
+
+func renderNativeProfile(c conversionState) project.Profile {
+	profile := project.Profile{
+		Version: project.Version,
+		Metadata: map[string]any{
+			"source":     "ramen convert tf",
+			"config_dir": c.opts.ConfigDir,
+			"action":     c.opts.Action,
+		},
+		Redaction: project.Redaction{Paths: sensitiveAttributePaths(c.selected)},
+	}
+	for _, doc := range c.apiSources {
+		profile.APISources = append(profile.APISources, project.APISource{Kind: doc.Kind, ID: doc.ID, Path: doc.PackagePath})
+	}
+	resources := map[string]*project.Resource{}
+	for _, obj := range c.selected {
+		if isProviderLocalDataSource(obj) {
+			continue
+		}
+		res := &project.Resource{
+			Address:      obj.Address,
+			Kind:         obj.Kind,
+			Type:         obj.Type,
+			Name:         obj.Name,
+			Provider:     obj.Provider,
+			Attributes:   attributesMap(obj.Config),
+			Dependencies: slices.Clone(obj.Dependencies),
+			Operations:   map[string]project.OperationRole{},
+			Metadata: map[string]any{
+				"terraform_address": obj.Address,
+			},
+		}
+		resources[obj.Address] = res
+	}
+	for _, mapping := range c.mappings {
+		res := resources[mapping.Object.Address]
+		if res == nil {
+			continue
+		}
+		if len(res.IdentityAttributes) == 0 {
+			res.IdentityAttributes = nativeIdentityAttributes(mapping.IdentityAttributes)
+		}
+		artifact := mappingArtifactFor(mapping)
+		for _, credential := range artifact.Credentials {
+			if !slices.Contains(res.CredentialBindings, credential) {
+				res.CredentialBindings = append(res.CredentialBindings, credential)
+			}
+		}
+		if strings.TrimSpace(mapping.Purpose) != "" && strings.TrimSpace(mapping.OperationID) != "" {
+			res.Operations[mapping.Purpose] = project.OperationRole{
+				Purpose:            mapping.Purpose,
+				SourceKind:         mapping.SourceKind,
+				SourceID:           mapping.SourceID,
+				SourcePath:         mapping.SourcePath,
+				OperationID:        mapping.OperationID,
+				CredentialBindings: artifact.Credentials,
+			}
+		}
+	}
+	for _, res := range resources {
+		slices.Sort(res.CredentialBindings)
+		res.CredentialBindings = slices.Compact(res.CredentialBindings)
+		profile.Resources = append(profile.Resources, *res)
+	}
+	slices.SortFunc(profile.Resources, func(a, b project.Resource) int { return cmp.Compare(a.Address, b.Address) })
+	return profile
+}
+
+func nativeIdentityAttributes(attrs []tfmapping.IdentityAttribute) []project.IdentityAttribute {
+	out := make([]project.IdentityAttribute, 0, len(attrs))
+	for _, attr := range attrs {
+		out = append(out, project.IdentityAttribute{
+			Name:          attr.Name,
+			Path:          attr.TerraformPath,
+			RequestKeys:   slices.Clone(attr.RequestKeys),
+			ResponsePaths: slices.Clone(attr.ResponsePaths),
+			Required:      attr.Required,
+		})
+	}
+	return out
+}
+
+func attributesMap(attrs []attributeFact) map[string]any {
+	out := map[string]any{}
+	for _, attr := range attrs {
+		if strings.TrimSpace(attr.Path) == "" {
+			continue
+		}
+		out[attr.Path] = attr.Value
+	}
+	return out
+}
+
+func sensitiveAttributePaths(objects []selectedObject) []string {
+	seen := map[string]bool{}
+	var paths []string
+	for _, obj := range objects {
+		for _, attr := range obj.Config {
+			if !attr.Sensitive {
+				continue
+			}
+			path := obj.Address + "." + attr.Path
+			if !seen[path] {
+				seen[path] = true
+				paths = append(paths, path)
+			}
+		}
+	}
+	slices.Sort(paths)
+	return paths
 }
 
 func sourceDescriptionForMapping(doc *uws1.Document, sourceNames map[string]string, mapping objectMapping) string {

@@ -14,6 +14,7 @@ import (
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/internal/requestbinding"
 	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
@@ -24,6 +25,7 @@ type APISourceInput = tfplan.APISourceInput
 
 type Options struct {
 	ConfigDir   string
+	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
 	AutoApprove bool
@@ -65,10 +67,11 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	}
 	opts = normalizeOptions(opts)
 	planResult, err := tfplan.Build(ctx, tfplan.Options{
-		ConfigDir:  opts.ConfigDir,
-		StatePath:  opts.StatePath,
-		APISources: opts.APISources,
-		Action:     "create",
+		ConfigDir:   opts.ConfigDir,
+		ProjectPath: opts.ProjectPath,
+		StatePath:   opts.StatePath,
+		APISources:  opts.APISources,
+		Action:      "create",
 	})
 	if err != nil {
 		return nil, err
@@ -112,7 +115,11 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	}()
 
 	sourcePaths := sourcePathIndex(opts.APISources)
-	attrsByAddress := loadResourceAttributes(opts.ConfigDir)
+	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath)
+	workingDir := opts.ConfigDir
+	if opts.ProjectPath != "" {
+		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
+	}
 	failed := map[string]bool{}
 	for _, resource := range mutations {
 		if blockedByFailure(resource, failed) {
@@ -161,7 +168,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			RunID:      runID,
 			Action:     executorAction(resource),
 			Document:   doc,
-			WorkingDir: opts.ConfigDir,
+			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		}
 		before, err := store.CurrentResource(ctx, resource.Address)
@@ -298,7 +305,20 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 	return doc, nil
 }
 
-func loadResourceAttributes(configDir string) map[string]map[string]any {
+func loadResourceAttributes(configDir, projectPath string) map[string]map[string]any {
+	if strings.TrimSpace(projectPath) != "" {
+		proj, err := project.Load(projectPath)
+		if err != nil {
+			return nil
+		}
+		out := map[string]map[string]any{}
+		for _, resource := range proj.Profile.Resources {
+			if len(resource.Attributes) > 0 {
+				out[resource.Address] = resource.Attributes
+			}
+		}
+		return out
+	}
 	doc, err := tfconfig.LoadDir(configDir)
 	if err != nil {
 		return nil
@@ -352,8 +372,9 @@ func normalizeOptions(opts Options) Options {
 		opts.ConfigDir = "."
 	}
 	if strings.TrimSpace(opts.StatePath) == "" {
-		opts.StatePath = state.DefaultPath(opts.ConfigDir)
+		opts.StatePath = state.DefaultPath(stateBaseDir(opts.ProjectPath, opts.ConfigDir))
 	}
+	opts.ProjectPath = strings.TrimSpace(opts.ProjectPath)
 	for i := range opts.APISources {
 		opts.APISources[i].Kind = strings.TrimSpace(opts.APISources[i].Kind)
 		opts.APISources[i].ID = strings.TrimSpace(opts.APISources[i].ID)
@@ -365,6 +386,18 @@ func normalizeOptions(opts Options) Options {
 		return cmp.Compare(left, right)
 	})
 	return opts
+}
+
+func stateBaseDir(projectPath, configDir string) string {
+	projectPath = strings.TrimSpace(projectPath)
+	if projectPath == "" {
+		return configDir
+	}
+	info, err := os.Stat(projectPath)
+	if err == nil && info.IsDir() {
+		return projectPath
+	}
+	return filepath.Dir(projectPath)
 }
 
 func rejectErrorDiagnostics(diags []tfplan.Diagnostic) error {

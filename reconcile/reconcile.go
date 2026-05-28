@@ -23,6 +23,7 @@ type APISourceInput = tfplan.APISourceInput
 
 type Options struct {
 	ConfigDir   string
+	ProjectPath string
 	StatePath   string
 	APISources  []APISourceInput
 	AutoApprove bool
@@ -53,6 +54,7 @@ type ActionResult struct {
 type ImportOptions struct {
 	StatePath   string
 	ConfigDir   string
+	ProjectPath string
 	APISources  []APISourceInput
 	Address     string
 	Type        string
@@ -69,7 +71,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Executor == nil {
 		return nil, fmt.Errorf("refresh requires a trusted executor; pass --mock for recorded/mock execution in public builds")
 	}
-	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, StatePath: opts.StatePath, APISources: opts.APISources, Action: "create"})
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "create"})
 	if err != nil {
 		return nil, err
 	}
@@ -83,6 +85,10 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	defer finish(&result.Summary)
 	defer store.Close()
 	sourcePaths := sourcePathIndex(opts.APISources)
+	workingDir := opts.ConfigDir
+	if opts.ProjectPath != "" {
+		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
+	}
 	for _, resource := range planResult.Plan.Resources {
 		if resource.Action != "no-op" && resource.Action != "update" {
 			continue
@@ -109,7 +115,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 			RunID:      runID,
 			Action:     executorAction(resource, "read"),
 			Document:   doc,
-			WorkingDir: opts.ConfigDir,
+			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		})
 		if err != nil {
@@ -143,7 +149,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	if opts.Executor == nil {
 		return nil, fmt.Errorf("destroy requires a trusted executor; pass --mock for recorded/mock execution in public builds")
 	}
-	depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, StatePath: opts.StatePath, APISources: opts.APISources, Action: "dependency"})
+	depPlan, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "dependency"})
 	if err != nil {
 		return nil, err
 	}
@@ -154,7 +160,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	for _, resource := range depPlan.Plan.Resources {
 		dependencies[resource.Address] = slices.Clone(resource.Dependencies)
 	}
-	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ConfigDir: opts.ConfigDir, ProjectPath: opts.ProjectPath, StatePath: opts.StatePath, APISources: opts.APISources, Action: "delete"})
 	if err != nil {
 		return nil, err
 	}
@@ -174,6 +180,10 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	}
 	resources := destroyOrder(planResult.Plan.Resources)
 	sourcePaths := sourcePathIndex(opts.APISources)
+	workingDir := opts.ConfigDir
+	if opts.ProjectPath != "" {
+		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
+	}
 	for _, resource := range resources {
 		if resource.Action != "delete" {
 			continue
@@ -201,7 +211,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			RunID:      runID,
 			Action:     executorAction(resource, "delete"),
 			Document:   doc,
-			WorkingDir: opts.ConfigDir,
+			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		})
 		if err != nil {
@@ -232,11 +242,12 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		ctx = context.Background()
 	}
 	if strings.TrimSpace(opts.StatePath) == "" {
-		opts.StatePath = state.DefaultPath(firstNonEmpty(opts.ConfigDir, "."))
+		opts.StatePath = state.DefaultPath(stateBaseDir(opts.ProjectPath, firstNonEmpty(opts.ConfigDir, ".")))
 	}
 	if strings.TrimSpace(opts.ConfigDir) == "" {
 		opts.ConfigDir = "."
 	}
+	opts.ProjectPath = strings.TrimSpace(opts.ProjectPath)
 	if strings.TrimSpace(opts.Address) == "" || strings.TrimSpace(opts.Type) == "" {
 		return nil, fmt.Errorf("import requires address and type")
 	}
@@ -311,14 +322,15 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 }
 
 func importDesiredHash(ctx context.Context, opts ImportOptions, fallback string) (string, *tfplan.MappingPlan) {
-	if strings.TrimSpace(opts.ConfigDir) == "" || len(opts.APISources) == 0 {
+	if strings.TrimSpace(opts.ProjectPath) == "" && (strings.TrimSpace(opts.ConfigDir) == "" || len(opts.APISources) == 0) {
 		return fallback, nil
 	}
 	result, err := tfplan.Build(ctx, tfplan.Options{
-		ConfigDir:  opts.ConfigDir,
-		StatePath:  opts.StatePath,
-		APISources: opts.APISources,
-		Action:     "create",
+		ConfigDir:   opts.ConfigDir,
+		ProjectPath: opts.ProjectPath,
+		StatePath:   opts.StatePath,
+		APISources:  opts.APISources,
+		Action:      "create",
 	})
 	if err != nil || result == nil || result.Plan.Errored {
 		return fallback, nil
@@ -336,9 +348,22 @@ func normalizeOptions(opts Options) Options {
 		opts.ConfigDir = "."
 	}
 	if strings.TrimSpace(opts.StatePath) == "" {
-		opts.StatePath = state.DefaultPath(opts.ConfigDir)
+		opts.StatePath = state.DefaultPath(stateBaseDir(opts.ProjectPath, opts.ConfigDir))
 	}
+	opts.ProjectPath = strings.TrimSpace(opts.ProjectPath)
 	return opts
+}
+
+func stateBaseDir(projectPath, configDir string) string {
+	projectPath = strings.TrimSpace(projectPath)
+	if projectPath == "" {
+		return configDir
+	}
+	info, err := os.Stat(projectPath)
+	if err == nil && info.IsDir() {
+		return projectPath
+	}
+	return filepath.Dir(projectPath)
 }
 
 func rejectPlanExecution(planResult *tfplan.Result) error {

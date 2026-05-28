@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 
+	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/project"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -71,6 +73,7 @@ paths:
 	}
 	for _, path := range []string{
 		result.ProjectPath,
+		result.NativeProjectPath,
 		result.UWSPath,
 		result.ConversionPath,
 		result.MappingsPath,
@@ -472,6 +475,26 @@ resource "aws_iam_role" "role" {
 	}
 	if _, err := os.Stat(filepath.Join(result.OutDir, "aws-smithy", "iam.json")); err != nil {
 		t.Fatalf("staged Smithy source missing: %v", err)
+	}
+	if _, err := os.Stat(result.NativeProjectPath); err != nil {
+		t.Fatalf("native project missing: %v", err)
+	}
+	nativeDoc, err := project.Load(result.NativeProjectPath)
+	if err != nil {
+		t.Fatalf("load native project: %v", err)
+	}
+	if len(nativeDoc.Profile.Resources) != 1 || nativeDoc.Profile.Resources[0].Operations["create"].OperationID != "CreateRole" {
+		t.Fatalf("unexpected native project profile: %#v", nativeDoc.Profile)
+	}
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{
+		ProjectPath: result.NativeProjectPath,
+		StatePath:   filepath.Join(root, "state.db"),
+	})
+	if err != nil {
+		t.Fatalf("plan native project: %v", err)
+	}
+	if planResult.Plan.Errored || planResult.Plan.Summary.Create != 1 || planResult.Plan.Resources[0].Mapping.OperationID != "CreateRole" {
+		t.Fatalf("converted native project did not plan as create: %#v", planResult.Plan)
 	}
 	mappings := readMappingsForTest(t, result.MappingsPath)
 	identity := identityForTest(t, mappings, "aws_iam_role.role", "role_name")

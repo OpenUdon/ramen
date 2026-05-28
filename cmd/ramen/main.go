@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/reconcile"
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/tfconfig"
@@ -79,6 +81,7 @@ func main() {
 
 func runRefreshCommand(args []string) {
 	fs := flag.NewFlagSet("refresh", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
@@ -86,7 +89,7 @@ func runRefreshCommand(args []string) {
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --mock [--out DIR]\n")
 		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -97,7 +100,7 @@ func runRefreshCommand(args []string) {
 		os.Exit(2)
 	}
 	exec := reconcileExecutor(*mock)
-	result, err := reconcile.Refresh(commandContext(), reconcile.Options{ConfigDir: *configDir, StatePath: statePathOrDefault(*statePath, *configDir), APISources: sources, OutDir: *outDir, Executor: exec})
+	result, err := reconcile.Refresh(commandContext(), reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, OutDir: *outDir, Executor: exec})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -107,6 +110,7 @@ func runRefreshCommand(args []string) {
 
 func runDestroyCommand(args []string) {
 	fs := flag.NewFlagSet("destroy", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
@@ -115,7 +119,7 @@ func runDestroyCommand(args []string) {
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
 		fmt.Fprintf(fs.Output(), "\nDeletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
 		fs.PrintDefaults()
 	}
@@ -125,7 +129,7 @@ func runDestroyCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	result, err := reconcile.Destroy(commandContext(), reconcile.Options{ConfigDir: *configDir, StatePath: statePathOrDefault(*statePath, *configDir), APISources: sources, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	result, err := reconcile.Destroy(commandContext(), reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -135,6 +139,7 @@ func runDestroyCommand(args []string) {
 
 func runImportCommand(args []string) {
 	fs := flag.NewFlagSet("import", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory used to compute plan-compatible desired hashes")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory used to compute plan-compatible desired hashes")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	typeName := fs.String("type", "", "Terraform/OpenTofu resource type")
@@ -146,7 +151,7 @@ func runImportCommand(args []string) {
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; when ADDRESS exists in config, import records the plan-compatible desired hash")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH]\n")
 		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
 		fs.PrintDefaults()
 	}
@@ -167,7 +172,8 @@ func runImportCommand(args []string) {
 	}
 	result, err := reconcile.Import(commandContext(), reconcile.ImportOptions{
 		ConfigDir:   *configDir,
-		StatePath:   statePathOrDefault(*statePath, *configDir),
+		ProjectPath: *projectPath,
+		StatePath:   statePathOrDefault(*statePath, *projectPath, *configDir),
 		APISources:  sources,
 		Address:     fs.Arg(0),
 		Type:        *typeName,
@@ -200,11 +206,23 @@ func reconcileExecutor(mock bool) executor.Executor {
 	return nil
 }
 
-func statePathOrDefault(path, configDir string) string {
+func statePathOrDefault(path, projectPath, configDir string) string {
 	if strings.TrimSpace(path) != "" {
 		return path
 	}
-	return state.DefaultPath(configDir)
+	return state.DefaultPath(stateBaseDir(projectPath, configDir))
+}
+
+func stateBaseDir(projectPath, configDir string) string {
+	projectPath = strings.TrimSpace(projectPath)
+	if projectPath == "" {
+		return configDir
+	}
+	info, err := os.Stat(projectPath)
+	if err == nil && info.IsDir() {
+		return projectPath
+	}
+	return filepath.Dir(projectPath)
 }
 
 func validateStaticConfig(configDir string) error {
@@ -227,6 +245,11 @@ func validateStaticConfig(configDir string) error {
 	return nil
 }
 
+func validateNativeProject(projectPath string) error {
+	_, err := project.Load(projectPath)
+	return err
+}
+
 func diagnosticText(diag tfconfig.Diagnostic) string {
 	if strings.TrimSpace(diag.Detail) == "" {
 		return diag.Summary
@@ -240,6 +263,7 @@ func planHasChanges(doc tfplan.Document) bool {
 
 func runApplyCommand(args []string) {
 	fs := flag.NewFlagSet("apply", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
@@ -248,7 +272,7 @@ func runApplyCommand(args []string) {
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH --auto-approve --mock [--out DIR]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] --auto-approve --mock [--out DIR]\n")
 		fmt.Fprintf(fs.Output(), "\nBuilds a static desired-state plan, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
@@ -262,7 +286,7 @@ func runApplyCommand(args []string) {
 	}
 	path := *statePath
 	if strings.TrimSpace(path) == "" {
-		path = state.DefaultPath(*configDir)
+		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
 	}
 	var exec executor.Executor
 	if *mock {
@@ -272,6 +296,7 @@ func runApplyCommand(args []string) {
 	defer stop()
 	result, err := tfapply.Apply(ctx, tfapply.Options{
 		ConfigDir:   *configDir,
+		ProjectPath: *projectPath,
 		StatePath:   path,
 		APISources:  sources,
 		AutoApprove: *autoApprove,
@@ -293,11 +318,12 @@ func runApplyCommand(args []string) {
 
 func runInitCommand(args []string) {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen init [--config-dir DIR] [--state PATH]\n")
-		fmt.Fprintf(fs.Output(), "\nValidates Terraform/OpenTofu configuration with tfconfig, then creates or migrates local Ramen SQLite state. It does not execute Terraform, providers, API source operations, module downloads, backend initialization, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen init [--project DIR|FILE | --config-dir DIR] [--state PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nValidates a native UWS/Ramen project when --project is supplied, otherwise validates Terraform/OpenTofu configuration with tfconfig, then creates or migrates local Ramen SQLite state. It does not execute Terraform, providers, API source operations, module downloads, backend initialization, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -305,12 +331,18 @@ func runInitCommand(args []string) {
 	}
 	path := *statePath
 	if strings.TrimSpace(path) == "" {
-		path = state.DefaultPath(*configDir)
+		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if err := validateStaticConfig(*configDir); err != nil {
-		fmt.Fprintln(os.Stderr, err)
+	var validationErr error
+	if strings.TrimSpace(*projectPath) != "" {
+		validationErr = validateNativeProject(*projectPath)
+	} else {
+		validationErr = validateStaticConfig(*configDir)
+	}
+	if validationErr != nil {
+		fmt.Fprintln(os.Stderr, validationErr)
 		os.Exit(1)
 	}
 	if err := state.Init(ctx, path); err != nil {
@@ -322,6 +354,7 @@ func runInitCommand(args []string) {
 
 func runPlanCommand(args []string) {
 	fs := flag.NewFlagSet("plan", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	action := fs.String("action", "create", "Desired managed-resource action for absent resources")
@@ -330,8 +363,8 @@ func runPlanCommand(args []string) {
 	var apiSources repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--config-dir DIR] [--state PATH] --api-source KIND:ID=PATH [--action create] [--out PATH]\n")
-		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic static desired-state plan from Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH] [--action create] [--out PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic desired-state plan from native UWS/Ramen project artifacts or transitional Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -344,16 +377,17 @@ func runPlanCommand(args []string) {
 	}
 	path := *statePath
 	if strings.TrimSpace(path) == "" {
-		path = state.DefaultPath(*configDir)
+		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	result, err := tfplan.Build(ctx, tfplan.Options{
-		ConfigDir:  *configDir,
-		StatePath:  path,
-		APISources: sources,
-		Action:     *action,
-		OutPath:    *outPath,
+		ConfigDir:   *configDir,
+		ProjectPath: *projectPath,
+		StatePath:   path,
+		APISources:  sources,
+		Action:      *action,
+		OutPath:     *outPath,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -437,6 +471,7 @@ func runConvertTFCommand(args []string) {
 	}
 	fmt.Printf("ramen: convert tf wrote %s\n", result.OutDir)
 	fmt.Printf("  project:     %s\n", result.ProjectPath)
+	fmt.Printf("  native:      %s\n", result.NativeProjectPath)
 	fmt.Printf("  uws:         %s\n", result.UWSPath)
 	fmt.Printf("  conversion:  %s\n", result.ConversionPath)
 	fmt.Printf("  mappings:    %s\n", result.MappingsPath)

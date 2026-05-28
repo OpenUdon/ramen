@@ -10,7 +10,10 @@ import (
 
 	"github.com/OpenUdon/ramen/executor"
 	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	uwsconvert "github.com/OpenUdon/uws/convert"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 func TestImportRecordsRedactedIdentity(t *testing.T) {
@@ -84,6 +87,60 @@ resource "aws_iam_role" "role" {
 	}
 	if result.Plan.Errored || result.Plan.Summary.NoOp != 1 || result.Plan.Summary.Update != 0 {
 		t.Fatalf("plan after import = %#v", result.Plan)
+	}
+}
+
+func TestImportThenPlanNoOpForMatchingNativeProject(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: "aws-smithy/iam.json",
+		}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "imported-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+				"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{
+				Name:        "role_name",
+				Path:        "name",
+				RequestKeys: []string{"RoleName"},
+				Required:    true,
+			}},
+		}},
+	})
+	if _, err := Import(context.Background(), ImportOptions{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Address:     "aws_iam_role.role",
+		Type:        "aws_iam_role",
+		Provider:    "provider.aws",
+		Identity:    map[string]any{"role_name": "imported-role"},
+	}); err != nil {
+		t.Fatalf("Import returned error: %v", err)
+	}
+	result, err := tfplan.Build(context.Background(), tfplan.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if result.Plan.Errored || result.Plan.Summary.NoOp != 1 || result.Plan.Summary.Update != 0 {
+		t.Fatalf("plan after native import = %#v", result.Plan)
 	}
 }
 
@@ -346,6 +403,41 @@ func writeReconcileTestFile(t *testing.T, path, content string) {
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeReconcileProjectForTest(t *testing.T, dir string, profile project.Profile) string {
+	t.Helper()
+	doc := &uws1.Document{
+		UWS: "1.4.0",
+		Info: &uws1.Info{
+			Title:   "reconcile_project_fixture",
+			Version: "1.0.0",
+		},
+		Operations: []*uws1.Operation{{
+			OperationID: "review",
+			Request:     map[string]any{"x-test": true},
+			Extensions:  map[string]any{uws1.ExtensionOperationProfile: "ramen-reconcile-test"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main",
+			Type:       uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{{
+				StepID:       "review",
+				OperationRef: "review",
+			}},
+		}},
+		Extensions: map[string]any{
+			project.ExtensionKey: profile,
+		},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, '\n')
+	path := filepath.Join(dir, project.DefaultJSON)
+	writeReconcileTestFile(t, path, string(data))
+	return path
 }
 
 func minimalIAMSmithyForReconcileTest() string {

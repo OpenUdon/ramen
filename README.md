@@ -1,11 +1,16 @@
 # Ramen
 
-Ramen is a planned public OpenTofu-desired-state engine over API source
-documents. It reads Terraform/OpenTofu HCL through `github.com/OpenUdon/tfconfig`,
-maps resource facts to API operations from sources such as AWS Smithy JSON,
-Google Discovery, and OpenAPI, computes desired-state plans, records SQLite
-state history, and hands approved mutations to an explicit trusted executor
-boundary.
+Ramen is a planned public API-source desired-state engine. Its native project
+format is a UWS project plus Ramen reconciliation metadata for resource
+identity, lifecycle, operation roles, hashes, state matching, and redaction
+policy. Terraform/OpenTofu HCL remains an optional authoring and migration
+input through `ramen convert tf`, which uses `github.com/OpenUdon/tfconfig` to
+produce native Ramen/UWS project artifacts.
+
+Ramen maps desired API resources to operations from sources such as AWS Smithy
+JSON, Google Discovery, and OpenAPI, computes desired-state plans, records
+SQLite state history, and hands approved UWS execution documents to an
+explicit trusted executor boundary.
 
 The canonical roadmap and project memory live in the symlinked harness files:
 
@@ -23,8 +28,13 @@ the Ramen repo. Short non-roadmap notes belong in [docs/notes.md](docs/notes.md)
 
 Ramen owns desired-state reconciliation:
 
-- Terraform/OpenTofu HCL loading through public `tfconfig`;
-- resource-to-operation mapping in public `tfmapping`;
+- native UWS/Ramen project loading and validation;
+- Ramen reconciliation metadata over UWS;
+- API source operation inventory consumption through public `apitools`;
+- Terraform/OpenTofu HCL conversion through public `tfconfig` via
+  `ramen convert tf`;
+- resource-to-operation mapping, including public `tfmapping` for conversion
+  compatibility;
 - dependency graph construction;
 - deterministic plan and diff output;
 - SQLite state, locks, and revision history;
@@ -50,9 +60,12 @@ ramen destroy --auto-approve --mock
 ramen import
 ```
 
-The first lifecycle surface is mock-backed in default public builds where
-execution is required. Live executor wiring remains opt-in behind trusted
-adapters.
+The current implementation supports native UWS/Ramen project input through
+`--project`, while preserving the HCL-derived lifecycle path from the first
+milestones as transitional compatibility. `ramen convert tf` writes
+`project.uws.yaml` in that native format. The first lifecycle surface is
+mock-backed in default public builds where execution is required. Live executor
+wiring remains opt-in behind trusted adapters.
 
 ## Status Lanes
 
@@ -72,8 +85,9 @@ Lane meanings:
 - `Pxx`: `ramen plan` command-specific tasks.
 - `Sxx`: sidecar migration or compatibility tracks.
 
-The active/planned plan command track is currently
-[memory-bank/status-P02.md](memory-bank/status-P02.md).
+The native UWS desired-state project model is tracked in the completed
+[memory-bank/status-M08.md](memory-bank/status-M08.md). The active plan-control
+track is [memory-bank/status-P02.md](memory-bank/status-P02.md).
 
 ## Development Checks
 

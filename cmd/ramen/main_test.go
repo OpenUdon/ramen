@@ -138,10 +138,19 @@ paths:
 	if !strings.Contains(string(output), "ramen: convert tf wrote") {
 		t.Fatalf("convert output missing summary:\n%s", output)
 	}
-	for _, rel := range []string{"project.md", "workflows/workflow.uws.yaml", "expected/conversion.json", "expected/mappings.json", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
+	for _, rel := range []string{"project.md", "project.uws.yaml", "workflows/workflow.uws.yaml", "expected/conversion.json", "expected/mappings.json", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
 		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
 			t.Fatalf("missing %s: %v", rel, err)
 		}
+	}
+	planPath := filepath.Join(root, "native-plan.json")
+	cmd = helperCommand("plan", "--project", outDir, "--state", filepath.Join(root, "state.db"), "--out", planPath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("native project plan failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "create=1") {
+		t.Fatalf("native project plan output missing summary:\n%s", output)
 	}
 }
 
