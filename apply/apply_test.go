@@ -49,7 +49,7 @@ resource "aws_iam_role" "role" {
 		t.Fatalf("generated docs = %#v", result.GeneratedDocuments)
 	}
 	docText := readApplyTestFile(t, result.GeneratedDocuments[0])
-	for _, expected := range []string{"ramen_apply_action", "CreateRole", "aws-smithy", "x-ramen-apply", "RoleName", "apply-role"} {
+	for _, expected := range []string{"ramen_apply_action", "CreateRole", "aws-smithy", "x-ramen-apply", "RoleName", "apply-role", "AssumeRolePolicyDocument", "Action", "CreateRole", "Version", "2010-05-08"} {
 		if !strings.Contains(docText, expected) {
 			t.Fatalf("generated UWS missing %q:\n%s", expected, docText)
 		}

@@ -1,15 +1,11 @@
 package apply
 
 import (
-	"regexp"
-	"strings"
-
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/internal/redact"
 )
 
-const redactedValue = "${redacted}"
-
-var secretValuePattern = regexp.MustCompile(`(?i)(AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|-----BEGIN [A-Z ]*PRIVATE KEY-----)`)
+const redactedValue = redact.Value
 
 func redactExecutorResult(result executor.Result) executor.Result {
 	result.Identity = redactMap(result.Identity)
@@ -21,56 +17,17 @@ func redactExecutorResult(result executor.Result) executor.Result {
 }
 
 func redactMap(in map[string]any) map[string]any {
-	if len(in) == 0 {
-		return nil
-	}
-	out := make(map[string]any, len(in))
-	for key, value := range in {
-		if sensitiveKey(key) {
-			out[key] = redactedValue
-			continue
-		}
-		out[key] = redactValue(value)
-	}
-	return out
+	return redact.Map(in)
 }
 
 func redactValue(value any) any {
-	switch v := value.(type) {
-	case map[string]any:
-		return redactMap(v)
-	case []any:
-		out := make([]any, len(v))
-		for i := range v {
-			out[i] = redactValue(v[i])
-		}
-		return out
-	case string:
-		return redactString(v)
-	default:
-		return value
-	}
+	return redact.Any(value)
 }
 
 func sensitiveKey(key string) bool {
-	key = strings.ToLower(strings.TrimSpace(key))
-	for _, marker := range []string{"secret", "token", "password", "passwd", "authorization", "credential", "access_key", "private_key"} {
-		if strings.Contains(key, marker) {
-			return true
-		}
-	}
-	return false
+	return redact.SensitiveKey(key)
 }
 
 func redactString(value string) string {
-	lower := strings.ToLower(value)
-	for _, marker := range []string{"token", "secret", "password", "authorization", "credential"} {
-		if strings.Contains(lower, marker) {
-			return redactedValue
-		}
-	}
-	if secretValuePattern.MatchString(value) {
-		return redactedValue
-	}
-	return value
+	return redact.String(value)
 }

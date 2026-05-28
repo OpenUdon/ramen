@@ -14,6 +14,7 @@ import (
 	tfapply "github.com/OpenUdon/ramen/apply"
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/internal/redact"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
 )
@@ -51,6 +52,8 @@ type ActionResult struct {
 
 type ImportOptions struct {
 	StatePath   string
+	ConfigDir   string
+	APISources  []APISourceInput
 	Address     string
 	Type        string
 	Provider    string
@@ -87,7 +90,12 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 		if resource.Mapping == nil || resource.Mapping.OperationID == "" {
 			continue
 		}
-		doc, err := tfapply.BuildActionDocument(asAction(resource, "read"), sourcePaths)
+		identity, err := stateIdentity(ctx, store, resource.Address)
+		if err != nil {
+			result.Summary.Failed++
+			return result, err
+		}
+		doc, err := tfapply.BuildActionDocumentWithBindings(asAction(resource, "read"), sourcePaths, nil, identity)
 		if err != nil {
 			result.Summary.Failed++
 			return result, err
@@ -174,7 +182,12 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			continue
 		}
 		resource = asAction(resource, "delete")
-		doc, err := tfapply.BuildActionDocument(resource, sourcePaths)
+		identity, err := stateIdentity(ctx, store, resource.Address)
+		if err != nil {
+			result.Summary.Failed++
+			return result, err
+		}
+		doc, err := tfapply.BuildActionDocumentWithBindings(resource, sourcePaths, nil, identity)
 		if err != nil {
 			result.Summary.Failed++
 			return result, err
@@ -204,13 +217,10 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			}
 			return result, fmt.Errorf("%s", msg)
 		}
-		before, _ := store.CurrentResource(ctx, resource.Address)
-		beforeJSON, _ := json.Marshal(before)
-		if err := store.DeleteResource(ctx, resource.Address); err != nil {
+		if err := recordSuccessfulDestroy(ctx, store, runID, resource); err != nil {
 			result.Summary.Failed++
 			return result, err
 		}
-		_ = store.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "delete", BeforeJSON: string(beforeJSON)})
 		result.Summary.Delete++
 		result.Actions = append(result.Actions, ActionResult{Address: resource.Address, Action: "delete", Document: docPath})
 	}
@@ -222,7 +232,10 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		ctx = context.Background()
 	}
 	if strings.TrimSpace(opts.StatePath) == "" {
-		opts.StatePath = state.DefaultPath(".")
+		opts.StatePath = state.DefaultPath(firstNonEmpty(opts.ConfigDir, "."))
+	}
+	if strings.TrimSpace(opts.ConfigDir) == "" {
+		opts.ConfigDir = "."
 	}
 	if strings.TrimSpace(opts.Address) == "" || strings.TrimSpace(opts.Type) == "" {
 		return nil, fmt.Errorf("import requires address and type")
@@ -241,15 +254,30 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
-	identityJSON, err := json.Marshal(redactMap(opts.Identity))
+	runFinished := false
+	defer func() {
+		if !runFinished {
+			_ = store.FinishRun(context.Background(), runID, "failed", "")
+		}
+	}()
+	identityJSON, err := json.Marshal(redact.Map(opts.Identity))
 	if err != nil {
 		return nil, err
 	}
-	attrsJSON, err := json.Marshal(redactMap(opts.Attributes))
+	attrsJSON, err := json.Marshal(redact.Map(opts.Attributes))
 	if err != nil {
 		return nil, err
 	}
-	hash := "import:" + opts.Address + ":" + string(identityJSON)
+	hash, mapping := importDesiredHash(ctx, opts, "import:"+opts.Address+":"+string(identityJSON))
+	if opts.SourceKind == "" && mapping != nil {
+		opts.SourceKind = mapping.SourceKind
+	}
+	if opts.SourceID == "" && mapping != nil {
+		opts.SourceID = mapping.SourceID
+	}
+	if opts.OperationID == "" && mapping != nil {
+		opts.OperationID = mapping.OperationID
+	}
 	snap := state.ResourceSnapshot{
 		Address:        opts.Address,
 		Type:           opts.Type,
@@ -264,15 +292,43 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		UpdatedRunID:   runID,
 		UpdatedAt:      time.Now().UTC(),
 	}
-	if err := store.RecordResource(ctx, snap); err != nil {
+	afterJSON, _ := json.Marshal(snap)
+	if err := store.WithTx(ctx, func(tx *state.Tx) error {
+		if err := tx.RecordResource(ctx, snap); err != nil {
+			return err
+		}
+		return tx.RecordRevision(ctx, state.Revision{ResourceAddress: opts.Address, RunID: runID, Action: "import", AfterJSON: string(afterJSON)})
+	}); err != nil {
 		return nil, err
 	}
-	afterJSON, _ := json.Marshal(snap)
-	_ = store.RecordRevision(ctx, state.Revision{ResourceAddress: opts.Address, RunID: runID, Action: "import", AfterJSON: string(afterJSON)})
 	summary := Summary{Imported: 1}
 	data, _ := json.Marshal(summary)
-	_ = store.FinishRun(ctx, runID, "completed", string(data))
+	if err := store.FinishRun(ctx, runID, "completed", string(data)); err != nil {
+		return nil, err
+	}
+	runFinished = true
 	return &Result{StatePath: opts.StatePath, RunID: runID, Summary: summary, Actions: []ActionResult{{Address: opts.Address, Action: "import"}}}, nil
+}
+
+func importDesiredHash(ctx context.Context, opts ImportOptions, fallback string) (string, *tfplan.MappingPlan) {
+	if strings.TrimSpace(opts.ConfigDir) == "" || len(opts.APISources) == 0 {
+		return fallback, nil
+	}
+	result, err := tfplan.Build(ctx, tfplan.Options{
+		ConfigDir:  opts.ConfigDir,
+		StatePath:  opts.StatePath,
+		APISources: opts.APISources,
+		Action:     "create",
+	})
+	if err != nil || result == nil || result.Plan.Errored {
+		return fallback, nil
+	}
+	for _, resource := range result.Plan.Resources {
+		if resource.Address == opts.Address && resource.DesiredHash != "" {
+			return resource.DesiredHash, resource.Mapping
+		}
+	}
+	return fallback, nil
 }
 
 func normalizeOptions(opts Options) Options {
@@ -383,20 +439,39 @@ func recordRefresh(ctx context.Context, store *state.Store, runID int64, resourc
 		return nil
 	}
 	if len(execResult.Identity) > 0 {
-		data, _ := json.Marshal(redactMap(execResult.Identity))
+		data, _ := json.Marshal(redact.Map(execResult.Identity))
 		current.IdentityJSON = string(data)
 	}
 	if len(execResult.Computed) > 0 {
-		data, _ := json.Marshal(redactMap(execResult.Computed))
+		data, _ := json.Marshal(redact.Map(execResult.Computed))
 		current.AttributesJSON = string(data)
 	}
 	current.UpdatedRunID = runID
 	current.UpdatedAt = time.Now().UTC()
-	if err := store.RecordResource(ctx, *current); err != nil {
+	afterJSON, _ := json.Marshal(current)
+	return store.WithTx(ctx, func(tx *state.Tx) error {
+		if err := tx.RecordResource(ctx, *current); err != nil {
+			return err
+		}
+		return tx.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "refresh", AfterJSON: string(afterJSON)})
+	})
+}
+
+func recordSuccessfulDestroy(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan) error {
+	before, err := store.CurrentResource(ctx, resource.Address)
+	if err != nil {
 		return err
 	}
-	afterJSON, _ := json.Marshal(current)
-	return store.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "refresh", AfterJSON: string(afterJSON)})
+	beforeJSON, err := json.Marshal(before)
+	if err != nil {
+		return err
+	}
+	return store.WithTx(ctx, func(tx *state.Tx) error {
+		if err := tx.DeleteResource(ctx, resource.Address); err != nil {
+			return err
+		}
+		return tx.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "delete", BeforeJSON: string(beforeJSON)})
+	})
 }
 
 func recordFailedAction(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, action, message string) error {
@@ -413,7 +488,7 @@ func recordFailedAction(ctx context.Context, store *state.Store, runID int64, re
 	}
 	diffJSON, err := json.Marshal(map[string]any{
 		"status":       "failed",
-		"error":        redactString(message),
+		"error":        redact.String(message),
 		"desired_hash": resource.DesiredHash,
 	})
 	if err != nil {
@@ -426,6 +501,18 @@ func recordFailedAction(ctx context.Context, store *state.Store, runID int64, re
 		BeforeJSON:      string(beforeJSON),
 		DiffJSON:        string(diffJSON),
 	})
+}
+
+func stateIdentity(ctx context.Context, store *state.Store, address string) (map[string]any, error) {
+	current, err := store.CurrentResource(ctx, address)
+	if err != nil || current == nil || strings.TrimSpace(current.IdentityJSON) == "" {
+		return nil, err
+	}
+	var identity map[string]any
+	if err := json.Unmarshal([]byte(current.IdentityJSON), &identity); err != nil {
+		return nil, fmt.Errorf("read state identity for %s: %w", address, err)
+	}
+	return identity, nil
 }
 
 func maybeWriteDocument(outDir, address, action string, doc any) (string, error) {
@@ -468,4 +555,13 @@ func normalizeName(value string) string {
 		}
 	}
 	return strings.Trim(b.String(), "_")
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }

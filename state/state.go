@@ -19,6 +19,10 @@ type Store struct {
 	db *sql.DB
 }
 
+type Tx struct {
+	tx *sql.Tx
+}
+
 type ResourceSnapshot struct {
 	Address        string
 	Type           string
@@ -61,6 +65,21 @@ type Lock struct {
 	ExpiresAt  time.Time
 }
 
+type LockHeldError struct {
+	Name       string
+	Holder     string
+	AcquiredAt time.Time
+	ExpiresAt  time.Time
+}
+
+func (e LockHeldError) Error() string {
+	msg := fmt.Sprintf("state lock %q is held by %q since %s", e.Name, e.Holder, e.AcquiredAt.Format(time.RFC3339Nano))
+	if !e.ExpiresAt.IsZero() {
+		msg += fmt.Sprintf(" until %s", e.ExpiresAt.Format(time.RFC3339Nano))
+	}
+	return msg
+}
+
 func DefaultPath(configDir string) string {
 	if strings.TrimSpace(configDir) == "" {
 		configDir = "."
@@ -79,7 +98,12 @@ func Open(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	configureDB(db)
 	store := &Store{db: db}
+	if err := configureWriteConnection(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	if err := store.Migrate(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -102,7 +126,12 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 	if err != nil {
 		return nil, err
 	}
+	configureDB(db)
 	store := &Store{db: db}
+	if err := configureReadConnection(ctx, db); err != nil {
+		_ = db.Close()
+		return nil, err
+	}
 	if err := store.SchemaReady(ctx); err != nil {
 		_ = db.Close()
 		return nil, err
@@ -123,6 +152,37 @@ func (s *Store) Close() error {
 		return nil
 	}
 	return s.db.Close()
+}
+
+func configureDB(db *sql.DB) {
+	db.SetMaxOpenConns(1)
+	db.SetMaxIdleConns(1)
+	db.SetConnMaxLifetime(0)
+}
+
+func configureWriteConnection(ctx context.Context, db *sql.DB) error {
+	for _, stmt := range []string{
+		`PRAGMA busy_timeout = 5000`,
+		`PRAGMA foreign_keys = ON`,
+		`PRAGMA journal_mode = WAL`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func configureReadConnection(ctx context.Context, db *sql.DB) error {
+	for _, stmt := range []string{
+		`PRAGMA busy_timeout = 5000`,
+		`PRAGMA foreign_keys = ON`,
+	} {
+		if _, err := db.ExecContext(ctx, stmt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *Store) Migrate(ctx context.Context) error {
@@ -183,6 +243,25 @@ func (s *Store) Migrate(ctx context.Context) error {
 	return nil
 }
 
+func (s *Store) WithTx(ctx context.Context, fn func(*Tx) error) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	if fn == nil {
+		return fmt.Errorf("state transaction function is required")
+	}
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	wrapped := &Tx{tx: tx}
+	if err := fn(wrapped); err != nil {
+		_ = tx.Rollback()
+		return err
+	}
+	return tx.Commit()
+}
+
 func (s *Store) SchemaReady(ctx context.Context) error {
 	if s == nil || s.db == nil {
 		return fmt.Errorf("state store is nil")
@@ -203,6 +282,21 @@ func (s *Store) CurrentResource(ctx context.Context, address string) (*ResourceS
 		return nil, fmt.Errorf("state store is nil")
 	}
 	row := s.db.QueryRowContext(ctx, `SELECT address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at FROM resources WHERE address = ?`, address)
+	snap, err := scanSnapshot(row)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return snap, nil
+}
+
+func (tx *Tx) CurrentResource(ctx context.Context, address string) (*ResourceSnapshot, error) {
+	if tx == nil || tx.tx == nil {
+		return nil, fmt.Errorf("state transaction is nil")
+	}
+	row := tx.tx.QueryRowContext(ctx, `SELECT address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at FROM resources WHERE address = ?`, address)
 	snap, err := scanSnapshot(row)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -246,7 +340,27 @@ func (s *Store) RecordResource(ctx context.Context, snap ResourceSnapshot) error
 	if snap.UpdatedAt.IsZero() {
 		snap.UpdatedAt = time.Now().UTC()
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO resources(address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at)
+	return execRecordResource(ctx, s.db, snap)
+}
+
+func (tx *Tx) RecordResource(ctx context.Context, snap ResourceSnapshot) error {
+	if tx == nil || tx.tx == nil {
+		return fmt.Errorf("state transaction is nil")
+	}
+	return execRecordResource(ctx, tx.tx, snap)
+}
+
+func execRecordResource(ctx context.Context, exec sqlExecutor, snap ResourceSnapshot) error {
+	if strings.TrimSpace(snap.Address) == "" {
+		return fmt.Errorf("resource address is required")
+	}
+	if strings.TrimSpace(snap.Status) == "" {
+		snap.Status = "managed"
+	}
+	if snap.UpdatedAt.IsZero() {
+		snap.UpdatedAt = time.Now().UTC()
+	}
+	_, err := exec.ExecContext(ctx, `INSERT INTO resources(address, type, provider, desired_hash, identity_json, attributes_json, status, source_kind, source_id, operation_id, updated_run_id, updated_at)
 VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 ON CONFLICT(address) DO UPDATE SET
 	type = excluded.type,
@@ -308,7 +422,27 @@ func (s *Store) RecordRevision(ctx context.Context, rev Revision) error {
 	if rev.CreatedAt.IsZero() {
 		rev.CreatedAt = time.Now().UTC()
 	}
-	_, err := s.db.ExecContext(ctx, `INSERT INTO state_revisions(resource_address, run_id, action, before_json, after_json, diff_json, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
+	return execRecordRevision(ctx, s.db, rev)
+}
+
+func (tx *Tx) RecordRevision(ctx context.Context, rev Revision) error {
+	if tx == nil || tx.tx == nil {
+		return fmt.Errorf("state transaction is nil")
+	}
+	return execRecordRevision(ctx, tx.tx, rev)
+}
+
+func execRecordRevision(ctx context.Context, exec sqlExecutor, rev Revision) error {
+	if strings.TrimSpace(rev.ResourceAddress) == "" {
+		return fmt.Errorf("resource address is required")
+	}
+	if strings.TrimSpace(rev.Action) == "" {
+		return fmt.Errorf("revision action is required")
+	}
+	if rev.CreatedAt.IsZero() {
+		rev.CreatedAt = time.Now().UTC()
+	}
+	_, err := exec.ExecContext(ctx, `INSERT INTO state_revisions(resource_address, run_id, action, before_json, after_json, diff_json, created_at) VALUES(?, ?, ?, ?, ?, ?, ?)`,
 		rev.ResourceAddress, nullableRunID(rev.RunID), rev.Action, nullableString(rev.BeforeJSON), nullableString(rev.AfterJSON), nullableString(rev.DiffJSON), rev.CreatedAt.Format(time.RFC3339Nano))
 	return err
 }
@@ -359,7 +493,21 @@ func (s *Store) DeleteResource(ctx context.Context, address string) error {
 	if strings.TrimSpace(address) == "" {
 		return fmt.Errorf("resource address is required")
 	}
-	_, err := s.db.ExecContext(ctx, `DELETE FROM resources WHERE address = ?`, address)
+	return execDeleteResource(ctx, s.db, address)
+}
+
+func (tx *Tx) DeleteResource(ctx context.Context, address string) error {
+	if tx == nil || tx.tx == nil {
+		return fmt.Errorf("state transaction is nil")
+	}
+	return execDeleteResource(ctx, tx.tx, address)
+}
+
+func execDeleteResource(ctx context.Context, exec sqlExecutor, address string) error {
+	if strings.TrimSpace(address) == "" {
+		return fmt.Errorf("resource address is required")
+	}
+	_, err := exec.ExecContext(ctx, `DELETE FROM resources WHERE address = ?`, address)
 	return err
 }
 
@@ -383,9 +531,34 @@ func (s *Store) AcquireLock(ctx context.Context, name, holder string, ttl time.D
 	}
 	_, err := s.db.ExecContext(ctx, `INSERT INTO locks(name, holder, acquired_at, expires_at) VALUES(?, ?, ?, ?)`, name, holder, now.Format(time.RFC3339Nano), expires)
 	if err != nil {
-		return fmt.Errorf("state lock %q is held", name)
+		if held, heldErr := s.currentLock(ctx, name); heldErr == nil && held != nil {
+			return LockHeldError{Name: held.Name, Holder: held.Holder, AcquiredAt: held.AcquiredAt, ExpiresAt: held.ExpiresAt}
+		}
+		return err
 	}
 	return nil
+}
+
+func (s *Store) currentLock(ctx context.Context, name string) (*Lock, error) {
+	row := s.db.QueryRowContext(ctx, `SELECT name, holder, acquired_at, expires_at FROM locks WHERE name = ?`, name)
+	var lock Lock
+	var acquiredAt string
+	var expiresAt sql.NullString
+	if err := row.Scan(&lock.Name, &lock.Holder, &acquiredAt, &expiresAt); err != nil {
+		if err == sql.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if t, err := time.Parse(time.RFC3339Nano, acquiredAt); err == nil {
+		lock.AcquiredAt = t
+	}
+	if expiresAt.Valid {
+		if t, err := time.Parse(time.RFC3339Nano, expiresAt.String); err == nil {
+			lock.ExpiresAt = t
+		}
+	}
+	return &lock, nil
 }
 
 func (s *Store) ReleaseLock(ctx context.Context, name, holder string) error {
@@ -412,6 +585,10 @@ func nullableRunID(id int64) any {
 
 type snapshotScanner interface {
 	Scan(dest ...any) error
+}
+
+type sqlExecutor interface {
+	ExecContext(context.Context, string, ...any) (sql.Result, error)
 }
 
 func scanSnapshot(scanner snapshotScanner) (*ResourceSnapshot, error) {

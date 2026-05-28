@@ -497,6 +497,53 @@ resource "aws_iam_role" "other" {
 	}
 }
 
+func TestBuildDiagnosesUnsupportedLifecycleFacts(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+
+  lifecycle {
+    create_before_destroy = true
+
+    precondition {
+      condition     = true
+      error_message = "precondition"
+    }
+
+    postcondition {
+      condition     = true
+      error_message = "postcondition"
+    }
+  }
+}
+`)
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	for _, code := range []string{"plan.create_before_destroy_unsupported", "plan.precondition_unsupported", "plan.postcondition_unsupported"} {
+		if !hasPlanDiagnostic(result.Diagnostics, code) {
+			t.Fatalf("missing %s in %#v", code, result.Diagnostics)
+		}
+	}
+	if !result.Plan.Errored || len(result.Plan.Resources) != 0 {
+		t.Fatalf("unsupported lifecycle facts did not block the plan: %#v", result.Plan)
+	}
+}
+
 func TestBuildDiagnosesUnsupportedComplexIgnoreChanges(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
@@ -601,6 +648,69 @@ resource "aws_iam_role" "role" {
 	}
 	if first.Plan.Resources[0].DesiredHash == second.Plan.Resources[0].DesiredHash {
 		t.Fatalf("desired hash did not change with API source digest: %s", first.Plan.Resources[0].DesiredHash)
+	}
+}
+
+func TestBuildDesiredHashIgnoresUnselectedAPISources(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	iamSource := filepath.Join(root, "iam.json")
+	storageSource := filepath.Join(root, "storage.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+	writePlanTestFile(t, iamSource, minimalIAMSmithyForPlanTest())
+	writePlanTestFile(t, storageSource, minimalStorageDiscoveryForPlanTest())
+	first, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: iamSource,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build first returned error: %v", err)
+	}
+	second, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{
+			{Kind: "aws-smithy", ID: "iam", Path: iamSource},
+			{Kind: "google-discovery", ID: "storage", Path: storageSource},
+		},
+	})
+	if err != nil {
+		t.Fatalf("Build second returned error: %v", err)
+	}
+	if first.Plan.Resources[0].DesiredHash != second.Plan.Resources[0].DesiredHash {
+		t.Fatalf("desired hash changed for unrelated source: first=%s second=%s", first.Plan.Resources[0].DesiredHash, second.Plan.Resources[0].DesiredHash)
+	}
+}
+
+func TestDesiredHashIgnoresDiagnosticText(t *testing.T) {
+	input := DesiredHashInput{
+		Address:    "aws_iam_role.role",
+		Type:       "aws_iam_role",
+		Provider:   "provider.aws",
+		Attributes: map[string]string{"name": `"role"`},
+		Lifecycle:  map[string]any{},
+		Mapping: &MappingHashInput{
+			Purpose:     "create",
+			SourceKind:  "aws-smithy",
+			SourceID:    "iam",
+			OperationID: "CreateRole",
+		},
+		APISourceDigest: "sha256:source",
+	}
+	first := DesiredHash(input)
+	second := DesiredHash(input)
+	if first != second {
+		t.Fatalf("desired hash was unstable: first=%s second=%s", first, second)
 	}
 }
 

@@ -20,7 +20,11 @@ func TestImportRecordsRedactedIdentity(t *testing.T) {
 		Address:   "aws_iam_role.imported",
 		Type:      "aws_iam_role",
 		Provider:  "provider.aws",
-		Identity:  map[string]any{"role_name": "imported", "secret_token": "do-not-store"},
+		Identity: map[string]any{
+			"role_name":    "imported",
+			"secret_token": "do-not-store",
+			"history":      []any{map[string]any{"access_key": "AKIA1234567890ABCDEF"}},
+		},
 	})
 	if err != nil {
 		t.Fatalf("Import returned error: %v", err)
@@ -33,7 +37,7 @@ func TestImportRecordsRedactedIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatalf("current resource: %v", err)
 	}
-	if snap == nil || snap.Status != "imported" || strings.Contains(snap.IdentityJSON, "do-not-store") || !strings.Contains(snap.IdentityJSON, "${redacted}") {
+	if snap == nil || snap.Status != "imported" || strings.Contains(snap.IdentityJSON, "do-not-store") || strings.Contains(snap.IdentityJSON, "AKIA1234567890ABCDEF") || !strings.Contains(snap.IdentityJSON, "${redacted}") {
 		t.Fatalf("snapshot = %#v", snap)
 	}
 	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.imported")
@@ -44,6 +48,43 @@ func TestImportRecordsRedactedIdentity(t *testing.T) {
 		t.Fatalf("revisions = %#v", revs)
 	}
 	_ = store.Close()
+}
+
+func TestImportThenPlanNoOpForMatchingConfig(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeReconcileTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "imported-role"
+  assume_role_policy = "{}"
+}
+`)
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	sources := []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}}
+	if _, err := Import(context.Background(), ImportOptions{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: sources,
+		Address:    "aws_iam_role.role",
+		Type:       "aws_iam_role",
+		Provider:   "provider.aws",
+		Identity:   map[string]any{"role_name": "imported-role"},
+	}); err != nil {
+		t.Fatalf("Import returned error: %v", err)
+	}
+	result, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if result.Plan.Errored || result.Plan.Summary.NoOp != 1 || result.Plan.Summary.Update != 0 {
+		t.Fatalf("plan after import = %#v", result.Plan)
+	}
 }
 
 func TestDestroyDeletesTrackedResourceWithMockExecutor(t *testing.T) {
@@ -82,7 +123,56 @@ func TestDestroyDeletesTrackedResourceWithMockExecutor(t *testing.T) {
 		data, _ := json.Marshal(snap)
 		t.Fatalf("resource still present: %s", data)
 	}
+	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("list revisions after destroy: %v", err)
+	}
+	if len(revs) != 1 || revs[0].Action != "delete" || revs[0].BeforeJSON == "" {
+		t.Fatalf("destroy revisions = %#v", revs)
+	}
 	_ = store.Close()
+}
+
+func TestDestroyActionDocumentIncludesStateIdentity(t *testing.T) {
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForReconcileTest())
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:      "aws_iam_role.role",
+		Type:         "aws_iam_role",
+		Provider:     "provider.aws",
+		DesiredHash:  "sha256:old",
+		IdentityJSON: `{"role_name":"destroy-role"}`,
+		Status:       "managed",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		data, _ := json.Marshal(req.Document)
+		text := string(data)
+		if !strings.Contains(text, "RoleName") || !strings.Contains(text, "destroy-role") {
+			t.Fatalf("destroy UWS missing state identity binding: %s", text)
+		}
+		return executor.Result{Success: true}, nil
+	}}
+	if _, err := Destroy(context.Background(), Options{
+		ConfigDir:   root,
+		StatePath:   statePath,
+		APISources:  []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		AutoApprove: true,
+		Executor:    mock,
+	}); err != nil {
+		t.Fatalf("Destroy returned error: %v", err)
+	}
+	if mock.RequestCount() != 1 {
+		t.Fatalf("requests = %d, want 1", mock.RequestCount())
+	}
 }
 
 func TestDestroyUnsuccessfulExecutorResultPreservesStateAndRecordsFailure(t *testing.T) {
@@ -130,6 +220,63 @@ func TestDestroyUnsuccessfulExecutorResultPreservesStateAndRecordsFailure(t *tes
 		t.Fatalf("revisions = %#v", revs)
 	}
 	_ = store.Close()
+}
+
+func TestRefreshActionDocumentIncludesStateIdentity(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeReconcileTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "refresh-role"
+  assume_role_policy = "{}"
+}
+`)
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	role := planResult.Plan.Resources[0]
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:      role.Address,
+		Type:         role.Type,
+		Provider:     role.Provider,
+		DesiredHash:  role.DesiredHash,
+		IdentityJSON: `{"role_name":"refresh-role"}`,
+		Status:       "managed",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		data, _ := json.Marshal(req.Document)
+		text := string(data)
+		if !strings.Contains(text, "RoleName") || !strings.Contains(text, "refresh-role") {
+			t.Fatalf("refresh UWS missing state identity binding: %s", text)
+		}
+		return executor.Result{Success: true, Identity: map[string]any{"role_name": "refresh-role"}}, nil
+	}}
+	if _, err := Refresh(context.Background(), Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Executor:   mock,
+	}); err != nil {
+		t.Fatalf("Refresh returned error: %v", err)
+	}
+	if mock.RequestCount() != 1 {
+		t.Fatalf("requests = %d, want 1", mock.RequestCount())
+	}
 }
 
 func TestRefreshUnsuccessfulExecutorResultRecordsFailure(t *testing.T) {

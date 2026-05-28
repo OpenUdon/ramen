@@ -84,6 +84,24 @@ type MappingPlan struct {
 	IdentityAttributes []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
 }
 
+type DesiredHashInput struct {
+	Address         string
+	Type            string
+	Provider        string
+	Attributes      map[string]string
+	Lifecycle       map[string]any
+	Mapping         *MappingHashInput
+	APISourceDigest string
+}
+
+type MappingHashInput struct {
+	Purpose            string
+	SourceKind         string
+	SourceID           string
+	OperationID        string
+	IdentityAttributes []tfmapping.IdentityAttribute
+}
+
 type Diagnostic struct {
 	Code          string `json:"code"`
 	Severity      string `json:"severity"`
@@ -433,61 +451,59 @@ func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, 
 			attrs[attr.Path] = valueText(attr.Value)
 		}
 	}
-	sourceDigests := make([]map[string]string, 0, len(sources))
-	for _, source := range sources {
-		sourceDigests = append(sourceDigests, map[string]string{
-			"kind":   source.Kind,
-			"id":     source.ID,
-			"digest": source.Digest,
-		})
-	}
-	mappingHash := map[string]any{}
+	var mappingHash *MappingHashInput
+	selectedDigest := ""
 	if mapping != nil {
-		mappingHash = map[string]any{
-			"purpose":             mapping.Purpose,
-			"source_kind":         mapping.SourceKind,
-			"source_id":           mapping.SourceID,
-			"operation_id":        mapping.OperationID,
-			"identity_attributes": mapping.IdentityAttributes,
+		mappingHash = &MappingHashInput{
+			Purpose:            mapping.Purpose,
+			SourceKind:         mapping.SourceKind,
+			SourceID:           mapping.SourceID,
+			OperationID:        mapping.OperationID,
+			IdentityAttributes: mapping.IdentityAttributes,
 		}
+		selectedDigest = selectedSourceDigest(mapping, sources)
 	}
+	return DesiredHash(DesiredHashInput{
+		Address:         obj.Address,
+		Type:            obj.Type,
+		Provider:        obj.Provider,
+		Attributes:      attrs,
+		Lifecycle:       lifecycle.Hash,
+		Mapping:         mappingHash,
+		APISourceDigest: selectedDigest,
+	})
+}
+
+func DesiredHash(input DesiredHashInput) string {
 	payload := map[string]any{
-		"address":         obj.Address,
-		"type":            obj.Type,
-		"provider":        obj.Provider,
-		"attrs":           attrs,
-		"lifecycle":       lifecycle.Hash,
-		"mapping":         mappingHash,
-		"mapping_targets": mappingTargets(obj),
-		"api_sources":     sourceDigests,
+		"address":           input.Address,
+		"type":              input.Type,
+		"provider":          input.Provider,
+		"attrs":             input.Attributes,
+		"lifecycle":         input.Lifecycle,
+		"mapping":           input.Mapping,
+		"api_source_digest": input.APISourceDigest,
 	}
 	data, _ := json.Marshal(payload)
 	sum := sha256.Sum256(data)
 	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
-func mappingTargets(obj objectFact) map[string]any {
-	registry := tfmapping.DefaultRegistry()
-	tfobj := tfmapping.Object{Kind: obj.Kind, Type: obj.Type, Provider: obj.Provider}
-	out := map[string]any{}
-	for _, item := range []struct {
-		name    string
-		purpose string
-		action  string
-	}{
-		{name: "read", purpose: "read", action: "read"},
-		{name: "create", purpose: "create", action: "create"},
-		{name: "update", purpose: "update", action: "update"},
-		{name: "delete", purpose: "delete", action: "delete"},
-	} {
-		mapping := registry.MapObject(tfobj, item.purpose, item.action)
-		out[item.name] = map[string]any{
-			"target":              mapping.Target,
-			"identity_attributes": mapping.IdentityAttributes,
-			"diagnostics":         mapping.Diagnostics,
+func selectedSourceDigest(mapping *MappingPlan, sources []sourceDoc) string {
+	if mapping == nil {
+		return ""
+	}
+	for _, source := range sources {
+		if source.Kind == mapping.SourceKind && source.ID == mapping.SourceID {
+			return source.Digest
 		}
 	}
-	return out
+	for _, source := range sources {
+		if source.Kind == mapping.SourceKind && source.Path == mapping.SourcePath {
+			return source.Digest
+		}
+	}
+	return ""
 }
 
 func analyzeLifecycle(obj objectFact) lifecyclePlan {
@@ -495,6 +511,37 @@ func analyzeLifecycle(obj objectFact) lifecyclePlan {
 		return lifecyclePlan{Hash: map[string]any{}}
 	}
 	plan := lifecyclePlan{Hash: map[string]any{}}
+	for _, diag := range obj.Lifecycle.Diagnostics {
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+			Code:          firstNonEmpty(diag.Code, "plan.lifecycle_diagnostic"),
+			Severity:      normalizeSeverity(string(diag.Severity)),
+			Message:       diagnosticMessage(diag),
+			Address:       firstNonEmpty(diag.Address, obj.Address),
+			ModuleAddress: firstNonEmpty(diag.ModuleAddress, obj.ModuleAddress),
+		})
+	}
+	if obj.Lifecycle.CreateBeforeDestroy != nil {
+		value, ok := boolValue(*obj.Lifecycle.CreateBeforeDestroy)
+		if !ok {
+			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+				Code:          "plan.lifecycle_unsupported",
+				Severity:      "error",
+				Message:       "create_before_destroy must be a static boolean value",
+				Address:       obj.Address,
+				ModuleAddress: obj.ModuleAddress,
+			})
+		}
+		plan.Hash["create_before_destroy"] = value
+		if ok && value {
+			plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+				Code:          "plan.create_before_destroy_unsupported",
+				Severity:      "error",
+				Message:       "create_before_destroy is not supported by static Ramen planning yet",
+				Address:       obj.Address,
+				ModuleAddress: obj.ModuleAddress,
+			})
+		}
+	}
 	if obj.Lifecycle.PreventDestroy != nil {
 		value, ok := boolValue(*obj.Lifecycle.PreventDestroy)
 		if !ok {
@@ -531,6 +578,24 @@ func analyzeLifecycle(obj objectFact) lifecyclePlan {
 			Code:          "plan.replace_triggered_by_unsupported",
 			Severity:      "error",
 			Message:       "replace_triggered_by is not supported by static Ramen planning yet",
+			Address:       obj.Address,
+			ModuleAddress: obj.ModuleAddress,
+		})
+	}
+	if len(obj.Lifecycle.Preconditions) > 0 {
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+			Code:          "plan.precondition_unsupported",
+			Severity:      "error",
+			Message:       "lifecycle precondition blocks are not supported by static Ramen planning yet",
+			Address:       obj.Address,
+			ModuleAddress: obj.ModuleAddress,
+		})
+	}
+	if len(obj.Lifecycle.Postconditions) > 0 {
+		plan.Diagnostics = append(plan.Diagnostics, Diagnostic{
+			Code:          "plan.postcondition_unsupported",
+			Severity:      "error",
+			Message:       "lifecycle postcondition blocks are not supported by static Ramen planning yet",
 			Address:       obj.Address,
 			ModuleAddress: obj.ModuleAddress,
 		})

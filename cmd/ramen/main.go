@@ -135,15 +135,18 @@ func runDestroyCommand(args []string) {
 
 func runImportCommand(args []string) {
 	fs := flag.NewFlagSet("import", flag.ExitOnError)
-	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory used to compute plan-compatible desired hashes")
+	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	typeName := fs.String("type", "", "Terraform/OpenTofu resource type")
 	provider := fs.String("provider", "", "Provider address")
 	identity := fs.String("identity", "{}", "Identity JSON object")
 	sourceKind := fs.String("source-kind", "", "Optional API source kind")
 	sourceID := fs.String("source-id", "", "Optional API source ID")
 	operationID := fs.String("operation-id", "", "Optional read/import operation ID")
+	var apiSources repeatedStringFlag
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; when ADDRESS exists in config, import records the plan-compatible desired hash")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--state PATH]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen import ADDRESS --type TYPE --identity JSON [--config-dir DIR] [--state PATH] [--api-source KIND:ID=PATH]\n")
 		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
 		fs.PrintDefaults()
 	}
@@ -157,7 +160,23 @@ func runImportCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	result, err := reconcile.Import(commandContext(), reconcile.ImportOptions{StatePath: *statePath, Address: fs.Arg(0), Type: *typeName, Provider: *provider, Identity: identityMap, SourceKind: *sourceKind, SourceID: *sourceID, OperationID: *operationID})
+	sources, err := parseReconcileAPISourceFlags(apiSources)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	result, err := reconcile.Import(commandContext(), reconcile.ImportOptions{
+		ConfigDir:   *configDir,
+		StatePath:   statePathOrDefault(*statePath, *configDir),
+		APISources:  sources,
+		Address:     fs.Arg(0),
+		Type:        *typeName,
+		Provider:    *provider,
+		Identity:    identityMap,
+		SourceKind:  *sourceKind,
+		SourceID:    *sourceID,
+		OperationID: *operationID,
+	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

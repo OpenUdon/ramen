@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/internal/requestbinding"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
+	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -135,7 +137,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			}
 			continue
 		}
-		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address])
+		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address], nil)
 		if err != nil {
 			runStatus = "failed"
 			result.Summary.Failed++
@@ -216,10 +218,14 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 }
 
 func BuildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]string) (*uws1.Document, error) {
-	return buildActionDocument(resource, sourcePaths, nil)
+	return buildActionDocument(resource, sourcePaths, nil, nil)
 }
 
-func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]string, attrs map[string]any) (*uws1.Document, error) {
+func BuildActionDocumentWithBindings(resource tfplan.ResourcePlan, sourcePaths map[string]string, attrs, identity map[string]any) (*uws1.Document, error) {
+	return buildActionDocument(resource, sourcePaths, attrs, identity)
+}
+
+func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]string, attrs, identity map[string]any) (*uws1.Document, error) {
 	if resource.Mapping == nil {
 		return nil, fmt.Errorf("resource %s has no API source mapping", resource.Address)
 	}
@@ -232,30 +238,24 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 		operationID = "apply_action"
 	}
 	sourcePath := firstNonEmpty(resource.Mapping.SourcePath, sourcePaths[sourcePathKey(resource.Mapping.SourceKind, resource.Mapping.SourceID)], resource.Mapping.SourceID)
-	request := map[string]any{
-		"x-ramen-apply": map[string]any{
+	request := requestbinding.Build(requestbinding.Options{
+		Object:      tfmapping.Object{Kind: resource.Kind, Type: resource.Type, Provider: resource.Provider},
+		SourceKind:  resource.Mapping.SourceKind,
+		SourceID:    resource.Mapping.SourceID,
+		SourcePath:  sourcePath,
+		OperationID: resource.Mapping.OperationID,
+		Attributes:  attrs,
+		Identity:    identity,
+		Identities:  resource.Mapping.IdentityAttributes,
+		Extension:   "x-ramen-apply",
+		Metadata: map[string]any{
 			"address":      resource.Address,
 			"type":         resource.Type,
 			"provider":     resource.Provider,
 			"action":       resource.Action,
 			"desired_hash": resource.DesiredHash,
 		},
-	}
-	body := map[string]any{}
-	for _, identity := range resource.Mapping.IdentityAttributes {
-		value, ok := attrs[identity.TerraformPath]
-		if !ok {
-			continue
-		}
-		for _, requestKey := range identity.RequestKeys {
-			if strings.TrimSpace(requestKey) != "" {
-				body[requestKey] = value
-			}
-		}
-	}
-	if len(body) > 0 {
-		request["body"] = body
-	}
+	})
 	doc := &uws1.Document{
 		UWS: "1.4.0",
 		Info: &uws1.Info{
@@ -451,9 +451,6 @@ func recordSuccessfulMutation(ctx context.Context, store *state.Store, runID int
 		snap.SourceID = resource.Mapping.SourceID
 		snap.OperationID = resource.Mapping.OperationID
 	}
-	if err := store.RecordResource(ctx, snap); err != nil {
-		return err
-	}
 	afterJSON, err := json.Marshal(snap)
 	if err != nil {
 		return err
@@ -472,13 +469,18 @@ func recordSuccessfulMutation(ctx context.Context, store *state.Store, runID int
 	if err != nil {
 		return err
 	}
-	return store.RecordRevision(ctx, state.Revision{
-		ResourceAddress: resource.Address,
-		RunID:           runID,
-		Action:          resource.Action,
-		BeforeJSON:      string(beforeJSON),
-		AfterJSON:       string(afterJSON),
-		DiffJSON:        string(diffJSON),
+	return store.WithTx(ctx, func(tx *state.Tx) error {
+		if err := tx.RecordResource(ctx, snap); err != nil {
+			return err
+		}
+		return tx.RecordRevision(ctx, state.Revision{
+			ResourceAddress: resource.Address,
+			RunID:           runID,
+			Action:          resource.Action,
+			BeforeJSON:      string(beforeJSON),
+			AfterJSON:       string(afterJSON),
+			DiffJSON:        string(diffJSON),
+		})
 	})
 }
 

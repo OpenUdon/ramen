@@ -37,6 +37,7 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		expected []string
 	}{
 		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--config-dir", "--api-source", "--auto-approve", "--mock", "trusted executor"}},
+		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--api-source", "--identity", "plan-compatible desired hash"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--api-source", "--state", "--out", "does not execute Terraform"}},
 	} {

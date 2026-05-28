@@ -2,7 +2,9 @@ package state
 
 import (
 	"context"
+	"errors"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -77,6 +79,14 @@ func TestStoreRevisionsAndLocks(t *testing.T) {
 	}
 	if err := second.AcquireLock(ctx, "state", "holder-2", time.Minute); err == nil {
 		t.Fatalf("second lock unexpectedly acquired")
+	} else {
+		var held LockHeldError
+		if !errors.As(err, &held) {
+			t.Fatalf("lock error = %T %[1]v, want LockHeldError", err)
+		}
+		if held.Holder != "holder-1" || held.AcquiredAt.IsZero() || !strings.Contains(err.Error(), "holder-1") {
+			t.Fatalf("lock detail = %#v error=%v", held, err)
+		}
 	}
 	if err := store.ReleaseLock(ctx, "state", "holder-1"); err != nil {
 		t.Fatalf("release lock: %v", err)
@@ -85,6 +95,46 @@ func TestStoreRevisionsAndLocks(t *testing.T) {
 		t.Fatalf("second acquire after release: %v", err)
 	}
 	_ = second.Close()
+	_ = store.Close()
+}
+
+func TestWithTxRollsBackResourceAndRevision(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	err = store.WithTx(ctx, func(tx *Tx) error {
+		if err := tx.RecordResource(ctx, ResourceSnapshot{
+			Address:     "aws_iam_role.role",
+			Type:        "aws_iam_role",
+			DesiredHash: "sha256:test",
+			Status:      "managed",
+		}); err != nil {
+			return err
+		}
+		if err := tx.RecordRevision(ctx, Revision{ResourceAddress: "aws_iam_role.role", Action: "create"}); err != nil {
+			return err
+		}
+		return errors.New("force rollback")
+	})
+	if err == nil {
+		t.Fatal("WithTx succeeded unexpectedly")
+	}
+	snap, err := store.CurrentResource(ctx, "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	if snap != nil {
+		t.Fatalf("resource committed despite rollback: %#v", snap)
+	}
+	revs, err := store.ListRevisions(ctx, "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("list revisions: %v", err)
+	}
+	if len(revs) != 0 {
+		t.Fatalf("revisions committed despite rollback: %#v", revs)
+	}
 	_ = store.Close()
 }
 
