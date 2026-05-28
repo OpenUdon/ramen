@@ -18,12 +18,35 @@ import (
 )
 
 func TestCLIConvertTFHelpIncludesContract(t *testing.T) {
-	cmd := helperCommand("convert", "tf", "--help")
+	cmd := helperCommand("convert", "--help")
 	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("convert help failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, expected := range []string{"Usage: ramen convert", "Subcommands:", "convert Terraform/OpenTofu"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("convert help missing %q:\n%s", expected, text)
+		}
+	}
+
+	for _, helpArg := range []string{"-h", "help"} {
+		cmd = helperCommand("convert", helpArg)
+		output, err = cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("convert %s failed: %v\n%s", helpArg, err, output)
+		}
+		if !strings.Contains(string(output), "Usage: ramen convert") {
+			t.Fatalf("convert %s output missing usage:\n%s", helpArg, output)
+		}
+	}
+
+	cmd = helperCommand("convert", "tf", "--help")
+	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("convert tf help failed: %v\n%s", err, output)
 	}
-	text := string(output)
+	text = string(output)
 	for _, expected := range []string{
 		"Usage: ramen convert tf",
 		"--config-dir",
@@ -36,6 +59,31 @@ func TestCLIConvertTFHelpIncludesContract(t *testing.T) {
 	} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("convert tf help missing %q:\n%s", expected, text)
+		}
+	}
+}
+
+func TestPositionalFirstLast(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{name: "empty", args: nil, want: nil},
+		{name: "flags only", args: []string{"--state", "state.db"}, want: []string{"--state", "state.db"}},
+		{name: "single positional", args: []string{"addr"}, want: []string{"addr"}},
+		{name: "positional before flags", args: []string{"addr", "--json"}, want: []string{"--json", "addr"}},
+		{name: "flag before positional unchanged", args: []string{"--json", "addr"}, want: []string{"--json", "addr"}},
+	}
+	for _, tt := range tests {
+		got := positionalFirstLast(tt.args)
+		if len(got) != len(tt.want) {
+			t.Fatalf("%s length = %d, want %d (%#v)", tt.name, len(got), len(tt.want), got)
+		}
+		for i := range tt.want {
+			if got[i] != tt.want[i] {
+				t.Fatalf("%s[%d] = %q, want %q (%#v)", tt.name, i, got[i], tt.want[i], got)
+			}
 		}
 	}
 }

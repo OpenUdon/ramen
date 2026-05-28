@@ -64,31 +64,33 @@ func main() {
 	if flag.NArg() > 0 {
 		command = flag.Arg(0)
 	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
 	switch command {
 	case "apply":
-		runApplyCommand(flag.Args()[1:])
+		runApplyCommand(ctx, flag.Args()[1:])
 	case "convert":
-		runConvertCommand(flag.Args()[1:])
+		runConvertCommand(ctx, flag.Args()[1:])
 	case "destroy":
-		runDestroyCommand(flag.Args()[1:])
+		runDestroyCommand(ctx, flag.Args()[1:])
 	case "force-unlock":
-		runForceUnlockCommand(flag.Args()[1:])
+		runForceUnlockCommand(ctx, flag.Args()[1:])
 	case "graph":
-		runGraphCommand(flag.Args()[1:])
+		runGraphCommand(ctx, flag.Args()[1:])
 	case "import":
-		runImportCommand(flag.Args()[1:])
+		runImportCommand(ctx, flag.Args()[1:])
 	case "init":
-		runInitCommand(flag.Args()[1:])
+		runInitCommand(ctx, flag.Args()[1:])
 	case "plan":
-		runPlanCommand(flag.Args()[1:])
+		runPlanCommand(ctx, flag.Args()[1:])
 	case "refresh":
-		runRefreshCommand(flag.Args()[1:])
+		runRefreshCommand(ctx, flag.Args()[1:])
 	case "show":
 		runShowCommand(flag.Args()[1:])
 	case "state":
-		runStateCommand(flag.Args()[1:])
+		runStateCommand(ctx, flag.Args()[1:])
 	case "validate":
-		runValidateCommand(flag.Args()[1:])
+		runValidateCommand(ctx, flag.Args()[1:])
 	case "version":
 		runVersionCommand(flag.Args()[1:])
 	case "-h", "--help", "help":
@@ -100,7 +102,7 @@ func main() {
 	}
 }
 
-func runForceUnlockCommand(args []string) {
+func runForceUnlockCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("force-unlock", flag.ExitOnError)
 	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
 	lockName := fs.String("name", "state", "Lock name to release")
@@ -109,11 +111,7 @@ func runForceUnlockCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "\nReleases a local SQLite state lock only when LOCK_HOLDER exactly matches the stored holder. It does not modify resources, revisions, runs, project files, API source documents, or remote systems.\n\n")
 		fs.PrintDefaults()
 	}
-	parseArgs := args
-	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
-		parseArgs = append(slices.Clone(args[1:]), args[0])
-	}
-	if err := fs.Parse(parseArgs); err != nil {
+	if err := fs.Parse(positionalFirstLast(args)); err != nil {
 		os.Exit(2)
 	}
 	if fs.NArg() != 1 || strings.TrimSpace(fs.Arg(0)) == "" {
@@ -129,13 +127,13 @@ func runForceUnlockCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
-	store, err := state.Open(commandContext(), path)
+	store, err := state.Open(ctx, path)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 	defer func() { _ = store.Close() }()
-	lock, err := store.ForceUnlock(commandContext(), *lockName, fs.Arg(0))
+	lock, err := store.ForceUnlock(ctx, *lockName, fs.Arg(0))
 	if err != nil {
 		var missing state.LockNotFoundError
 		var mismatch state.LockHolderMismatchError
@@ -160,11 +158,7 @@ func runShowCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "\nInspects a Ramen plan/approval artifact without reading state, executing workflows, or mutating files.\n\n")
 		fs.PrintDefaults()
 	}
-	parseArgs := args
-	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
-		parseArgs = append(slices.Clone(args[1:]), args[0])
-	}
-	if err := fs.Parse(parseArgs); err != nil {
+	if err := fs.Parse(positionalFirstLast(args)); err != nil {
 		os.Exit(2)
 	}
 	if fs.NArg() != 1 {
@@ -205,18 +199,25 @@ func loadPlanForShow(path string) (tfplan.Document, error) {
 	return doc, nil
 }
 
-func runStateCommand(args []string) {
+func positionalFirstLast(args []string) []string {
+	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
+		return append(slices.Clone(args[1:]), args[0])
+	}
+	return args
+}
+
+func runStateCommand(ctx context.Context, args []string) {
 	if len(args) == 0 {
 		stateUsage(os.Stderr)
 		os.Exit(2)
 	}
 	switch args[0] {
 	case "list":
-		runStateListCommand(args[1:])
+		runStateListCommand(ctx, args[1:])
 	case "show":
-		runStateShowCommand(args[1:])
+		runStateShowCommand(ctx, args[1:])
 	case "history":
-		runStateHistoryCommand(args[1:])
+		runStateHistoryCommand(ctx, args[1:])
 	case "-h", "--help", "help":
 		stateUsage(os.Stdout)
 	default:
@@ -235,7 +236,7 @@ func stateUsage(out *os.File) {
 	fmt.Fprintf(out, "  history [ADDRESS] show revision history\n")
 }
 
-func runStateListCommand(args []string) {
+func runStateListCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("state list", flag.ExitOnError)
 	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
@@ -250,7 +251,7 @@ func runStateListCommand(args []string) {
 		fs.Usage()
 		os.Exit(2)
 	}
-	store, err := openStateReadOnly(*statePath)
+	store, err := openStateReadOnly(ctx, *statePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -264,7 +265,7 @@ func runStateListCommand(args []string) {
 		return
 	}
 	defer func() { _ = store.Close() }()
-	resources, err := store.ListCurrentResources(commandContext())
+	resources, err := store.ListCurrentResources(ctx)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -279,7 +280,7 @@ func runStateListCommand(args []string) {
 	}
 }
 
-func runStateShowCommand(args []string) {
+func runStateShowCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("state show", flag.ExitOnError)
 	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
@@ -287,18 +288,14 @@ func runStateShowCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "Usage: ramen state show ADDRESS [--state PATH] [--json]\n")
 		fs.PrintDefaults()
 	}
-	parseArgs := args
-	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
-		parseArgs = append(slices.Clone(args[1:]), args[0])
-	}
-	if err := fs.Parse(parseArgs); err != nil {
+	if err := fs.Parse(positionalFirstLast(args)); err != nil {
 		os.Exit(2)
 	}
 	if fs.NArg() != 1 || strings.TrimSpace(fs.Arg(0)) == "" {
 		fs.Usage()
 		os.Exit(2)
 	}
-	store, err := openStateReadOnly(*statePath)
+	store, err := openStateReadOnly(ctx, *statePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -308,7 +305,7 @@ func runStateShowCommand(args []string) {
 		os.Exit(1)
 	}
 	defer func() { _ = store.Close() }()
-	resource, err := store.CurrentResource(commandContext(), fs.Arg(0))
+	resource, err := store.CurrentResource(ctx, fs.Arg(0))
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -325,7 +322,7 @@ func runStateShowCommand(args []string) {
 	fmt.Printf("  provider=%s source=%s:%s operation=%s run=%d updated=%s\n", resource.Provider, resource.SourceKind, resource.SourceID, resource.OperationID, resource.UpdatedRunID, resource.UpdatedAt.Format(time.RFC3339Nano))
 }
 
-func runStateHistoryCommand(args []string) {
+func runStateHistoryCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("state history", flag.ExitOnError)
 	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
@@ -333,11 +330,7 @@ func runStateHistoryCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "Usage: ramen state history [ADDRESS] [--state PATH] [--json]\n")
 		fs.PrintDefaults()
 	}
-	parseArgs := args
-	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
-		parseArgs = append(slices.Clone(args[1:]), args[0])
-	}
-	if err := fs.Parse(parseArgs); err != nil {
+	if err := fs.Parse(positionalFirstLast(args)); err != nil {
 		os.Exit(2)
 	}
 	if fs.NArg() > 1 {
@@ -348,7 +341,7 @@ func runStateHistoryCommand(args []string) {
 	if fs.NArg() == 1 {
 		address = fs.Arg(0)
 	}
-	store, err := openStateReadOnly(*statePath)
+	store, err := openStateReadOnly(ctx, *statePath)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -362,7 +355,7 @@ func runStateHistoryCommand(args []string) {
 		return
 	}
 	defer func() { _ = store.Close() }()
-	revisions, err := store.ListRevisions(commandContext(), address)
+	revisions, err := store.ListRevisions(ctx, address)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -377,8 +370,8 @@ func runStateHistoryCommand(args []string) {
 	}
 }
 
-func openStateReadOnly(path string) (*state.Store, error) {
-	store, err := state.OpenReadOnly(commandContext(), strings.TrimSpace(path))
+func openStateReadOnly(ctx context.Context, path string) (*state.Store, error) {
+	store, err := state.OpenReadOnly(ctx, strings.TrimSpace(path))
 	if err != nil {
 		return nil, fmt.Errorf("state.open_read_error: %w", err)
 	}
@@ -394,7 +387,7 @@ func writeJSONOutput(value any) {
 	_, _ = os.Stdout.Write(append(data, '\n'))
 }
 
-func runGraphCommand(args []string) {
+func runGraphCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("graph", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	format := fs.String("format", "dot", "Output format: dot or json")
@@ -416,7 +409,7 @@ func runGraphCommand(args []string) {
 		fmt.Fprintf(os.Stderr, "--format must be dot or json, got %q\n", *format)
 		os.Exit(2)
 	}
-	validation, err := ramenvalidate.Run(commandContext(), ramenvalidate.Options{ProjectPath: *projectPath})
+	validation, err := ramenvalidate.Run(ctx, ramenvalidate.Options{ProjectPath: *projectPath})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -491,7 +484,7 @@ func hasGraphErrors(diagnostics []graph.Diagnostic) bool {
 	return false
 }
 
-func runValidateCommand(args []string) {
+func runValidateCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("validate", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	jsonOutput := fs.Bool("json", false, "Print machine-readable validation diagnostics")
@@ -515,7 +508,7 @@ func runValidateCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	result, err := ramenvalidate.Run(commandContext(), ramenvalidate.Options{ProjectPath: *projectPath, APISources: sources, Strict: *strict})
+	result, err := ramenvalidate.Run(ctx, ramenvalidate.Options{ProjectPath: *projectPath, APISources: sources, Strict: *strict})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -619,7 +612,7 @@ func splitBuildTags(value string) []string {
 	return tags
 }
 
-func runRefreshCommand(args []string) {
+func runRefreshCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("refresh", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
@@ -642,7 +635,7 @@ func runRefreshCommand(args []string) {
 		os.Exit(2)
 	}
 	exec := reconcileExecutor(*mock)
-	result, err := reconcile.Refresh(commandContext(), reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, OutDir: *outDir, Executor: exec})
+	result, err := reconcile.Refresh(ctx, reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir), APISources: sources, OutDir: *outDir, Executor: exec})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -650,7 +643,7 @@ func runRefreshCommand(args []string) {
 	fmt.Printf("ramen: refresh read=%d changed=%d unchanged=%d missing=%d skipped=%d failed=%d\n", result.Summary.Read, result.Summary.Changed, result.Summary.Unchanged, result.Summary.Missing, result.Summary.Skipped, result.Summary.Failed)
 }
 
-func runDestroyCommand(args []string) {
+func runDestroyCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("destroy", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
@@ -688,7 +681,7 @@ func runDestroyCommand(args []string) {
 	if strings.TrimSpace(*planPath) != "" && !configDirSet {
 		configDirValue = ""
 	}
-	result, err := reconcile.Destroy(commandContext(), reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -696,7 +689,7 @@ func runDestroyCommand(args []string) {
 	fmt.Printf("ramen: destroy delete=%d failed=%d\n", result.Summary.Delete, result.Summary.Failed)
 }
 
-func runImportCommand(args []string) {
+func runImportCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("import", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory used to compute plan-compatible desired hashes")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory used to compute plan-compatible desired hashes")
@@ -714,11 +707,7 @@ func runImportCommand(args []string) {
 		fmt.Fprintf(fs.Output(), "\nAttaches an existing resource identity to local Ramen state without executing Terraform, providers, or API source operations.\n\n")
 		fs.PrintDefaults()
 	}
-	parseArgs := args
-	if len(args) > 1 && !strings.HasPrefix(args[0], "-") {
-		parseArgs = append(slices.Clone(args[1:]), args[0])
-	}
-	if err := fs.Parse(parseArgs); err != nil {
+	if err := fs.Parse(positionalFirstLast(args)); err != nil {
 		os.Exit(2)
 	}
 	if fs.NArg() != 1 {
@@ -739,7 +728,7 @@ func runImportCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	result, err := reconcile.Import(commandContext(), reconcile.ImportOptions{
+	result, err := reconcile.Import(ctx, reconcile.ImportOptions{
 		ConfigDir:   *configDir,
 		ProjectPath: *projectPath,
 		StatePath:   statePathOrDefault(*statePath, *projectPath, *configDir),
@@ -757,15 +746,6 @@ func runImportCommand(args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("ramen: import imported=%d run=%d\n", result.Summary.Imported, result.RunID)
-}
-
-func commandContext() context.Context {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	go func() {
-		<-ctx.Done()
-		stop()
-	}()
-	return ctx
 }
 
 func reconcileExecutor(mock bool) executor.Executor {
@@ -830,7 +810,7 @@ func planHasChanges(doc tfplan.Document) bool {
 	return doc.Summary.Create != 0 || doc.Summary.Update != 0 || doc.Summary.Delete != 0 || doc.Summary.Replace != 0
 }
 
-func runApplyCommand(args []string) {
+func runApplyCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("apply", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
@@ -872,8 +852,6 @@ func runApplyCommand(args []string) {
 	if *mock {
 		exec = &executor.MockExecutor{}
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	result, err := tfapply.Apply(ctx, tfapply.Options{
 		ConfigDir:   configDirValue,
 		ProjectPath: *projectPath,
@@ -897,7 +875,7 @@ func runApplyCommand(args []string) {
 	}
 }
 
-func runInitCommand(args []string) {
+func runInitCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("init", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
@@ -914,8 +892,6 @@ func runInitCommand(args []string) {
 	if strings.TrimSpace(path) == "" {
 		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	var validationErr error
 	if strings.TrimSpace(*projectPath) != "" {
 		validationErr = validateNativeProject(*projectPath)
@@ -933,7 +909,7 @@ func runInitCommand(args []string) {
 	fmt.Printf("ramen: initialized state %s\n", path)
 }
 
-func runPlanCommand(args []string) {
+func runPlanCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("plan", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
@@ -967,8 +943,6 @@ func runPlanCommand(args []string) {
 	if strings.TrimSpace(path) == "" {
 		path = state.DefaultPath(stateBaseDir(*projectPath, *configDir))
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	result, err := tfplan.Build(ctx, tfplan.Options{
 		ConfigDir:   *configDir,
 		ProjectPath: *projectPath,
@@ -1005,15 +979,31 @@ func runPlanCommand(args []string) {
 	}
 }
 
-func runConvertCommand(args []string) {
-	if len(args) == 0 || args[0] != "tf" {
-		fmt.Fprintln(os.Stderr, "usage: ramen convert tf [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]")
+func runConvertCommand(ctx context.Context, args []string) {
+	if len(args) == 0 {
+		convertUsage(os.Stderr)
 		os.Exit(2)
 	}
-	runConvertTFCommand(args[1:])
+	switch args[0] {
+	case "tf":
+		runConvertTFCommand(ctx, args[1:])
+	case "-h", "--help", "help":
+		convertUsage(os.Stdout)
+	default:
+		fmt.Fprintf(os.Stderr, "unknown convert subcommand %q\n", args[0])
+		convertUsage(os.Stderr)
+		os.Exit(2)
+	}
 }
 
-func runConvertTFCommand(args []string) {
+func convertUsage(out *os.File) {
+	fmt.Fprintf(out, "Usage: ramen convert <tf> [args]\n\n")
+	fmt.Fprintf(out, "Generates Ramen review scaffolding from supported authoring and migration inputs.\n\n")
+	fmt.Fprintf(out, "Subcommands:\n")
+	fmt.Fprintf(out, "  tf        convert Terraform/OpenTofu configuration into native Ramen/UWS project artifacts\n")
+}
+
+func runConvertTFCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("convert tf", flag.ExitOnError)
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	action := fs.String("action", "", "Managed resource action: create, update, delete, or replace")
@@ -1043,8 +1033,6 @@ func runConvertTFCommand(args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
 	result, err := tfconvert.Convert(ctx, tfconvert.Options{
 		ConfigDir:  *configDir,
 		OpenAPIs:   inputs,

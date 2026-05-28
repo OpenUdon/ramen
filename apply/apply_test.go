@@ -47,6 +47,9 @@ resource "aws_iam_role" "role" {
 	if result.Summary.Create != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("apply result=%#v requests=%d", result.Summary, mock.RequestCount())
 	}
+	if result.Summary.Skipped != 0 {
+		t.Fatalf("apply skipped=%d, want 0", result.Summary.Skipped)
+	}
 	if len(result.GeneratedDocuments) != 1 {
 		t.Fatalf("generated docs = %#v", result.GeneratedDocuments)
 	}
@@ -88,8 +91,72 @@ resource "aws_iam_role" "role" {
 	if err != nil {
 		t.Fatalf("second Apply returned error: %v", err)
 	}
-	if result.Summary.NoOp != 1 || mock.RequestCount() != 1 {
+	if result.Summary.NoOp != 1 || result.Summary.Skipped != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("second apply result=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+}
+
+func TestApplySkippedSummaryCountsNoOpsInMixedMutationPlan(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	statePath := filepath.Join(root, ".ramen", "state.db")
+	writeApplyTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "existing" {
+  name = "existing-role"
+  assume_role_policy = "{}"
+}
+
+resource "aws_iam_role" "next" {
+  name = "next-role"
+  assume_role_policy = "{}"
+}
+`)
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	planned, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []tfplan.APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	var existing *tfplan.ResourcePlan
+	for i := range planned.Plan.Resources {
+		if planned.Plan.Resources[i].Address == "aws_iam_role.existing" {
+			existing = &planned.Plan.Resources[i]
+			break
+		}
+	}
+	if existing == nil {
+		t.Fatalf("planned resources missing existing role: %#v", planned.Plan.Resources)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: existing.Address, Type: existing.Type, Provider: existing.Provider, DesiredHash: existing.DesiredHash, Status: "managed"}); err != nil {
+		t.Fatalf("record existing: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
+
+	mock := &executor.MockExecutor{Results: map[string]executor.Result{
+		"aws_iam_role.next": {Identity: map[string]any{"role_name": "next-role"}},
+	}}
+	result, err := Apply(context.Background(), Options{
+		ConfigDir:   configDir,
+		StatePath:   statePath,
+		APISources:  []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		AutoApprove: true,
+		Executor:    mock,
+	})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Create != 1 || result.Summary.NoOp != 1 || result.Summary.Skipped != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("apply result=%#v requests=%d", result.Summary, mock.RequestCount())
 	}
 }
 

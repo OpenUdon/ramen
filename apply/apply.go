@@ -240,7 +240,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		}
 	}
 	result.Summary.NoOp = planResult.Plan.Summary.NoOp
-	result.Summary.Skipped = planResult.Plan.Summary.NoOp
+	result.Summary.Skipped = len(planResult.Plan.Resources) - len(mutations)
 	if len(result.Errors) > 0 {
 		return result, fmt.Errorf("apply failed for %d resource(s) and blocked %d resource(s)", result.Summary.Failed, result.Summary.Blocked)
 	}
