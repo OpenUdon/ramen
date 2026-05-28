@@ -14,6 +14,7 @@ import (
 
 	tfapply "github.com/OpenUdon/ramen/apply"
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/graph"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
@@ -43,6 +44,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved desired-state mutations through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  convert   generate Ramen review scaffolding from supported source formats\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  destroy   delete tracked resources through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  graph     emit the native resource dependency graph\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  import    attach an existing resource identity to state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  init      create or migrate local Ramen state\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  plan      emit a static desired-state plan without mutation\n")
@@ -63,6 +65,8 @@ func main() {
 		runConvertCommand(flag.Args()[1:])
 	case "destroy":
 		runDestroyCommand(flag.Args()[1:])
+	case "graph":
+		runGraphCommand(flag.Args()[1:])
 	case "import":
 		runImportCommand(flag.Args()[1:])
 	case "init":
@@ -82,6 +86,103 @@ func main() {
 		flag.Usage()
 		os.Exit(2)
 	}
+}
+
+func runGraphCommand(args []string) {
+	fs := flag.NewFlagSet("graph", flag.ExitOnError)
+	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
+	format := fs.String("format", "dot", "Output format: dot or json")
+	outPath := fs.String("out", "", "Optional output path")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen graph --project DIR|FILE [--format dot|json] [--out PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nEmits the native UWS/Ramen resource dependency graph, including operation-role references, without Terraform/OpenTofu graph compatibility, provider execution, state access, or mutation.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	normalizedFormat := strings.ToLower(strings.TrimSpace(*format))
+	if normalizedFormat != "dot" && normalizedFormat != "json" {
+		fmt.Fprintf(os.Stderr, "--format must be dot or json, got %q\n", *format)
+		os.Exit(2)
+	}
+	validation, err := ramenvalidate.Run(commandContext(), ramenvalidate.Options{ProjectPath: *projectPath})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	var graphDoc graph.Document
+	if validation.Valid {
+		proj, err := project.Load(*projectPath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		graphDoc = graph.BuildProject(proj)
+	} else {
+		graphDoc = graph.Document{Version: graph.DocumentVersion, ProjectPath: validation.ProjectPath}
+	}
+	graphDoc.Diagnostics = append(graphDoc.Diagnostics, graphDiagnostics(validation.Diagnostics)...)
+	if normalizedFormat == "json" {
+		writeGraphOutput(*outPath, mustGraphJSON(graphDoc))
+	} else {
+		writeGraphOutput(*outPath, graph.DOT(graphDoc))
+	}
+	for _, diag := range graphDoc.Diagnostics {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", diag.Code, diag.Message)
+	}
+	if hasGraphErrors(graphDoc.Diagnostics) {
+		os.Exit(1)
+	}
+}
+
+func graphDiagnostics(diagnostics []ramenvalidate.Diagnostic) []graph.Diagnostic {
+	out := make([]graph.Diagnostic, 0, len(diagnostics))
+	for _, diag := range diagnostics {
+		out = append(out, graph.Diagnostic{
+			Code:          diag.Code,
+			Severity:      diag.Severity,
+			Message:       diag.Message,
+			Address:       diag.Address,
+			APISourceKind: diag.APISourceKind,
+			APISourceID:   diag.APISourceID,
+			OperationID:   diag.OperationID,
+		})
+	}
+	return out
+}
+
+func mustGraphJSON(doc graph.Document) string {
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	return string(data) + "\n"
+}
+
+func writeGraphOutput(path, content string) {
+	if strings.TrimSpace(path) == "" {
+		fmt.Print(content)
+		return
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}
+
+func hasGraphErrors(diagnostics []graph.Diagnostic) bool {
+	for _, diag := range diagnostics {
+		if diag.Severity == "error" {
+			return true
+		}
+	}
+	return false
 }
 
 func runValidateCommand(args []string) {

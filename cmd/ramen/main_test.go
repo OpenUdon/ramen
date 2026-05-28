@@ -183,6 +183,112 @@ paths:
 	}
 }
 
+func TestCLIGraphOutputsDOTJSONAndOutFile(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	mustWriteCLIFile(t, sourcePath, []byte(`openapi: 3.0.0
+info:
+  title: Graph CLI
+  version: v1
+paths:
+  /db:
+    post:
+      operationId: createDB
+      responses:
+        "200":
+          description: ok
+  /app:
+    post:
+      operationId: createApp
+      responses:
+        "200":
+          description: ok
+`))
+	projectPath := writeNativeProjectForCLITest(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{
+			{
+				Address:      "example_resource.app",
+				Kind:         "resource",
+				Type:         "example_resource",
+				Dependencies: []string{"example_resource.db"},
+				Operations:   map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createApp"}},
+			},
+			{
+				Address:    "example_resource.db",
+				Kind:       "resource",
+				Type:       "example_resource",
+				Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createDB"}},
+			},
+		},
+	})
+
+	cmd := helperCommand("graph", "--project", projectPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("graph failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), `digraph ramen`) || !strings.Contains(string(output), `"example_resource.db" -> "example_resource.app"`) {
+		t.Fatalf("graph DOT missing expected edge:\n%s", output)
+	}
+
+	cmd = helperCommand("graph", "--project", projectPath, "--format", "json")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("graph json failed: %v\n%s", err, output)
+	}
+	var result struct {
+		Version string `json:"version"`
+		Nodes   []struct {
+			Address string `json:"address"`
+		} `json:"nodes"`
+		Edges []struct {
+			From string `json:"from"`
+			To   string `json:"to"`
+		} `json:"edges"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("graph JSON is not parseable: %v\n%s", err, output)
+	}
+	if result.Version != "ramen.graph.v1" || len(result.Nodes) != 2 || len(result.Edges) != 1 {
+		t.Fatalf("graph JSON result = %#v\n%s", result, output)
+	}
+
+	outPath := filepath.Join(root, "graph.dot")
+	cmd = helperCommand("graph", "--project", projectPath, "--out", outPath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("graph --out failed: %v\n%s", err, output)
+	}
+	out, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("graph out file missing: %v", err)
+	}
+	if !strings.Contains(string(out), `"example_resource.db" -> "example_resource.app"`) {
+		t.Fatalf("graph out file missing edge:\n%s", out)
+	}
+}
+
+func TestCLIGraphReportsValidationDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	projectPath := writeNativeProjectForCLITest(t, root, project.Profile{
+		Version: project.Version,
+		Resources: []project.Resource{
+			{Address: "a", Kind: "resource", Type: "example", Dependencies: []string{"b"}, Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createA"}}},
+			{Address: "b", Kind: "resource", Type: "example", Dependencies: []string{"a"}, Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createB"}}},
+		},
+	})
+	cmd := helperCommand("graph", "--project", projectPath, "--format", "json")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("graph unexpectedly succeeded:\n%s", output)
+	}
+	if !strings.Contains(string(output), `"diagnostics"`) || !strings.Contains(string(output), "validate.dependency_cycle") {
+		t.Fatalf("graph JSON missing diagnostics:\n%s", output)
+	}
+}
+
 func TestCLIApplyMockWritesState(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
