@@ -1,0 +1,98 @@
+info:
+    description: K04 Kubernetes ServiceAccount create/no-op/destroy/read-missing provider parity fixture.
+    title: ramen_kubernetes_k04_service_account_parity
+    version: 1.0.0
+operations:
+    - description: Create the K04 ServiceAccount.
+      operationId: kubernetes_service_account_v1_k04_create
+      sourceDescription: core
+      sourceOperationId: createCoreV1NamespacedServiceAccount
+    - description: Read the K04 ServiceAccount.
+      operationId: kubernetes_service_account_v1_k04_read
+      sourceDescription: core
+      sourceOperationId: readCoreV1NamespacedServiceAccount
+    - description: Delete the K04 ServiceAccount.
+      operationId: kubernetes_service_account_v1_k04_delete
+      sourceDescription: core
+      sourceOperationId: deleteCoreV1NamespacedServiceAccount
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: ../openapi/core.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, read, no-op, destroy, and read-missing through Ramen.
+      steps:
+        - operationRef: kubernetes_service_account_v1_k04_create
+          stepId: create
+        - operationRef: kubernetes_service_account_v1_k04_read
+          stepId: read
+        - operationRef: kubernetes_service_account_v1_k04_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: ../openapi/core.json
+    metadata:
+        source: K04 Kubernetes provider parity fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_service_account_v1.k04_service_account
+          attributes:
+            automount_service_account_token: true
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k04
+                name: ramen-parity-k04-service-account
+                namespace: ramen-parity-k04-namespace
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k04
+            metadata.name: ramen-parity-k04-service-account
+            metadata.namespace: ramen-parity-k04-namespace
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_service_account_v1
+          name: k04_service_account
+          operations:
+            create:
+                operation_id: createCoreV1NamespacedServiceAccount
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            read:
+                operation_id: readCoreV1NamespacedServiceAccount
+                purpose: read
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            delete:
+                operation_id: deleteCoreV1NamespacedServiceAccount
+                purpose: delete
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+          redaction: {}
+          type: kubernetes_service_account_v1
+    version: ramen.project.v1

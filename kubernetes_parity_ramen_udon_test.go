@@ -375,6 +375,160 @@ func runKubernetesParityRamenConfigMapRuntime(ctx context.Context, t *testing.T,
 	}}
 }
 
+func runKubernetesParityRamenServiceAccountRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	namespace := "ramen-parity-k04-" + runtimeName
+	serviceAccountName := "ramen-parity-k04-service-account"
+	if err := createKubernetesParityNamespace(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "namespace", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "core.json")
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k04", "openapi", "core.json"), openAPIPath, serverURL); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderKubernetesParityProject(filepath.Join(kubernetesParityFixtureRoot, "k04", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/core.json"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := observeKubernetesParityServiceAccount(projectorCtx, env, namespace, serviceAccountName)
+			if err != nil {
+				if isKubernetesParityNotFound(err) {
+					result.Missing = true
+					return result, nil
+				}
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{
+				"name":      observed.Name,
+				"namespace": observed.Namespace,
+			}
+			result.Computed = map[string]any{
+				"metadata.name":      observed.Name,
+				"metadata.namespace": observed.Namespace,
+				"metadata.labels":    observed.Labels,
+			}
+			if observed.AutomountServiceAccountToken != nil {
+				result.Computed["automountServiceAccountToken"] = *observed.AutomountServiceAccountToken
+			}
+			return result, nil
+		},
+	}
+	applyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
+	}
+	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
+	}
+	namespaceAfterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	serviceAccountAfterApply, err := observeKubernetesParityServiceAccount(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1 && len(planResult.Plan.Resources) == 1
+	destroyResult, err := reconcile.Destroy(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(destroyResult)))
+	}
+	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
+	}
+	serviceAccountAfterDestroy, err := observeKubernetesParityServiceAccountAbsent(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	reapplyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "reapply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(reapplyResult), applyResultFeedbackMessages(reapplyResult)))
+	}
+	if reapplyResult.Summary.Create != 1 || reapplyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "reapply", errUnexpectedKubernetesParitySummary("reapply", reapplyResult.Summary))
+	}
+	if err := deleteKubernetesParityServiceAccountIfExists(ctx, env, namespace, serviceAccountName); err != nil {
+		return kubernetesParityFailure(runtimeName, "out_of_band_delete", err)
+	}
+	serviceAccountAfterDelete, err := observeKubernetesParityServiceAccount(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshResult, err := reconcile.Refresh(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
+	}
+	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Missing != 1 || refreshResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
+	}
+	serviceAccountAfterCleanup, err := observeKubernetesParityServiceAccount(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                            runtimeName,
+		Namespace:                          namespace,
+		ServiceAccountName:                 serviceAccountName,
+		AfterApply:                         namespaceAfterApply,
+		ServiceAccountAfterApply:           &serviceAccountAfterApply,
+		ServiceAccountAfterDestroy:         &serviceAccountAfterDestroy,
+		ServiceAccountAfterOutOfBandDelete: &serviceAccountAfterDelete,
+		ServiceAccountAfterCleanup:         &serviceAccountAfterCleanup,
+		NoOpPlan:                           &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
+		ReadMissing: &kubernetesParityReadMissingObservation{
+			Missing:        true,
+			Classification: "missing",
+			Summary:        fmt.Sprintf("%+v", refreshResult.Summary),
+		},
+	}}
+}
+
 func startKubernetesParityProxy(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv) (string, func(), error) {
 	t.Helper()
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

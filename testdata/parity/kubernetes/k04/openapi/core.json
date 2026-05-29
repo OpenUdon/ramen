@@ -1,0 +1,145 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Kubernetes Core v1 ServiceAccount provider parity subset",
+    "version": "v1.19.2-subset"
+  },
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/api/v1/namespaces/{namespace}/serviceaccounts": {
+      "post": {
+        "operationId": "createCoreV1NamespacedServiceAccount",
+        "summary": "create a ServiceAccount",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ServiceAccount"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "ServiceAccount created",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ServiceAccount"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/serviceaccounts/{name}": {
+      "get": {
+        "operationId": "readCoreV1NamespacedServiceAccount",
+        "summary": "read the specified ServiceAccount",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ServiceAccount",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ServiceAccount"
+            }
+          },
+          "404": {
+            "description": "ServiceAccount not found"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoreV1NamespacedServiceAccount",
+        "summary": "delete a ServiceAccount",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ServiceAccount deleted"
+          },
+          "404": {
+            "description": "ServiceAccount not found"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "io.k8s.api.core.v1.ServiceAccount": {
+      "type": "object",
+      "required": [
+        "metadata"
+      ],
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "required": [
+            "name",
+            "namespace"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean"
+        }
+      }
+    }
+  }
+}

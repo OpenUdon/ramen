@@ -1,7 +1,7 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
   "lane": "K04",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
     "version": "3.1.0",
@@ -27,23 +27,34 @@
     {
       "name": "service_account_lifecycle",
       "resource_type": "kubernetes_service_account_v1",
+      "fixture_paths": [
+        "testdata/parity/kubernetes/k04/hcl/main.tf",
+        "testdata/parity/kubernetes/k04/openapi/core.json",
+        "testdata/parity/kubernetes/k04/ramen/project.uws.yaml"
+      ],
       "observed_fields": [
         "metadata.name",
         "metadata.namespace",
+        "metadata.labels",
         "automountServiceAccountToken",
         "missing"
       ],
       "expected_transitions": [
         "create",
         "no-op",
+        "destroy",
         "out-of-band-delete",
         "read-missing",
-        "destroy"
+        "cleanup"
       ],
-      "observation_artifacts": []
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k04/live.observations.json"
+      ]
     }
   ],
+  "recorded_at": "2026-05-29T23:35:46Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k04 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
-    "K04 compares ServiceAccount identity, no-op, read-missing, and destroy cleanup."
+    "K04 compares ServiceAccount identity, labels, automountServiceAccountToken, no-op, destroy absence, read-missing, and cleanup absence."
   ]
 }

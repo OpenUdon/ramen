@@ -84,18 +84,23 @@ type kubernetesParityLiveRecording struct {
 }
 
 type kubernetesParityRuntimeObservation struct {
-	Runtime                 string                                  `json:"runtime"`
-	Namespace               string                                  `json:"namespace"`
-	ConfigMapName           string                                  `json:"config_map_name,omitempty"`
-	AfterApply              kubernetesParityObservation             `json:"after_apply"`
-	NoOpPlan                *kubernetesParityNoOpObservation        `json:"no_op_plan,omitempty"`
-	AfterDestroy            *kubernetesParityObservation            `json:"after_destroy,omitempty"`
-	AfterOutOfBandDelete    *kubernetesParityObservation            `json:"after_out_of_band_delete,omitempty"`
-	ReadMissing             *kubernetesParityReadMissingObservation `json:"read_missing,omitempty"`
-	AfterReadMissingCleanup *kubernetesParityObservation            `json:"after_read_missing_cleanup,omitempty"`
-	ConfigMapAfterApply     *kubernetesParityConfigMapObservation   `json:"config_map_after_apply,omitempty"`
-	ConfigMapAfterUpdate    *kubernetesParityConfigMapObservation   `json:"config_map_after_update,omitempty"`
-	ConfigMapAfterDestroy   *kubernetesParityConfigMapObservation   `json:"config_map_after_destroy,omitempty"`
+	Runtime                            string                                     `json:"runtime"`
+	Namespace                          string                                     `json:"namespace"`
+	ConfigMapName                      string                                     `json:"config_map_name,omitempty"`
+	ServiceAccountName                 string                                     `json:"service_account_name,omitempty"`
+	AfterApply                         kubernetesParityObservation                `json:"after_apply"`
+	NoOpPlan                           *kubernetesParityNoOpObservation           `json:"no_op_plan,omitempty"`
+	AfterDestroy                       *kubernetesParityObservation               `json:"after_destroy,omitempty"`
+	AfterOutOfBandDelete               *kubernetesParityObservation               `json:"after_out_of_band_delete,omitempty"`
+	ReadMissing                        *kubernetesParityReadMissingObservation    `json:"read_missing,omitempty"`
+	AfterReadMissingCleanup            *kubernetesParityObservation               `json:"after_read_missing_cleanup,omitempty"`
+	ConfigMapAfterApply                *kubernetesParityConfigMapObservation      `json:"config_map_after_apply,omitempty"`
+	ConfigMapAfterUpdate               *kubernetesParityConfigMapObservation      `json:"config_map_after_update,omitempty"`
+	ConfigMapAfterDestroy              *kubernetesParityConfigMapObservation      `json:"config_map_after_destroy,omitempty"`
+	ServiceAccountAfterApply           *kubernetesParityServiceAccountObservation `json:"service_account_after_apply,omitempty"`
+	ServiceAccountAfterDestroy         *kubernetesParityServiceAccountObservation `json:"service_account_after_destroy,omitempty"`
+	ServiceAccountAfterOutOfBandDelete *kubernetesParityServiceAccountObservation `json:"service_account_after_out_of_band_delete,omitempty"`
+	ServiceAccountAfterCleanup         *kubernetesParityServiceAccountObservation `json:"service_account_after_cleanup,omitempty"`
 }
 
 type kubernetesParityObservation struct {
@@ -112,6 +117,14 @@ type kubernetesParityConfigMapObservation struct {
 	Labels     map[string]string `json:"labels,omitempty"`
 	Data       map[string]string `json:"data,omitempty"`
 	BinaryData map[string]string `json:"binaryData,omitempty"`
+}
+
+type kubernetesParityServiceAccountObservation struct {
+	Exists                       bool              `json:"exists"`
+	Namespace                    string            `json:"namespace,omitempty"`
+	Name                         string            `json:"name,omitempty"`
+	Labels                       map[string]string `json:"labels,omitempty"`
+	AutomountServiceAccountToken *bool             `json:"automountServiceAccountToken,omitempty"`
 }
 
 type kubernetesParityNoOpObservation struct {
@@ -165,6 +178,9 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 			if lane == "k03" {
 				assertKubernetesK03PlanFixture(t)
 			}
+			if lane == "k04" {
+				assertKubernetesK04PlanFixture(t)
+			}
 		})
 	}
 }
@@ -190,6 +206,7 @@ func TestKubernetesProviderParity(t *testing.T) {
 		{lane: "k01", run: runKubernetesK01LiveParity},
 		{lane: "k02", run: runKubernetesK02LiveParity},
 		{lane: "k03", run: runKubernetesK03LiveParity},
+		{lane: "k04", run: runKubernetesK04LiveParity},
 	}
 	selectedLane := strings.ToLower(strings.TrimSpace(os.Getenv(kubernetesParityLaneEnv)))
 	if selectedLane != "" && !slices.Contains(kubernetesParityLanes, selectedLane) {
@@ -363,6 +380,8 @@ func assertKubernetesParityLiveRecording(t *testing.T, lane, scenario string, ru
 		comparison = compareKubernetesReadMissingParityObservations(t, recording.Observations)
 	case "k03":
 		comparison = compareKubernetesConfigMapParityObservations(t, recording.Observations)
+	case "k04":
+		comparison = compareKubernetesServiceAccountParityObservations(t, recording.Observations)
 	default:
 		t.Fatalf("%s is recorded but has no semantic replay assertions", wantLane)
 	}
@@ -536,6 +555,57 @@ func runKubernetesK03LiveParity(t *testing.T, ctx context.Context, env kubernete
 		Version:      kubernetesParityArtifactV1,
 		Lane:         "K03",
 		Scenario:     "config_map_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runKubernetesK04LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLServiceAccountRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLServiceAccountRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenServiceAccountRuntime, tool: ""},
+	}
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		namespace := "ramen-parity-k04-" + run.runtime
+		if err := validateKubernetesParityNamespace(namespace, "k04"); err != nil {
+			t.Fatalf("unsafe namespace %s: %v", namespace, err)
+		}
+		if err := deleteKubernetesParityNamespaceIfExists(ctx, env, namespace); err != nil {
+			t.Fatalf("pre-cleanup %s: %v", namespace, err)
+		}
+		t.Cleanup(func() {
+			if err := deleteKubernetesParityNamespaceIfExists(context.Background(), env, namespace); err != nil {
+				t.Logf("cleanup namespace %s: %v", namespace, err)
+			}
+		})
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K04 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesServiceAccountParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K04",
+		Scenario:     "service_account_lifecycle",
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
 		Context:      env.contextName,
 		Observations: observations,
@@ -746,6 +816,102 @@ func runKubernetesParityHCLConfigMapRuntime(ctx context.Context, t *testing.T, e
 	}}
 }
 
+func runKubernetesParityHCLServiceAccountRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	namespace := "ramen-parity-k04-" + runtimeName
+	serviceAccountName := "ramen-parity-k04-service-account"
+	if err := validateKubernetesParityServiceAccountName(serviceAccountName, "k04"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := createKubernetesParityNamespace(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "namespace", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k04", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	tfvars := map[string]string{
+		"kubeconfig_path":      env.kubeconfig,
+		"kube_context":         env.contextName,
+		"namespace_name":       namespace,
+		"service_account_name": serviceAccountName,
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), tfvars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	namespaceAfterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	serviceAccountAfterApply, err := observeKubernetesParityServiceAccount(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	serviceAccountAfterDestroy, err := observeKubernetesParityServiceAccountAbsent(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "reapply", err)
+	}
+	if err := deleteKubernetesParityServiceAccountIfExists(ctx, env, namespace, serviceAccountName); err != nil {
+		return kubernetesParityFailure(runtimeName, "out_of_band_delete", err)
+	}
+	serviceAccountAfterDelete, err := observeKubernetesParityServiceAccount(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshExit, refreshSummary, err := runKubernetesParityPlanArgs(ctx, workDir, tool, "plan", "-refresh-only", "-input=false", "-no-color", "-detailed-exitcode")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "read_missing", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-refresh-only", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "cleanup", err)
+	}
+	serviceAccountAfterCleanup, err := observeKubernetesParityServiceAccount(ctx, env, namespace, serviceAccountName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                            runtimeName,
+		Namespace:                          namespace,
+		ServiceAccountName:                 serviceAccountName,
+		AfterApply:                         namespaceAfterApply,
+		ServiceAccountAfterApply:           &serviceAccountAfterApply,
+		ServiceAccountAfterDestroy:         &serviceAccountAfterDestroy,
+		ServiceAccountAfterOutOfBandDelete: &serviceAccountAfterDelete,
+		ServiceAccountAfterCleanup:         &serviceAccountAfterCleanup,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+		ReadMissing: &kubernetesParityReadMissingObservation{
+			Missing:        refreshExit == 2,
+			Classification: "missing",
+			ExitCode:       refreshExit,
+			Summary:        refreshSummary,
+		},
+	}}
+}
+
 func runKubernetesParityPlan(ctx context.Context, dir, tool string) (int, string, error) {
 	return runKubernetesParityPlanArgs(ctx, dir, tool, "plan", "-input=false", "-no-color", "-detailed-exitcode")
 }
@@ -907,6 +1073,73 @@ func observeKubernetesParityConfigMapAbsent(ctx context.Context, env kubernetesP
 	}
 }
 
+func observeKubernetesParityServiceAccount(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) (kubernetesParityServiceAccountObservation, error) {
+	if err := validateKubernetesParityNamespaceForLane(namespace); err != nil {
+		return kubernetesParityServiceAccountObservation{}, err
+	}
+	lane, err := kubernetesParityLaneFromNamespace(namespace)
+	if err != nil {
+		return kubernetesParityServiceAccountObservation{}, err
+	}
+	if err := validateKubernetesParityServiceAccountName(name, lane); err != nil {
+		return kubernetesParityServiceAccountObservation{}, err
+	}
+	out, err := runKubernetesParityKubectl(ctx, env, "get", "serviceaccount", name, "-n", namespace, "-o", "json")
+	if err != nil {
+		if isKubernetesParityNotFound(err) {
+			return kubernetesParityServiceAccountObservation{Exists: false}, nil
+		}
+		return kubernetesParityServiceAccountObservation{}, err
+	}
+	var doc struct {
+		Metadata struct {
+			Name      string            `json:"name"`
+			Namespace string            `json:"namespace"`
+			Labels    map[string]string `json:"labels"`
+		} `json:"metadata"`
+		AutomountServiceAccountToken *bool `json:"automountServiceAccountToken"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return kubernetesParityServiceAccountObservation{}, err
+	}
+	labels := map[string]string{}
+	for _, key := range []string{"app.kubernetes.io/managed-by", "ramen.openudon.dev/lane"} {
+		if value := doc.Metadata.Labels[key]; value != "" {
+			labels[key] = value
+		}
+	}
+	return kubernetesParityServiceAccountObservation{
+		Exists:                       true,
+		Namespace:                    doc.Metadata.Namespace,
+		Name:                         doc.Metadata.Name,
+		Labels:                       labels,
+		AutomountServiceAccountToken: doc.AutomountServiceAccountToken,
+	}, nil
+}
+
+func observeKubernetesParityServiceAccountAbsent(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) (kubernetesParityServiceAccountObservation, error) {
+	var last kubernetesParityServiceAccountObservation
+	deadline := time.Now().Add(45 * time.Second)
+	for {
+		observed, err := observeKubernetesParityServiceAccount(ctx, env, namespace, name)
+		if err != nil {
+			return kubernetesParityServiceAccountObservation{}, err
+		}
+		last = observed
+		if !observed.Exists {
+			return observed, nil
+		}
+		if time.Now().After(deadline) {
+			return last, nil
+		}
+		select {
+		case <-ctx.Done():
+			return kubernetesParityServiceAccountObservation{}, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
 func compareKubernetesParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
 	t.Helper()
 	if len(observations) != 3 {
@@ -1018,6 +1251,49 @@ func compareKubernetesConfigMapParityObservations(t *testing.T, observations []k
 	}
 }
 
+func compareKubernetesServiceAccountParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	expectedLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k04",
+	}
+	expectedAutomount := true
+	for _, observation := range observations {
+		if !observation.AfterApply.Exists {
+			t.Fatalf("%s namespace after_apply does not exist", observation.Runtime)
+		}
+		if !strings.HasPrefix(observation.Namespace, "ramen-parity-k04-") {
+			t.Fatalf("%s namespace = %q", observation.Runtime, observation.Namespace)
+		}
+		if observation.ServiceAccountName != "ramen-parity-k04-service-account" {
+			t.Fatalf("%s service_account_name = %q", observation.Runtime, observation.ServiceAccountName)
+		}
+		assertKubernetesServiceAccountObservation(t, observation.Runtime+" service_account_after_apply", observation.ServiceAccountAfterApply, observation.Namespace, observation.ServiceAccountName, expectedLabels, &expectedAutomount)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.ServiceAccountAfterDestroy == nil || observation.ServiceAccountAfterDestroy.Exists {
+			t.Fatalf("%s service_account_after_destroy still exists: %#v", observation.Runtime, observation.ServiceAccountAfterDestroy)
+		}
+		if observation.ServiceAccountAfterOutOfBandDelete == nil || observation.ServiceAccountAfterOutOfBandDelete.Exists {
+			t.Fatalf("%s service_account_after_out_of_band_delete = %#v, want absent", observation.Runtime, observation.ServiceAccountAfterOutOfBandDelete)
+		}
+		if observation.ReadMissing == nil || !observation.ReadMissing.Missing || observation.ReadMissing.Classification != "missing" {
+			t.Fatalf("%s read_missing = %#v, want missing classification", observation.Runtime, observation.ReadMissing)
+		}
+		if observation.ServiceAccountAfterCleanup == nil || observation.ServiceAccountAfterCleanup.Exists {
+			t.Fatalf("%s service_account_after_cleanup = %#v, want absent", observation.Runtime, observation.ServiceAccountAfterCleanup)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"metadata.name", "metadata.namespace", "metadata.labels", "automountServiceAccountToken", "no-op", "destroy.absent", "read-missing.classification", "cleanup.absent"},
+	}
+}
+
 func assertKubernetesConfigMapObservation(t *testing.T, label string, observation *kubernetesParityConfigMapObservation, namespace, name string, labels, data, binaryData map[string]string) {
 	t.Helper()
 	if observation == nil || !observation.Exists {
@@ -1037,6 +1313,30 @@ func assertKubernetesConfigMapObservation(t *testing.T, label string, observatio
 	}
 	if !reflect.DeepEqual(observation.BinaryData, binaryData) {
 		t.Fatalf("%s binaryData = %#v, want %#v", label, observation.BinaryData, binaryData)
+	}
+}
+
+func assertKubernetesServiceAccountObservation(t *testing.T, label string, observation *kubernetesParityServiceAccountObservation, namespace, name string, labels map[string]string, automount *bool) {
+	t.Helper()
+	if observation == nil || !observation.Exists {
+		t.Fatalf("%s = %#v, want existing ServiceAccount", label, observation)
+	}
+	if observation.Namespace != namespace {
+		t.Fatalf("%s namespace = %q, want %q", label, observation.Namespace, namespace)
+	}
+	if observation.Name != name {
+		t.Fatalf("%s name = %q, want %q", label, observation.Name, name)
+	}
+	if !reflect.DeepEqual(observation.Labels, labels) {
+		t.Fatalf("%s labels = %#v, want %#v", label, observation.Labels, labels)
+	}
+	if automount != nil {
+		if observation.AutomountServiceAccountToken == nil {
+			t.Fatalf("%s automountServiceAccountToken missing, want %v", label, *automount)
+		}
+		if *observation.AutomountServiceAccountToken != *automount {
+			t.Fatalf("%s automountServiceAccountToken = %v, want %v", label, *observation.AutomountServiceAccountToken, *automount)
+		}
 	}
 }
 
@@ -1130,6 +1430,24 @@ func deleteKubernetesParityNamespaceIfExists(ctx context.Context, env kubernetes
 	}
 }
 
+func deleteKubernetesParityServiceAccountIfExists(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) error {
+	if err := validateKubernetesParityNamespaceForLane(namespace); err != nil {
+		return err
+	}
+	lane, err := kubernetesParityLaneFromNamespace(namespace)
+	if err != nil {
+		return err
+	}
+	if err := validateKubernetesParityServiceAccountName(name, lane); err != nil {
+		return err
+	}
+	if _, err := runKubernetesParityKubectl(ctx, env, "delete", "serviceaccount", name, "-n", namespace, "--ignore-not-found=true", "--wait=true", "--timeout=30s"); err != nil {
+		return err
+	}
+	_, err = observeKubernetesParityServiceAccountAbsent(ctx, env, namespace, name)
+	return err
+}
+
 func runKubernetesParityKubectl(ctx context.Context, env kubernetesParityLiveEnv, args ...string) ([]byte, error) {
 	fullArgs := []string{"--kubeconfig", env.kubeconfig, "--context", env.contextName}
 	fullArgs = append(fullArgs, args...)
@@ -1177,6 +1495,26 @@ func validateKubernetesParityConfigMapName(name, lane string) error {
 	}
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
 		return fmt.Errorf("ConfigMap name must not start or end with '-' or '.'")
+	}
+	return nil
+}
+
+func validateKubernetesParityServiceAccountName(name, lane string) error {
+	prefix := "ramen-parity-" + lane + "-"
+	if !strings.HasPrefix(name, prefix) {
+		return fmt.Errorf("ServiceAccount name must use %s prefix", prefix)
+	}
+	if len(name) > 253 {
+		return fmt.Errorf("ServiceAccount name is too long")
+	}
+	for i, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' {
+			continue
+		}
+		return fmt.Errorf("ServiceAccount name contains invalid character %q at offset %d", r, i)
+	}
+	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
+		return fmt.Errorf("ServiceAccount name must not start or end with '-' or '.'")
 	}
 	return nil
 }
@@ -1339,6 +1677,11 @@ func assertKubernetesK03PlanFixture(t *testing.T) {
 	t.Helper()
 	assertKubernetesRamenPlanFixture(t, "k03")
 	assertKubernetesRamenPlanFixturePath(t, "K03 update", filepath.Join(kubernetesParityFixtureRoot, "k03", "ramen", "project.update.uws.yaml"))
+}
+
+func assertKubernetesK04PlanFixture(t *testing.T) {
+	t.Helper()
+	assertKubernetesRamenPlanFixture(t, "k04")
 }
 
 func assertKubernetesRamenPlanFixture(t *testing.T, lane string) {
