@@ -394,6 +394,10 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	if len(keys) != 1 || keys[0] != "namespace" {
 		t.Fatalf("unexpected Kubernetes ConfigMap namespace request keys: %#v", keys)
 	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createCoreV1NamespacedConfigMap", "metadata.namespace")
+	if len(keys) != 2 || keys[0] != "namespace" || keys[1] != "metadata.namespace" {
+		t.Fatalf("unexpected Kubernetes ConfigMap create namespace request keys: %#v", keys)
+	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceCoreV1NamespacedConfigMap", "data")
 	if len(keys) != 1 || keys[0] != "data" {
 		t.Fatalf("unexpected Kubernetes ConfigMap data request keys: %#v", keys)
@@ -409,6 +413,10 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1NamespacedRole", "rule")
 	if len(keys) != 1 || keys[0] != "rules" {
 		t.Fatalf("unexpected Kubernetes Role rules request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1NamespacedRole", "metadata.namespace")
+	if len(keys) != 2 || keys[0] != "namespace" || keys[1] != "metadata.namespace" {
+		t.Fatalf("unexpected Kubernetes Role create namespace request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-create-bucket", "name")
 	if len(keys) != 1 || keys[0] != "name" {

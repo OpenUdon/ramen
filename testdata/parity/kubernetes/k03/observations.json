@@ -1,7 +1,7 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
   "lane": "K03",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
     "version": "3.1.0",
@@ -27,9 +27,16 @@
     {
       "name": "config_map_lifecycle",
       "resource_type": "kubernetes_config_map_v1",
+      "fixture_paths": [
+        "testdata/parity/kubernetes/k03/hcl/main.tf",
+        "testdata/parity/kubernetes/k03/ramen/project.uws.yaml",
+        "testdata/parity/kubernetes/k03/ramen/project.update.uws.yaml",
+        "testdata/parity/kubernetes/k03/openapi/core.json"
+      ],
       "observed_fields": [
         "metadata.name",
         "metadata.namespace",
+        "metadata.labels",
         "data",
         "binaryData"
       ],
@@ -40,7 +47,9 @@
         "no-op",
         "destroy"
       ],
-      "observation_artifacts": []
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k03/live.observations.json"
+      ]
     }
   ],
   "notes": [

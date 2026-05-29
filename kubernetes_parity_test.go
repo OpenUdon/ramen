@@ -86,12 +86,16 @@ type kubernetesParityLiveRecording struct {
 type kubernetesParityRuntimeObservation struct {
 	Runtime                 string                                  `json:"runtime"`
 	Namespace               string                                  `json:"namespace"`
+	ConfigMapName           string                                  `json:"config_map_name,omitempty"`
 	AfterApply              kubernetesParityObservation             `json:"after_apply"`
 	NoOpPlan                *kubernetesParityNoOpObservation        `json:"no_op_plan,omitempty"`
 	AfterDestroy            *kubernetesParityObservation            `json:"after_destroy,omitempty"`
 	AfterOutOfBandDelete    *kubernetesParityObservation            `json:"after_out_of_band_delete,omitempty"`
 	ReadMissing             *kubernetesParityReadMissingObservation `json:"read_missing,omitempty"`
 	AfterReadMissingCleanup *kubernetesParityObservation            `json:"after_read_missing_cleanup,omitempty"`
+	ConfigMapAfterApply     *kubernetesParityConfigMapObservation   `json:"config_map_after_apply,omitempty"`
+	ConfigMapAfterUpdate    *kubernetesParityConfigMapObservation   `json:"config_map_after_update,omitempty"`
+	ConfigMapAfterDestroy   *kubernetesParityConfigMapObservation   `json:"config_map_after_destroy,omitempty"`
 }
 
 type kubernetesParityObservation struct {
@@ -99,6 +103,15 @@ type kubernetesParityObservation struct {
 	Name   string            `json:"name,omitempty"`
 	Labels map[string]string `json:"labels,omitempty"`
 	Phase  string            `json:"phase,omitempty"`
+}
+
+type kubernetesParityConfigMapObservation struct {
+	Exists     bool              `json:"exists"`
+	Namespace  string            `json:"namespace,omitempty"`
+	Name       string            `json:"name,omitempty"`
+	Labels     map[string]string `json:"labels,omitempty"`
+	Data       map[string]string `json:"data,omitempty"`
+	BinaryData map[string]string `json:"binaryData,omitempty"`
 }
 
 type kubernetesParityNoOpObservation struct {
@@ -148,6 +161,9 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 			if lane == "k02" {
 				assertKubernetesK02PlanFixture(t)
 			}
+			if lane == "k03" {
+				assertKubernetesK03PlanFixture(t)
+			}
 		})
 	}
 }
@@ -184,6 +200,7 @@ func TestKubernetesProviderParity(t *testing.T) {
 	}{
 		{lane: "k01", run: runKubernetesK01LiveParity},
 		{lane: "k02", run: runKubernetesK02LiveParity},
+		{lane: "k03", run: runKubernetesK03LiveParity},
 	}
 	selectedLane := strings.ToLower(strings.TrimSpace(os.Getenv(kubernetesParityLaneEnv)))
 	if selectedLane != "" && !slices.Contains(kubernetesParityLanes, selectedLane) {
@@ -398,6 +415,57 @@ func runKubernetesK02LiveParity(t *testing.T, ctx context.Context, env kubernete
 	}
 }
 
+func runKubernetesK03LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLConfigMapRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLConfigMapRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenConfigMapRuntime, tool: ""},
+	}
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		namespace := "ramen-parity-k03-" + run.runtime
+		if err := validateKubernetesParityNamespace(namespace, "k03"); err != nil {
+			t.Fatalf("unsafe namespace %s: %v", namespace, err)
+		}
+		if err := deleteKubernetesParityNamespaceIfExists(ctx, env, namespace); err != nil {
+			t.Fatalf("pre-cleanup %s: %v", namespace, err)
+		}
+		t.Cleanup(func() {
+			if err := deleteKubernetesParityNamespaceIfExists(context.Background(), env, namespace); err != nil {
+				t.Logf("cleanup namespace %s: %v", namespace, err)
+			}
+		})
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K03 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesConfigMapParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K03",
+		Scenario:     "config_map_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
 func runKubernetesParityHCLRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
 	t.Helper()
 	runtimeName := "terraform"
@@ -513,6 +581,94 @@ func runKubernetesParityHCLReadMissingRuntime(ctx context.Context, t *testing.T,
 	}}
 }
 
+func runKubernetesParityHCLConfigMapRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	namespace := "ramen-parity-k03-" + runtimeName
+	configMapName := "ramen-parity-k03-config-map"
+	if err := validateKubernetesParityConfigMapName(configMapName, "k03"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := createKubernetesParityNamespace(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "namespace", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k03", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	createVars := map[string]string{
+		"kubeconfig_path": env.kubeconfig,
+		"kube_context":    env.contextName,
+		"namespace_name":  namespace,
+		"config_map_name": configMapName,
+		"mode":            "create",
+		"payload":         "cGFyaXR5LWNyZWF0ZQ==",
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), createVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	namespaceAfterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	configMapAfterApply, err := observeKubernetesParityConfigMap(ctx, env, namespace, configMapName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	updateVars := map[string]string{
+		"kubeconfig_path": env.kubeconfig,
+		"kube_context":    env.contextName,
+		"namespace_name":  namespace,
+		"config_map_name": configMapName,
+		"mode":            "update",
+		"payload":         "cGFyaXR5LXVwZGF0ZQ==",
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), updateVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "update", err)
+	}
+	configMapAfterUpdate, err := observeKubernetesParityConfigMap(ctx, env, namespace, configMapName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	configMapAfterDestroy, err := observeKubernetesParityConfigMapAbsent(ctx, env, namespace, configMapName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:               runtimeName,
+		Namespace:             namespace,
+		ConfigMapName:         configMapName,
+		AfterApply:            namespaceAfterApply,
+		ConfigMapAfterApply:   &configMapAfterApply,
+		ConfigMapAfterUpdate:  &configMapAfterUpdate,
+		ConfigMapAfterDestroy: &configMapAfterDestroy,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+	}}
+}
+
 func runKubernetesParityPlan(ctx context.Context, dir, tool string) (int, string, error) {
 	return runKubernetesParityPlanArgs(ctx, dir, tool, "plan", "-input=false", "-no-color", "-detailed-exitcode")
 }
@@ -605,6 +761,75 @@ func observeKubernetesParityNamespaceAbsent(ctx context.Context, env kubernetesP
 	}
 }
 
+func observeKubernetesParityConfigMap(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) (kubernetesParityConfigMapObservation, error) {
+	if err := validateKubernetesParityNamespaceForLane(namespace); err != nil {
+		return kubernetesParityConfigMapObservation{}, err
+	}
+	lane, err := kubernetesParityLaneFromNamespace(namespace)
+	if err != nil {
+		return kubernetesParityConfigMapObservation{}, err
+	}
+	if err := validateKubernetesParityConfigMapName(name, lane); err != nil {
+		return kubernetesParityConfigMapObservation{}, err
+	}
+	out, err := runKubernetesParityKubectl(ctx, env, "get", "configmap", name, "-n", namespace, "-o", "json")
+	if err != nil {
+		if isKubernetesParityNotFound(err) {
+			return kubernetesParityConfigMapObservation{Exists: false}, nil
+		}
+		return kubernetesParityConfigMapObservation{}, err
+	}
+	var doc struct {
+		Metadata struct {
+			Name      string            `json:"name"`
+			Namespace string            `json:"namespace"`
+			Labels    map[string]string `json:"labels"`
+		} `json:"metadata"`
+		Data       map[string]string `json:"data"`
+		BinaryData map[string]string `json:"binaryData"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return kubernetesParityConfigMapObservation{}, err
+	}
+	labels := map[string]string{}
+	for _, key := range []string{"app.kubernetes.io/managed-by", "ramen.openudon.dev/lane"} {
+		if value := doc.Metadata.Labels[key]; value != "" {
+			labels[key] = value
+		}
+	}
+	return kubernetesParityConfigMapObservation{
+		Exists:     true,
+		Namespace:  doc.Metadata.Namespace,
+		Name:       doc.Metadata.Name,
+		Labels:     labels,
+		Data:       cloneStringMap(doc.Data),
+		BinaryData: cloneStringMap(doc.BinaryData),
+	}, nil
+}
+
+func observeKubernetesParityConfigMapAbsent(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) (kubernetesParityConfigMapObservation, error) {
+	var last kubernetesParityConfigMapObservation
+	deadline := time.Now().Add(45 * time.Second)
+	for {
+		observed, err := observeKubernetesParityConfigMap(ctx, env, namespace, name)
+		if err != nil {
+			return kubernetesParityConfigMapObservation{}, err
+		}
+		last = observed
+		if !observed.Exists {
+			return observed, nil
+		}
+		if time.Now().After(deadline) {
+			return last, nil
+		}
+		select {
+		case <-ctx.Done():
+			return kubernetesParityConfigMapObservation{}, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
 func compareKubernetesParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
 	t.Helper()
 	if len(observations) != 3 {
@@ -678,6 +903,66 @@ func compareKubernetesReadMissingParityObservations(t *testing.T, observations [
 	}
 }
 
+func compareKubernetesConfigMapParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	expectedLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k03",
+	}
+	expectedCreateData := map[string]string{"mode": "create", "owner": "ramen"}
+	expectedCreateBinaryData := map[string]string{"payload": "cGFyaXR5LWNyZWF0ZQ=="}
+	expectedUpdateData := map[string]string{"mode": "update", "owner": "ramen"}
+	expectedUpdateBinaryData := map[string]string{"payload": "cGFyaXR5LXVwZGF0ZQ=="}
+	for _, observation := range observations {
+		if !observation.AfterApply.Exists {
+			t.Fatalf("%s namespace after_apply does not exist", observation.Runtime)
+		}
+		if !strings.HasPrefix(observation.Namespace, "ramen-parity-k03-") {
+			t.Fatalf("%s namespace = %q", observation.Runtime, observation.Namespace)
+		}
+		if observation.ConfigMapName != "ramen-parity-k03-config-map" {
+			t.Fatalf("%s config_map_name = %q", observation.Runtime, observation.ConfigMapName)
+		}
+		assertKubernetesConfigMapObservation(t, observation.Runtime+" config_map_after_apply", observation.ConfigMapAfterApply, observation.Namespace, observation.ConfigMapName, expectedLabels, expectedCreateData, expectedCreateBinaryData)
+		assertKubernetesConfigMapObservation(t, observation.Runtime+" config_map_after_update", observation.ConfigMapAfterUpdate, observation.Namespace, observation.ConfigMapName, expectedLabels, expectedUpdateData, expectedUpdateBinaryData)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.ConfigMapAfterDestroy == nil || observation.ConfigMapAfterDestroy.Exists {
+			t.Fatalf("%s config_map_after_destroy still exists: %#v", observation.Runtime, observation.ConfigMapAfterDestroy)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"metadata.name", "metadata.namespace", "metadata.labels", "data", "binaryData", "update", "no-op", "destroy.absent"},
+	}
+}
+
+func assertKubernetesConfigMapObservation(t *testing.T, label string, observation *kubernetesParityConfigMapObservation, namespace, name string, labels, data, binaryData map[string]string) {
+	t.Helper()
+	if observation == nil || !observation.Exists {
+		t.Fatalf("%s = %#v, want existing ConfigMap", label, observation)
+	}
+	if observation.Namespace != namespace {
+		t.Fatalf("%s namespace = %q, want %q", label, observation.Namespace, namespace)
+	}
+	if observation.Name != name {
+		t.Fatalf("%s name = %q, want %q", label, observation.Name, name)
+	}
+	if !reflect.DeepEqual(observation.Labels, labels) {
+		t.Fatalf("%s labels = %#v, want %#v", label, observation.Labels, labels)
+	}
+	if !reflect.DeepEqual(observation.Data, data) {
+		t.Fatalf("%s data = %#v, want %#v", label, observation.Data, data)
+	}
+	if !reflect.DeepEqual(observation.BinaryData, binaryData) {
+		t.Fatalf("%s binaryData = %#v, want %#v", label, observation.BinaryData, binaryData)
+	}
+}
+
 func compareOrUpdateKubernetesParityRecording(t *testing.T, recording kubernetesParityLiveRecording, path string) {
 	t.Helper()
 	data, err := json.MarshalIndent(recording, "", "  ")
@@ -708,6 +993,26 @@ func normalizeKubernetesParityRecording(t *testing.T, data []byte) kubernetesPar
 	}
 	recording.RecordedAt = ""
 	return recording
+}
+
+func createKubernetesParityNamespace(ctx context.Context, env kubernetesParityLiveEnv, namespace string) error {
+	lane, err := kubernetesParityLaneFromNamespace(namespace)
+	if err != nil {
+		return err
+	}
+	if err := validateKubernetesParityNamespace(namespace, lane); err != nil {
+		return err
+	}
+	if _, err := runKubernetesParityKubectl(ctx, env, "create", "namespace", namespace); err != nil && !strings.Contains(strings.ToLower(err.Error()), "alreadyexists") && !strings.Contains(strings.ToLower(err.Error()), "already exists") {
+		return err
+	}
+	_, err = runKubernetesParityKubectl(ctx, env,
+		"label", "namespace", namespace,
+		"app.kubernetes.io/managed-by=ramen-parity",
+		"ramen.openudon.dev/lane="+lane,
+		"--overwrite",
+	)
+	return err
 }
 
 func deleteKubernetesParityNamespaceIfExists(ctx context.Context, env kubernetesParityLiveEnv, namespace string) error {
@@ -764,6 +1069,26 @@ func validateKubernetesParityNamespace(namespace, lane string) error {
 	}
 	if strings.HasPrefix(namespace, "-") || strings.HasSuffix(namespace, "-") {
 		return fmt.Errorf("namespace must not start or end with '-'")
+	}
+	return nil
+}
+
+func validateKubernetesParityConfigMapName(name, lane string) error {
+	prefix := "ramen-parity-" + lane + "-"
+	if !strings.HasPrefix(name, prefix) {
+		return fmt.Errorf("ConfigMap name must use %s prefix", prefix)
+	}
+	if len(name) > 253 {
+		return fmt.Errorf("ConfigMap name is too long")
+	}
+	for i, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' {
+			continue
+		}
+		return fmt.Errorf("ConfigMap name contains invalid character %q at offset %d", r, i)
+	}
+	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
+		return fmt.Errorf("ConfigMap name must not start or end with '-' or '.'")
 	}
 	return nil
 }
@@ -882,6 +1207,17 @@ func writeJSONFile(path string, value any) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+func cloneStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
+}
+
 func lastNonEmptyLine(value string) string {
 	lines := strings.Split(value, "\n")
 	for i := len(lines) - 1; i >= 0; i-- {
@@ -902,19 +1238,30 @@ func assertKubernetesK02PlanFixture(t *testing.T) {
 	assertKubernetesRamenPlanFixture(t, "k02")
 }
 
+func assertKubernetesK03PlanFixture(t *testing.T) {
+	t.Helper()
+	assertKubernetesRamenPlanFixture(t, "k03")
+	assertKubernetesRamenPlanFixturePath(t, "K03 update", filepath.Join(kubernetesParityFixtureRoot, "k03", "ramen", "project.update.uws.yaml"))
+}
+
 func assertKubernetesRamenPlanFixture(t *testing.T, lane string) {
 	t.Helper()
+	assertKubernetesRamenPlanFixturePath(t, strings.ToUpper(lane), filepath.Join(kubernetesParityFixtureRoot, lane, "ramen", "project.uws.yaml"))
+}
+
+func assertKubernetesRamenPlanFixturePath(t *testing.T, label, projectPath string) {
+	t.Helper()
 	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(kubernetesParityFixtureRoot, lane, "ramen", "project.uws.yaml"),
+		ProjectPath: projectPath,
 		StatePath:   filepath.Join(t.TempDir(), "state.db"),
 	})
 	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan: %v", strings.ToUpper(lane), err)
+		t.Fatalf("build %s Ramen fixture plan: %v", label, err)
 	}
 	if result.Plan.Errored {
-		t.Fatalf("%s Ramen fixture plan errored: %#v", strings.ToUpper(lane), result.Plan.Diagnostics)
+		t.Fatalf("%s Ramen fixture plan errored: %#v", label, result.Plan.Diagnostics)
 	}
 	if result.Plan.Summary.Create != 1 || len(result.Plan.Resources) != 1 {
-		t.Fatalf("%s Ramen fixture plan summary = %#v resources=%d", strings.ToUpper(lane), result.Plan.Summary, len(result.Plan.Resources))
+		t.Fatalf("%s Ramen fixture plan summary = %#v resources=%d", label, result.Plan.Summary, len(result.Plan.Resources))
 	}
 }

@@ -427,7 +427,7 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.name", "metadata.0.name":
 					return []string{"metadata.name"}
 				case "metadata.namespace", "metadata.0.namespace":
-					return []string{"metadata.namespace"}
+					return []string{"namespace", "metadata.namespace"}
 				case "metadata.annotations", "metadata.0.annotations":
 					return []string{"metadata.annotations"}
 				case "metadata.labels", "metadata.0.labels":
@@ -480,7 +480,7 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.name", "metadata.0.name":
 					return []string{"metadata.name"}
 				case "metadata.namespace", "metadata.0.namespace":
-					return []string{"metadata.namespace"}
+					return []string{"namespace", "metadata.namespace"}
 				case "metadata.annotations", "metadata.0.annotations":
 					return []string{"metadata.annotations"}
 				case "metadata.labels", "metadata.0.labels":

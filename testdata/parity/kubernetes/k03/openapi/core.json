@@ -1,0 +1,194 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Kubernetes Core v1 ConfigMap provider parity subset",
+    "version": "v1.19.2-subset"
+  },
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/api/v1/namespaces/{namespace}/configmaps": {
+      "post": {
+        "operationId": "createCoreV1NamespacedConfigMap",
+        "summary": "create a ConfigMap",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ConfigMap"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "ConfigMap created",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ConfigMap"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/configmaps/{name}": {
+      "get": {
+        "operationId": "readCoreV1NamespacedConfigMap",
+        "summary": "read the specified ConfigMap",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ConfigMap",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ConfigMap"
+            }
+          },
+          "404": {
+            "description": "ConfigMap not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceCoreV1NamespacedConfigMap",
+        "summary": "replace the specified ConfigMap",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ConfigMap"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ConfigMap replaced",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.ConfigMap"
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoreV1NamespacedConfigMap",
+        "summary": "delete a ConfigMap",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "ConfigMap deleted"
+          },
+          "404": {
+            "description": "ConfigMap not found"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "io.k8s.api.core.v1.ConfigMap": {
+      "type": "object",
+      "required": [
+        "metadata"
+      ],
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "required": [
+            "name",
+            "namespace"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "binaryData": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

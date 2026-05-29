@@ -1,0 +1,181 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K03",
+  "scenario": "config_map_lifecycle",
+  "recorded_at": "2026-05-29T22:48:37Z",
+  "context": "kind-ramen-m21",
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "namespace": "ramen-parity-k03-opentofu",
+      "config_map_name": "ramen-parity-k03-config-map",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k03-opentofu",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "found no differences, so no changes are needed."
+      },
+      "config_map_after_apply": {
+        "exists": true,
+        "namespace": "ramen-parity-k03-opentofu",
+        "name": "ramen-parity-k03-config-map",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "data": {
+          "mode": "create",
+          "owner": "ramen"
+        },
+        "binaryData": {
+          "payload": "cGFyaXR5LWNyZWF0ZQ=="
+        }
+      },
+      "config_map_after_update": {
+        "exists": true,
+        "namespace": "ramen-parity-k03-opentofu",
+        "name": "ramen-parity-k03-config-map",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "data": {
+          "mode": "update",
+          "owner": "ramen"
+        },
+        "binaryData": {
+          "payload": "cGFyaXR5LXVwZGF0ZQ=="
+        }
+      },
+      "config_map_after_destroy": {
+        "exists": false
+      }
+    },
+    {
+      "runtime": "terraform",
+      "namespace": "ramen-parity-k03-terraform",
+      "config_map_name": "ramen-parity-k03-config-map",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k03-terraform",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "and found no differences, so no changes are needed."
+      },
+      "config_map_after_apply": {
+        "exists": true,
+        "namespace": "ramen-parity-k03-terraform",
+        "name": "ramen-parity-k03-config-map",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "data": {
+          "mode": "create",
+          "owner": "ramen"
+        },
+        "binaryData": {
+          "payload": "cGFyaXR5LWNyZWF0ZQ=="
+        }
+      },
+      "config_map_after_update": {
+        "exists": true,
+        "namespace": "ramen-parity-k03-terraform",
+        "name": "ramen-parity-k03-config-map",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "data": {
+          "mode": "update",
+          "owner": "ramen"
+        },
+        "binaryData": {
+          "payload": "cGFyaXR5LXVwZGF0ZQ=="
+        }
+      },
+      "config_map_after_destroy": {
+        "exists": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "namespace": "ramen-parity-k03-ramen",
+      "config_map_name": "ramen-parity-k03-config-map",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k03-ramen",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "{Create:0 Update:0 Delete:0 Replace:0 NoOp:1 Read:0 Diagnostics:0}"
+      },
+      "config_map_after_apply": {
+        "exists": true,
+        "namespace": "ramen-parity-k03-ramen",
+        "name": "ramen-parity-k03-config-map",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "data": {
+          "mode": "create",
+          "owner": "ramen"
+        },
+        "binaryData": {
+          "payload": "cGFyaXR5LWNyZWF0ZQ=="
+        }
+      },
+      "config_map_after_update": {
+        "exists": true,
+        "namespace": "ramen-parity-k03-ramen",
+        "name": "ramen-parity-k03-config-map",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k03"
+        },
+        "data": {
+          "mode": "update",
+          "owner": "ramen"
+        },
+        "binaryData": {
+          "payload": "cGFyaXR5LXVwZGF0ZQ=="
+        }
+      },
+      "config_map_after_destroy": {
+        "exists": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "metadata.name",
+      "metadata.namespace",
+      "metadata.labels",
+      "data",
+      "binaryData",
+      "update",
+      "no-op",
+      "destroy.absent"
+    ]
+  }
+}
