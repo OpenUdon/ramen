@@ -94,8 +94,8 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		command  []string
 		expected []string
 	}{
-		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
-		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--json", "trusted executor"}},
+		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--executor", "--udon-output", "--json", "trusted executor"}},
+		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--executor", "--udon-output", "--json", "trusted executor"}},
 		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--identity", "plan-compatible desired hash"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "--workspace", "does not execute Terraform"}},
 		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--policy-file", "--approved-by", "--approved-at", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},

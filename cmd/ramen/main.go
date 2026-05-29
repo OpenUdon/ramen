@@ -922,6 +922,8 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	executorMode := fs.String("executor", "", "Trusted executor to use: mock or udon")
+	udonOutputDir := fs.String("udon-output", "", "Optional root directory for udon runtime artifacts when --executor udon is selected")
 	outDir := fs.String("out", "", "Optional directory for generated read UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
@@ -931,8 +933,8 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --mock [--out DIR] [--json]\n")
-		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen refresh [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] [--mock | --executor udon] [--udon-output DIR] [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nReads tracked resources through a trusted executor and records redacted refresh revisions. Public builds only include the mock executor; live udon execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -943,7 +945,11 @@ func runRefreshCommand(ctx context.Context, args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	exec := reconcileExecutor(*mock)
+	exec, err := selectTrustedExecutor(*executorMode, *mock, *udonOutputDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 	result, err := reconcile.Refresh(ctx, reconcile.Options{ConfigDir: *configDir, ProjectPath: *projectPath, StatePath: statePathOrDefault(*statePath, *projectPath, *configDir, *workspace), APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), Workspace: *workspace, OutDir: *outDir, Executor: exec})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -965,6 +971,8 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	planPath := fs.String("plan", "", "Digest-bound Ramen destroy plan artifact to verify and execute")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	executorMode := fs.String("executor", "", "Trusted executor to use: mock or udon")
+	udonOutputDir := fs.String("udon-output", "", "Optional root directory for udon runtime artifacts when --executor udon is selected")
 	outDir := fs.String("out", "", "Optional directory for generated delete UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
@@ -974,8 +982,8 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
-		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve [--mock | --executor udon] [--udon-output DIR] [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor; live udon execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -1000,7 +1008,12 @@ func runDestroyCommand(ctx context.Context, args []string) {
 	if strings.TrimSpace(*planPath) != "" && !configDirSet {
 		configDirValue = ""
 	}
-	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), Workspace: *workspace, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: reconcileExecutor(*mock)})
+	exec, err := selectTrustedExecutor(*executorMode, *mock, *udonOutputDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), Workspace: *workspace, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: exec})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
@@ -1077,13 +1090,6 @@ func runImportCommand(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 	fmt.Printf("ramen: import imported=%d run=%d\n", result.Summary.Imported, result.RunID)
-}
-
-func reconcileExecutor(mock bool) executor.Executor {
-	if mock {
-		return &executor.MockExecutor{}
-	}
-	return nil
 }
 
 func statePathOrDefault(path, projectPath, configDir, workspace string) string {
@@ -1175,6 +1181,8 @@ func runApplyCommand(ctx context.Context, args []string) {
 	planPath := fs.String("plan", "", "Digest-bound Ramen plan artifact to verify and execute")
 	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
+	executorMode := fs.String("executor", "", "Trusted executor to use: mock or udon")
+	udonOutputDir := fs.String("udon-output", "", "Optional root directory for udon runtime artifacts when --executor udon is selected")
 	outDir := fs.String("out", "", "Optional directory for generated executor-ready UWS action documents")
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	var apiSources repeatedStringFlag
@@ -1184,8 +1192,8 @@ func runApplyCommand(ctx context.Context, args []string) {
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve --mock [--out DIR] [--json]\n")
-		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live execution requires an opt-in adapter build.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve [--mock | --executor udon] [--udon-output DIR] [--out DIR] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live udon execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -1210,9 +1218,10 @@ func runApplyCommand(ctx context.Context, args []string) {
 	if strings.TrimSpace(*planPath) != "" && !configDirSet {
 		configDirValue = ""
 	}
-	var exec executor.Executor
-	if *mock {
-		exec = &executor.MockExecutor{}
+	exec, err := selectTrustedExecutor(*executorMode, *mock, *udonOutputDir)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
 	}
 	result, err := tfapply.Apply(ctx, tfapply.Options{
 		ConfigDir:   configDirValue,

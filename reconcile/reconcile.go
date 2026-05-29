@@ -769,6 +769,12 @@ func executorAction(resource tfplan.ResourcePlan, action string) executor.Action
 	out := executor.Action{Address: resource.Address, Type: resource.Type, Provider: resource.Provider, Action: action, DesiredHash: resource.DesiredHash}
 	if resource.Mapping != nil {
 		out.Mapping = executor.ActionMapping{SourceKind: resource.Mapping.SourceKind, SourceID: resource.Mapping.SourceID, SourcePath: resource.Mapping.SourcePath, OperationID: resource.Mapping.OperationID}
+		if len(resource.Mapping.IdentityAttributes) > 0 {
+			attrs, err := json.Marshal(resource.Mapping.IdentityAttributes)
+			if err == nil {
+				out.Metadata = map[string]string{"identity_attributes": string(attrs)}
+			}
+		}
 	}
 	return out
 }

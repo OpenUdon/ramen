@@ -360,6 +360,9 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 			SourceOperationID: resource.Mapping.OperationID,
 			Description:       fmt.Sprintf("Apply %s for %s", resource.Action, resource.Address),
 			Request:           request,
+			Outputs: map[string]string{
+				"body": "$response.body",
+			},
 		}},
 		Workflows: []*uws1.Workflow{{
 			WorkflowID:  "main",
@@ -622,6 +625,12 @@ func executorAction(resource tfplan.ResourcePlan) executor.Action {
 			SourceID:    resource.Mapping.SourceID,
 			SourcePath:  resource.Mapping.SourcePath,
 			OperationID: resource.Mapping.OperationID,
+		}
+		if len(resource.Mapping.IdentityAttributes) > 0 {
+			attrs, err := json.Marshal(resource.Mapping.IdentityAttributes)
+			if err == nil {
+				action.Metadata = map[string]string{"identity_attributes": string(attrs)}
+			}
 		}
 	}
 	return action

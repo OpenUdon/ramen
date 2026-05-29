@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/OpenUdon/ramen/executor"
@@ -52,6 +53,7 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	if outputDir == "" {
 		outputDir = filepath.Join(req.WorkingDir, ".ramen", "apply", "udon")
 	}
+	outputDir = filepath.Join(outputDir, safeOutputName(req.Action.Address))
 	if err := runner.ExecuteRuntimePlan(ctx, plan, outputDir); err != nil {
 		return executor.Result{}, err
 	}
@@ -79,4 +81,27 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	}
 	result.Events = append(result.Events, executor.Emit(req, "finished", "udon executor finished", nil))
 	return result, nil
+}
+
+func safeOutputName(address string) string {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return "action"
+	}
+	var b strings.Builder
+	for _, r := range address {
+		switch {
+		case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+		case r == '-', r == '_':
+			b.WriteRune(r)
+		default:
+			b.WriteByte('_')
+		}
+	}
+	out := strings.Trim(b.String(), "_")
+	if out == "" {
+		return "action"
+	}
+	return out
 }
