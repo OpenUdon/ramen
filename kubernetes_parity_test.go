@@ -155,6 +155,7 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 		t.Run(strings.ToUpper(lane), func(t *testing.T) {
 			artifact := loadKubernetesParityArtifact(t, filepath.Join(kubernetesParityFixtureRoot, lane, "observations.json"))
 			assertKubernetesParityArtifact(t, lane, artifact)
+			assertKubernetesParityRecordingArtifacts(t, lane, artifact)
 			if lane == "k01" {
 				assertKubernetesK01PlanFixture(t)
 			}
@@ -175,25 +176,13 @@ func TestKubernetesProviderParity(t *testing.T) {
 	terraform := requireKubernetesParityTool(t, kubernetesParityTerraformEnv, "terraform")
 	tofu := requireKubernetesParityTool(t, kubernetesParityTofuEnv, "tofu")
 	kubectl := requireKubernetesParityTool(t, "", "kubectl")
-	_ = requireKubernetesParityTool(t, "", "kind")
-	out, err := osexec.Command(kubectl, "config", "current-context").CombinedOutput()
-	if err != nil {
-		t.Fatalf("kubectl current-context failed: %v: %s", err, strings.TrimSpace(string(out)))
-	}
-	contextName := strings.TrimSpace(string(out))
-	if !strings.HasPrefix(contextName, "kind-") {
-		t.Fatalf("refusing Kubernetes provider parity against non-kind context %q", contextName)
-	}
-	if out, err := osexec.Command("kind", "get", "clusters").CombinedOutput(); err != nil {
+	kind := requireKubernetesParityTool(t, "", "kind")
+	env := prepareKubernetesParityLiveEnv(t, kubectl)
+	if out, err := osexec.Command(kind, "get", "clusters").CombinedOutput(); err != nil {
 		t.Fatalf("kind is required when %s=1: %v: %s", kubernetesParityEnv, err, strings.TrimSpace(string(out)))
-	}
-	kubeconfig := defaultKubernetesParityKubeconfig(t)
-	if _, err := os.Stat(kubeconfig); err != nil {
-		t.Fatalf("kubeconfig %s is required when %s=1: %v", kubeconfig, kubernetesParityEnv, err)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Minute)
 	defer cancel()
-	env := kubernetesParityLiveEnv{kubectl: kubectl, contextName: contextName, kubeconfig: kubeconfig}
 	liveRuns := []struct {
 		lane string
 		run  func(*testing.T, context.Context, kubernetesParityLiveEnv, string, string) kubernetesParityLiveRecording
@@ -235,6 +224,19 @@ func loadKubernetesParityArtifact(t *testing.T, path string) kubernetesParityArt
 	return artifact
 }
 
+func loadKubernetesParityLiveRecording(t *testing.T, path string) kubernetesParityLiveRecording {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var recording kubernetesParityLiveRecording
+	if err := json.Unmarshal(data, &recording); err != nil {
+		t.Fatalf("decode %s: %v", path, err)
+	}
+	return recording
+}
+
 func assertKubernetesParityArtifact(t *testing.T, lane string, artifact kubernetesParityArtifact) {
 	t.Helper()
 	wantLane := strings.ToUpper(lane)
@@ -246,6 +248,14 @@ func assertKubernetesParityArtifact(t *testing.T, lane string, artifact kubernet
 	}
 	if artifact.Status != "planned" && artifact.Status != "recorded" {
 		t.Fatalf("artifact status = %q, want planned or recorded", artifact.Status)
+	}
+	if artifact.Status == "recorded" {
+		if strings.TrimSpace(artifact.RecordedAt) == "" {
+			t.Fatalf("recorded artifact %s must include recorded_at", wantLane)
+		}
+		if strings.TrimSpace(artifact.RecordingsSource) == "" {
+			t.Fatalf("recorded artifact %s must include recordings_source", wantLane)
+		}
 	}
 	if artifact.Provider.Source != "hashicorp/kubernetes" {
 		t.Fatalf("provider source = %q, want hashicorp/kubernetes", artifact.Provider.Source)
@@ -309,6 +319,73 @@ func assertKubernetesParityArtifact(t *testing.T, lane string, artifact kubernet
 		}
 		if artifact.Status == "planned" && len(scenario.ObservationArtifacts) != 0 {
 			t.Fatalf("planned scenario %s must not claim observation_artifacts", scenario.Name)
+		}
+	}
+}
+
+func assertKubernetesParityRecordingArtifacts(t *testing.T, lane string, artifact kubernetesParityArtifact) {
+	t.Helper()
+	if artifact.Status != "recorded" {
+		return
+	}
+	for _, scenario := range artifact.Scenarios {
+		for _, path := range scenario.ObservationArtifacts {
+			recording := loadKubernetesParityLiveRecording(t, path)
+			assertKubernetesParityLiveRecording(t, lane, scenario.Name, artifact.Runtimes, recording)
+		}
+	}
+}
+
+func assertKubernetesParityLiveRecording(t *testing.T, lane, scenario string, runtimes []string, recording kubernetesParityLiveRecording) {
+	t.Helper()
+	wantLane := strings.ToUpper(lane)
+	if recording.Version != kubernetesParityArtifactV1 {
+		t.Fatalf("%s live recording version = %q, want %q", wantLane, recording.Version, kubernetesParityArtifactV1)
+	}
+	if recording.Lane != wantLane {
+		t.Fatalf("%s live recording lane = %q, want %q", wantLane, recording.Lane, wantLane)
+	}
+	if recording.Scenario != scenario {
+		t.Fatalf("%s live recording scenario = %q, want %q", wantLane, recording.Scenario, scenario)
+	}
+	if !recording.Comparison.Matched {
+		t.Fatalf("%s live recording comparison did not match", wantLane)
+	}
+	if len(recording.Failures) != 0 {
+		t.Fatalf("%s live recording has failures: %#v", wantLane, recording.Failures)
+	}
+	assertKubernetesParityRuntimeSet(t, wantLane, runtimes, recording.Observations)
+	var comparison kubernetesParityObservationComparison
+	switch lane {
+	case "k01":
+		comparison = compareKubernetesParityObservations(t, recording.Observations)
+	case "k02":
+		comparison = compareKubernetesReadMissingParityObservations(t, recording.Observations)
+	case "k03":
+		comparison = compareKubernetesConfigMapParityObservations(t, recording.Observations)
+	default:
+		t.Fatalf("%s is recorded but has no semantic replay assertions", wantLane)
+	}
+	if !reflect.DeepEqual(recording.Comparison.Fields, comparison.Fields) {
+		t.Fatalf("%s comparison fields = %#v, want %#v", wantLane, recording.Comparison.Fields, comparison.Fields)
+	}
+}
+
+func assertKubernetesParityRuntimeSet(t *testing.T, label string, runtimes []string, observations []kubernetesParityRuntimeObservation) {
+	t.Helper()
+	if len(observations) != len(runtimes) {
+		t.Fatalf("%s live recording observation count = %d, want %d", label, len(observations), len(runtimes))
+	}
+	seen := map[string]bool{}
+	for _, observation := range observations {
+		if seen[observation.Runtime] {
+			t.Fatalf("%s live recording has duplicate runtime %q", label, observation.Runtime)
+		}
+		seen[observation.Runtime] = true
+	}
+	for _, runtime := range runtimes {
+		if !seen[runtime] {
+			t.Fatalf("%s live recording missing runtime %q", label, runtime)
 		}
 	}
 }
@@ -992,6 +1069,17 @@ func normalizeKubernetesParityRecording(t *testing.T, data []byte) kubernetesPar
 		t.Fatalf("decode parity recording: %v", err)
 	}
 	recording.RecordedAt = ""
+	recording.Context = ""
+	for i := range recording.Observations {
+		if recording.Observations[i].NoOpPlan != nil {
+			recording.Observations[i].NoOpPlan.ExitCode = 0
+			recording.Observations[i].NoOpPlan.Summary = ""
+		}
+		if recording.Observations[i].ReadMissing != nil {
+			recording.Observations[i].ReadMissing.ExitCode = 0
+			recording.Observations[i].ReadMissing.Summary = ""
+		}
+	}
 	return recording
 }
 
@@ -1043,7 +1131,7 @@ func deleteKubernetesParityNamespaceIfExists(ctx context.Context, env kubernetes
 }
 
 func runKubernetesParityKubectl(ctx context.Context, env kubernetesParityLiveEnv, args ...string) ([]byte, error) {
-	fullArgs := []string{"--context", env.contextName}
+	fullArgs := []string{"--kubeconfig", env.kubeconfig, "--context", env.contextName}
 	fullArgs = append(fullArgs, args...)
 	cmd := osexec.CommandContext(ctx, env.kubectl, fullArgs...)
 	out, err := cmd.CombinedOutput()
@@ -1115,19 +1203,28 @@ func kubernetesParityLaneFromNamespace(namespace string) (string, error) {
 	return lane, nil
 }
 
-func defaultKubernetesParityKubeconfig(t *testing.T) string {
+func prepareKubernetesParityLiveEnv(t *testing.T, kubectl string) kubernetesParityLiveEnv {
 	t.Helper()
-	if value := strings.TrimSpace(os.Getenv("KUBECONFIG")); value != "" {
-		parts := filepath.SplitList(value)
-		if len(parts) > 0 && strings.TrimSpace(parts[0]) != "" {
-			return strings.TrimSpace(parts[0])
-		}
-	}
-	home, err := os.UserHomeDir()
+	kubeconfig := filepath.Join(t.TempDir(), "kubeconfig")
+	out, err := osexec.Command(kubectl, "config", "view", "--raw", "--flatten").CombinedOutput()
 	if err != nil {
-		t.Fatalf("locate kubeconfig: %v", err)
+		t.Fatalf("flatten kubeconfig for %s=1: %v: %s", kubernetesParityEnv, err, strings.TrimSpace(string(out)))
 	}
-	return filepath.Join(home, ".kube", "config")
+	if len(out) == 0 {
+		t.Fatalf("flatten kubeconfig for %s=1 produced no output", kubernetesParityEnv)
+	}
+	if err := os.WriteFile(kubeconfig, out, 0o600); err != nil {
+		t.Fatalf("write flattened kubeconfig: %v", err)
+	}
+	contextOut, err := osexec.Command(kubectl, "--kubeconfig", kubeconfig, "config", "current-context").CombinedOutput()
+	if err != nil {
+		t.Fatalf("kubectl current-context from flattened kubeconfig failed: %v: %s", err, strings.TrimSpace(string(contextOut)))
+	}
+	contextName := strings.TrimSpace(string(contextOut))
+	if !strings.HasPrefix(contextName, "kind-") {
+		t.Fatalf("refusing Kubernetes provider parity against non-kind context %q", contextName)
+	}
+	return kubernetesParityLiveEnv{kubectl: kubectl, contextName: contextName, kubeconfig: kubeconfig}
 }
 
 func requireKubernetesParityTool(t *testing.T, envName, defaultName string) string {

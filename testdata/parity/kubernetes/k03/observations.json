@@ -52,6 +52,8 @@
       ]
     }
   ],
+  "recorded_at": "2026-05-29T22:48:37Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k03 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
     "K03 compares ConfigMap data, binaryData, update/replace, no-op, and destroy cleanup."
   ]

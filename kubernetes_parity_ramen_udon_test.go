@@ -392,10 +392,7 @@ func startKubernetesParityProxy(ctx context.Context, t *testing.T, env kubernete
 		cancel()
 		return "", nil, err
 	}
-	args := []string{"--context", env.contextName}
-	if strings.TrimSpace(env.kubeconfig) != "" {
-		args = append(args, "--kubeconfig", env.kubeconfig)
-	}
+	args := []string{"--kubeconfig", env.kubeconfig, "--context", env.contextName}
 	args = append(args,
 		"proxy",
 		"--address=127.0.0.1",
