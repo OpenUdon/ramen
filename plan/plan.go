@@ -23,6 +23,7 @@ import (
 )
 
 const Version = "ramen.plan.v1"
+const MappingMetadataVersion = "ramen.mapping-metadata.v1"
 
 type Options struct {
 	ConfigDir   string
@@ -130,6 +131,12 @@ type MappingPlan struct {
 	SourcePath         string                        `json:"source_path,omitempty"`
 	OperationID        string                        `json:"operation_id,omitempty"`
 	IdentityAttributes []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
+	Schema             []project.SchemaPath          `json:"schema,omitempty"`
+	RequestBindings    []project.RequestBinding      `json:"request_bindings,omitempty"`
+	ResponseBindings   []project.ResponseBinding     `json:"response_bindings,omitempty"`
+	Normalizers        []project.Normalizer          `json:"normalizers,omitempty"`
+	MappingLifecycle   *project.MappingLifecycle     `json:"mapping_lifecycle,omitempty"`
+	RequiredOperations []string                      `json:"required_operations,omitempty"`
 	AI                 *project.AIMetadata           `json:"ai,omitempty"`
 }
 
@@ -145,11 +152,18 @@ type DesiredHashInput struct {
 }
 
 type MappingHashInput struct {
+	MetadataVersion    string
 	Purpose            string
 	SourceKind         string
 	SourceID           string
 	OperationID        string
 	IdentityAttributes []tfmapping.IdentityAttribute
+	Schema             []project.SchemaPath
+	RequestBindings    []project.RequestBinding
+	ResponseBindings   []project.ResponseBinding
+	Normalizers        []project.Normalizer
+	MappingLifecycle   *project.MappingLifecycle
+	RequiredOperations []string
 }
 
 type Diagnostic struct {
@@ -700,7 +714,7 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, re
 		diagnostics = append(diagnostics, Diagnostic{Code: string(diag.Code), Severity: severity, Message: diag.Message, Address: obj.Address, ModuleAddress: obj.ModuleAddress})
 	}
 	if len(spec.Target.OperationIDs) == 0 {
-		return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
+		return mappingPlanForSpec(purpose, spec), diagnostics
 	}
 	if match, ambiguous := findOperation(sources, spec.Target); ambiguous {
 		diagnostics = append(diagnostics, Diagnostic{
@@ -710,16 +724,14 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, re
 			Address:       obj.Address,
 			ModuleAddress: obj.ModuleAddress,
 		})
-		return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
+		return mappingPlanForSpec(purpose, spec), diagnostics
 	} else if match != nil {
-		return &MappingPlan{
-			Purpose:            purpose,
-			SourceKind:         match.Source.Kind,
-			SourceID:           firstNonEmpty(match.Operation.DocumentName, match.Source.ID),
-			SourcePath:         match.Source.Path,
-			OperationID:        match.Operation.OperationID,
-			IdentityAttributes: spec.IdentityAttributes,
-		}, diagnostics
+		mapping := mappingPlanForSpec(purpose, spec)
+		mapping.SourceKind = match.Source.Kind
+		mapping.SourceID = firstNonEmpty(match.Operation.DocumentName, match.Source.ID)
+		mapping.SourcePath = match.Source.Path
+		mapping.OperationID = match.Operation.OperationID
+		return mapping, diagnostics
 	}
 	severity := "warning"
 	if required {
@@ -732,7 +744,7 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, re
 		Address:       obj.Address,
 		ModuleAddress: obj.ModuleAddress,
 	})
-	return &MappingPlan{Purpose: purpose, IdentityAttributes: spec.IdentityAttributes}, diagnostics
+	return mappingPlanForSpec(purpose, spec), diagnostics
 }
 
 func mapProjectResource(profile project.Profile, resource project.Resource, purpose, action string, sources []sourceDoc, required bool) (*MappingPlan, []Diagnostic) {
@@ -742,7 +754,7 @@ func mapProjectResource(profile project.Profile, resource project.Resource, purp
 		if required {
 			severity = "error"
 		}
-		return &MappingPlan{Purpose: purpose, IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes)}, []Diagnostic{{
+		return mappingPlanForProjectResource(resource, purpose), []Diagnostic{{
 			Code:     "project.operation_missing",
 			Severity: severity,
 			Message:  fmt.Sprintf("native project resource %s has no %s operation role", resource.Address, purpose),
@@ -753,23 +765,48 @@ func mapProjectResource(profile project.Profile, resource project.Resource, purp
 	sourceKind := firstNonEmpty(role.SourceKind, source.Kind)
 	sourceID := firstNonEmpty(role.SourceID, source.ID)
 	sourcePath := firstNonEmpty(role.SourcePath, source.Path)
-	mapping := &MappingPlan{
-		Purpose:            purpose,
-		SourceKind:         sourceKind,
-		SourceID:           sourceID,
-		SourcePath:         sourcePath,
-		OperationID:        role.OperationID,
-		IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes),
-		AI:                 role.AI,
-	}
+	mapping := mappingPlanForProjectResource(resource, purpose)
+	mapping.SourceKind = sourceKind
+	mapping.SourceID = sourceID
+	mapping.SourcePath = sourcePath
+	mapping.OperationID = role.OperationID
+	mapping.AI = role.AI
 	diagnostics := validateProjectOperation(resource, mapping, sources, required)
 	return mapping, diagnostics
+}
+
+func mappingPlanForSpec(purpose string, spec tfmapping.Mapping) *MappingPlan {
+	return &MappingPlan{
+		Purpose:            purpose,
+		IdentityAttributes: slices.Clone(spec.IdentityAttributes),
+		Schema:             schemaPathsFromMapping(spec.Schema),
+		RequestBindings:    requestBindingsFromMapping(spec.RequestBindings),
+		ResponseBindings:   responseBindingsFromMapping(spec.ResponseBindings),
+		Normalizers:        normalizersFromMapping(spec.Normalizers),
+		MappingLifecycle:   mappingLifecycleFromMapping(spec.Lifecycle),
+	}
+}
+
+func mappingPlanForProjectResource(resource project.Resource, purpose string) *MappingPlan {
+	return &MappingPlan{
+		Purpose:            purpose,
+		IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes),
+		Schema:             slices.Clone(resource.Schema),
+		RequestBindings:    slices.Clone(resource.RequestBindings),
+		ResponseBindings:   slices.Clone(resource.ResponseBindings),
+		Normalizers:        slices.Clone(resource.Normalizers),
+		MappingLifecycle:   cloneMappingLifecycle(resource.MappingLifecycle),
+		RequiredOperations: slices.Clone(resource.RequiredOperations),
+	}
 }
 
 func projectOperationRole(resource project.Resource, purpose, action string) (project.OperationRole, bool) {
 	keys := []string{purpose}
 	if action != "" && action != purpose {
 		keys = append(keys, action)
+	}
+	if purpose == "delete" || action == "delete" {
+		keys = append(keys, "remove_config", "detach", "disable", "suspend")
 	}
 	for _, key := range keys {
 		if role, ok := resource.Operations[key]; ok {
@@ -843,6 +880,106 @@ func projectIdentityAttributes(attrs []project.IdentityAttribute) []tfmapping.Id
 	return out
 }
 
+func schemaPathsFromMapping(paths []tfmapping.SchemaPath) []project.SchemaPath {
+	out := make([]project.SchemaPath, 0, len(paths))
+	for _, path := range paths {
+		out = append(out, project.SchemaPath{
+			Path:                    path.Path,
+			Type:                    path.Type,
+			EnumValues:              slices.Clone(path.EnumValues),
+			Required:                path.Required,
+			Optional:                path.Optional,
+			Computed:                path.Computed,
+			Sensitive:               path.Sensitive,
+			Identity:                path.Identity,
+			ResponseDerivedIdentity: path.ResponseDerivedIdentity,
+			Immutable:               path.Immutable,
+			CreateOnly:              path.CreateOnly,
+			Updateable:              path.Updateable,
+			ReplaceOnChange:         path.ReplaceOnChange,
+			ReadOnly:                path.ReadOnly,
+			Ignored:                 path.Ignored,
+		})
+	}
+	return out
+}
+
+func requestBindingsFromMapping(bindings []tfmapping.RequestBinding) []project.RequestBinding {
+	out := make([]project.RequestBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		out = append(out, project.RequestBinding{
+			OperationRole: string(binding.OperationRole),
+			OperationID:   binding.OperationID,
+			Path:          binding.Path,
+			RequestPath:   binding.RequestPath,
+			Required:      binding.Required,
+			Identity:      binding.Identity,
+		})
+	}
+	return out
+}
+
+func responseBindingsFromMapping(bindings []tfmapping.ResponseBinding) []project.ResponseBinding {
+	out := make([]project.ResponseBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		out = append(out, project.ResponseBinding{
+			OperationRole:           string(binding.OperationRole),
+			OperationID:             binding.OperationID,
+			ResponsePath:            binding.ResponsePath,
+			StatePath:               binding.StatePath,
+			Identity:                binding.Identity,
+			ResponseDerivedIdentity: binding.ResponseDerivedIdentity,
+			Computed:                binding.Computed,
+			Observed:                binding.Observed,
+			Sensitive:               binding.Sensitive,
+		})
+	}
+	return out
+}
+
+func normalizersFromMapping(normalizers []tfmapping.Normalizer) []project.Normalizer {
+	out := make([]project.Normalizer, 0, len(normalizers))
+	for _, normalizer := range normalizers {
+		out = append(out, project.Normalizer{Path: normalizer.Path, Kind: string(normalizer.Kind)})
+	}
+	return out
+}
+
+func mappingLifecycleFromMapping(lifecycle *tfmapping.LifecycleSemantics) *project.MappingLifecycle {
+	if lifecycle == nil {
+		return nil
+	}
+	out := &project.MappingLifecycle{
+		OperationRoles: make([]string, 0, len(lifecycle.OperationRoles)),
+		Paths:          make([]project.MappingLifecyclePath, 0, len(lifecycle.Paths)),
+	}
+	for _, role := range lifecycle.OperationRoles {
+		out.OperationRoles = append(out.OperationRoles, string(role))
+	}
+	for _, path := range lifecycle.Paths {
+		out.Paths = append(out.Paths, project.MappingLifecyclePath{
+			Path:            path.Path,
+			Immutable:       path.Immutable,
+			CreateOnly:      path.CreateOnly,
+			Updateable:      path.Updateable,
+			ReplaceOnChange: path.ReplaceOnChange,
+			Computed:        path.Computed,
+			Ignored:         path.Ignored,
+		})
+	}
+	return out
+}
+
+func cloneMappingLifecycle(lifecycle *project.MappingLifecycle) *project.MappingLifecycle {
+	if lifecycle == nil {
+		return nil
+	}
+	return &project.MappingLifecycle{
+		OperationRoles: slices.Clone(lifecycle.OperationRoles),
+		Paths:          slices.Clone(lifecycle.Paths),
+	}
+}
+
 func findOperation(sources []sourceDoc, target tfmapping.OperationTarget) (*operationMatch, bool) {
 	for _, kind := range target.SourceKinds {
 		for _, operationID := range target.OperationIDs {
@@ -902,11 +1039,18 @@ func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, 
 	selectedDigest := ""
 	if mapping != nil {
 		mappingHash = &MappingHashInput{
+			MetadataVersion:    MappingMetadataVersion,
 			Purpose:            mapping.Purpose,
 			SourceKind:         mapping.SourceKind,
 			SourceID:           mapping.SourceID,
 			OperationID:        mapping.OperationID,
 			IdentityAttributes: mapping.IdentityAttributes,
+			Schema:             mapping.Schema,
+			RequestBindings:    mapping.RequestBindings,
+			ResponseBindings:   mapping.ResponseBindings,
+			Normalizers:        mapping.Normalizers,
+			MappingLifecycle:   mapping.MappingLifecycle,
+			RequiredOperations: mapping.RequiredOperations,
 		}
 		selectedDigest = selectedSourceDigest(mapping, sources)
 	}
@@ -934,11 +1078,18 @@ func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapp
 	selectedDigest := ""
 	if mapping != nil {
 		mappingHash = &MappingHashInput{
+			MetadataVersion:    MappingMetadataVersion,
 			Purpose:            mapping.Purpose,
 			SourceKind:         mapping.SourceKind,
 			SourceID:           mapping.SourceID,
 			OperationID:        mapping.OperationID,
 			IdentityAttributes: mapping.IdentityAttributes,
+			Schema:             mapping.Schema,
+			RequestBindings:    mapping.RequestBindings,
+			ResponseBindings:   mapping.ResponseBindings,
+			Normalizers:        mapping.Normalizers,
+			MappingLifecycle:   mapping.MappingLifecycle,
+			RequiredOperations: mapping.RequiredOperations,
 		}
 		selectedDigest = selectedSourceDigest(mapping, sources)
 	}

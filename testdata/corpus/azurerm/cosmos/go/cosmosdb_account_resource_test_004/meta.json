@@ -1,0 +1,16 @@
+{
+  "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_004",
+  "provider": "azurerm",
+  "service": "cosmos",
+  "resource_types": [
+    "azurerm_cosmosdb_account"
+  ],
+  "api_sources": [
+    {
+      "kind": "openapi",
+      "id": "cosmos",
+      "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+    }
+  ],
+  "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+}

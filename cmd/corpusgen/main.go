@@ -1,11 +1,11 @@
 // Command corpusgen builds a regression corpus of Terraform-to-UWS conversions.
 //
-// It scans static Terraform testdata in the AWS provider for the services that
-// ramen can currently map (derived from tfmapping.SupportedTypes), pairs each
-// config with the matching AWS Smithy model, runs ramen's conversion, and keeps
-// only the conversions that map cleanly (no unsupported/fallback diagnostics).
-// As mapping coverage grows, re-running corpusgen yields more entries with no
-// hand-editing. Large Smithy models are referenced by path, not copied.
+// It scans provider fixtures for the services that ramen can currently map
+// (derived from tfmapping.SupportedTypes), pairs each config with the matching
+// API source document, runs ramen's conversion, and keeps only the conversions
+// that map cleanly (no unsupported/fallback diagnostics). As mapping coverage
+// grows, re-running corpusgen yields more entries with no hand-editing. Large
+// API source documents are referenced by path, not copied.
 package main
 
 import (
@@ -14,12 +14,16 @@ import (
 	"encoding/json"
 	"flag"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"text/template"
 
@@ -29,14 +33,23 @@ import (
 )
 
 const (
-	defaultProviderDir = "../terraform-provider-aws"
-	defaultSmithyDir   = "../apitools/catalog-openapi-cache/aws-smithy"
-	defaultOutDir      = "testdata/corpus"
+	defaultAWSProviderDir        = "../terraform-provider-aws"
+	defaultAWSSmithyDir          = "../apitools/catalog-openapi-cache/aws-smithy"
+	defaultGoogleProviderDir     = "../terraform-provider-google"
+	defaultGoogleDiscoveryDir    = "../apitools/catalog-openapi-cache/google-discovery"
+	defaultAzureProviderDir      = "../terraform-provider-azurerm"
+	defaultAzureOpenAPIDir       = "../apitools/catalog-openapi-cache/openapi"
+	defaultCloudflareProviderDir = "../terraform-provider-cloudflare"
+	defaultCloudflareOpenAPIDir  = "testdata/api-sources"
+	defaultKubernetesProviderDir = "../terraform-provider-kubernetes"
+	defaultKubernetesOpenAPIDir  = "../apitools/catalog-openapi-cache/openapi"
+	defaultOutDir                = "testdata/corpus"
 )
 
 var (
-	resourceRe = regexp.MustCompile(`(?m)^\s*resource\s+"(aws_[A-Za-z0-9_]+)"`)
-	dataRe     = regexp.MustCompile(`(?m)^\s*data\s+"(aws_[A-Za-z0-9_]+)"`)
+	resourceRe    = regexp.MustCompile(`(?m)^\s*resource\s+"((?:aws|google|azurerm|cloudflare|kubernetes)_[A-Za-z0-9_]+)"`)
+	dataRe        = regexp.MustCompile(`(?m)^\s*data\s+"((?:aws|google|azurerm|cloudflare|kubernetes)_[A-Za-z0-9_]+)"`)
+	placeholderRe = regexp.MustCompile(`%\{([A-Za-z0-9_]+)\}`)
 	// fallbackUnsupported diagnostics that disqualify a conversion from the corpus.
 	dropCodes = map[string]bool{
 		string(tfmapping.DiagnosticCodeUnsupportedProvider): true,
@@ -60,13 +73,21 @@ type modelRef struct {
 	Path string `json:"path"`
 }
 
+type apiSourceRef struct {
+	Kind string `json:"kind"`
+	ID   string `json:"id"`
+	Path string `json:"path"`
+}
+
 type entryMeta struct {
-	Path          string     `json:"path"`
-	Service       string     `json:"service"`
-	ResourceTypes []string   `json:"resource_types"`
-	DataSources   []string   `json:"data_sources,omitempty"`
-	SmithyModels  []modelRef `json:"smithy_models"`
-	SourceDir     string     `json:"source_dir"`
+	Path          string         `json:"path"`
+	Provider      string         `json:"provider,omitempty"`
+	Service       string         `json:"service"`
+	ResourceTypes []string       `json:"resource_types"`
+	DataSources   []string       `json:"data_sources,omitempty"`
+	APISources    []apiSourceRef `json:"api_sources,omitempty"`
+	SmithyModels  []modelRef     `json:"smithy_models,omitempty"`
+	SourceDir     string         `json:"source_dir"`
 }
 
 type manifest struct {
@@ -89,105 +110,263 @@ type stats struct {
 }
 
 func main() {
-	providerDir := flag.String("provider-dir", defaultProviderDir, "Path to the terraform-provider-aws checkout")
-	smithyDir := flag.String("smithy-dir", defaultSmithyDir, "Directory of aws-<service>-smithy-model.json files")
+	awsProviderDir := flag.String("provider-dir", defaultAWSProviderDir, "Path to the terraform-provider-aws checkout")
+	awsSmithyDir := flag.String("smithy-dir", defaultAWSSmithyDir, "Directory of aws-<service>-smithy-model.json files")
+	googleProviderDir := flag.String("google-provider-dir", defaultGoogleProviderDir, "Path to the terraform-provider-google checkout")
+	googleDiscoveryDir := flag.String("google-discovery-dir", defaultGoogleDiscoveryDir, "Directory of Google discovery JSON files")
+	azureProviderDir := flag.String("azure-provider-dir", defaultAzureProviderDir, "Path to the terraform-provider-azurerm checkout")
+	azureOpenAPIDir := flag.String("azure-openapi-dir", defaultAzureOpenAPIDir, "Directory of Azure OpenAPI JSON files")
+	cloudflareProviderDir := flag.String("cloudflare-provider-dir", defaultCloudflareProviderDir, "Path to the terraform-provider-cloudflare checkout")
+	cloudflareOpenAPIDir := flag.String("cloudflare-openapi-dir", defaultCloudflareOpenAPIDir, "Directory of Cloudflare OpenAPI YAML/JSON files")
+	kubernetesProviderDir := flag.String("kubernetes-provider-dir", defaultKubernetesProviderDir, "Path to the terraform-provider-kubernetes checkout")
+	kubernetesOpenAPIDir := flag.String("kubernetes-openapi-dir", defaultKubernetesOpenAPIDir, "Directory of Kubernetes OpenAPI/Swagger JSON files")
+	providers := flag.String("providers", "aws,google,azurerm,cloudflare,kubernetes", "Comma-separated providers to scan: aws, google, azurerm, cloudflare, kubernetes")
 	outDir := flag.String("out", defaultOutDir, "Corpus output directory (relative to repo root)")
 	action := flag.String("action", "create", "Desired action passed to ramen convert")
 	flag.Parse()
 
-	if err := run(*providerDir, *smithyDir, *outDir, *action); err != nil {
+	if err := run(runOptions{
+		AWSProviderDir:        *awsProviderDir,
+		AWSSmithyDir:          *awsSmithyDir,
+		GoogleProviderDir:     *googleProviderDir,
+		GoogleDiscoveryDir:    *googleDiscoveryDir,
+		AzureProviderDir:      *azureProviderDir,
+		AzureOpenAPIDir:       *azureOpenAPIDir,
+		CloudflareProviderDir: *cloudflareProviderDir,
+		CloudflareOpenAPIDir:  *cloudflareOpenAPIDir,
+		KubernetesProviderDir: *kubernetesProviderDir,
+		KubernetesOpenAPIDir:  *kubernetesOpenAPIDir,
+		Providers:             *providers,
+		OutDir:                *outDir,
+		Action:                *action,
+	}); err != nil {
 		fmt.Fprintln(os.Stderr, "corpusgen:", err)
 		os.Exit(1)
 	}
 }
 
-func run(providerDir, smithyDir, outDir, action string) error {
+type runOptions struct {
+	AWSProviderDir        string
+	AWSSmithyDir          string
+	GoogleProviderDir     string
+	GoogleDiscoveryDir    string
+	AzureProviderDir      string
+	AzureOpenAPIDir       string
+	CloudflareProviderDir string
+	CloudflareOpenAPIDir  string
+	KubernetesProviderDir string
+	KubernetesOpenAPIDir  string
+	Providers             string
+	OutDir                string
+	Action                string
+}
+
+type providerSpec struct {
+	Name        string
+	ProviderDir string
+	SourceDir   string
+	SourceKind  string
+	testInputs  func(string, string) ([]configInput, error)
+	findSource  func(string, string) (string, bool)
+}
+
+func run(opts runOptions) error {
 	ctx := context.Background()
 	registry := tfmapping.DefaultRegistry()
-
-	mappedResources := map[string]bool{}
-	serviceForType := map[string]string{}
-	services := map[string]bool{}
-	for _, t := range registry.SupportedTypes() {
-		if t.Provider != "aws" || !contains(t.Kinds, "resource") {
-			continue
-		}
-		mappedResources[t.Type] = true
-		svc := serviceForResourceType(t.Type)
-		serviceForType[t.Type] = svc
-		services[svc] = true
-	}
-	if len(services) == 0 {
-		return fmt.Errorf("no mapped AWS resource types found in tfmapping registry")
+	providerSpecs := specsForOptions(opts)
+	if len(providerSpecs) == 0 {
+		return fmt.Errorf("no enabled provider checkouts found")
 	}
 
-	serviceModel := map[string]string{}
 	st := &stats{perService: map[string]int{}}
-	for svc := range services {
-		if path, ok := findSmithyModel(smithyDir, svc); ok {
-			serviceModel[svc] = path
-		} else {
-			st.servicesNoModel = append(st.servicesNoModel, svc)
-		}
-	}
-	sort.Strings(st.servicesNoModel)
-
 	var entries []entryMeta
-	emittedDirs := map[string]bool{}
-	for _, svc := range sortedKeys(services) {
-		if _, ok := serviceModel[svc]; !ok {
-			continue
-		}
-		st.servicesScanned++
-		testdata := filepath.Join(providerDir, "internal", "service", svc, "testdata")
-		inputs, err := configInputs(testdata)
+	emittedDirs := map[string]map[string]bool{}
+
+	for _, spec := range providerSpecs {
+		mapping, err := mappedProviderTypes(registry, spec.Name)
 		if err != nil {
 			return err
 		}
-		for _, input := range inputs {
-			meta, emitted, err := processConfigDir(ctx, processArgs{
-				input:           input,
-				service:         svc,
-				providerDir:     providerDir,
-				outDir:          outDir,
-				action:          action,
-				mappedResources: mappedResources,
-				serviceForType:  serviceForType,
-				serviceModel:    serviceModel,
-			}, st)
+		serviceSource := map[string]string{}
+		for svc := range mapping.services {
+			if path, ok := spec.findSource(spec.SourceDir, svc); ok {
+				serviceSource[svc] = path
+			} else {
+				st.servicesNoModel = append(st.servicesNoModel, spec.Name+"/"+svc)
+			}
+		}
+		sort.Strings(st.servicesNoModel)
+
+		providerEmittedDirs := map[string]bool{}
+		for _, svc := range sortedKeys(mapping.services) {
+			if _, ok := serviceSource[svc]; !ok {
+				continue
+			}
+			st.servicesScanned++
+			inputs, err := spec.testInputs(spec.ProviderDir, svc)
 			if err != nil {
 				return err
 			}
-			if emitted {
-				entries = append(entries, meta)
-				emittedDirs[filepath.Join(outDir, filepath.FromSlash(meta.Path))] = true
-				st.emitted++
-				st.perService[svc]++
+			for _, input := range inputs {
+				meta, emitted, err := processConfigDir(ctx, processArgs{
+					input:          input,
+					provider:       spec.Name,
+					service:        svc,
+					providerDir:    spec.ProviderDir,
+					outDir:         opts.OutDir,
+					action:         opts.Action,
+					sourceKind:     spec.SourceKind,
+					mappedKinds:    mapping.mappedKinds,
+					serviceForType: mapping.serviceForType,
+					serviceSource:  serviceSource,
+				}, st)
+				if err != nil {
+					return err
+				}
+				if emitted {
+					entries = append(entries, meta)
+					providerEmittedDirs[filepath.Join(opts.OutDir, filepath.FromSlash(meta.Path))] = true
+					st.emitted++
+					st.perService[spec.Name+"/"+svc]++
+				}
 			}
 		}
+		emittedDirs[spec.Name] = providerEmittedDirs
 	}
 
-	pruneStaleEntries(filepath.Join(outDir, "aws"), emittedDirs)
+	for provider, dirs := range emittedDirs {
+		pruneStaleEntries(filepath.Join(opts.OutDir, provider), dirs)
+	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Path < entries[j].Path })
-	if err := writeManifest(outDir, entries); err != nil {
+	if err := writeManifest(opts.OutDir, entries); err != nil {
 		return err
 	}
-	if err := writeCoverage(outDir, st, registry); err != nil {
+	if err := writeCoverage(opts.OutDir, st, registry); err != nil {
 		return err
 	}
 	printSummary(st)
 	return nil
 }
 
+func specsForOptions(opts runOptions) []providerSpec {
+	enabled := map[string]bool{}
+	for _, p := range strings.Split(opts.Providers, ",") {
+		p = strings.ToLower(strings.TrimSpace(p))
+		if p != "" {
+			enabled[p] = true
+		}
+	}
+	var specs []providerSpec
+	if enabled["aws"] && dirExists(opts.AWSProviderDir) {
+		specs = append(specs, providerSpec{
+			Name:        "aws",
+			ProviderDir: opts.AWSProviderDir,
+			SourceDir:   opts.AWSSmithyDir,
+			SourceKind:  tfmapping.APISourceKindAWSSmithy,
+			testInputs: func(providerDir, svc string) ([]configInput, error) {
+				return configInputs(filepath.Join(providerDir, "internal", "service", svc, "testdata"))
+			},
+			findSource: findSmithyModel,
+		})
+	}
+	if enabled["google"] && dirExists(opts.GoogleProviderDir) {
+		specs = append(specs, providerSpec{
+			Name:        "google",
+			ProviderDir: opts.GoogleProviderDir,
+			SourceDir:   opts.GoogleDiscoveryDir,
+			SourceKind:  tfmapping.APISourceKindGoogleDiscovery,
+			testInputs: func(providerDir, svc string) ([]configInput, error) {
+				return googleConfigInputs(filepath.Join(providerDir, "google", "services", svc))
+			},
+			findSource: findGoogleDiscoveryModel,
+		})
+	}
+	if enabled["azurerm"] && dirExists(opts.AzureProviderDir) {
+		specs = append(specs, providerSpec{
+			Name:        "azurerm",
+			ProviderDir: opts.AzureProviderDir,
+			SourceDir:   opts.AzureOpenAPIDir,
+			SourceKind:  tfmapping.APISourceKindOpenAPI,
+			testInputs: func(providerDir, svc string) ([]configInput, error) {
+				return azureRMConfigInputs(filepath.Join(providerDir, "internal", "services", svc))
+			},
+			findSource: findAzureRMOpenAPIModel,
+		})
+	}
+	if enabled["cloudflare"] && dirExists(opts.CloudflareProviderDir) {
+		specs = append(specs, providerSpec{
+			Name:        "cloudflare",
+			ProviderDir: opts.CloudflareProviderDir,
+			SourceDir:   opts.CloudflareOpenAPIDir,
+			SourceKind:  tfmapping.APISourceKindOpenAPI,
+			testInputs: func(providerDir, svc string) ([]configInput, error) {
+				return cloudflareConfigInputs(filepath.Join(providerDir, "internal", "services", svc, "testdata"))
+			},
+			findSource: findCloudflareOpenAPIModel,
+		})
+	}
+	if enabled["kubernetes"] && dirExists(opts.KubernetesProviderDir) {
+		specs = append(specs, providerSpec{
+			Name:        "kubernetes",
+			ProviderDir: opts.KubernetesProviderDir,
+			SourceDir:   opts.KubernetesOpenAPIDir,
+			SourceKind:  tfmapping.APISourceKindOpenAPI,
+			testInputs: func(providerDir, svc string) ([]configInput, error) {
+				return terraformFileInputs(filepath.Join(providerDir, "examples"))
+			},
+			findSource: findKubernetesOpenAPIModel,
+		})
+	}
+	return specs
+}
+
+type providerMapping struct {
+	mappedKinds    map[string]map[string]bool
+	serviceForType map[string]string
+	services       map[string]bool
+}
+
+func mappedProviderTypes(registry tfmapping.Registry, provider string) (providerMapping, error) {
+	out := providerMapping{
+		mappedKinds: map[string]map[string]bool{
+			"resource":    {},
+			"data_source": {},
+		},
+		serviceForType: map[string]string{},
+		services:       map[string]bool{},
+	}
+	for _, t := range registry.SupportedTypes() {
+		if t.Provider != provider {
+			continue
+		}
+		svc := serviceForTerraformType(provider, t.Type)
+		out.serviceForType[t.Type] = svc
+		for _, kind := range t.Kinds {
+			if _, ok := out.mappedKinds[kind]; ok {
+				out.mappedKinds[kind][t.Type] = true
+			}
+			if kind == "resource" {
+				out.services[svc] = true
+			}
+		}
+	}
+	if len(out.services) == 0 {
+		return out, fmt.Errorf("no mapped %s resource or data source types found in tfmapping registry", provider)
+	}
+	return out, nil
+}
+
 type processArgs struct {
-	input           configInput
-	service         string
-	providerDir     string
-	outDir          string
-	action          string
-	mappedResources map[string]bool
-	serviceForType  map[string]string
-	serviceModel    map[string]string
+	input          configInput
+	provider       string
+	service        string
+	providerDir    string
+	outDir         string
+	action         string
+	sourceKind     string
+	mappedKinds    map[string]map[string]bool
+	serviceForType map[string]string
+	serviceSource  map[string]string
 }
 
 func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta, bool, error) {
@@ -205,18 +384,18 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 		return entryMeta{}, false, nil
 	}
 	for _, rt := range resources {
-		if !a.mappedResources[rt] {
+		if !a.mappedKinds["resource"][rt] {
 			st.droppedUnsupported++
 			return entryMeta{}, false, nil
 		}
 	}
-	models, ok := modelsForTypes(resources, a.serviceForType, a.serviceModel)
+	sources, ok := sourcesForTypes(resources, a.sourceKind, a.serviceForType, a.serviceSource)
 	if !ok {
 		st.droppedNoModel++
 		return entryMeta{}, false, nil
 	}
 
-	entryRel := filepath.Join("aws", a.service, a.input.EntryRel)
+	entryRel := filepath.Join(a.provider, a.service, a.input.EntryRel)
 	entryDir := filepath.Join(a.outDir, entryRel)
 
 	// Copy the input first and convert from the corpus input directory so the
@@ -234,13 +413,13 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 	}
 	defer os.RemoveAll(tmp)
 
-	sources := make([]tfconvert.APISourceInput, 0, len(models))
-	for _, m := range models {
-		sources = append(sources, tfconvert.APISourceInput{Kind: tfmapping.APISourceKindAWSSmithy, ID: m.ID, Path: m.Path})
+	apiSources := make([]tfconvert.APISourceInput, 0, len(sources))
+	for _, src := range sources {
+		apiSources = append(apiSources, tfconvert.APISourceInput{Kind: src.Kind, ID: src.ID, Path: src.Path})
 	}
 	res, err := tfconvert.Convert(ctx, tfconvert.Options{
 		ConfigDir:  inputDir,
-		APISources: sources,
+		APISources: apiSources,
 		Action:     a.action,
 		OutDir:     tmp,
 	})
@@ -264,11 +443,18 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 	}
 	meta := entryMeta{
 		Path:          filepath.ToSlash(entryRel),
+		Provider:      a.provider,
 		Service:       a.service,
 		ResourceTypes: resources,
 		DataSources:   datas,
-		SmithyModels:  models,
 		SourceDir:     filepath.ToSlash(mustRel(a.providerDir, a.input.Path)),
+	}
+	if a.sourceKind == tfmapping.APISourceKindAWSSmithy {
+		for _, src := range sources {
+			meta.SmithyModels = append(meta.SmithyModels, modelRef{ID: src.ID, Path: src.Path})
+		}
+	} else {
+		meta.APISources = sources
 	}
 	if err := writeJSON(filepath.Join(entryDir, "meta.json"), meta); err != nil {
 		return entryMeta{}, false, err
@@ -284,6 +470,9 @@ func copyInputFiles(input configInput, rendered []byte, inputDir string) error {
 		return err
 	}
 	if input.Template {
+		return os.WriteFile(filepath.Join(inputDir, "main.tf"), rendered, 0o644)
+	}
+	if len(input.Content) > 0 {
 		return os.WriteFile(filepath.Join(inputDir, "main.tf"), rendered, 0o644)
 	}
 	tfFiles, err := filepath.Glob(filepath.Join(input.Path, "*.tf"))
@@ -446,15 +635,15 @@ func extractTypesFromBytes(data []byte) (resources, datas []string) {
 	return sortedKeys(rset), sortedKeys(dset)
 }
 
-func modelsForTypes(resources []string, serviceForType map[string]string, serviceModel map[string]string) ([]modelRef, bool) {
+func sourcesForTypes(types []string, kind string, serviceForType map[string]string, serviceSource map[string]string) ([]apiSourceRef, bool) {
 	seen := map[string]bool{}
-	var out []modelRef
-	for _, rt := range resources {
+	var out []apiSourceRef
+	for _, rt := range types {
 		svc := serviceForType[rt]
 		if svc == "" {
 			svc = serviceForResourceType(rt)
 		}
-		path, ok := serviceModel[svc]
+		path, ok := serviceSource[svc]
 		if !ok {
 			return nil, false
 		}
@@ -462,7 +651,7 @@ func modelsForTypes(resources []string, serviceForType map[string]string, servic
 			continue
 		}
 		seen[svc] = true
-		out = append(out, modelRef{ID: svc, Path: filepath.ToSlash(path)})
+		out = append(out, apiSourceRef{Kind: kind, ID: svc, Path: filepath.ToSlash(path)})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, true
@@ -472,9 +661,14 @@ type configInput struct {
 	Path     string
 	EntryRel string
 	Template bool
+	Content  []byte
 }
 
 func prepareInput(input configInput) ([]byte, []string, []string, error) {
+	if len(input.Content) > 0 {
+		resources, datas := extractTypesFromBytes(input.Content)
+		return input.Content, resources, datas, nil
+	}
 	if !input.Template {
 		resources, datas, err := extractTypes(input.Path)
 		return nil, resources, datas, err
@@ -560,8 +754,30 @@ func configInputs(testdata string) ([]configInput, error) {
 }
 
 func serviceForResourceType(t string) string {
-	stem := strings.SplitN(strings.TrimPrefix(t, "aws_"), "_", 2)[0]
-	return stem
+	parts := strings.SplitN(t, "_", 3)
+	if len(parts) < 2 {
+		return t
+	}
+	return parts[1]
+}
+
+func serviceForTerraformType(provider, t string) string {
+	switch provider {
+	case "azurerm":
+		if strings.HasPrefix(t, "azurerm_cosmosdb_") {
+			return "cosmos"
+		}
+	case "cloudflare":
+		switch {
+		case strings.HasPrefix(t, "cloudflare_r2_bucket"):
+			return "r2_bucket"
+		case strings.HasPrefix(t, "cloudflare_d1_database"):
+			return "d1_database"
+		}
+	case "kubernetes":
+		return "core"
+	}
+	return serviceForResourceType(t)
 }
 
 func findSmithyModel(dir, svc string) (string, bool) {
@@ -576,6 +792,347 @@ func findSmithyModel(dir, svc string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func findGoogleDiscoveryModel(dir, svc string) (string, bool) {
+	candidates := []string{
+		"google-cloud-" + svc + "-discovery-v1.json",
+		"google-" + svc + "-discovery-v1.json",
+		svc + "-discovery-v1.json",
+	}
+	for _, name := range candidates {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+func findAzureRMOpenAPIModel(dir, svc string) (string, bool) {
+	candidates := []string{
+		"azure-" + svc + "-resource-manager-openapi.json",
+		"azure-" + svc + "-db-resource-manager-openapi.json",
+		svc + "-resource-manager-openapi.json",
+	}
+	if svc == "cosmos" {
+		candidates = append([]string{"azure-cosmos-db-resource-manager-openapi.json"}, candidates...)
+	}
+	for _, name := range candidates {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+func findKubernetesOpenAPIModel(dir, svc string) (string, bool) {
+	candidates := []string{"kubernetes-v1-19-2-swagger.json", "k8s-swagger.json", "kubernetes-openapi.json", "kubernetes-swagger.json"}
+	for _, name := range candidates {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+func findCloudflareOpenAPIModel(dir, svc string) (string, bool) {
+	candidates := []string{"cloudflare-r2-d1-openapi.json", "cloudflare-api-openapi.yaml", "cloudflare-api-openapi.json", "cloudflare-openapi.yaml"}
+	for _, name := range candidates {
+		path := filepath.Join(dir, name)
+		if _, err := os.Stat(path); err == nil {
+			return path, true
+		}
+	}
+	return "", false
+}
+
+func googleConfigInputs(serviceDir string) ([]configInput, error) {
+	return goTestConfigInputs(serviceDir, sanitizeGoTerraformSnippet)
+}
+
+func azureRMConfigInputs(serviceDir string) ([]configInput, error) {
+	return goTestConfigInputs(serviceDir, sanitizeAzureRMTerraformSnippet)
+}
+
+func cloudflareConfigInputs(testdata string) ([]configInput, error) {
+	return sanitizedTerraformFileInputs(testdata, sanitizeCloudflareTerraformSnippet)
+}
+
+func goTestConfigInputs(serviceDir string, sanitize func(string) string) ([]configInput, error) {
+	var out []configInput
+	err := filepath.WalkDir(serviceDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fs.SkipAll
+			}
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), "_test.go") {
+			return nil
+		}
+		inputs, err := terraformSnippetsFromGoTest(path, sanitize)
+		if err != nil {
+			return err
+		}
+		out = append(out, inputs...)
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EntryRel < out[j].EntryRel })
+	return out, nil
+}
+
+func terraformFileInputs(root string) ([]configInput, error) {
+	return sanitizedTerraformFileInputs(root, nil)
+}
+
+func sanitizedTerraformFileInputs(root string, sanitize func(string) string) ([]configInput, error) {
+	var out []configInput
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fs.SkipAll
+			}
+			return err
+		}
+		if d.IsDir() || !strings.HasSuffix(d.Name(), ".tf") {
+			return nil
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		text := string(data)
+		if sanitize != nil {
+			text = sanitize(text)
+			data = []byte(text)
+		}
+		resources, datas := extractTypesFromBytes(data)
+		if len(resources) == 0 && len(datas) == 0 {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		entryRel := strings.TrimSuffix(filepath.ToSlash(rel), ".tf")
+		out = append(out, configInput{Path: path, EntryRel: entryRel, Content: data})
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EntryRel < out[j].EntryRel })
+	return out, nil
+}
+
+func terraformSnippetsFromGoTest(path string, sanitize func(string) string) ([]configInput, error) {
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+	seen := map[string]bool{}
+	var out []configInput
+	base := strings.TrimSuffix(filepath.Base(path), ".go")
+	idx := 0
+	ast.Inspect(file, func(n ast.Node) bool {
+		lit, ok := n.(*ast.BasicLit)
+		if !ok || lit.Kind != token.STRING {
+			return true
+		}
+		text, err := strconv.Unquote(lit.Value)
+		if err != nil {
+			return true
+		}
+		text = sanitize(text)
+		resources, datas := extractTypesFromBytes([]byte(text))
+		if len(resources) == 0 && len(datas) == 0 {
+			return true
+		}
+		if seen[text] {
+			return true
+		}
+		seen[text] = true
+		idx++
+		out = append(out, configInput{
+			Path:     path,
+			EntryRel: filepath.ToSlash(filepath.Join("go", fmt.Sprintf("%s_%03d", base, idx))),
+			Content:  []byte(text),
+		})
+		return true
+	})
+	return out, nil
+}
+
+func sanitizeGoTerraformSnippet(text string) string {
+	text = placeholderRe.ReplaceAllStringFunc(text, func(match string) string {
+		name := placeholderRe.FindStringSubmatch(match)[1]
+		switch {
+		case strings.Contains(name, "project"):
+			return "ramen-corpus-project"
+		case strings.Contains(name, "bucket"):
+			return "ramen-corpus-bucket"
+		case strings.Contains(name, "location"):
+			return "US"
+		default:
+			return "ramen-corpus"
+		}
+	})
+	text = replaceFmtVerbs(text)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return text
+	}
+	return text + "\n"
+}
+
+func sanitizeAzureRMTerraformSnippet(text string) string {
+	text = replaceFmtVerbs(text)
+	replacements := map[string]string{
+		`azurerm_resource_group.test.location`: `"eastus"`,
+		`azurerm_resource_group.test.name`:     `"ramen-corpus-rg"`,
+	}
+	for old, newValue := range replacements {
+		text = strings.ReplaceAll(text, old, newValue)
+	}
+	text = regexp.MustCompile(`kind\s*=\s*"ramen-corpus"`).ReplaceAllString(text, `kind = "GlobalDocumentDB"`)
+	text = regexp.MustCompile(`consistency_level\s*=\s*"ramen-corpus"`).ReplaceAllString(text, `consistency_level = "Session"`)
+	text = regexp.MustCompile(`type\s*=\s*"ramen-corpus"`).ReplaceAllString(text, `type = "SystemAssigned"`)
+	text = removeTerraformBlocks(text, "resource", "azurerm_resource_group")
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return text
+	}
+	return text + "\n"
+}
+
+func sanitizeCloudflareTerraformSnippet(text string) string {
+	replacements := map[string]string{
+		"%[1]s": "ramen_corpus",
+		"%[2]s": "023e105f4ecef8ad9ca31a8372d0c353",
+		"%[3]s": "ENAM",
+		"%s":    "ramen_corpus",
+	}
+	for old, newValue := range replacements {
+		text = strings.ReplaceAll(text, old, newValue)
+	}
+	text = regexp.MustCompile(`storage_class(\s*=\s*)"ENAM"`).ReplaceAllString(text, `storage_class${1}"Standard"`)
+	text = regexp.MustCompile(`jurisdiction(\s*=\s*)"ENAM"`).ReplaceAllString(text, `jurisdiction${1}"eu"`)
+	text = replaceFmtVerbs(text)
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return text
+	}
+	return text + "\n"
+}
+
+func removeTerraformBlocks(text, kind, typ string) string {
+	pattern := regexp.MustCompile(`(?m)^[ \t]*` + regexp.QuoteMeta(kind) + `[ \t]+"` + regexp.QuoteMeta(typ) + `"[ \t]+"[^"]+"[ \t]*\{`)
+	var b strings.Builder
+	for {
+		loc := pattern.FindStringIndex(text)
+		if loc == nil {
+			b.WriteString(text)
+			return b.String()
+		}
+		b.WriteString(text[:loc[0]])
+		end := terraformBlockEnd(text, loc[1]-1)
+		if end <= loc[1] {
+			b.WriteString(text[loc[0]:])
+			return b.String()
+		}
+		for end < len(text) && (text[end] == '\n' || text[end] == '\r') {
+			end++
+		}
+		text = text[end:]
+	}
+}
+
+func terraformBlockEnd(text string, openBrace int) int {
+	depth := 0
+	inString := false
+	escaped := false
+	for i := openBrace; i < len(text); i++ {
+		ch := text[i]
+		if inString {
+			if escaped {
+				escaped = false
+				continue
+			}
+			if ch == '\\' {
+				escaped = true
+				continue
+			}
+			if ch == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch ch {
+		case '"':
+			inString = true
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i + 1
+			}
+		}
+	}
+	return len(text)
+}
+
+func replaceFmtVerbs(text string) string {
+	var b strings.Builder
+	for i := 0; i < len(text); {
+		if text[i] != '%' {
+			b.WriteByte(text[i])
+			i++
+			continue
+		}
+		if i+1 < len(text) && text[i+1] == '%' {
+			b.WriteByte('%')
+			i += 2
+			continue
+		}
+		j := i + 1
+		if j < len(text) && text[j] == '[' {
+			for j < len(text) && text[j] != ']' {
+				j++
+			}
+			if j < len(text) {
+				j++
+			}
+		}
+		for j < len(text) && strings.ContainsRune("#+- 0.123456789", rune(text[j])) {
+			j++
+		}
+		if j >= len(text) {
+			b.WriteByte('%')
+			i++
+			continue
+		}
+		switch text[j] {
+		case 'd', 'b', 'o', 'x', 'X', 'U':
+			b.WriteString("1")
+		default:
+			b.WriteString("ramen-corpus")
+		}
+		i = j + 1
+	}
+	return b.String()
+}
+
+func dirExists(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
 }
 
 func mustRel(base, path string) string {
@@ -625,16 +1182,16 @@ func writeCoverage(outDir string, st *stats, registry tfmapping.Registry) error 
 	fmt.Fprintf(&b, "- config inputs considered: %d\n", st.configsConsidered)
 	fmt.Fprintf(&b, "- clean entries emitted: %d\n", st.emitted)
 	fmt.Fprintf(&b, "- dropped (no managed resource): %d\n", st.droppedNoResource)
-	fmt.Fprintf(&b, "- dropped (unsupported resource type): %d\n", st.droppedUnsupported)
-	fmt.Fprintf(&b, "- dropped (no Smithy model for a needed service): %d\n", st.droppedNoModel)
+	fmt.Fprintf(&b, "- dropped (unsupported Terraform type): %d\n", st.droppedUnsupported)
+	fmt.Fprintf(&b, "- dropped (no API source document for a needed service): %d\n", st.droppedNoModel)
 	fmt.Fprintf(&b, "- dropped (fallback/unsupported/error diagnostics): %d\n", st.droppedDiagnostics)
 	fmt.Fprintf(&b, "- dropped (HCL round-trip not yet clean): %d\n", st.droppedHCL)
 	fmt.Fprintf(&b, "- dropped (template render failed): %d\n", st.droppedTemplate)
 	if len(st.servicesNoModel) > 0 {
-		fmt.Fprintf(&b, "- mapped services without a local Smithy model: %s\n", strings.Join(st.servicesNoModel, ", "))
+		fmt.Fprintf(&b, "- mapped services without a local API source document: %s\n", strings.Join(st.servicesNoModel, ", "))
 	}
 	b.WriteString("\n## Emitted entries by service\n\n")
-	b.WriteString("| service | entries |\n|---|---|\n")
+	b.WriteString("| provider/service | entries |\n|---|---|\n")
 	for _, svc := range sortedKeys(st.perService) {
 		fmt.Fprintf(&b, "| %s | %d |\n", svc, st.perService[svc])
 	}

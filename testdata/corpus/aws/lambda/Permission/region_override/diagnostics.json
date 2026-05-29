@@ -1,0 +1,24 @@
+[
+  {
+    "code": "redaction.review_required",
+    "severity": "warning",
+    "message": "attribute name suggests secret material at event_source_token is redacted and requires review",
+    "address": "aws_lambda_permission.test",
+    "source_range": {
+      "source_id": "main_gen.tf",
+      "path": "main_gen.tf",
+      "start": {
+        "line": 11,
+        "column": 24,
+        "byte": 366
+      },
+      "end": {
+        "line": 11,
+        "column": 49,
+        "byte": 391
+      }
+    },
+    "todo_id": "todo.aws_lambda_permission_test_event_source_token.redaction.review",
+    "strict_failure": true
+  }
+]

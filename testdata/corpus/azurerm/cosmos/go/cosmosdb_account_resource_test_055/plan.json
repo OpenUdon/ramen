@@ -1,0 +1,40 @@
+{
+  "version": "ramen.tfconvert.plan.v1",
+  "workflow": "terraform_conversion_draft",
+  "action": "create",
+  "steps": [
+    {
+      "address": "azurerm_cosmosdb_account.test",
+      "kind": "resource",
+      "type": "azurerm_cosmosdb_account",
+      "purpose": "create",
+      "action": "create",
+      "source_kind": "openapi",
+      "source_id": "cosmos",
+      "source_path": "openapi/cosmos.json",
+      "operation_id": "DatabaseAccounts_CreateOrUpdate",
+      "identity_attributes": [
+        {
+          "name": "account_name",
+          "terraform_path": "name",
+          "request_keys": [
+            "accountName"
+          ],
+          "response_paths": [
+            "name",
+            "id"
+          ],
+          "required": true
+        },
+        {
+          "name": "resource_group_name",
+          "terraform_path": "resource_group_name",
+          "request_keys": [
+            "resourceGroupName"
+          ],
+          "required": true
+        }
+      ]
+    }
+  ]
+}

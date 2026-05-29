@@ -120,10 +120,10 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		return result, nil
 	}
 	if !opts.AutoApprove {
-		return result, fmt.Errorf("apply requires explicit approval for %d mutation(s); rerun with --auto-approve after reviewing the plan", len(mutations))
+		return result, fmt.Errorf("apply.approval_required: apply requires explicit approval for %d mutation(s); rerun with --auto-approve after reviewing the plan", len(mutations))
 	}
 	if opts.Executor == nil {
-		return result, fmt.Errorf("apply requires a trusted executor; pass --mock for recorded/mock execution in public builds")
+		return result, fmt.Errorf("apply.executor_required: apply requires a trusted executor; pass --mock for recorded/mock execution in public builds")
 	}
 
 	store, err := state.Open(ctx, opts.StatePath)
@@ -176,7 +176,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			result.Summary.Failed++
 			failed[resource.Address] = true
-			msg := fmt.Sprintf("apply delete for %s is handled by ramen destroy", resource.Address)
+			msg := fmt.Sprintf("apply.delete_unsupported: apply delete for %s is handled by ramen destroy", resource.Address)
 			result.Errors = append(result.Errors, msg)
 			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
 				return result, err
@@ -188,8 +188,9 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			result.Summary.Failed++
 			failed[resource.Address] = true
-			result.Errors = append(result.Errors, err.Error())
-			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", err.Error()); recErr != nil {
+			msg := fmt.Sprintf("apply.document_invalid: %v", err)
+			result.Errors = append(result.Errors, msg)
+			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
 				return result, recErr
 			}
 			continue
@@ -218,8 +219,9 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			result.Summary.Failed++
 			failed[resource.Address] = true
-			result.Errors = append(result.Errors, err.Error())
-			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", err.Error()); recErr != nil {
+			msg := fmt.Sprintf("apply.executor_unsupported: %v", err)
+			result.Errors = append(result.Errors, msg)
+			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
 				return result, recErr
 			}
 			continue
@@ -235,8 +237,9 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			result.Summary.Failed++
 			failed[resource.Address] = true
-			result.Errors = append(result.Errors, err.Error())
-			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", err.Error()); recErr != nil {
+			msg := fmt.Sprintf("apply.executor_failed: %v", err)
+			result.Errors = append(result.Errors, msg)
+			if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
 				return result, recErr
 			}
 			continue
@@ -245,7 +248,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			result.Summary.Failed++
 			failed[resource.Address] = true
-			msg := fmt.Sprintf("executor reported unsuccessful %s for %s", resource.Action, resource.Address)
+			msg := fmt.Sprintf("apply.executor_unsuccessful: executor reported unsuccessful %s for %s", resource.Action, resource.Address)
 			result.Errors = append(result.Errors, msg)
 			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
 				return result, err
@@ -273,7 +276,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	result.Summary.NoOp = planResult.Plan.Summary.NoOp
 	result.Summary.Skipped = len(planResult.Plan.Resources) - len(mutations)
 	if len(result.Errors) > 0 {
-		return result, fmt.Errorf("apply failed for %d resource(s) and blocked %d resource(s)", result.Summary.Failed, result.Summary.Blocked)
+		return result, fmt.Errorf("apply.failed: apply failed for %d resource(s) and blocked %d resource(s)", result.Summary.Failed, result.Summary.Blocked)
 	}
 	return result, nil
 }

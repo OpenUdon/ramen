@@ -1,19 +1,41 @@
-# Ramen test corpus from terraform-provider-aws (TF + Smithy → UWS)
+# Ramen provider test corpus (Terraform fixtures + API sources → UWS)
 
 ## Context
 
-A large, **self-growing** test corpus that takes Terraform configs from the AWS
-provider (`../terraform-provider-aws`), pairs each with the matching AWS Smithy
-model, and converts it to a native UWS/Ramen project in **both YAML and HCL**.
-Purpose: regression-gate `ramen convert tf`, provide clean reference fixtures,
-and measure mapping coverage so it grows as `tfmapping` (and later AI-authoring)
+A large, **self-growing** test corpus that takes Terraform configs from sibling
+provider checkouts, pairs each with the matching API source document, and
+converts it to a native UWS/Ramen project in **both YAML and HCL**. Purpose:
+regression-gate `ramen convert tf`, provide clean reference fixtures, and
+measure mapping coverage so it grows as `tfmapping` (and later AI-authoring)
 expands.
+
+Current provider inputs:
+
+- AWS: `../terraform-provider-aws` + local AWS Smithy models under
+  `../apitools/catalog-openapi-cache/aws-smithy`.
+- Google: `../terraform-provider-google` + local Google Discovery documents
+  under `../apitools/catalog-openapi-cache/google-discovery`.
+- AzureRM: `../terraform-provider-azurerm` + local Azure OpenAPI documents
+  under `../apitools/catalog-openapi-cache/openapi`.
+- Cloudflare: `../terraform-provider-cloudflare` + a checked-in reduced
+  Cloudflare OpenAPI fixture for the mapped R2/D1 operations under
+  `testdata/api-sources/cloudflare-r2-d1-openapi.json`. The full cached
+  Cloudflare OpenAPI document is currently just over the local 20 MiB source
+  read limit, so the corpus uses the focused fixture instead of copying or
+  requiring the full document.
+- Kubernetes: `../terraform-provider-kubernetes` examples + the pinned
+  Kubernetes Swagger artifact under
+  `../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json`.
 
 The pipeline scans broadly but **emits narrowly**: only conversions that map
 cleanly (no `mapping.unsupported_*` / fallback-only diagnostic) *and* round-trip
 through HCL become corpus entries. Re-running the generator yields more entries
 automatically as coverage grows — the generator, not the data, is the durable
 asset.
+
+Negative cases live separately under `testdata/diagnostic-corpus`. Those tests
+assert expected diagnostics for unsupported, ambiguous, malformed, or incomplete
+conversions without weakening the clean corpus contract.
 
 ### Findings that shaped this (verified)
 - Provider: ~266 services, ~580 `aws_*` types. Configs are ~14.3K Go
@@ -23,17 +45,62 @@ asset.
 - Smithy corpus: **29 real models** at
   `../apitools/catalog-openapi-cache/aws-smithy/aws-<svc>-smithy-model.json`.
   `apitools` reads supplied paths only (no fetch).
-- `tfmapping` maps 8 managed AWS types today (s3_bucket,
+- `tfmapping` maps 10 managed AWS types today (s3_bucket,
   s3_bucket_accelerate_configuration, s3_bucket_public_access_block,
-  s3_bucket_versioning, iam_role, iam_role_policy, lambda_function,
-  lambda_function_url) plus
+  s3_bucket_versioning, iam_role, iam_role_policy, iam_user, lambda_function,
+  lambda_function_url, lambda_permission) plus
   `aws_caller_identity` as a data source. All mapped AWS types are in
   s3/iam/lambda, which have Smithy models.
+- Google provider storage fixtures are mostly Go acceptance-test string
+  literals, not AWS-style `testdata` directories. `cmd/corpusgen` mines those
+  raw Terraform snippets, normalizes provider test placeholders to deterministic
+  corpus values, and keeps only snippets that pass the same clean-conversion
+  gate. Current Google mapping coverage is `google_storage_bucket` as both a
+  resource and data source, backed by the local Cloud Storage Discovery document.
+- AzureRM fixtures are also Go acceptance-test string literals. Current Azure
+  mapping coverage is `azurerm_cosmosdb_account` as both a resource and data
+  source, backed by the local Azure Cosmos DB Resource Manager OpenAPI document.
+  AzureRM Cosmos snippets include provider test `azurerm_resource_group`
+  scaffolding, but there is no local Resource Groups OpenAPI document, so the
+  generator normalizes that scaffold into literal `resource_group_name` and
+  `location` values before conversion.
+- Kubernetes examples are static Terraform files under
+  `../terraform-provider-kubernetes/examples`. Current Kubernetes mapping
+  coverage is `kubernetes_namespace` and `kubernetes_namespace_v1` as resources
+  and data sources, backed by the pinned Kubernetes Swagger artifact in
+  `../apitools`.
+- Cloudflare fixtures are static Terraform files under
+  `../terraform-provider-cloudflare/internal/services/<service>/testdata`.
+  Current Cloudflare mapping coverage is `cloudflare_r2_bucket` and
+  `cloudflare_d1_database` as resources, backed by a reduced local OpenAPI
+  fixture that preserves the Cloudflare R2/D1 operation IDs and request
+  parameter names used by the mappings.
 
 ### Decisions
-- **Source:** static testdata and supported `.gtpl` templates first; Go-builders later.
-- **Smithy scope:** only the existing 29 models.
+- **Source:** AWS static testdata and supported `.gtpl` templates first; Google
+  and AzureRM raw Terraform snippets from Go acceptance tests where no static
+  testdata is available; Kubernetes static provider examples; Cloudflare static
+  service testdata.
+- **API source scope:** only local API source documents; for AWS this means the
+  existing 29 Smithy models, and for Google this currently means the local
+  Discovery documents in `../apitools`; for AzureRM this currently means local
+  OpenAPI documents in `../apitools`; for Kubernetes this currently uses the
+  pinned `../apitools` Kubernetes Swagger artifact copied from the sibling
+  provider fixture; for Cloudflare this currently uses a
+  focused checked-in OpenAPI subset because the full cached Cloudflare OpenAPI
+  document exceeds the default local source read limit.
 - **Output:** clean conversions only (drop fallback/unsupported).
+
+### Future: AWSCC / Cloud Control
+
+`terraform-provider-awscc` is intentionally not folded into the current AWS
+Smithy corpus. AWSCC resources are generated around AWS Cloud Control /
+CloudFormation resource schemas (`AWS::...` resource types), not direct
+per-service Smithy operations. If Ramen adds AWSCC coverage later, it should be
+a separate UWS API source kind for CloudFormation or Cloud Control resource
+schemas, preserving resource-type lifecycle semantics, identifiers, replacement
+behavior, and stabilization metadata. A synthetic OpenAPI projection may be a
+compatibility adapter, but it should not be the canonical source model.
 
 ---
 
@@ -48,13 +115,15 @@ asset.
   per-mapper lists (`awsMapper`/`googleMapper`), deduped and sorted. Generator
   uses it instead of duplicating the hardcoded set.
 - **`cmd/corpusgen`** — derives the services to scan from `SupportedTypes()`;
-  resolves `aws-<svc>-smithy-model.json` (with an alias map for naming quirks);
-  scans static Terraform files and renderable `.gtpl` templates; copies each
-  provider config into the entry's `input/` and converts from there (so the
-  recorded `config_dir` matches what the test reproduces); gates on clean
-  diagnostics **and** HCL round-trip; preserves an existing semantically-equal
-  `.hcl` and prunes stale entries (stable, idempotent regeneration); writes
-  `manifest.json` + `COVERAGE.md`.
+  resolves AWS Smithy, Google Discovery, Azure OpenAPI, Cloudflare OpenAPI, and
+  Kubernetes OpenAPI source documents; scans AWS static Terraform files and
+  renderable `.gtpl` templates; mines Google and AzureRM raw Terraform snippets
+  from Go acceptance tests; scans Cloudflare static service testdata and
+  Kubernetes static examples; copies each provider config into the entry's
+  `input/` and converts from there (so the recorded `config_dir` matches what
+  the test reproduces); gates on clean diagnostics **and** HCL round-trip;
+  preserves an existing semantically-equal `.hcl` and prunes stale entries
+  (stable, idempotent regeneration); writes `manifest.json` + `COVERAGE.md`.
 - **`corpus_test.go`** — re-converts each entry and asserts `project.uws.yaml`
   and `plan.json` match byte-for-byte (deterministic) and `project.uws.hcl` is
   *structurally* equal to the YAML (`HCLToJSON`/`YAMLToJSON` + `DeepEqual`, since
@@ -87,65 +156,147 @@ testdata/corpus/aws/<service>/<Resource>/<variant>/
   plan.json           conversion plan artifact (deterministic golden)
   diagnostics.json    convert diagnostics (clean)
   meta.json           service, resource_types, data_sources, smithy model refs, source_dir
+
+testdata/corpus/google/<service>/go/<provider_test_file>_<n>/
+  input/main.tf       normalized Terraform snippet mined from provider Go tests
+  project.uws.yaml    converted native project (deterministic golden)
+  project.uws.hcl     HCL serialization (structurally equal to the YAML)
+  plan.json           conversion plan artifact (deterministic golden)
+  diagnostics.json    convert diagnostics (clean)
+  meta.json           provider, service, types, api_sources, source_dir
+
+testdata/corpus/azurerm/<service>/go/<provider_test_file>_<n>/
+  input/main.tf       normalized Terraform snippet mined from provider Go tests
+  project.uws.yaml    converted native project (deterministic golden)
+  project.uws.hcl     HCL serialization (structurally equal to the YAML)
+  plan.json           conversion plan artifact (deterministic golden)
+  diagnostics.json    convert diagnostics (clean)
+  meta.json           provider, service, types, api_sources, source_dir
+
+testdata/corpus/kubernetes/<service>/<provider_example_path>/
+  input/main.tf       copied Terraform example
+  project.uws.yaml    converted native project (deterministic golden)
+  project.uws.hcl     HCL serialization (structurally equal to the YAML)
+  plan.json           conversion plan artifact (deterministic golden)
+  diagnostics.json    convert diagnostics (clean)
+  meta.json           provider, service, types, api_sources, source_dir
+
+testdata/corpus/cloudflare/<service>/<provider_testdata_file>/
+  input/main.tf       normalized Terraform fixture copied from provider testdata
+  project.uws.yaml    converted native project (deterministic golden)
+  project.uws.hcl     HCL serialization (structurally equal to the YAML)
+  plan.json           conversion plan artifact (deterministic golden)
+  diagnostics.json    convert diagnostics (clean)
+  meta.json           provider, service, types, api_sources, source_dir
 testdata/corpus/manifest.json + COVERAGE.md
 ```
-Large Smithy models are **referenced by relative path** in `meta.json` (not
-copied) to avoid multi-MB repo bloat.
+Large API source documents are **referenced by relative path** in `meta.json`
+(not copied) to avoid multi-MB repo bloat.
 
 ---
 
 ## Results
 
 ```
-corpusgen: emitted=53 considered=308 services=3
-           dropped(unsupported=235 no-resource=7 no-model=0 diagnostics=13 hcl=0 template=0)
+corpusgen: emitted=157 considered=822 services=8
+           dropped(unsupported=555 no-resource=58 no-model=0 diagnostics=52 hcl=0 template=0)
 ```
-- **53 clean entries**: iam = 14, lambda = 11, s3 = 28.
-- 235 dropped: config used a resource type ramen does not map yet.
-- 13 dropped: fallback/unsupported/error diagnostics during conversion.
+- **157 clean entries**: AWS iam = 23, AWS lambda = 18, AWS s3 = 28,
+  Google storage = 45, AzureRM cosmos = 31, Cloudflare R2 bucket = 8,
+  Cloudflare D1 database = 1, Kubernetes core = 3.
+- 555 dropped: config used a resource type ramen does not map yet.
+- 52 dropped: fallback/unsupported/error diagnostics during conversion.
 - 0 dropped on HCL round-trip (was 10 before the `dethcl` string-escaping fix).
 - 0 dropped on template rendering.
-- All suites green: `ramen` build/vet/test, `uws`, `udon`, `dethcl`.
 - Regeneration is idempotent (committed `.hcl` is byte-stable across runs).
 
-### Why only 53 (the funnel)
+### Why only 157 (the funnel)
 
-53 is **not** the number of Terraform configs in the provider — it is what
-survives a deliberately narrow funnel. The provider has ~266 services, ~580
+157 is **not** the number of Terraform configs in the providers — it is what
+survives a deliberately narrow funnel. The AWS provider has ~266 services, ~580
 resource types, and thousands of test configs (~14.3K Go `testAcc*Config*`
-builders + ~3K static files). The corpus is the intersection of three
-intentional filters:
+builders + ~3K static files). The Google provider adds another fixture style:
+Terraform snippets embedded in Go acceptance tests. AzureRM follows that same
+Go-snippet style for the first Cosmos DB corpus. Kubernetes currently uses
+static provider examples, and Cloudflare uses static service testdata. The
+corpus is the intersection of intentional filters:
 
 ```
 ~266 services, thousands of configs (whole provider)
   └─ services with a mapped type AND a local Smithy model → 3 (iam, s3, lambda)
        └─ static testdata and supported .gtpl templates   → 308 inputs considered
-            ├─ 235 dropped: uses a resource type ramen does not map yet
+            ├─ 214 dropped: uses a resource type ramen does not map yet
             │            (e.g. aws_iam_server_certificate, aws_s3_object,
             │             aws_s3_bucket_lifecycle_configuration)
-            ├─  13 dropped: fallback/unsupported/error diagnostics
+            ├─  18 dropped: fallback/unsupported/error diagnostics
             ├─   0 dropped: HCL round-trip (fixed)
             ├─   0 dropped: template render failed
-            └─  53 emitted: iam 14, lambda 11, s3 28
+            └─  69 emitted: iam 23, lambda 18, s3 28
 ```
 
-So `53 = clean-only × 3 mapped services × static/template-source-only`. Each
-narrowing is a chosen scope (clean conversions only; the 29 local Smithy models;
-static and supported template testdata first), **not** a ceiling. The set grows
+Google:
+
+```
+mapped resource services with local Discovery docs → 1 (storage)
+  └─ Go test Terraform snippets considered       → 148 inputs
+       ├─ 91 dropped: uses a Terraform type ramen does not map yet
+       ├─  3 dropped: no managed resource in the snippet
+       ├─  9 dropped: fallback/unsupported/error diagnostics
+       └─ 45 emitted: storage bucket resource/data-source coverage
+```
+
+AzureRM:
+
+```
+mapped resource services with local OpenAPI docs → 1 (cosmos)
+  └─ Go test Terraform snippets considered     → 192 inputs
+       ├─ 132 dropped: uses a Terraform type ramen does not map yet
+       ├─   4 dropped: no managed resource in the snippet
+       ├─  25 dropped: fallback/unsupported/error diagnostics
+       └─  31 emitted: Cosmos DB account resource/data-source coverage
+```
+
+Kubernetes:
+
+```
+mapped resource services with local OpenAPI docs → 1 (core)
+  └─ static examples considered                → 165 inputs
+       ├─ 118 dropped: uses a Terraform type ramen does not map yet
+       ├─  44 dropped: no managed resource in the snippet
+       └─   3 emitted: namespace resource coverage
+```
+
+Cloudflare:
+
+```
+mapped resource services with local OpenAPI docs → 2 (r2_bucket, d1_database)
+  └─ static service testdata considered        → 9 inputs
+       └─ 9 emitted: R2 bucket and D1 database resource coverage
+```
+
+So `157 = clean-only × mapped provider services × locally available API source
+documents × supported fixture extraction`. Each narrowing is a chosen scope
+(clean conversions only; local API source documents; supported fixture sources
+first), **not** a ceiling. The set grows
 automatically — no hand-editing — along three axes:
 
 1. **Map more resource types** in `tfmapping` (or via openudon AI-authoring) —
-   the biggest lever; only 8 managed AWS types map today, which is why only 3
+   the biggest lever; only 10 managed AWS types map today, which is why only 3
    services are scanned.
 2. **Source breadth** — add more template helper stubs and later execute or
-   extract the ~14.3K Go config-builders, growing "considered" from 308 toward
-   thousands.
-3. **More Smithy models** beyond the 29 makes more services eligible.
+   extract more provider Go config-builders, growing "considered" from hundreds
+   toward thousands.
+3. **More local API source documents** beyond the current AWS Smithy,
+   Google Discovery, Azure OpenAPI, Kubernetes Swagger, and focused Cloudflare
+   OpenAPI set make more services eligible.
 
-With template rendering, `aws_s3_bucket_public_access_block`, and
-`aws_s3_bucket_versioning` now added, the current clean corpus is 53 entries.
-The same funnel still applies: only diagnostic-clean outputs from mapped types
-in services with local Smithy models are emitted.
+With template rendering, `aws_s3_bucket_public_access_block`,
+`aws_s3_bucket_versioning`, `aws_iam_user`, and `aws_lambda_permission` now
+added, the current AWS clean corpus is 69 entries; Google storage adds 45 and
+AzureRM Cosmos adds 31, Cloudflare R2/D1 adds 9, and Kubernetes core namespaces
+add 3 for 157 total. The same funnel still applies: only diagnostic-clean
+outputs from mapped types in
+services with local API source documents are emitted.
 
 ---
 
@@ -159,12 +310,13 @@ bindings, and fixture intake inside those services.
    This is the highest-yield path because existing
    `../terraform-provider-aws` fixtures become clean corpus entries once their
    Terraform types are mapped. Completed examples include
-   `aws_s3_bucket_public_access_block` and `aws_s3_bucket_versioning`. Good
-   next candidates include `aws_s3_bucket_server_side_encryption_configuration`,
+   `aws_s3_bucket_public_access_block`, `aws_s3_bucket_versioning`,
+   `aws_iam_user`, and `aws_lambda_permission`. Good next candidates include
+   `aws_s3_bucket_server_side_encryption_configuration`,
    `aws_s3_bucket_cors_configuration`,
    `aws_s3_bucket_website_configuration`,
-   `aws_s3_bucket_ownership_controls`, `aws_lambda_permission`,
-   `aws_iam_policy`, `aws_iam_user`, and `aws_iam_instance_profile`.
+   `aws_s3_bucket_ownership_controls`, `aws_iam_policy`, and
+   `aws_iam_instance_profile`.
 
 2. **Improve request bindings for nested Smithy request structures.** Some
    candidate resources already have obvious operations, but their Terraform
@@ -201,7 +353,7 @@ bindings, and fixture intake inside those services.
 
 ## Gaps & next steps
 
-1. **Coverage is mapping-bound.** Only 8 managed AWS types map today, so the
+1. **Coverage is mapping-bound.** Only 10 managed AWS types map today, so the
    clean set is small by design. It grows automatically as `tfmapping` (or
    openudon AI-authoring) maps more types — just re-run `corpusgen`.
    `COVERAGE.md` tracks progress.

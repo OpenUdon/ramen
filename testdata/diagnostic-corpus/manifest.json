@@ -1,0 +1,17 @@
+{
+  "version": "ramen.diagnostic-corpus.v1",
+  "entries": [
+    {
+      "path": "aws/s3/unsupported_object",
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "expected_diagnostics": [
+        "operation.ambiguous"
+      ]
+    }
+  ]
+}

@@ -64,6 +64,12 @@ type Resource struct {
 	Dependencies       []string                 `json:"dependencies,omitempty"`
 	Operations         map[string]OperationRole `json:"operations,omitempty"`
 	IdentityAttributes []IdentityAttribute      `json:"identity_attributes,omitempty"`
+	Schema             []SchemaPath             `json:"schema,omitempty"`
+	RequestBindings    []RequestBinding         `json:"request_bindings,omitempty"`
+	ResponseBindings   []ResponseBinding        `json:"response_bindings,omitempty"`
+	Normalizers        []Normalizer             `json:"normalizers,omitempty"`
+	MappingLifecycle   *MappingLifecycle        `json:"mapping_lifecycle,omitempty"`
+	RequiredOperations []string                 `json:"required_operations,omitempty"`
 	CredentialBindings []string                 `json:"credential_bindings,omitempty"`
 	Redaction          Redaction                `json:"redaction,omitempty"`
 	AI                 *AIMetadata              `json:"ai,omitempty"`
@@ -105,6 +111,65 @@ type IdentityAttribute struct {
 	RequestKeys   []string `json:"request_keys,omitempty"`
 	ResponsePaths []string `json:"response_paths,omitempty"`
 	Required      bool     `json:"required,omitempty"`
+}
+
+type SchemaPath struct {
+	Path                    string   `json:"path"`
+	Type                    string   `json:"type,omitempty"`
+	EnumValues              []string `json:"enum_values,omitempty"`
+	Required                bool     `json:"required,omitempty"`
+	Optional                bool     `json:"optional,omitempty"`
+	Computed                bool     `json:"computed,omitempty"`
+	Sensitive               bool     `json:"sensitive,omitempty"`
+	Identity                bool     `json:"identity,omitempty"`
+	ResponseDerivedIdentity bool     `json:"response_derived_identity,omitempty"`
+	Immutable               bool     `json:"immutable,omitempty"`
+	CreateOnly              bool     `json:"create_only,omitempty"`
+	Updateable              bool     `json:"updateable,omitempty"`
+	ReplaceOnChange         bool     `json:"replace_on_change,omitempty"`
+	ReadOnly                bool     `json:"read_only,omitempty"`
+	Ignored                 bool     `json:"ignored,omitempty"`
+}
+
+type RequestBinding struct {
+	OperationRole string `json:"operation_role"`
+	OperationID   string `json:"operation_id,omitempty"`
+	Path          string `json:"path"`
+	RequestPath   string `json:"request_path"`
+	Required      bool   `json:"required,omitempty"`
+	Identity      bool   `json:"identity,omitempty"`
+}
+
+type ResponseBinding struct {
+	OperationRole           string `json:"operation_role"`
+	OperationID             string `json:"operation_id,omitempty"`
+	ResponsePath            string `json:"response_path"`
+	StatePath               string `json:"state_path"`
+	Identity                bool   `json:"identity,omitempty"`
+	ResponseDerivedIdentity bool   `json:"response_derived_identity,omitempty"`
+	Computed                bool   `json:"computed,omitempty"`
+	Observed                bool   `json:"observed,omitempty"`
+	Sensitive               bool   `json:"sensitive,omitempty"`
+}
+
+type Normalizer struct {
+	Path string `json:"path"`
+	Kind string `json:"kind"`
+}
+
+type MappingLifecycle struct {
+	OperationRoles []string               `json:"operation_roles,omitempty"`
+	Paths          []MappingLifecyclePath `json:"paths,omitempty"`
+}
+
+type MappingLifecyclePath struct {
+	Path            string `json:"path"`
+	Immutable       bool   `json:"immutable,omitempty"`
+	CreateOnly      bool   `json:"create_only,omitempty"`
+	Updateable      bool   `json:"updateable,omitempty"`
+	ReplaceOnChange bool   `json:"replace_on_change,omitempty"`
+	Computed        bool   `json:"computed,omitempty"`
+	Ignored         bool   `json:"ignored,omitempty"`
 }
 
 type Redaction struct {
@@ -311,6 +376,8 @@ func normalizeProfilePaths(profile *Profile, dir string) {
 		resource.Dependencies = slices.Compact(resource.Dependencies)
 		slices.Sort(resource.CredentialBindings)
 		resource.CredentialBindings = slices.Compact(resource.CredentialBindings)
+		slices.Sort(resource.RequiredOperations)
+		resource.RequiredOperations = slices.Compact(resource.RequiredOperations)
 		for purpose, role := range resource.Operations {
 			role.Purpose = firstNonEmpty(role.Purpose, purpose)
 			role.SourceKind = strings.TrimSpace(role.SourceKind)

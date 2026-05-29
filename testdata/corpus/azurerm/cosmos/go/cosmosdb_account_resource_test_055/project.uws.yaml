@@ -1,0 +1,128 @@
+info:
+    description: Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration.
+    title: ramen_native_project
+    version: 1.0.0
+operations:
+    - description: Review create create for Terraform resource azurerm_cosmosdb_account.test
+      operationId: azurerm_cosmosdb_account_test_create
+      request:
+        body:
+            accountName: '"acctest-ca-1"'
+            createUpdateParameters:
+                kind: '"GlobalDocumentDB"'
+                location: '"eastus"'
+                properties:
+                    databaseAccountOfferType: '"Standard"'
+            resourceGroupName: '"ramen-corpus-rg"'
+            updateParameters:
+                kind: '"GlobalDocumentDB"'
+                location: '"eastus"'
+        x-ramen-terraform:
+            attributes:
+                backup:
+                    type: '"Continuous"'
+                consistency_policy:
+                    consistency_level: '"Session"'
+                create_mode: '"Default"'
+                geo_location:
+                    failover_priority: "0"
+                    location: '"eastus"'
+                kind: '"GlobalDocumentDB"'
+                location: '"eastus"'
+                name: '"acctest-ca-1"'
+                offer_type: '"Standard"'
+                resource_group_name: '"ramen-corpus-rg"'
+            identity_attributes:
+                - name: account_name
+                  request_keys:
+                    - accountName
+                  required: true
+                  response_paths:
+                    - name
+                    - id
+                  terraform_path: name
+                - name: resource_group_name
+                  request_keys:
+                    - resourceGroupName
+                  required: true
+                  terraform_path: resource_group_name
+            object:
+                address: azurerm_cosmosdb_account.test
+                kind: resource
+                name: test
+                type: azurerm_cosmosdb_account
+      sourceDescription: cosmos
+      sourceOperationId: DatabaseAccounts_CreateOrUpdate
+sourceDescriptions:
+    - name: cosmos
+      type: openapi
+      url: openapi/cosmos.json
+uws: 1.4.0
+workflows:
+    - description: Review mapped Terraform/OpenTofu objects as API source operations.
+      steps:
+        - body:
+            action: create
+            purpose: create
+            terraform_address: azurerm_cosmosdb_account.test
+            terraform_type: azurerm_cosmosdb_account
+          operationRef: azurerm_cosmosdb_account_test_create
+          stepId: azurerm_cosmosdb_account_test_create
+          type: ""
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: cosmos
+          kind: openapi
+          path: openapi/cosmos.json
+    metadata:
+        action: create
+        config_dir: testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_055/input
+        source: ramen convert tf
+    redaction: {}
+    resources:
+        - address: azurerm_cosmosdb_account.test
+          attributes:
+            backup:
+                type: '"Continuous"'
+            consistency_policy:
+                consistency_level: '"Session"'
+            create_mode: '"Default"'
+            geo_location:
+                failover_priority: "0"
+                location: '"eastus"'
+            kind: '"GlobalDocumentDB"'
+            location: '"eastus"'
+            name: '"acctest-ca-1"'
+            offer_type: '"Standard"'
+            resource_group_name: '"ramen-corpus-rg"'
+          identity_attributes:
+            - name: account_name
+              path: name
+              request_keys:
+                - accountName
+              required: true
+              response_paths:
+                - name
+                - id
+            - name: resource_group_name
+              path: resource_group_name
+              request_keys:
+                - resourceGroupName
+              required: true
+          kind: resource
+          lifecycle: {}
+          metadata:
+            terraform_address: azurerm_cosmosdb_account.test
+          name: test
+          operations:
+            create:
+                operation_id: DatabaseAccounts_CreateOrUpdate
+                purpose: create
+                source_id: cosmos
+                source_kind: openapi
+                source_path: openapi/cosmos.json
+          redaction: {}
+          type: azurerm_cosmosdb_account
+    version: ramen.project.v1

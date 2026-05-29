@@ -3,6 +3,7 @@
   "entries": [
     {
       "path": "aws/iam/Role/basic",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -20,6 +21,7 @@
     },
     {
       "path": "aws/iam/Role/basic_v5.100.0",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -37,6 +39,7 @@
     },
     {
       "path": "aws/iam/Role/basic_v6.0.0",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -54,6 +57,7 @@
     },
     {
       "path": "aws/iam/Role/list_basic",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -71,6 +75,7 @@
     },
     {
       "path": "aws/iam/Role/list_include_resource",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -88,6 +93,7 @@
     },
     {
       "path": "aws/iam/Role/tags",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -105,6 +111,7 @@
     },
     {
       "path": "aws/iam/Role/tags_defaults",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -122,6 +129,7 @@
     },
     {
       "path": "aws/iam/Role/tags_ignore",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -139,6 +147,7 @@
     },
     {
       "path": "aws/iam/RolePolicy/basic",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role",
@@ -157,6 +166,7 @@
     },
     {
       "path": "aws/iam/RolePolicy/basic_v6.0.0",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role",
@@ -175,6 +185,7 @@
     },
     {
       "path": "aws/iam/RolePolicy/list_basic",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role",
@@ -190,6 +201,7 @@
     },
     {
       "path": "aws/iam/RolePolicy/list_include_resource",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role",
@@ -204,7 +216,128 @@
       "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource"
     },
     {
+      "path": "aws/iam/User/basic",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/basic"
+    },
+    {
+      "path": "aws/iam/User/basic_v6.35.1",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/basic_v6.35.1"
+    },
+    {
+      "path": "aws/iam/User/list_basic",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/list_basic"
+    },
+    {
+      "path": "aws/iam/User/list_include_resource",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/list_include_resource"
+    },
+    {
+      "path": "aws/iam/User/list_path_prefix",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/list_path_prefix"
+    },
+    {
+      "path": "aws/iam/User/tags",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/tags"
+    },
+    {
+      "path": "aws/iam/User/tags_defaults",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/tags_defaults"
+    },
+    {
+      "path": "aws/iam/User/tags_ignore",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/User/tags_ignore"
+    },
+    {
       "path": "aws/iam/tmpl/role_basic",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role"
@@ -222,6 +355,7 @@
     },
     {
       "path": "aws/iam/tmpl/role_policy_basic",
+      "provider": "aws",
       "service": "iam",
       "resource_types": [
         "aws_iam_role",
@@ -239,7 +373,23 @@
       "source_dir": "internal/service/iam/testdata/tmpl/role_policy_basic.gtpl"
     },
     {
+      "path": "aws/iam/tmpl/user_basic",
+      "provider": "aws",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_user"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/tmpl/user_basic.gtpl"
+    },
+    {
       "path": "aws/lambda/Function/basic",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -263,6 +413,7 @@
     },
     {
       "path": "aws/lambda/Function/basic_v6.7.0",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -286,6 +437,7 @@
     },
     {
       "path": "aws/lambda/Function/basic_v6.8.0",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -309,6 +461,7 @@
     },
     {
       "path": "aws/lambda/Function/list_basic",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -332,6 +485,7 @@
     },
     {
       "path": "aws/lambda/Function/list_include_resource",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -355,6 +509,7 @@
     },
     {
       "path": "aws/lambda/Function/list_region_override",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -378,6 +533,7 @@
     },
     {
       "path": "aws/lambda/Function/region_override",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -401,6 +557,7 @@
     },
     {
       "path": "aws/lambda/Function/tags",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -424,6 +581,7 @@
     },
     {
       "path": "aws/lambda/Function/tags_defaults",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -447,6 +605,7 @@
     },
     {
       "path": "aws/lambda/Function/tags_ignore",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -469,7 +628,134 @@
       "source_dir": "internal/service/lambda/testdata/Function/tags_ignore"
     },
     {
+      "path": "aws/lambda/Permission/basic",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Permission/basic"
+    },
+    {
+      "path": "aws/lambda/Permission/basic_v6.9.0",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Permission/basic_v6.9.0"
+    },
+    {
+      "path": "aws/lambda/Permission/list_basic",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Permission/list_basic"
+    },
+    {
+      "path": "aws/lambda/Permission/list_include_resource",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Permission/list_include_resource"
+    },
+    {
+      "path": "aws/lambda/Permission/list_region_override",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Permission/list_region_override"
+    },
+    {
+      "path": "aws/lambda/Permission/region_override",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Permission/region_override"
+    },
+    {
       "path": "aws/lambda/tmpl/function_basic",
+      "provider": "aws",
       "service": "lambda",
       "resource_types": [
         "aws_iam_role",
@@ -492,7 +778,29 @@
       "source_dir": "internal/service/lambda/testdata/tmpl/function_basic.gtpl"
     },
     {
+      "path": "aws/lambda/tmpl/permission_basic",
+      "provider": "aws",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_lambda_function",
+        "aws_lambda_permission"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/tmpl/permission_basic.gtpl"
+    },
+    {
       "path": "aws/s3/Bucket/basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -507,6 +815,7 @@
     },
     {
       "path": "aws/s3/Bucket/basic_v5.100.0",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -521,6 +830,7 @@
     },
     {
       "path": "aws/s3/Bucket/basic_v6.0.0",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -535,6 +845,7 @@
     },
     {
       "path": "aws/s3/Bucket/list_basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -549,6 +860,7 @@
     },
     {
       "path": "aws/s3/Bucket/list_include_resource",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -563,6 +875,7 @@
     },
     {
       "path": "aws/s3/Bucket/list_region_override",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -577,6 +890,7 @@
     },
     {
       "path": "aws/s3/Bucket/namespace_account-regional_name_generated",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -591,6 +905,7 @@
     },
     {
       "path": "aws/s3/Bucket/namespace_account-regional_name_prefix",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -605,6 +920,7 @@
     },
     {
       "path": "aws/s3/Bucket/namespace_global",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -619,6 +935,7 @@
     },
     {
       "path": "aws/s3/Bucket/region_override",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -633,6 +950,7 @@
     },
     {
       "path": "aws/s3/Bucket/tags",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -647,6 +965,7 @@
     },
     {
       "path": "aws/s3/Bucket/tags_defaults",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -661,6 +980,7 @@
     },
     {
       "path": "aws/s3/Bucket/tags_ignore",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -675,6 +995,7 @@
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -690,6 +1011,7 @@
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/basic_v6.9.0",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -705,6 +1027,7 @@
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/list_basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -720,6 +1043,7 @@
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/list_region_override",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -735,6 +1059,7 @@
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/region_override",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -750,6 +1075,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -765,6 +1091,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/basic_v6.30.0",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -780,6 +1107,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/basic_v6.9.0",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -795,6 +1123,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/list_basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -810,6 +1139,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/list_include_resource",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -825,6 +1155,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/list_region_override",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -840,6 +1171,7 @@
     },
     {
       "path": "aws/s3/BucketVersioning/region_override",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -855,6 +1187,7 @@
     },
     {
       "path": "aws/s3/tmpl/bucket_basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket"
@@ -869,6 +1202,7 @@
     },
     {
       "path": "aws/s3/tmpl/bucket_public_access_block_basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -884,6 +1218,7 @@
     },
     {
       "path": "aws/s3/tmpl/bucket_versioning_basic",
+      "provider": "aws",
       "service": "s3",
       "resource_types": [
         "aws_s3_bucket",
@@ -896,6 +1231,1420 @@
         }
       ],
       "source_dir": "internal/service/s3/testdata/tmpl/bucket_versioning_basic.gtpl"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_001",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_002",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_004",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_005",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_020",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_023",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_024",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_025",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_026",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_035",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_036",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_037",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_038",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_039",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_043",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_045",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_047",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_048",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_049",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_050",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_051",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_052",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_053",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_055",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+    },
+    {
+      "path": "azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001",
+      "provider": "azurerm",
+      "service": "cosmos",
+      "resource_types": [
+        "azurerm_cosmosdb_account"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cosmos",
+          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/cosmos/cosmosdb_sql_dedicated_gateway_resource_test.go"
+    },
+    {
+      "path": "cloudflare/d1_database/d1databasebasic",
+      "provider": "cloudflare",
+      "service": "d1_database",
+      "resource_types": [
+        "cloudflare_d1_database"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "d1_database",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/d1_database/testdata/d1databasebasic.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/comprehensive",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/comprehensive.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/jurisdiction",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/jurisdiction.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/jurisdiction_specific",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/jurisdiction_specific.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/location",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/location.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/r2bucketbasic",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/r2bucketbasic.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/r2bucketminimum",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/r2bucketminimum.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/r2bucketupdate",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/r2bucketupdate.tf"
+    },
+    {
+      "path": "cloudflare/r2_bucket/storage_class",
+      "provider": "cloudflare",
+      "service": "r2_bucket",
+      "resource_types": [
+        "cloudflare_r2_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "r2_bucket",
+          "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        }
+      ],
+      "source_dir": "internal/services/r2_bucket/testdata/storage_class.tf"
+    },
+    {
+      "path": "google/storage/go/data_source_google_storage_bucket_test_001",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "data_sources": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/data_source_google_storage_bucket_test_002",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "data_sources": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/list_google_storage_bucket_test_001",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/list_google_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_object_test_019",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_object_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_001",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_002",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_003",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_004",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_005",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_006",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_007",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_008",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_009",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_010",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_011",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_012",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_013",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_017",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_020",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_022",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_023",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_024",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_025",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_026",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_027",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_030",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_031",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_033",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_034",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_035",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_036",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_038",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_039",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_040",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_041",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_042",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_043",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_044",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_045",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_046",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_047",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_051",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_052",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_bucket_test_053",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+    },
+    {
+      "path": "google/storage/go/resource_storage_folder_test_001",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+        }
+      ],
+      "source_dir": "google/services/storage/resource_storage_folder_test.go"
+    },
+    {
+      "path": "kubernetes/core/example_1",
+      "provider": "kubernetes",
+      "service": "core",
+      "resource_types": [
+        "kubernetes_namespace"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "core",
+          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+        }
+      ],
+      "source_dir": "examples/example_1.tf"
+    },
+    {
+      "path": "kubernetes/core/resources/namespace/example_1",
+      "provider": "kubernetes",
+      "service": "core",
+      "resource_types": [
+        "kubernetes_namespace"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "core",
+          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+        }
+      ],
+      "source_dir": "examples/resources/namespace/example_1.tf"
+    },
+    {
+      "path": "kubernetes/core/resources/namespace_v1/example_1",
+      "provider": "kubernetes",
+      "service": "core",
+      "resource_types": [
+        "kubernetes_namespace_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "core",
+          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+        }
+      ],
+      "source_dir": "examples/resources/namespace_v1/example_1.tf"
     }
   ]
 }

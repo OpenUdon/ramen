@@ -1,0 +1,40 @@
+{
+  "version": "ramen.tfconvert.plan.v1",
+  "workflow": "terraform_conversion_draft",
+  "action": "create",
+  "steps": [
+    {
+      "address": "cloudflare_r2_bucket.ramen_corpus",
+      "kind": "resource",
+      "type": "cloudflare_r2_bucket",
+      "purpose": "create",
+      "action": "create",
+      "source_kind": "openapi",
+      "source_id": "r2_bucket",
+      "source_path": "openapi/r2_bucket.json",
+      "operation_id": "r2-create-bucket",
+      "identity_attributes": [
+        {
+          "name": "account_id",
+          "terraform_path": "account_id",
+          "request_keys": [
+            "account_id"
+          ],
+          "required": true
+        },
+        {
+          "name": "bucket_name",
+          "terraform_path": "name",
+          "request_keys": [
+            "name",
+            "bucket_name"
+          ],
+          "response_paths": [
+            "result.name"
+          ],
+          "required": true
+        }
+      ]
+    }
+  ]
+}

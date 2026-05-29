@@ -34,16 +34,24 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
 
 1. **Mapping schema**
    Required, optional, computed, sensitive, identity, enum, immutable,
-   create-only, updateable, replace-on-change, read-only, and ignored paths.
+   response-derived identity, create-only, updateable, replace-on-change,
+   read-only, and ignored paths. The public `tfmapping.SchemaPath` contract is
+   the place for this metadata; command packages consume it without importing
+   provider schemas.
 
 2. **Request and response binding**
    Attribute-to-request paths for create/update/delete/read and response-to-state
-   paths for identities, computed attributes, and drift evidence.
+   paths for identities, response-derived identities, computed attributes, and
+   drift evidence. `tfmapping.RequestBinding` and `tfmapping.ResponseBinding`
+   cover resources whose create request uses one configured value while later
+   read/update/delete calls require an identifier returned by create/read.
 
 3. **Diff normalization**
    General normalizers for JSON strings, unordered sets/lists where order is not
    semantically meaningful, empty/null/absent equivalence, casing, and sensitive
-   redaction placeholders.
+   redaction placeholders. `tfmapping.NormalizerKind` intentionally only names
+   common provider-neutral cases; arbitrary mapping-owned diff code remains
+   deferred until equivalence tests justify it.
 
 4. **Read-plan-apply-read loop**
    A reconcile flow that can read current remote state, build a plan from the
@@ -53,7 +61,9 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
 5. **Lifecycle semantics**
    Operation roles for create, read, update, replace, delete, suspend, detach,
    remove-config, and no-op, with explicit diagnostics when a requested action
-   has no safe mapping.
+   has no safe mapping. `tfmapping.OperationRole` and
+   `tfmapping.LifecycleSemantics` define the vocabulary; per-resource behavior
+   still has to be populated by mapping metadata and tested before live use.
 
 6. **Retry and waiter policy**
    Generic backoff, timeout, retryable error classes, post-write read polling,
@@ -62,6 +72,56 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
 7. **State identity model**
    Stable identity fields and response-derived IDs stored in state so future
    plans depend on API-visible identity, not only on configuration text.
+
+## Provider-Clone Boundary
+
+Ramen may read provider fixture files as inert test input, but it must not link
+provider runtime code into public builds. The boundary test in `boundary_test.go`
+enforces the current rule:
+
+- no Terraform provider packages, Terraform/OpenTofu runtime internals,
+  provider plugins, or `tfconfig/_upstream` imports;
+- no private udon imports unless the file is explicitly guarded by
+  `//go:build udon`;
+- useful provider behavior must be represented as public mapping metadata,
+  bindings, normalizers, lifecycle roles, retry/waiter policy, or trusted
+  executor contracts.
+
+The contract types added for M20 are intentionally metadata-only. Validation,
+planning, refresh, import, apply, and destroy consume them in the later command
+tracks, and live-behavior claims remain parked until recorded or live
+equivalence evidence exists.
+
+V03 carries the first consumer slice: native project resources can now declare
+`schema`, `request_bindings`, `response_bindings`, `normalizers`,
+`mapping_lifecycle`, and `required_operations`, and `ramen validate` enforces
+the static parts of those contracts without provider execution.
+
+P04 carries those contracts into plan artifacts and desired hashes. The mapping
+hash input includes `ramen.mapping-metadata.v1` plus schema, request/response
+bindings, normalizers, mapping lifecycle, and required operation metadata, so
+approval artifacts become stale when those hardening contracts change.
+
+R02 consumes the read-side subset during refresh: response bindings project
+executor result values into identity/computed state, declared normalizers are
+applied before drift comparison, and response-bound sensitive paths are redacted
+before state/history writes.
+
+I03 reuses the same identity model for import. Native project import validation
+accepts identity fields declared by `identity_attributes`, schema identity paths,
+and response-derived identity bindings, and reports stable `import.*`
+diagnostics when metadata or supplied identity values are incomplete.
+
+A02 keeps live apply behavior parked but tightens the non-live safety surface:
+apply now reports stable `apply.*` diagnostics for missing approval, missing
+executor selection, invalid action documents, unsupported executor capabilities,
+executor failures, and unsuccessful executor results. Public apply coverage
+remains mock-backed and credential-free.
+
+D02 makes destroy semantics explicit in planning and execution. Native project
+destroy planning can use delete, detach, disable, suspend, remove-config, or
+no-op roles, and destroy fails closed with `destroy.operation_missing` when no
+safe operation role exists.
 
 ## Deferral Policy
 
@@ -76,4 +136,3 @@ resource-specific semantics should be parked until both conditions are true:
 Until then, Ramen may add static validation, metadata contracts, diagnostics,
 and recorded test harnesses, but should avoid broad claims that `ramen apply`
 matches `opentofu apply`.
-

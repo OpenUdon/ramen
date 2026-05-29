@@ -1,5 +1,6 @@
 {
   "path": "aws/iam/Role/basic",
+  "provider": "aws",
   "service": "iam",
   "resource_types": [
     "aws_iam_role"

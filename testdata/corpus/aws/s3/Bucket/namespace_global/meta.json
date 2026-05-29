@@ -1,5 +1,6 @@
 {
   "path": "aws/s3/Bucket/namespace_global",
+  "provider": "aws",
   "service": "s3",
   "resource_types": [
     "aws_s3_bucket"

@@ -1,0 +1,63 @@
+{
+  "version": "ramen.tfconvert.plan.v1",
+  "workflow": "terraform_conversion_draft",
+  "action": "create",
+  "steps": [
+    {
+      "address": "data.google_storage_bucket.bar",
+      "kind": "data_source",
+      "type": "google_storage_bucket",
+      "purpose": "read",
+      "action": "read",
+      "source_kind": "google-discovery",
+      "source_id": "storage",
+      "source_path": "google-discovery/storage.json",
+      "operation_id": "storage.buckets.get",
+      "identity_attributes": [
+        {
+          "name": "bucket_name",
+          "terraform_path": "name",
+          "request_keys": [
+            "name"
+          ],
+          "response_paths": [
+            "name",
+            "id"
+          ],
+          "required": true
+        }
+      ],
+      "credentials": [
+        "google_oauth2"
+      ]
+    },
+    {
+      "address": "google_storage_bucket.foo",
+      "kind": "resource",
+      "type": "google_storage_bucket",
+      "purpose": "create",
+      "action": "create",
+      "source_kind": "google-discovery",
+      "source_id": "storage",
+      "source_path": "google-discovery/storage.json",
+      "operation_id": "storage.buckets.insert",
+      "identity_attributes": [
+        {
+          "name": "bucket_name",
+          "terraform_path": "name",
+          "request_keys": [
+            "name"
+          ],
+          "response_paths": [
+            "name",
+            "id"
+          ],
+          "required": true
+        }
+      ],
+      "credentials": [
+        "google_oauth2"
+      ]
+    }
+  ]
+}

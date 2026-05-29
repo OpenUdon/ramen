@@ -1,5 +1,6 @@
 {
   "path": "aws/s3/Bucket/basic_v5.100.0",
+  "provider": "aws",
   "service": "s3",
   "resource_types": [
     "aws_s3_bucket"

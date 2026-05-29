@@ -1,0 +1,95 @@
+info:
+    description: Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration.
+    title: ramen_native_project
+    version: 1.0.0
+operations:
+    - description: Review create create for Terraform resource aws_iam_user.test
+      operationId: aws_iam_user_test_create
+      request:
+        body:
+            UserName: var.rName
+        x-ramen-credential-bindings:
+            - aws_hmac
+        x-ramen-terraform:
+            attributes:
+                name: var.rName
+                tags: var.resource_tags
+            identity_attributes:
+                - name: user_name
+                  request_keys:
+                    - UserName
+                  required: true
+                  response_paths:
+                    - User.UserName
+                    - User.Arn
+                    - User.UserId
+                  terraform_path: name
+            object:
+                address: aws_iam_user.test
+                kind: resource
+                name: test
+                type: aws_iam_user
+      sourceDescription: iam
+      sourceOperationId: CreateUser
+sourceDescriptions:
+    - name: iam
+      type: aws-smithy
+      url: aws-smithy/iam.json
+uws: 1.4.0
+workflows:
+    - description: Review mapped Terraform/OpenTofu objects as API source operations.
+      steps:
+        - body:
+            action: create
+            purpose: create
+            terraform_address: aws_iam_user.test
+            terraform_type: aws_iam_user
+          operationRef: aws_iam_user_test_create
+          stepId: aws_iam_user_test_create
+          type: ""
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: iam
+          kind: aws-smithy
+          path: aws-smithy/iam.json
+    metadata:
+        action: create
+        config_dir: testdata/corpus/aws/iam/User/tags_ignore/input
+        source: ramen convert tf
+    redaction: {}
+    resources:
+        - address: aws_iam_user.test
+          attributes:
+            name: var.rName
+            tags: var.resource_tags
+          credential_bindings:
+            - aws_hmac
+          identity_attributes:
+            - name: user_name
+              path: name
+              request_keys:
+                - UserName
+              required: true
+              response_paths:
+                - User.UserName
+                - User.Arn
+                - User.UserId
+          kind: resource
+          lifecycle: {}
+          metadata:
+            terraform_address: aws_iam_user.test
+          name: test
+          operations:
+            create:
+                credential_bindings:
+                    - aws_hmac
+                operation_id: CreateUser
+                purpose: create
+                source_id: iam
+                source_kind: aws-smithy
+                source_path: aws-smithy/iam.json
+          redaction: {}
+          type: aws_iam_user
+    version: ramen.project.v1

@@ -1,5 +1,6 @@
 {
   "path": "aws/iam/tmpl/role_policy_basic",
+  "provider": "aws",
   "service": "iam",
   "resource_types": [
     "aws_iam_role",

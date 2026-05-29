@@ -137,6 +137,102 @@ func TestRunTreatsWarningsAsErrorsInStrictMode(t *testing.T) {
 	}
 }
 
+func TestRunValidatesMappingSchemaMetadata(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Attributes: map[string]any{"name": "example", "mode": "bad", "count": "wrong", "extra": true},
+			Schema: []project.SchemaPath{
+				{Path: "name", Type: "string", Required: true},
+				{Path: "mode", Type: "string", EnumValues: []string{"good"}},
+				{Path: "count", Type: "number"},
+				{Path: "token", Type: "string", Required: true, Sensitive: true},
+			},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "create", Path: "name", RequestPath: "Name", Required: true},
+				{OperationRole: "create", Path: "", RequestPath: "Broken"},
+			},
+			ResponseBindings: []project.ResponseBinding{
+				{OperationRole: "read", ResponsePath: "secret", StatePath: "token", Sensitive: true},
+			},
+			RequiredOperations: []string{"create", "read"},
+			Operations:         map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	for _, code := range []string{
+		"validate.attribute_required",
+		"validate.attribute_unknown",
+		"validate.binding_invalid",
+		"validate.enum_invalid",
+		"validate.operation_role_missing",
+		"validate.type_invalid",
+	} {
+		if !hasValidateCode(result, code) {
+			t.Fatalf("result missing %s: %#v", code, result.Diagnostics)
+		}
+	}
+}
+
+func TestRunAcceptsValidMappingSchemaMetadata(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	readPath := writeValidateOpenAPI(t, root, "read.yaml", "readExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{
+			{Kind: "openapi", ID: "api", Path: sourcePath},
+			{Kind: "openapi", ID: "read", Path: readPath},
+		},
+		Resources: []project.Resource{{
+			Address: "example_resource.test",
+			Kind:    "resource",
+			Type:    "example_resource",
+			Attributes: map[string]any{
+				"name":  "example",
+				"mode":  "good",
+				"token": "redacted",
+			},
+			Schema: []project.SchemaPath{
+				{Path: "name", Type: "string", Required: true},
+				{Path: "mode", Type: "string", EnumValues: []string{"good"}},
+				{Path: "token", Type: "string", Sensitive: true},
+			},
+			RequestBindings: []project.RequestBinding{{OperationRole: "create", Path: "name", RequestPath: "Name", Required: true}},
+			ResponseBindings: []project.ResponseBinding{{
+				OperationRole: "read",
+				ResponsePath:  "secret",
+				StatePath:     "token",
+				Sensitive:     true,
+			}},
+			RequiredOperations: []string{"create", "read"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"},
+				"read":   {SourceKind: "openapi", SourceID: "read", OperationID: "readExample"},
+			},
+			Redaction: project.Redaction{Paths: []string{"token"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !result.Valid || result.Summary.Diagnostics != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestRunReportsLoadAndMissingSourceErrors(t *testing.T) {
 	root := t.TempDir()
 	missing := filepath.Join(root, "missing.yaml")

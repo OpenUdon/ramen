@@ -196,6 +196,61 @@ func TestBuildNativeAWSIAMRoleProjectWithoutHCL(t *testing.T) {
 	}
 }
 
+func TestBuildNativeProjectCarriesMappingMetadataIntoPlanHash(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	profile := project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "native-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+				"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "role_name", Path: "name", RequestKeys: []string{"RoleName"}, Required: true}},
+			Schema: []project.SchemaPath{
+				{Path: "name", Type: "string", Required: true, Identity: true},
+				{Path: "assume_role_policy", Type: "string", Required: true},
+			},
+			RequestBindings:    []project.RequestBinding{{OperationRole: "create", Path: "name", RequestPath: "RoleName", Required: true, Identity: true}},
+			ResponseBindings:   []project.ResponseBinding{{OperationRole: "read", ResponsePath: "Role.RoleName", StatePath: "name", Identity: true}},
+			Normalizers:        []project.Normalizer{{Path: "assume_role_policy", Kind: "json_semantic"}},
+			MappingLifecycle:   &project.MappingLifecycle{OperationRoles: []string{"create", "read"}, Paths: []project.MappingLifecyclePath{{Path: "name", ReplaceOnChange: true}}},
+			RequiredOperations: []string{"create", "read"},
+		}},
+	}
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, profile)
+	result, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(projectDir, ".ramen", "state.db")})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	role := result.Plan.Resources[0]
+	if role.Mapping == nil || len(role.Mapping.Schema) != 2 || len(role.Mapping.Normalizers) != 1 || role.Mapping.MappingLifecycle == nil {
+		t.Fatalf("mapping metadata was not carried into plan: %#v", role.Mapping)
+	}
+
+	modifiedDir := filepath.Join(root, "project-modified")
+	modifiedSource := filepath.Join(modifiedDir, "aws-smithy", "iam.json")
+	writePlanTestFile(t, modifiedSource, minimalIAMSmithyForPlanTest())
+	profile.Resources[0].Normalizers[0].Kind = "case_fold"
+	modifiedPath := writeNativeProjectForPlanTest(t, modifiedDir, profile)
+	modified, err := Build(context.Background(), Options{ProjectPath: modifiedPath, StatePath: filepath.Join(modifiedDir, ".ramen", "state.db")})
+	if err != nil {
+		t.Fatalf("Build modified returned error: %v", err)
+	}
+	if role.DesiredHash == modified.Plan.Resources[0].DesiredHash {
+		t.Fatalf("desired hash did not change after mapping metadata changed: %s", role.DesiredHash)
+	}
+}
+
 func TestBuildNativeGoogleStorageProjectWithoutHCL(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")

@@ -1,0 +1,21 @@
+{
+  "path": "aws/lambda/Permission/basic_v6.9.0",
+  "provider": "aws",
+  "service": "lambda",
+  "resource_types": [
+    "aws_iam_role",
+    "aws_lambda_function",
+    "aws_lambda_permission"
+  ],
+  "smithy_models": [
+    {
+      "id": "iam",
+      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+    },
+    {
+      "id": "lambda",
+      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+    }
+  ],
+  "source_dir": "internal/service/lambda/testdata/Permission/basic_v6.9.0"
+}

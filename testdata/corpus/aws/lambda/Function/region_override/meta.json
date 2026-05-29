@@ -1,5 +1,6 @@
 {
   "path": "aws/lambda/Function/region_override",
+  "provider": "aws",
   "service": "lambda",
   "resource_types": [
     "aws_iam_role",

@@ -34,6 +34,70 @@ func TestDefaultRegistryOpenAPIFallbackOrder(t *testing.T) {
 	}
 }
 
+func TestDefaultRegistrySupportedTypes(t *testing.T) {
+	registry := DefaultRegistry()
+	got := registry.SupportedTypes()
+	want := []SupportedType{
+		{Provider: "aws", Type: "aws_caller_identity", Kinds: []string{"data_source"}},
+		{Provider: "aws", Type: "aws_iam_role", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_iam_role_policy", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_iam_user", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_lambda_function", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_lambda_function_url", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_lambda_permission", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_s3_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "aws", Type: "aws_s3_bucket_accelerate_configuration", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_s3_bucket_public_access_block", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_s3_bucket_versioning", Kinds: []string{"resource"}},
+		{Provider: "azurerm", Type: "azurerm_cosmosdb_account", Kinds: []string{"resource", "data_source"}},
+		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
+		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
+		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+	}
+	if !equalSupportedTypes(got, want) {
+		t.Fatalf("supported types = %#v, want %#v", got, want)
+	}
+}
+
+func TestDefaultRegistrySupportedTypesHaveMappingTargets(t *testing.T) {
+	registry := DefaultRegistry()
+	for _, supported := range registry.SupportedTypes() {
+		for _, kind := range supported.Kinds {
+			purpose, action := "create", "create"
+			if kind == "data_source" {
+				purpose, action = "read", "read"
+			}
+			obj := Object{Kind: kind, Type: supported.Type, Provider: "provider." + supported.Provider}
+			mapping := registry.MapObject(obj, purpose, action)
+			if len(mapping.Diagnostics) > 0 {
+				t.Fatalf("%s %s %s mapping has diagnostics: %#v", supported.Provider, kind, supported.Type, mapping.Diagnostics)
+			}
+			if len(mapping.Target.OperationIDs) == 0 {
+				t.Fatalf("%s %s %s mapping has no operation target: %#v", supported.Provider, kind, supported.Type, mapping)
+			}
+		}
+	}
+}
+
+func TestRegistrySupportedTypesHonorsProviderOverrides(t *testing.T) {
+	registry := NewRegistry(WithProviderMapper("aws", fakeListingMapper{}))
+	got := registry.SupportedTypes()
+	want := []SupportedType{
+		{Provider: "aws", Type: "aws_override_resource", Kinds: []string{"resource"}},
+		{Provider: "azurerm", Type: "azurerm_cosmosdb_account", Kinds: []string{"resource", "data_source"}},
+		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
+		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
+		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+	}
+	if !equalSupportedTypes(got, want) {
+		t.Fatalf("supported types with override = %#v, want %#v", got, want)
+	}
+}
+
 func TestDefaultRegistryIdentityAttributes(t *testing.T) {
 	registry := DefaultRegistry()
 	aws := registry.MapObject(Object{Kind: "resource", Type: "aws_iam_role"}, "create", "create")
@@ -69,6 +133,65 @@ func TestDefaultRegistryIdentityAttributes(t *testing.T) {
 		RequestKeys:   []string{"Bucket"},
 		Required:      true,
 	})
+
+	iamUser := registry.MapObject(Object{Kind: "resource", Type: "aws_iam_user"}, "create", "create")
+	assertIdentity(t, iamUser.IdentityAttributes, IdentityAttribute{
+		Name:          "user_name",
+		TerraformPath: "name",
+		RequestKeys:   []string{"UserName"},
+		ResponsePaths: []string{"User.UserName", "User.Arn", "User.UserId"},
+		Required:      true,
+	})
+
+	lambdaPermission := registry.MapObject(Object{Kind: "resource", Type: "aws_lambda_permission"}, "create", "create")
+	assertIdentities(t, lambdaPermission.IdentityAttributes, []IdentityAttribute{
+		{
+			Name:          "function_name",
+			TerraformPath: "function_name",
+			RequestKeys:   []string{"FunctionName"},
+			Required:      true,
+		},
+		{
+			Name:          "statement_id",
+			TerraformPath: "statement_id",
+			RequestKeys:   []string{"StatementId"},
+			Required:      true,
+		},
+	})
+
+	r2Bucket := registry.MapObject(Object{Kind: "resource", Type: "cloudflare_r2_bucket"}, "create", "create")
+	assertIdentities(t, r2Bucket.IdentityAttributes, []IdentityAttribute{
+		{
+			Name:          "account_id",
+			TerraformPath: "account_id",
+			RequestKeys:   []string{"account_id"},
+			Required:      true,
+		},
+		{
+			Name:          "bucket_name",
+			TerraformPath: "name",
+			RequestKeys:   []string{"name", "bucket_name"},
+			ResponsePaths: []string{"result.name"},
+			Required:      true,
+		},
+	})
+
+	d1Database := registry.MapObject(Object{Kind: "resource", Type: "cloudflare_d1_database"}, "create", "create")
+	assertIdentities(t, d1Database.IdentityAttributes, []IdentityAttribute{
+		{
+			Name:          "account_id",
+			TerraformPath: "account_id",
+			RequestKeys:   []string{"account_id"},
+			Required:      true,
+		},
+		{
+			Name:          "database_name",
+			TerraformPath: "name",
+			RequestKeys:   []string{"name", "database_id"},
+			ResponsePaths: []string{"result.name", "result.uuid"},
+			Required:      true,
+		},
+	})
 }
 
 func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
@@ -80,10 +203,28 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		action    string
 		operation string
 	}{
+		{name: "caller identity read", obj: Object{Kind: "data_source", Type: "aws_caller_identity"}, purpose: "read", action: "read", operation: "POST_GetCallerIdentity"},
 		{name: "iam read", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "read", action: "read", operation: "POST_GetRole"},
 		{name: "iam create", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "create", action: "create", operation: "POST_CreateRole"},
 		{name: "iam update", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "update", action: "update", operation: "POST_UpdateRole"},
 		{name: "iam delete", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "delete", action: "delete", operation: "POST_DeleteRole"},
+		{name: "iam role policy create", obj: Object{Kind: "resource", Type: "aws_iam_role_policy"}, purpose: "create", action: "create", operation: "POST_PutRolePolicy"},
+		{name: "iam role policy update", obj: Object{Kind: "resource", Type: "aws_iam_role_policy"}, purpose: "update", action: "update", operation: "POST_PutRolePolicy"},
+		{name: "iam role policy delete", obj: Object{Kind: "resource", Type: "aws_iam_role_policy"}, purpose: "delete", action: "delete", operation: "POST_DeleteRolePolicy"},
+		{name: "iam user read", obj: Object{Kind: "resource", Type: "aws_iam_user"}, purpose: "read", action: "read", operation: "POST_GetUser"},
+		{name: "iam user create", obj: Object{Kind: "resource", Type: "aws_iam_user"}, purpose: "create", action: "create", operation: "POST_CreateUser"},
+		{name: "iam user delete", obj: Object{Kind: "resource", Type: "aws_iam_user"}, purpose: "delete", action: "delete", operation: "POST_DeleteUser"},
+		{name: "lambda function create", obj: Object{Kind: "resource", Type: "aws_lambda_function"}, purpose: "create", action: "create", operation: "CreateFunction"},
+		{name: "lambda function delete", obj: Object{Kind: "resource", Type: "aws_lambda_function"}, purpose: "delete", action: "delete", operation: "DeleteFunction"},
+		{name: "lambda function url create", obj: Object{Kind: "resource", Type: "aws_lambda_function_url"}, purpose: "create", action: "create", operation: "CreateFunctionUrlConfig"},
+		{name: "lambda function url update", obj: Object{Kind: "resource", Type: "aws_lambda_function_url"}, purpose: "update", action: "update", operation: "UpdateFunctionUrlConfig"},
+		{name: "lambda function url delete", obj: Object{Kind: "resource", Type: "aws_lambda_function_url"}, purpose: "delete", action: "delete", operation: "DeleteFunctionUrlConfig"},
+		{name: "lambda permission create", obj: Object{Kind: "resource", Type: "aws_lambda_permission"}, purpose: "create", action: "create", operation: "AddPermission"},
+		{name: "lambda permission delete", obj: Object{Kind: "resource", Type: "aws_lambda_permission"}, purpose: "delete", action: "delete", operation: "RemovePermission"},
+		{name: "s3 bucket create", obj: Object{Kind: "resource", Type: "aws_s3_bucket"}, purpose: "create", action: "create", operation: "CreateBucket"},
+		{name: "s3 bucket data source read", obj: Object{Kind: "data_source", Type: "aws_s3_bucket"}, purpose: "read", action: "read", operation: "GetBucketLocation"},
+		{name: "s3 bucket data source list", obj: Object{Kind: "data_source", Type: "aws_s3_bucket"}, purpose: "list", action: "list", operation: "ListBuckets"},
+		{name: "s3 accelerate create", obj: Object{Kind: "resource", Type: "aws_s3_bucket_accelerate_configuration"}, purpose: "create", action: "create", operation: "PutBucketAccelerateConfiguration"},
 		{name: "s3 public access block create", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "create", action: "create", operation: "PutPublicAccessBlock"},
 		{name: "s3 public access block read", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "read", action: "read", operation: "GetPublicAccessBlock"},
 		{name: "s3 public access block update", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "update", action: "update", operation: "PutPublicAccessBlock"},
@@ -95,6 +236,20 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "bucket create", obj: Object{Kind: "resource", Type: "google_storage_bucket"}, purpose: "create", action: "create", operation: "storage.buckets.insert"},
 		{name: "bucket update", obj: Object{Kind: "resource", Type: "google_storage_bucket"}, purpose: "update", action: "update", operation: "storage.buckets.patch"},
 		{name: "bucket delete", obj: Object{Kind: "resource", Type: "google_storage_bucket"}, purpose: "delete", action: "delete", operation: "storage.buckets.delete"},
+		{name: "cosmos account create", obj: Object{Kind: "resource", Type: "azurerm_cosmosdb_account"}, purpose: "create", action: "create", operation: "DatabaseAccounts_CreateOrUpdate"},
+		{name: "cosmos account read", obj: Object{Kind: "resource", Type: "azurerm_cosmosdb_account"}, purpose: "read", action: "read", operation: "DatabaseAccounts_Get"},
+		{name: "cosmos account update", obj: Object{Kind: "resource", Type: "azurerm_cosmosdb_account"}, purpose: "update", action: "update", operation: "DatabaseAccounts_Update"},
+		{name: "cosmos account delete", obj: Object{Kind: "resource", Type: "azurerm_cosmosdb_account"}, purpose: "delete", action: "delete", operation: "DatabaseAccounts_Delete"},
+		{name: "cloudflare r2 bucket create", obj: Object{Kind: "resource", Type: "cloudflare_r2_bucket"}, purpose: "create", action: "create", operation: "r2-create-bucket"},
+		{name: "cloudflare r2 bucket read", obj: Object{Kind: "resource", Type: "cloudflare_r2_bucket"}, purpose: "read", action: "read", operation: "r2-get-bucket"},
+		{name: "cloudflare r2 bucket update", obj: Object{Kind: "resource", Type: "cloudflare_r2_bucket"}, purpose: "update", action: "update", operation: "r2-patch-bucket"},
+		{name: "cloudflare r2 bucket delete", obj: Object{Kind: "resource", Type: "cloudflare_r2_bucket"}, purpose: "delete", action: "delete", operation: "r2-delete-bucket"},
+		{name: "cloudflare d1 database create", obj: Object{Kind: "resource", Type: "cloudflare_d1_database"}, purpose: "create", action: "create", operation: "d1-create-database"},
+		{name: "cloudflare d1 database read", obj: Object{Kind: "resource", Type: "cloudflare_d1_database"}, purpose: "read", action: "read", operation: "d1-get-database"},
+		{name: "namespace create", obj: Object{Kind: "resource", Type: "kubernetes_namespace"}, purpose: "create", action: "create", operation: "createCoreV1Namespace"},
+		{name: "namespace read", obj: Object{Kind: "resource", Type: "kubernetes_namespace"}, purpose: "read", action: "read", operation: "readCoreV1Namespace"},
+		{name: "namespace update", obj: Object{Kind: "resource", Type: "kubernetes_namespace_v1"}, purpose: "update", action: "update", operation: "replaceCoreV1Namespace"},
+		{name: "namespace delete", obj: Object{Kind: "resource", Type: "kubernetes_namespace_v1"}, purpose: "delete", action: "delete", operation: "deleteCoreV1Namespace"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -179,9 +334,37 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	if len(keys) != 1 || keys[0] != "VersioningConfiguration.Status" {
 		t.Fatalf("unexpected S3 bucket versioning request keys: %#v", keys)
 	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "aws_iam_user", Provider: "provider.aws"}, APISourceKindAWSSmithy, "POST_CreateUser", "name")
+	if len(keys) != 1 || keys[0] != "UserName" {
+		t.Fatalf("unexpected IAM user request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "aws_lambda_permission", Provider: "provider.aws"}, APISourceKindAWSSmithy, "AddPermission", "statement_id")
+	if len(keys) != 1 || keys[0] != "StatementId" {
+		t.Fatalf("unexpected Lambda permission request keys: %#v", keys)
+	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "google_storage_bucket", Provider: "provider.google"}, APISourceKindGoogleDiscovery, "storage.buckets.patch", "name")
 	if len(keys) != 1 || keys[0] != "bucket" {
 		t.Fatalf("unexpected Google bucket request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "azurerm_cosmosdb_account", Provider: "provider.azurerm"}, APISourceKindOpenAPI, "DatabaseAccounts_CreateOrUpdate", "resource_group_name")
+	if len(keys) != 1 || keys[0] != "resourceGroupName" {
+		t.Fatalf("unexpected Azure Cosmos DB request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_namespace", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createCoreV1Namespace", "metadata.0.name")
+	if len(keys) != 1 || keys[0] != "metadata.name" {
+		t.Fatalf("unexpected Kubernetes namespace request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-create-bucket", "name")
+	if len(keys) != 1 || keys[0] != "name" {
+		t.Fatalf("unexpected Cloudflare R2 create request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-patch-bucket", "storage_class")
+	if len(keys) != 1 || keys[0] != "cf-r2-storage-class" {
+		t.Fatalf("unexpected Cloudflare R2 update request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "d1-get-database", "name")
+	if len(keys) != 1 || keys[0] != "database_id" {
+		t.Fatalf("unexpected Cloudflare D1 read request keys: %#v", keys)
 	}
 	static := registry.StaticRequestBindings(obj, "iam", "aws-smithy/iam.json", "POST_CreateRole")
 	if static["Action"] != "CreateRole" || static["Version"] != "2010-05-08" {
@@ -205,17 +388,63 @@ func (fakeMapper) MapObject(obj Object, purpose, action string) Mapping {
 	}
 }
 
+type fakeListingMapper struct{}
+
+func (fakeListingMapper) MapObject(obj Object, purpose, action string) Mapping {
+	return Mapping{
+		Object:  obj,
+		Purpose: purpose,
+		Action:  action,
+		Target: OperationTarget{
+			SourceKinds:  []string{APISourceKindOpenAPI},
+			SourceIDs:    []string{"override"},
+			OperationIDs: []string{"override.create"},
+		},
+	}
+}
+
+func (fakeListingMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{{Provider: "aws", Type: "aws_override_resource", Kinds: []string{"resource"}}}
+}
+
 func assertIdentity(t *testing.T, got []IdentityAttribute, want IdentityAttribute) {
 	t.Helper()
 	if len(got) != 1 {
 		t.Fatalf("identity attributes = %#v, want one", got)
 	}
-	if got[0].Name != want.Name || got[0].TerraformPath != want.TerraformPath || got[0].Required != want.Required {
-		t.Fatalf("identity = %#v, want %#v", got[0], want)
+	assertIdentities(t, got, []IdentityAttribute{want})
+}
+
+func assertIdentities(t *testing.T, got, want []IdentityAttribute) {
+	t.Helper()
+	if len(got) != len(want) {
+		t.Fatalf("identity attributes = %#v, want %#v", got, want)
 	}
-	if !equalStrings(got[0].RequestKeys, want.RequestKeys) || !equalStrings(got[0].ResponsePaths, want.ResponsePaths) {
-		t.Fatalf("identity = %#v, want %#v", got[0], want)
+	for i := range want {
+		assertIdentityAt(t, got[i], want[i])
 	}
+}
+
+func assertIdentityAt(t *testing.T, got IdentityAttribute, want IdentityAttribute) {
+	t.Helper()
+	if got.Name != want.Name || got.TerraformPath != want.TerraformPath || got.Required != want.Required {
+		t.Fatalf("identity = %#v, want %#v", got, want)
+	}
+	if !equalStrings(got.RequestKeys, want.RequestKeys) || !equalStrings(got.ResponsePaths, want.ResponsePaths) {
+		t.Fatalf("identity = %#v, want %#v", got, want)
+	}
+}
+
+func equalSupportedTypes(left, right []SupportedType) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].Provider != right[i].Provider || left[i].Type != right[i].Type || !equalStrings(left[i].Kinds, right[i].Kinds) {
+			return false
+		}
+	}
+	return true
 }
 
 func equalStrings(left, right []string) bool {

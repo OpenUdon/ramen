@@ -272,7 +272,10 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			continue
 		}
 		if resource.Mapping == nil || resource.Mapping.OperationID == "" {
-			continue
+			result.Summary.Failed++
+			msg := fmt.Sprintf("destroy.operation_missing: %s has no safe destroy operation role", resource.Address)
+			_ = recordFailedAction(ctx, store, runID, resource, "delete_failed", msg)
+			return result, fmt.Errorf("%s", msg)
 		}
 		resource = asAction(resource, "delete")
 		identity, err := stateIdentity(ctx, store, resource.Address)
@@ -462,12 +465,14 @@ func validateImportMetadata(ctx context.Context, opts ImportOptions) error {
 	if resource.Type != "" && opts.Type != "" && resource.Type != opts.Type {
 		return fmt.Errorf("import.type_mismatch: %s has type %s in native project, got %s", opts.Address, resource.Type, opts.Type)
 	}
-	allowed := map[string]project.IdentityAttribute{}
-	for _, attr := range resource.IdentityAttributes {
-		allowed[attr.Name] = attr
-		if attr.Required {
-			if _, ok := opts.Identity[attr.Name]; !ok {
-				return fmt.Errorf("import.identity_missing: %s requires identity attribute %s", opts.Address, attr.Name)
+	allowed := importIdentityFields(*resource)
+	if len(allowed) == 0 {
+		return fmt.Errorf("import.identity_schema_missing: %s has no importable identity metadata", opts.Address)
+	}
+	for name, field := range allowed {
+		if field.Required {
+			if _, ok := opts.Identity[name]; !ok {
+				return fmt.Errorf("import.identity_missing: %s requires identity attribute %s", opts.Address, name)
 			}
 		}
 	}
@@ -482,6 +487,46 @@ func validateImportMetadata(ctx context.Context, opts ImportOptions) error {
 		}
 	}
 	return nil
+}
+
+type importIdentityField struct {
+	Required bool
+}
+
+func importIdentityFields(resource project.Resource) map[string]importIdentityField {
+	out := map[string]importIdentityField{}
+	for _, attr := range resource.IdentityAttributes {
+		name := strings.TrimSpace(attr.Name)
+		if name == "" {
+			continue
+		}
+		out[name] = importIdentityField{Required: attr.Required}
+	}
+	for _, schema := range resource.Schema {
+		if !schema.Identity && !schema.ResponseDerivedIdentity {
+			continue
+		}
+		name := strings.TrimSpace(schema.Path)
+		if name == "" {
+			continue
+		}
+		field := out[name]
+		field.Required = field.Required || schema.Required
+		out[name] = field
+	}
+	for _, binding := range resource.ResponseBindings {
+		if !binding.Identity && !binding.ResponseDerivedIdentity {
+			continue
+		}
+		name := strings.TrimSpace(binding.StatePath)
+		if name == "" {
+			continue
+		}
+		if _, ok := out[name]; !ok {
+			out[name] = importIdentityField{}
+		}
+	}
+	return out
 }
 
 func validateAPISources(inputs []APISourceInput) []ramenvalidate.APISourceInput {
@@ -607,6 +652,9 @@ func refreshReadMappings(ctx context.Context, opts Options) (map[string]*tfplan.
 			SourcePath:         firstNonEmpty(role.SourcePath, source.Path),
 			OperationID:        role.OperationID,
 			IdentityAttributes: reconcileProjectIdentityAttributes(resource.IdentityAttributes),
+			ResponseBindings:   slices.Clone(resource.ResponseBindings),
+			Normalizers:        slices.Clone(resource.Normalizers),
+			MappingLifecycle:   cloneProjectMappingLifecycle(resource.MappingLifecycle),
 		}
 	}
 	return out, nil
@@ -624,6 +672,16 @@ func reconcileProjectIdentityAttributes(attrs []project.IdentityAttribute) []tfm
 		})
 	}
 	return out
+}
+
+func cloneProjectMappingLifecycle(lifecycle *project.MappingLifecycle) *project.MappingLifecycle {
+	if lifecycle == nil {
+		return nil
+	}
+	return &project.MappingLifecycle{
+		OperationRoles: slices.Clone(lifecycle.OperationRoles),
+		Paths:          slices.Clone(lifecycle.Paths),
+	}
 }
 
 func importDesiredHash(ctx context.Context, opts ImportOptions, fallback string) (string, *tfplan.MappingPlan) {
@@ -787,16 +845,17 @@ func recordRefresh(ctx context.Context, store *state.Store, runID int64, resourc
 	if current == nil {
 		return false, nil
 	}
+	identity, computed := projectedRefreshState(resource.Mapping, execResult)
 	changed := false
-	if len(execResult.Identity) > 0 {
-		data, _ := json.Marshal(redact.Map(execResult.Identity))
+	if len(identity) > 0 {
+		data, _ := json.Marshal(redact.Map(identity))
 		if current.IdentityJSON != string(data) {
 			changed = true
 		}
 		current.IdentityJSON = string(data)
 	}
-	if len(execResult.Computed) > 0 {
-		data, _ := json.Marshal(redact.Map(execResult.Computed))
+	if len(computed) > 0 {
+		data, _ := json.Marshal(redact.Map(computed))
 		if current.AttributesJSON != string(data) {
 			changed = true
 		}
@@ -812,6 +871,183 @@ func recordRefresh(ctx context.Context, store *state.Store, runID int64, resourc
 		return tx.RecordRevision(ctx, state.Revision{ResourceAddress: resource.Address, RunID: runID, Action: "refresh", AfterJSON: string(afterJSON)})
 	})
 	return changed, err
+}
+
+func projectedRefreshState(mapping *tfplan.MappingPlan, execResult executor.Result) (map[string]any, map[string]any) {
+	identity := cloneAnyMap(execResult.Identity)
+	computed := cloneAnyMap(execResult.Computed)
+	if mapping == nil {
+		return identity, computed
+	}
+	for _, binding := range mapping.ResponseBindings {
+		value, ok := responseBindingValue(binding, execResult)
+		if !ok {
+			continue
+		}
+		if binding.ResponsePath != binding.StatePath {
+			deleteDottedAny(identity, binding.ResponsePath)
+			deleteDottedAny(computed, binding.ResponsePath)
+		}
+		if binding.Identity || binding.ResponseDerivedIdentity {
+			setDottedAny(identity, binding.StatePath, value)
+		}
+		if binding.Computed || binding.Observed {
+			setDottedAny(computed, binding.StatePath, value)
+		}
+		if binding.Sensitive {
+			if binding.Identity || binding.ResponseDerivedIdentity {
+				setDottedAny(identity, binding.StatePath, "${redacted}")
+			}
+			if binding.Computed || binding.Observed {
+				setDottedAny(computed, binding.StatePath, "${redacted}")
+			}
+		}
+	}
+	applyRefreshNormalizers(identity, mapping.Normalizers)
+	applyRefreshNormalizers(computed, mapping.Normalizers)
+	return identity, computed
+}
+
+func responseBindingValue(binding project.ResponseBinding, execResult executor.Result) (any, bool) {
+	for _, values := range []map[string]any{execResult.Identity, execResult.Computed} {
+		if value, ok := dottedAny(values, binding.ResponsePath); ok {
+			return value, true
+		}
+		if value, ok := dottedAny(values, binding.StatePath); ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func cloneAnyMap(values map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func dottedAny(values map[string]any, path string) (any, bool) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, false
+	}
+	var cur any = values
+	for _, part := range strings.Split(path, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = m[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+func setDottedAny(values map[string]any, path string, value any) {
+	parts := strings.Split(strings.TrimSpace(path), ".")
+	if len(parts) == 0 || parts[0] == "" {
+		return
+	}
+	cur := values
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := cur[part].(map[string]any)
+		if !ok {
+			next = map[string]any{}
+			cur[part] = next
+		}
+		cur = next
+	}
+	cur[parts[len(parts)-1]] = value
+}
+
+func deleteDottedAny(values map[string]any, path string) {
+	parts := strings.Split(strings.TrimSpace(path), ".")
+	if len(parts) == 0 || parts[0] == "" {
+		return
+	}
+	cur := values
+	for _, part := range parts[:len(parts)-1] {
+		next, ok := cur[part].(map[string]any)
+		if !ok {
+			return
+		}
+		cur = next
+	}
+	delete(cur, parts[len(parts)-1])
+}
+
+func applyRefreshNormalizers(values map[string]any, normalizers []project.Normalizer) {
+	for _, normalizer := range normalizers {
+		value, ok := dottedAny(values, normalizer.Path)
+		if !ok {
+			continue
+		}
+		normalized, keep := normalizeRefreshValue(value, normalizer.Kind)
+		if keep {
+			setDottedAny(values, normalizer.Path, normalized)
+		} else {
+			deleteDottedAny(values, normalizer.Path)
+		}
+	}
+}
+
+func normalizeRefreshValue(value any, kind string) (any, bool) {
+	switch strings.TrimSpace(kind) {
+	case "json_semantic":
+		text, ok := value.(string)
+		if !ok {
+			return value, true
+		}
+		var decoded any
+		if err := json.Unmarshal([]byte(text), &decoded); err != nil {
+			return value, true
+		}
+		data, err := json.Marshal(decoded)
+		if err != nil {
+			return value, true
+		}
+		return string(data), true
+	case "case_fold":
+		text, ok := value.(string)
+		if !ok {
+			return value, true
+		}
+		return strings.ToLower(text), true
+	case "unordered_collection":
+		values, ok := value.([]any)
+		if !ok {
+			return value, true
+		}
+		out := slices.Clone(values)
+		slices.SortFunc(out, func(a, b any) int {
+			left, _ := json.Marshal(a)
+			right, _ := json.Marshal(b)
+			return strings.Compare(string(left), string(right))
+		})
+		return out, true
+	case "empty_null_absent_equivalent":
+		if value == nil {
+			return nil, false
+		}
+		switch v := value.(type) {
+		case string:
+			return v, strings.TrimSpace(v) != ""
+		case []any:
+			return v, len(v) > 0
+		case map[string]any:
+			return v, len(v) > 0
+		default:
+			return value, true
+		}
+	case "sensitive_placeholder":
+		return "${redacted}", true
+	default:
+		return value, true
+	}
 }
 
 func recordMissingRefresh(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan) error {

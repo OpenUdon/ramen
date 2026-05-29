@@ -1,0 +1,16 @@
+{
+  "path": "google/storage/go/resource_storage_bucket_test_025",
+  "provider": "google",
+  "service": "storage",
+  "resource_types": [
+    "google_storage_bucket"
+  ],
+  "api_sources": [
+    {
+      "kind": "google-discovery",
+      "id": "storage",
+      "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+    }
+  ],
+  "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+}

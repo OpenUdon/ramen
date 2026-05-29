@@ -1,5 +1,6 @@
 {
   "path": "aws/iam/RolePolicy/basic_v6.0.0",
+  "provider": "aws",
   "service": "iam",
   "resource_types": [
     "aws_iam_role",

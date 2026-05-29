@@ -1,5 +1,6 @@
 {
   "path": "aws/iam/RolePolicy/list_include_resource",
+  "provider": "aws",
   "service": "iam",
   "resource_types": [
     "aws_iam_role",

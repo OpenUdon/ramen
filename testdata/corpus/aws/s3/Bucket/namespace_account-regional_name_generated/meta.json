@@ -1,5 +1,6 @@
 {
   "path": "aws/s3/Bucket/namespace_account-regional_name_generated",
+  "provider": "aws",
   "service": "s3",
   "resource_types": [
     "aws_s3_bucket"

@@ -1,5 +1,6 @@
 {
   "path": "aws/lambda/Function/list_include_resource",
+  "provider": "aws",
   "service": "lambda",
   "resource_types": [
     "aws_iam_role",

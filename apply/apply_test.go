@@ -294,11 +294,36 @@ resource "aws_iam_role" "role" {
 		APISources: []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
 		Executor:   mock,
 	})
-	if err == nil || !strings.Contains(err.Error(), "--auto-approve") {
+	if err == nil || !strings.Contains(err.Error(), "apply.approval_required") || !strings.Contains(err.Error(), "--auto-approve") {
 		t.Fatalf("expected approval error, got %v", err)
 	}
 	if mock.RequestCount() != 0 {
 		t.Fatalf("executor was called before approval")
+	}
+}
+
+func TestApplyRequiresExplicitExecutorBeforeCredentialedWork(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeApplyTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "executor-role"
+  assume_role_policy = "{}"
+}
+`)
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	result, err := Apply(context.Background(), Options{
+		ConfigDir:   configDir,
+		StatePath:   filepath.Join(root, ".ramen", "state.db"),
+		APISources:  []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		AutoApprove: true,
+	})
+	if err == nil || !strings.Contains(err.Error(), "apply.executor_required") {
+		t.Fatalf("expected executor error, got %v", err)
+	}
+	if result == nil || result.Summary.Create != 0 || len(result.Executed) != 0 {
+		t.Fatalf("apply should not execute without an executor: %#v", result)
 	}
 }
 

@@ -1,0 +1,15 @@
+{
+  "path": "aws/iam/User/tags_ignore",
+  "provider": "aws",
+  "service": "iam",
+  "resource_types": [
+    "aws_iam_user"
+  ],
+  "smithy_models": [
+    {
+      "id": "iam",
+      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+    }
+  ],
+  "source_dir": "internal/service/iam/testdata/User/tags_ignore"
+}

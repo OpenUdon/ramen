@@ -61,6 +61,11 @@ type Mapping struct {
 	Action             string              `json:"action"`
 	Target             OperationTarget     `json:"target,omitempty"`
 	IdentityAttributes []IdentityAttribute `json:"identity_attributes,omitempty"`
+	Schema             []SchemaPath        `json:"schema,omitempty"`
+	RequestBindings    []RequestBinding    `json:"request_bindings,omitempty"`
+	ResponseBindings   []ResponseBinding   `json:"response_bindings,omitempty"`
+	Normalizers        []Normalizer        `json:"normalizers,omitempty"`
+	Lifecycle          *LifecycleSemantics `json:"lifecycle,omitempty"`
 	Diagnostics        []Diagnostic        `json:"diagnostics,omitempty"`
 }
 
@@ -146,8 +151,14 @@ func (r Registry) MapObject(obj Object, purpose, action string) Mapping {
 	switch provider {
 	case "aws":
 		return awsMapper{}.MapObject(obj, purpose, action)
+	case "azurerm":
+		return azureRMMapper{}.MapObject(obj, purpose, action)
+	case "cloudflare":
+		return cloudflareMapper{}.MapObject(obj, purpose, action)
 	case "google":
 		return googleMapper{}.MapObject(obj, purpose, action)
+	case "kubernetes":
+		return kubernetesMapper{}.MapObject(obj, purpose, action)
 	default:
 		return unsupportedProviderMapping(obj, purpose, action, provider)
 	}
@@ -178,8 +189,17 @@ func (r Registry) SupportedTypes() []SupportedType {
 	if _, ok := r.providerMappers["aws"]; !ok {
 		add(awsMapper{}.SupportedTypes())
 	}
+	if _, ok := r.providerMappers["azurerm"]; !ok {
+		add(azureRMMapper{}.SupportedTypes())
+	}
+	if _, ok := r.providerMappers["cloudflare"]; !ok {
+		add(cloudflareMapper{}.SupportedTypes())
+	}
 	if _, ok := r.providerMappers["google"]; !ok {
 		add(googleMapper{}.SupportedTypes())
+	}
+	if _, ok := r.providerMappers["kubernetes"]; !ok {
+		add(kubernetesMapper{}.SupportedTypes())
 	}
 	sort.Slice(out, func(i, j int) bool {
 		if out[i].Provider != out[j].Provider {
@@ -253,6 +273,40 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 			case "authorization_type":
 				return []string{"authorization_type"}
 			}
+		case "AddPermission":
+			switch attrPath {
+			case "function_name":
+				return []string{"FunctionName"}
+			case "statement_id":
+				return []string{"StatementId"}
+			case "action":
+				return []string{"Action"}
+			case "principal":
+				return []string{"Principal"}
+			case "source_arn":
+				return []string{"SourceArn"}
+			case "source_account":
+				return []string{"SourceAccount"}
+			case "event_source_token":
+				return []string{"EventSourceToken"}
+			case "qualifier":
+				return []string{"Qualifier"}
+			case "principal_org_id":
+				return []string{"PrincipalOrgID"}
+			case "function_url_auth_type":
+				return []string{"FunctionUrlAuthType"}
+			case "invoked_via_function_url":
+				return []string{"InvokedViaFunctionUrl"}
+			}
+		case "RemovePermission":
+			switch attrPath {
+			case "function_name":
+				return []string{"FunctionName"}
+			case "statement_id":
+				return []string{"StatementId"}
+			case "qualifier":
+				return []string{"Qualifier"}
+			}
 		case "CreateRole", "POST_CreateRole":
 			switch attrPath {
 			case "name":
@@ -287,6 +341,19 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 			case "name":
 				return []string{"PolicyName"}
 			}
+		case "CreateUser", "POST_CreateUser":
+			switch attrPath {
+			case "name":
+				return []string{"UserName"}
+			case "path":
+				return []string{"Path"}
+			case "permissions_boundary":
+				return []string{"PermissionsBoundary"}
+			}
+		case "GetUser", "POST_GetUser", "DeleteUser", "POST_DeleteUser":
+			if attrPath == "name" {
+				return []string{"UserName"}
+			}
 		}
 	case "google":
 		if sourceKind == APISourceKindGoogleDiscovery {
@@ -308,6 +375,110 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 					return []string{"project"}
 				case "location":
 					return []string{"location"}
+				}
+			}
+		}
+	case "azurerm":
+		if sourceKind == APISourceKindOpenAPI {
+			switch operationID {
+			case "DatabaseAccounts_CreateOrUpdate", "DatabaseAccounts_Get", "DatabaseAccounts_Update", "DatabaseAccounts_Delete":
+				switch attrPath {
+				case "name":
+					return []string{"accountName"}
+				case "resource_group_name":
+					return []string{"resourceGroupName"}
+				case "location":
+					return []string{"createUpdateParameters.location", "updateParameters.location"}
+				case "kind":
+					return []string{"createUpdateParameters.kind", "updateParameters.kind"}
+				case "offer_type":
+					return []string{"createUpdateParameters.properties.databaseAccountOfferType"}
+				}
+			}
+		}
+	case "kubernetes":
+		if sourceKind == APISourceKindOpenAPI {
+			switch operationID {
+			case "createCoreV1Namespace":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"metadata.name"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				}
+			case "replaceCoreV1Namespace", "patchCoreV1Namespace":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name", "metadata.name"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				}
+			case "readCoreV1Namespace", "deleteCoreV1Namespace":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name"}
+				}
+			}
+		}
+	case "cloudflare":
+		if sourceKind == APISourceKindOpenAPI {
+			switch operationID {
+			case "r2-create-bucket":
+				switch attrPath {
+				case "account_id":
+					return []string{"account_id"}
+				case "name":
+					return []string{"name"}
+				case "location":
+					return []string{"locationHint"}
+				case "storage_class":
+					return []string{"storageClass"}
+				case "jurisdiction":
+					return []string{"cf-r2-jurisdiction"}
+				}
+			case "r2-get-bucket", "r2-delete-bucket":
+				switch attrPath {
+				case "account_id":
+					return []string{"account_id"}
+				case "name":
+					return []string{"bucket_name"}
+				case "jurisdiction":
+					return []string{"cf-r2-jurisdiction"}
+				}
+			case "r2-patch-bucket":
+				switch attrPath {
+				case "account_id":
+					return []string{"account_id"}
+				case "name":
+					return []string{"bucket_name"}
+				case "jurisdiction":
+					return []string{"cf-r2-jurisdiction"}
+				case "storage_class":
+					return []string{"cf-r2-storage-class"}
+				}
+			case "d1-create-database":
+				switch attrPath {
+				case "account_id":
+					return []string{"account_id"}
+				case "name":
+					return []string{"name"}
+				case "jurisdiction":
+					return []string{"jurisdiction"}
+				case "primary_location_hint":
+					return []string{"primary_location_hint"}
+				case "read_replication":
+					return []string{"read_replication"}
+				}
+			case "d1-get-database":
+				switch attrPath {
+				case "account_id":
+					return []string{"account_id"}
+				case "name":
+					return []string{"database_id"}
 				}
 			}
 		}
@@ -409,6 +580,30 @@ func (awsMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = awsOperationTarget("iam", "POST_DeleteRolePolicy")
 			return mapping
 		}
+	case "aws_iam_user":
+		if obj.Kind != "resource" {
+			return unsupportedActionMapping(mapping, "AWS IAM user mapping supports managed resources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{{
+			Name:          "user_name",
+			TerraformPath: "name",
+			RequestKeys:   []string{"UserName"},
+			ResponsePaths: []string{"User.UserName", "User.Arn", "User.UserId"},
+			Required:      true,
+		}}
+		if purpose == "read" {
+			mapping.Target = awsOperationTarget("iam", "POST_GetUser")
+			return mapping
+		}
+		if purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = awsOperationTarget("iam", "POST_CreateUser")
+			return mapping
+		}
+		if purpose == "delete" {
+			mapping.Target = awsOperationTarget("iam", "POST_DeleteUser")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "AWS IAM user mapping supports read, create, and delete; update requires lifecycle metadata for old and new user names")
 	case "aws_lambda_function":
 		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
 			mapping.Target = awsOperationTarget("lambda", "CreateFunction")
@@ -431,6 +626,33 @@ func (awsMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = awsOperationTarget("lambda", "DeleteFunctionUrlConfig")
 			return mapping
 		}
+	case "aws_lambda_permission":
+		if obj.Kind != "resource" {
+			return unsupportedActionMapping(mapping, "AWS Lambda permission mapping supports managed resources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{
+				Name:          "function_name",
+				TerraformPath: "function_name",
+				RequestKeys:   []string{"FunctionName"},
+				Required:      true,
+			},
+			{
+				Name:          "statement_id",
+				TerraformPath: "statement_id",
+				RequestKeys:   []string{"StatementId"},
+				Required:      true,
+			},
+		}
+		if purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = awsOperationTarget("lambda", "AddPermission")
+			return mapping
+		}
+		if purpose == "delete" {
+			mapping.Target = awsOperationTarget("lambda", "RemovePermission")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "AWS Lambda permission mapping supports create and delete; read/update require policy response parsing")
 	default:
 		return unsupportedTypeMapping(mapping, "AWS")
 	}
@@ -447,8 +669,10 @@ func (awsMapper) SupportedTypes() []SupportedType {
 		{Provider: "aws", Type: "aws_caller_identity", Kinds: []string{"data_source"}},
 		{Provider: "aws", Type: "aws_iam_role", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_iam_role_policy", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_iam_user", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_lambda_function", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_lambda_function_url", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_lambda_permission", Kinds: []string{"resource"}},
 	}
 }
 
@@ -548,6 +772,195 @@ func (googleMapper) SupportedTypes() []SupportedType {
 	}
 }
 
+type azureRMMapper struct{}
+
+func (azureRMMapper) MapObject(obj Object, purpose, action string) Mapping {
+	mapping := Mapping{Object: obj, Purpose: purpose, Action: action}
+	switch obj.Type {
+	case "azurerm_cosmosdb_account":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "AzureRM Cosmos DB account mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{
+				Name:          "account_name",
+				TerraformPath: "name",
+				RequestKeys:   []string{"accountName"},
+				ResponsePaths: []string{"name", "id"},
+				Required:      true,
+			},
+			{
+				Name:          "resource_group_name",
+				TerraformPath: "resource_group_name",
+				RequestKeys:   []string{"resourceGroupName"},
+				Required:      true,
+			},
+		}
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = azureOpenAPIOperationTarget("cosmos", "DatabaseAccounts_CreateOrUpdate")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = azureOpenAPIOperationTarget("cosmos", "DatabaseAccounts_Get")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = azureOpenAPIOperationTarget("cosmos", "DatabaseAccounts_Update")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = azureOpenAPIOperationTarget("cosmos", "DatabaseAccounts_Delete")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = azureOpenAPIOperationTarget("cosmos", "DatabaseAccounts_Get")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "AzureRM Cosmos DB account mapping supports read, create, update, and delete")
+	default:
+		return unsupportedTypeMapping(mapping, "AzureRM")
+	}
+}
+
+// SupportedTypes must track the type switch in azureRMMapper.MapObject.
+func (azureRMMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{
+		{Provider: "azurerm", Type: "azurerm_cosmosdb_account", Kinds: []string{"resource", "data_source"}},
+	}
+}
+
+type cloudflareMapper struct{}
+
+func (cloudflareMapper) MapObject(obj Object, purpose, action string) Mapping {
+	mapping := Mapping{Object: obj, Purpose: purpose, Action: action}
+	switch obj.Type {
+	case "cloudflare_r2_bucket":
+		if obj.Kind != "resource" {
+			return unsupportedActionMapping(mapping, "Cloudflare R2 bucket mapping supports managed resources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{
+				Name:          "account_id",
+				TerraformPath: "account_id",
+				RequestKeys:   []string{"account_id"},
+				Required:      true,
+			},
+			{
+				Name:          "bucket_name",
+				TerraformPath: "name",
+				RequestKeys:   []string{"name", "bucket_name"},
+				ResponsePaths: []string{"result.name"},
+				Required:      true,
+			},
+		}
+		if purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = cloudflareOpenAPIOperationTarget("r2_bucket", "r2-create-bucket")
+			return mapping
+		}
+		if purpose == "read" {
+			mapping.Target = cloudflareOpenAPIOperationTarget("r2_bucket", "r2-get-bucket")
+			return mapping
+		}
+		if purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = cloudflareOpenAPIOperationTarget("r2_bucket", "r2-patch-bucket")
+			return mapping
+		}
+		if purpose == "delete" {
+			mapping.Target = cloudflareOpenAPIOperationTarget("r2_bucket", "r2-delete-bucket")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Cloudflare R2 bucket mapping supports read, create, update, and delete")
+	case "cloudflare_d1_database":
+		if obj.Kind != "resource" {
+			return unsupportedActionMapping(mapping, "Cloudflare D1 database mapping supports managed resources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{
+				Name:          "account_id",
+				TerraformPath: "account_id",
+				RequestKeys:   []string{"account_id"},
+				Required:      true,
+			},
+			{
+				Name:          "database_name",
+				TerraformPath: "name",
+				RequestKeys:   []string{"name", "database_id"},
+				ResponsePaths: []string{"result.name", "result.uuid"},
+				Required:      true,
+			},
+		}
+		if purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = cloudflareOpenAPIOperationTarget("d1_database", "d1-create-database")
+			return mapping
+		}
+		if purpose == "read" {
+			mapping.Target = cloudflareOpenAPIOperationTarget("d1_database", "d1-get-database")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Cloudflare D1 database mapping supports read and create; update/delete require response-derived database UUID handling")
+	default:
+		return unsupportedTypeMapping(mapping, "Cloudflare")
+	}
+}
+
+// SupportedTypes must track the type switch in cloudflareMapper.MapObject.
+func (cloudflareMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{
+		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
+		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
+	}
+}
+
+type kubernetesMapper struct{}
+
+func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
+	mapping := Mapping{Object: obj, Purpose: purpose, Action: action}
+	switch obj.Type {
+	case "kubernetes_namespace", "kubernetes_namespace_v1":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Kubernetes namespace mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = []IdentityAttribute{{
+			Name:          "namespace_name",
+			TerraformPath: "metadata.name",
+			RequestKeys:   []string{"name"},
+			ResponsePaths: []string{"metadata.name"},
+			Required:      true,
+		}}
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "createCoreV1Namespace")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1Namespace")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "replaceCoreV1Namespace")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "deleteCoreV1Namespace")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1Namespace")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Kubernetes namespace mapping supports read, create, update, and delete")
+	default:
+		return unsupportedTypeMapping(mapping, "Kubernetes")
+	}
+}
+
+// SupportedTypes must track the type switch in kubernetesMapper.MapObject.
+func (kubernetesMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{
+		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+	}
+}
+
 func awsOperationTarget(service, operationID string) OperationTarget {
 	operationIDs := []string{operationID}
 	if strings.HasPrefix(operationID, "POST_") || strings.HasPrefix(operationID, "GET_") {
@@ -557,6 +970,36 @@ func awsOperationTarget(service, operationID string) OperationTarget {
 		SourceKinds:  []string{APISourceKindAWSSmithy, APISourceKindOpenAPI},
 		SourceIDs:    []string{service, "aws-" + service, "aws_" + service, "aws-" + service + "-smithy-model"},
 		OperationIDs: operationIDs,
+	}
+}
+
+func azureOpenAPIOperationTarget(service, operationID string) OperationTarget {
+	return OperationTarget{
+		SourceKinds: []string{APISourceKindOpenAPI},
+		SourceIDs: []string{
+			service,
+			"azure-" + service,
+			"azure-" + service + "-resource-manager",
+			"azure-" + service + "-db-resource-manager",
+			"azure-" + service + "-db-resource-manager-openapi",
+		},
+		OperationIDs: []string{operationID, normalizeName(operationID)},
+	}
+}
+
+func kubernetesOpenAPIOperationTarget(service, operationID string) OperationTarget {
+	return OperationTarget{
+		SourceKinds:  []string{APISourceKindOpenAPI},
+		SourceIDs:    []string{service, "kubernetes", "kubernetes-" + service, "k8s", "k8s-swagger"},
+		OperationIDs: []string{operationID, normalizeName(operationID)},
+	}
+}
+
+func cloudflareOpenAPIOperationTarget(service, operationID string) OperationTarget {
+	return OperationTarget{
+		SourceKinds:  []string{APISourceKindOpenAPI},
+		SourceIDs:    []string{service, "cloudflare", "cloudflare-api", "cloudflare-api-openapi"},
+		OperationIDs: []string{operationID, normalizeName(operationID)},
 	}
 }
 

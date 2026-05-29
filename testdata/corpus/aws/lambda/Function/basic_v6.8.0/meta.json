@@ -1,5 +1,6 @@
 {
   "path": "aws/lambda/Function/basic_v6.8.0",
+  "provider": "aws",
   "service": "lambda",
   "resource_types": [
     "aws_iam_role",

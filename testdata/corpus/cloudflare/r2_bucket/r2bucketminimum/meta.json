@@ -1,0 +1,16 @@
+{
+  "path": "cloudflare/r2_bucket/r2bucketminimum",
+  "provider": "cloudflare",
+  "service": "r2_bucket",
+  "resource_types": [
+    "cloudflare_r2_bucket"
+  ],
+  "api_sources": [
+    {
+      "kind": "openapi",
+      "id": "r2_bucket",
+      "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+    }
+  ],
+  "source_dir": "internal/services/r2_bucket/testdata/r2bucketminimum.tf"
+}

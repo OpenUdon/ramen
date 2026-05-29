@@ -1,5 +1,6 @@
 {
   "path": "aws/lambda/Function/tags",
+  "provider": "aws",
   "service": "lambda",
   "resource_types": [
     "aws_iam_role",

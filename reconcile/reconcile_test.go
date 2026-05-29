@@ -95,7 +95,7 @@ func TestImportThenPlanNoOpForMatchingNativeProject(t *testing.T) {
 	projectDir := filepath.Join(root, "project")
 	statePath := filepath.Join(projectDir, "state.db")
 	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
-	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForDestroyVocabularyTest())
 	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
 		Version: project.Version,
 		APISources: []project.APISource{{
@@ -232,6 +232,69 @@ func TestImportValidatesNativeProjectMetadataAndStateConflicts(t *testing.T) {
 	}
 }
 
+func TestImportAcceptsSchemaAndResponseDerivedIdentity(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "imported-role", "assume_role_policy": "{}"},
+			Schema: []project.SchemaPath{
+				{Path: "name", Type: "string"},
+				{Path: "assume_role_policy", Type: "string"},
+				{Path: "url", Type: "string", Identity: true, ResponseDerivedIdentity: true},
+			},
+			ResponseBindings: []project.ResponseBinding{{OperationRole: "read", ResponsePath: "Role.Arn", StatePath: "url", Identity: true, ResponseDerivedIdentity: true}},
+			Operations: map[string]project.OperationRole{
+				"read": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+			},
+		}},
+	})
+	if _, err := Import(context.Background(), ImportOptions{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Address:     "aws_iam_role.role",
+		Type:        "aws_iam_role",
+		Provider:    "provider.aws",
+		Identity:    map[string]any{"url": "arn:aws:iam::123456789012:role/imported-role"},
+	}); err != nil {
+		t.Fatalf("schema identity import returned error: %v", err)
+	}
+
+	noIdentityDir := filepath.Join(root, "no-identity")
+	noIdentitySource := filepath.Join(noIdentityDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, noIdentitySource, minimalIAMSmithyForRefreshTest())
+	noIdentityProject := writeReconcileProjectForTest(t, noIdentityDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Attributes: map[string]any{"name": "imported-role"},
+			Operations: map[string]project.OperationRole{"read": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"}},
+		}},
+	})
+	if _, err := Import(context.Background(), ImportOptions{
+		ProjectPath: noIdentityProject,
+		StatePath:   filepath.Join(noIdentityDir, "state.db"),
+		Address:     "aws_iam_role.role",
+		Type:        "aws_iam_role",
+		Identity:    map[string]any{"url": "value"},
+	}); err == nil || !strings.Contains(err.Error(), "import.identity_schema_missing") {
+		t.Fatalf("identity schema missing error = %v", err)
+	}
+}
+
 func TestDestroyDeletesTrackedResourceWithMockExecutor(t *testing.T) {
 	root := t.TempDir()
 	statePath := filepath.Join(root, "state.db")
@@ -317,6 +380,60 @@ func TestDestroyActionDocumentIncludesStateIdentity(t *testing.T) {
 	}
 	if mock.RequestCount() != 1 {
 		t.Fatalf("requests = %d, want 1", mock.RequestCount())
+	}
+}
+
+func TestDestroyUsesExplicitRemoveConfigRole(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForDestroyVocabularyTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "remove-config-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create":        {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+				"read":          {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+				"remove_config": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "DeleteRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "role_name", Path: "name", RequestKeys: []string{"RoleName"}, Required: true}},
+		}},
+	})
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.role", Type: "aws_iam_role", Provider: "provider.aws", IdentityJSON: `{"role_name":"remove-config-role"}`, Status: "managed"}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Mapping.OperationID != "DeleteRole" {
+			t.Fatalf("destroy used operation %s, want DeleteRole", req.Action.Mapping.OperationID)
+		}
+		return executor.Result{Success: true}, nil
+	}}
+	planned, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath, Action: "delete"})
+	if err != nil {
+		t.Fatalf("Build destroy plan returned error: %v", err)
+	}
+	if planned.Plan.Errored {
+		t.Fatalf("destroy plan diagnostics = %#v", planned.Diagnostics)
+	}
+	result, err := Destroy(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Destroy returned error: %v", err)
+	}
+	if result.Summary.Delete != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("result=%#v requests=%d", result.Summary, mock.RequestCount())
 	}
 }
 
@@ -672,6 +789,62 @@ func TestRefreshNativeReadRolesAndDriftSummary(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestRecordRefreshUsesResponseBindingsNormalizersAndRedaction(t *testing.T) {
+	ctx := context.Background()
+	statePath := filepath.Join(t.TempDir(), "state.db")
+	store, err := state.Open(ctx, statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	defer store.Close()
+	if err := store.RecordResource(ctx, state.ResourceSnapshot{
+		Address:        "aws_sqs_queue.queue",
+		Type:           "aws_sqs_queue",
+		Provider:       "provider.aws",
+		IdentityJSON:   `{"url":"queue-url"}`,
+		AttributesJSON: `{"policy":"{\"a\":1,\"b\":2}","secret":"${redacted}","status":"active"}`,
+		Status:         "managed",
+	}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	resource := tfplan.ResourcePlan{
+		Address: "aws_sqs_queue.queue",
+		Type:    "aws_sqs_queue",
+		Mapping: &tfplan.MappingPlan{
+			ResponseBindings: []project.ResponseBinding{
+				{OperationRole: "read", ResponsePath: "QueueUrl", StatePath: "url", Identity: true, ResponseDerivedIdentity: true},
+				{OperationRole: "read", ResponsePath: "Secret", StatePath: "secret", Computed: true, Sensitive: true},
+			},
+			Normalizers: []project.Normalizer{
+				{Path: "policy", Kind: "json_semantic"},
+				{Path: "status", Kind: "case_fold"},
+			},
+		},
+	}
+	changed, err := recordRefresh(ctx, store, 7, resource, executor.Result{
+		Success: true,
+		Computed: map[string]any{
+			"QueueUrl": "queue-url",
+			"Secret":   "do-not-store",
+			"policy":   `{"b":2,"a":1}`,
+			"status":   "ACTIVE",
+		},
+	})
+	if err != nil {
+		t.Fatalf("recordRefresh returned error: %v", err)
+	}
+	if changed {
+		t.Fatalf("refresh should be unchanged after projection and normalization")
+	}
+	snap, err := store.CurrentResource(ctx, "aws_sqs_queue.queue")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	if snap == nil || strings.Contains(snap.AttributesJSON, "do-not-store") || !strings.Contains(snap.AttributesJSON, `"secret":"${redacted}"`) {
+		t.Fatalf("snapshot was not redacted: %#v", snap)
+	}
+}
+
 func TestRefreshRequiresNativeReadRole(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")
@@ -858,6 +1031,35 @@ func minimalIAMSmithyForRefreshTest() string {
     "com.amazonaws.iam#GetRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}}},
     "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
     "com.amazonaws.iam#GetRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#roleNameType": {"type": "string"},
+    "com.amazonaws.iam#policyDocumentType": {"type": "string"}
+  }
+}`
+}
+
+func minimalIAMSmithyForDestroyVocabularyTest() string {
+	return `{
+  "smithy": "2.0",
+  "shapes": {
+    "com.amazonaws.iam#IAM": {
+      "type": "service",
+      "version": "2010-05-08",
+      "operations": [{"target": "com.amazonaws.iam#CreateRole"}, {"target": "com.amazonaws.iam#GetRole"}, {"target": "com.amazonaws.iam#DeleteRole"}],
+      "traits": {
+        "aws.api#service": {"sdkId": "IAM", "endpointPrefix": "iam"},
+        "aws.auth#sigv4": {"name": "iam"},
+        "aws.protocols#awsQuery": {}
+      }
+    },
+    "com.amazonaws.iam#CreateRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#CreateRoleRequest"}, "output": {"target": "com.amazonaws.iam#CreateRoleResponse"}},
+    "com.amazonaws.iam#GetRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#GetRoleRequest"}, "output": {"target": "com.amazonaws.iam#GetRoleResponse"}},
+    "com.amazonaws.iam#DeleteRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#DeleteRoleRequest"}, "output": {"target": "com.amazonaws.iam#DeleteRoleResponse"}},
+    "com.amazonaws.iam#CreateRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "AssumeRolePolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}},
+    "com.amazonaws.iam#GetRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}}},
+    "com.amazonaws.iam#DeleteRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}}},
+    "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#GetRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#DeleteRoleResponse": {"type": "structure", "members": {}},
     "com.amazonaws.iam#roleNameType": {"type": "string"},
     "com.amazonaws.iam#policyDocumentType": {"type": "string"}
   }

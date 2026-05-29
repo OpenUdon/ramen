@@ -1,0 +1,35 @@
+{
+  "version": "ramen.tfconvert.plan.v1",
+  "workflow": "terraform_conversion_draft",
+  "action": "create",
+  "steps": [
+    {
+      "address": "google_storage_bucket.website",
+      "kind": "resource",
+      "type": "google_storage_bucket",
+      "purpose": "create",
+      "action": "create",
+      "source_kind": "google-discovery",
+      "source_id": "storage",
+      "source_path": "google-discovery/storage.json",
+      "operation_id": "storage.buckets.insert",
+      "identity_attributes": [
+        {
+          "name": "bucket_name",
+          "terraform_path": "name",
+          "request_keys": [
+            "name"
+          ],
+          "response_paths": [
+            "name",
+            "id"
+          ],
+          "required": true
+        }
+      ],
+      "credentials": [
+        "google_oauth2"
+      ]
+    }
+  ]
+}

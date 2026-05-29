@@ -242,6 +242,11 @@ type objectMapping struct {
 	OperationID        string
 	Operation          apitools.OperationSummary
 	IdentityAttributes []tfmapping.IdentityAttribute
+	Schema             []tfmapping.SchemaPath
+	RequestBindings    []tfmapping.RequestBinding
+	ResponseBindings   []tfmapping.ResponseBinding
+	Normalizers        []tfmapping.Normalizer
+	Lifecycle          *tfmapping.LifecycleSemantics
 	TodoID             string
 	Ambiguous          bool
 	Auth               []apitools.AuthRequirementSummary
@@ -582,13 +587,27 @@ func isProviderLocalDataSource(obj selectedObject) bool {
 	return tfmapping.DefaultRegistry().IsProviderLocalDataSource(tfmappingObject(obj))
 }
 
+func objectMappingForSpec(obj selectedObject, purpose, action string, spec tfmapping.Mapping) objectMapping {
+	return objectMapping{
+		Object:             obj,
+		Purpose:            purpose,
+		Action:             action,
+		IdentityAttributes: slices.Clone(spec.IdentityAttributes),
+		Schema:             slices.Clone(spec.Schema),
+		RequestBindings:    slices.Clone(spec.RequestBindings),
+		ResponseBindings:   slices.Clone(spec.ResponseBindings),
+		Normalizers:        slices.Clone(spec.Normalizers),
+		Lifecycle:          spec.Lifecycle,
+	}
+}
+
 func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action string) bool {
 	candidates := c.operationCandidates()
 	provider := objectProviderLocalName(obj)
 	mappingSpec := tfmapping.DefaultRegistry().MapObject(tfmappingObject(obj), purpose, action)
 	if target := mappingSpec.Target; len(target.OperationIDs) > 0 {
 		if operation, ok, ambiguous := findOperationByTarget(candidates, target); ok {
-			mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, IdentityAttributes: mappingSpec.IdentityAttributes}
+			mapping := objectMappingForSpec(obj, purpose, action, mappingSpec)
 			doc := apiSourceForOperation(c.apiSources, operation)
 			mapping.SourceKind = doc.Kind
 			mapping.SourceID = firstNonEmpty(operation.DocumentName, doc.ID)
@@ -600,7 +619,8 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 			c.mappings = append(c.mappings, mapping)
 			return true
 		} else if ambiguous {
-			mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, IdentityAttributes: mappingSpec.IdentityAttributes, Ambiguous: true}
+			mapping := objectMappingForSpec(obj, purpose, action, mappingSpec)
+			mapping.Ambiguous = true
 			mapping.TodoID = todoID(obj.Address, purpose, action)
 			mapping.SourcePath = defaultAPISourcePath(c.apiSources)
 			c.addDiagnostic(Diagnostic{
@@ -622,7 +642,7 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 		Purpose:  purpose,
 		Target:   strings.Join([]string{obj.Address, obj.Type, obj.Name}, " "),
 	}, candidates)
-	mapping := objectMapping{Object: obj, Purpose: purpose, Action: action, IdentityAttributes: mappingSpec.IdentityAttributes}
+	mapping := objectMappingForSpec(obj, purpose, action, mappingSpec)
 	switch {
 	case selection.Found:
 		doc := apiSourceForOperation(c.apiSources, selection.Operation)
@@ -1598,6 +1618,21 @@ func renderNativeProfile(c conversionState) project.Profile {
 		if len(res.IdentityAttributes) == 0 {
 			res.IdentityAttributes = nativeIdentityAttributes(mapping.IdentityAttributes)
 		}
+		if len(res.Schema) == 0 {
+			res.Schema = nativeSchemaPaths(mapping.Schema)
+		}
+		if len(res.RequestBindings) == 0 {
+			res.RequestBindings = nativeRequestBindings(mapping.RequestBindings)
+		}
+		if len(res.ResponseBindings) == 0 {
+			res.ResponseBindings = nativeResponseBindings(mapping.ResponseBindings)
+		}
+		if len(res.Normalizers) == 0 {
+			res.Normalizers = nativeNormalizers(mapping.Normalizers)
+		}
+		if res.MappingLifecycle == nil {
+			res.MappingLifecycle = nativeMappingLifecycle(mapping.Lifecycle)
+		}
 		artifact := mappingArtifactFor(mapping)
 		for _, credential := range artifact.Credentials {
 			if !slices.Contains(res.CredentialBindings, credential) {
@@ -1633,6 +1668,99 @@ func nativeIdentityAttributes(attrs []tfmapping.IdentityAttribute) []project.Ide
 			RequestKeys:   slices.Clone(attr.RequestKeys),
 			ResponsePaths: slices.Clone(attr.ResponsePaths),
 			Required:      attr.Required,
+		})
+	}
+	return out
+}
+
+func nativeSchemaPaths(paths []tfmapping.SchemaPath) []project.SchemaPath {
+	out := make([]project.SchemaPath, 0, len(paths))
+	for _, path := range paths {
+		out = append(out, project.SchemaPath{
+			Path:                    path.Path,
+			Type:                    path.Type,
+			EnumValues:              slices.Clone(path.EnumValues),
+			Required:                path.Required,
+			Optional:                path.Optional,
+			Computed:                path.Computed,
+			Sensitive:               path.Sensitive,
+			Identity:                path.Identity,
+			ResponseDerivedIdentity: path.ResponseDerivedIdentity,
+			Immutable:               path.Immutable,
+			CreateOnly:              path.CreateOnly,
+			Updateable:              path.Updateable,
+			ReplaceOnChange:         path.ReplaceOnChange,
+			ReadOnly:                path.ReadOnly,
+			Ignored:                 path.Ignored,
+		})
+	}
+	return out
+}
+
+func nativeRequestBindings(bindings []tfmapping.RequestBinding) []project.RequestBinding {
+	out := make([]project.RequestBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		out = append(out, project.RequestBinding{
+			OperationRole: string(binding.OperationRole),
+			OperationID:   binding.OperationID,
+			Path:          binding.Path,
+			RequestPath:   binding.RequestPath,
+			Required:      binding.Required,
+			Identity:      binding.Identity,
+		})
+	}
+	return out
+}
+
+func nativeResponseBindings(bindings []tfmapping.ResponseBinding) []project.ResponseBinding {
+	out := make([]project.ResponseBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		out = append(out, project.ResponseBinding{
+			OperationRole:           string(binding.OperationRole),
+			OperationID:             binding.OperationID,
+			ResponsePath:            binding.ResponsePath,
+			StatePath:               binding.StatePath,
+			Identity:                binding.Identity,
+			ResponseDerivedIdentity: binding.ResponseDerivedIdentity,
+			Computed:                binding.Computed,
+			Observed:                binding.Observed,
+			Sensitive:               binding.Sensitive,
+		})
+	}
+	return out
+}
+
+func nativeNormalizers(normalizers []tfmapping.Normalizer) []project.Normalizer {
+	out := make([]project.Normalizer, 0, len(normalizers))
+	for _, normalizer := range normalizers {
+		out = append(out, project.Normalizer{
+			Path: normalizer.Path,
+			Kind: string(normalizer.Kind),
+		})
+	}
+	return out
+}
+
+func nativeMappingLifecycle(lifecycle *tfmapping.LifecycleSemantics) *project.MappingLifecycle {
+	if lifecycle == nil {
+		return nil
+	}
+	out := &project.MappingLifecycle{
+		OperationRoles: make([]string, 0, len(lifecycle.OperationRoles)),
+		Paths:          make([]project.MappingLifecyclePath, 0, len(lifecycle.Paths)),
+	}
+	for _, role := range lifecycle.OperationRoles {
+		out.OperationRoles = append(out.OperationRoles, string(role))
+	}
+	for _, path := range lifecycle.Paths {
+		out.Paths = append(out.Paths, project.MappingLifecyclePath{
+			Path:            path.Path,
+			Immutable:       path.Immutable,
+			CreateOnly:      path.CreateOnly,
+			Updateable:      path.Updateable,
+			ReplaceOnChange: path.ReplaceOnChange,
+			Computed:        path.Computed,
+			Ignored:         path.Ignored,
 		})
 	}
 	return out

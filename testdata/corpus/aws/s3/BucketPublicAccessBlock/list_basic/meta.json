@@ -1,5 +1,6 @@
 {
   "path": "aws/s3/BucketPublicAccessBlock/list_basic",
+  "provider": "aws",
   "service": "s3",
   "resource_types": [
     "aws_s3_bucket",

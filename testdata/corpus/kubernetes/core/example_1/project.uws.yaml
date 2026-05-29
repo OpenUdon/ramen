@@ -1,0 +1,86 @@
+info:
+    description: Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration.
+    title: ramen_native_project
+    version: 1.0.0
+operations:
+    - description: Review create create for Terraform resource kubernetes_namespace.example
+      operationId: kubernetes_namespace_example_create
+      request:
+        body:
+            metadata:
+                name: '"my-first-namespace"'
+        x-ramen-terraform:
+            attributes:
+                metadata:
+                    name: '"my-first-namespace"'
+            identity_attributes:
+                - name: namespace_name
+                  request_keys:
+                    - name
+                  required: true
+                  response_paths:
+                    - metadata.name
+                  terraform_path: metadata.name
+            object:
+                address: kubernetes_namespace.example
+                kind: resource
+                name: example
+                type: kubernetes_namespace
+      sourceDescription: core
+      sourceOperationId: createCoreV1Namespace
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: openapi/core.json
+uws: 1.4.0
+workflows:
+    - description: Review mapped Terraform/OpenTofu objects as API source operations.
+      steps:
+        - body:
+            action: create
+            purpose: create
+            terraform_address: kubernetes_namespace.example
+            terraform_type: kubernetes_namespace
+          operationRef: kubernetes_namespace_example_create
+          stepId: kubernetes_namespace_example_create
+          type: ""
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: openapi/core.json
+    metadata:
+        action: create
+        config_dir: testdata/corpus/kubernetes/core/example_1/input
+        source: ramen convert tf
+    redaction: {}
+    resources:
+        - address: kubernetes_namespace.example
+          attributes:
+            metadata:
+                name: '"my-first-namespace"'
+          identity_attributes:
+            - name: namespace_name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+          kind: resource
+          lifecycle: {}
+          metadata:
+            terraform_address: kubernetes_namespace.example
+          name: example
+          operations:
+            create:
+                operation_id: createCoreV1Namespace
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: openapi/core.json
+          redaction: {}
+          type: kubernetes_namespace
+    version: ramen.project.v1

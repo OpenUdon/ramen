@@ -1,0 +1,16 @@
+{
+  "path": "cloudflare/d1_database/d1databasebasic",
+  "provider": "cloudflare",
+  "service": "d1_database",
+  "resource_types": [
+    "cloudflare_d1_database"
+  ],
+  "api_sources": [
+    {
+      "kind": "openapi",
+      "id": "d1_database",
+      "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+    }
+  ],
+  "source_dir": "internal/services/d1_database/testdata/d1databasebasic.tf"
+}

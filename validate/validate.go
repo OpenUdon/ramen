@@ -122,7 +122,12 @@ func validateProfile(profile project.Profile) []Diagnostic {
 			if strings.TrimSpace(identity.Name) == "" || strings.TrimSpace(identity.Path) == "" {
 				diagnostics = append(diagnostics, Diagnostic{Code: "validate.identity_invalid", Severity: "error", Message: fmt.Sprintf("resource %s identity attributes require name and path", resource.Address), Address: resource.Address})
 			}
+			if identity.Required && !hasAttributePath(resource.Attributes, identity.Path) {
+				diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires identity attribute %s", resource.Address, identity.Path), Address: resource.Address})
+			}
 		}
+		diagnostics = append(diagnostics, validateSchema(resource, profile.Redaction)...)
+		diagnostics = append(diagnostics, validateOperationRequirements(resource)...)
 		diagnostics = append(diagnostics, redactionDiagnostics(resource.Redaction, resource.Address)...)
 		for purpose, role := range resource.Operations {
 			rolePurpose := strings.TrimSpace(firstNonEmpty(role.Purpose, purpose))
@@ -145,6 +150,231 @@ func validateProfile(profile project.Profile) []Diagnostic {
 		diagnostics = append(diagnostics, Diagnostic{Code: "validate.dependency_cycle", Severity: "error", Message: err.Error()})
 	}
 	return diagnostics
+}
+
+func validateSchema(resource project.Resource, profileRedaction project.Redaction) []Diagnostic {
+	var diagnostics []Diagnostic
+	schemaByPath := map[string]project.SchemaPath{}
+	for _, schema := range resource.Schema {
+		schema.Path = strings.TrimSpace(schema.Path)
+		if schema.Path == "" {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.schema_invalid", Severity: "error", Message: fmt.Sprintf("resource %s schema paths must not be empty", resource.Address), Address: resource.Address})
+			continue
+		}
+		if _, exists := schemaByPath[schema.Path]; exists {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.schema_duplicate", Severity: "error", Message: fmt.Sprintf("resource %s declares duplicate schema path %s", resource.Address, schema.Path), Address: resource.Address})
+			continue
+		}
+		schemaByPath[schema.Path] = schema
+		if schema.Required && !hasAttributePath(resource.Attributes, schema.Path) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires attribute %s", resource.Address, schema.Path), Address: resource.Address})
+		}
+		value, ok := attributeValue(resource.Attributes, schema.Path)
+		if ok {
+			if !schemaValueMatchesType(value, schema.Type) {
+				diagnostics = append(diagnostics, Diagnostic{Code: "validate.type_invalid", Severity: "error", Message: fmt.Sprintf("resource %s attribute %s does not match type %s", resource.Address, schema.Path, schema.Type), Address: resource.Address})
+			}
+			if len(schema.EnumValues) > 0 && !enumValueAllowed(value, schema.EnumValues) {
+				diagnostics = append(diagnostics, Diagnostic{Code: "validate.enum_invalid", Severity: "error", Message: fmt.Sprintf("resource %s attribute %s is not one of the declared enum values", resource.Address, schema.Path), Address: resource.Address})
+			}
+			if schema.Sensitive && !redactionCovers(profileRedaction, resource.Redaction, resource.Address, schema.Path) {
+				diagnostics = append(diagnostics, Diagnostic{Code: "validate.sensitive_path_unredacted", Severity: "error", Message: fmt.Sprintf("resource %s sensitive attribute %s is not covered by redaction metadata", resource.Address, schema.Path), Address: resource.Address})
+			}
+		}
+	}
+	if len(schemaByPath) > 0 {
+		for path := range flattenedAttributeValues(resource.Attributes) {
+			if !schemaKnowsPath(path, schemaByPath) {
+				diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_unknown", Severity: "error", Message: fmt.Sprintf("resource %s attribute %s is not declared in mapping schema", resource.Address, path), Address: resource.Address})
+			}
+		}
+	}
+	for _, binding := range resource.RequestBindings {
+		if strings.TrimSpace(binding.OperationRole) == "" || strings.TrimSpace(binding.Path) == "" || strings.TrimSpace(binding.RequestPath) == "" {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_invalid", Severity: "error", Message: fmt.Sprintf("resource %s request bindings require operation_role, path, and request_path", resource.Address), Address: resource.Address})
+			continue
+		}
+		if binding.Required && !hasAttributePath(resource.Attributes, binding.Path) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires request-bound attribute %s", resource.Address, binding.Path), Address: resource.Address})
+		}
+	}
+	for _, binding := range resource.ResponseBindings {
+		if strings.TrimSpace(binding.OperationRole) == "" || strings.TrimSpace(binding.ResponsePath) == "" || strings.TrimSpace(binding.StatePath) == "" {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_invalid", Severity: "error", Message: fmt.Sprintf("resource %s response bindings require operation_role, response_path, and state_path", resource.Address), Address: resource.Address})
+			continue
+		}
+		if binding.Sensitive && !redactionCovers(profileRedaction, resource.Redaction, resource.Address, binding.StatePath) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.sensitive_path_unredacted", Severity: "error", Message: fmt.Sprintf("resource %s sensitive response state %s is not covered by redaction metadata", resource.Address, binding.StatePath), Address: resource.Address})
+		}
+	}
+	return diagnostics
+}
+
+func validateOperationRequirements(resource project.Resource) []Diagnostic {
+	var diagnostics []Diagnostic
+	required := map[string]bool{}
+	for _, role := range resource.RequiredOperations {
+		if strings.TrimSpace(role) != "" {
+			required[strings.TrimSpace(role)] = true
+		}
+	}
+	if resource.MappingLifecycle != nil {
+		for _, role := range resource.MappingLifecycle.OperationRoles {
+			role = strings.TrimSpace(role)
+			if role != "" && role != "noop" {
+				required[role] = true
+			}
+		}
+	}
+	for role := range required {
+		if !resourceHasOperation(resource, role) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.operation_role_missing", Severity: "error", Message: fmt.Sprintf("resource %s requires %s operation metadata", resource.Address, role), Address: resource.Address})
+		}
+	}
+	return diagnostics
+}
+
+func resourceHasOperation(resource project.Resource, required string) bool {
+	required = strings.TrimSpace(required)
+	for key, role := range resource.Operations {
+		if firstNonEmpty(role.Purpose, key) == required {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAttributePath(attrs map[string]any, path string) bool {
+	_, ok := attributeValue(attrs, path)
+	if ok {
+		return true
+	}
+	prefix := strings.TrimSpace(path) + "."
+	for candidate := range flattenedAttributeValues(attrs) {
+		if strings.HasPrefix(candidate, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func attributeValue(attrs map[string]any, path string) (any, bool) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return nil, false
+	}
+	var cur any = attrs
+	for _, part := range strings.Split(path, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = m[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+func flattenedAttributeValues(attrs map[string]any) map[string]any {
+	out := map[string]any{}
+	var visit func(string, any)
+	visit = func(prefix string, value any) {
+		if m, ok := value.(map[string]any); ok && len(m) > 0 {
+			for key, child := range m {
+				next := key
+				if prefix != "" {
+					next = prefix + "." + key
+				}
+				visit(next, child)
+			}
+			return
+		}
+		if prefix != "" {
+			out[prefix] = value
+		}
+	}
+	for key, value := range attrs {
+		visit(key, value)
+	}
+	return out
+}
+
+func schemaKnowsPath(path string, schemaByPath map[string]project.SchemaPath) bool {
+	for schemaPath := range schemaByPath {
+		if path == schemaPath || strings.HasPrefix(path, schemaPath+".") || strings.HasPrefix(schemaPath, path+".") {
+			return true
+		}
+	}
+	return false
+}
+
+func schemaValueMatchesType(value any, typeName string) bool {
+	switch strings.ToLower(strings.TrimSpace(typeName)) {
+	case "":
+		return true
+	case "string":
+		_, ok := value.(string)
+		return ok
+	case "bool", "boolean":
+		_, ok := value.(bool)
+		return ok
+	case "number":
+		switch value.(type) {
+		case int, int64, float64, float32:
+			return true
+		default:
+			return false
+		}
+	case "integer":
+		switch v := value.(type) {
+		case int, int64:
+			return true
+		case float64:
+			return v == float64(int64(v))
+		case float32:
+			return v == float32(int64(v))
+		default:
+			return false
+		}
+	case "object", "map":
+		_, ok := value.(map[string]any)
+		return ok
+	case "array", "list", "set":
+		_, ok := value.([]any)
+		return ok
+	default:
+		return true
+	}
+}
+
+func enumValueAllowed(value any, allowed []string) bool {
+	valueString, ok := value.(string)
+	if !ok {
+		return false
+	}
+	for _, allowedValue := range allowed {
+		if valueString == allowedValue {
+			return true
+		}
+	}
+	return false
+}
+
+func redactionCovers(profileRedaction, resourceRedaction project.Redaction, address, path string) bool {
+	targets := map[string]bool{strings.TrimSpace(path): true}
+	if strings.TrimSpace(address) != "" && strings.TrimSpace(path) != "" {
+		targets[strings.TrimSpace(address)+"."+strings.TrimSpace(path)] = true
+	}
+	for _, redaction := range []project.Redaction{resourceRedaction, profileRedaction} {
+		for _, candidate := range redaction.Paths {
+			if targets[strings.TrimSpace(candidate)] {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type sourceDoc struct {
@@ -316,7 +546,7 @@ func finalize(result *Result) {
 
 func knownOperationPurpose(purpose string) bool {
 	switch strings.TrimSpace(purpose) {
-	case "read", "create", "update", "delete", "import":
+	case "read", "create", "update", "delete", "import", "replace", "suspend", "detach", "disable", "remove_config", "noop":
 		return true
 	default:
 		return false
