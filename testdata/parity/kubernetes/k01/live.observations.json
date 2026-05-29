@@ -1,0 +1,78 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K01",
+  "scenario": "namespace_lifecycle",
+  "recorded_at": "2026-05-29T22:13:27Z",
+  "context": "kind-ramen-m21",
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "namespace": "ramen-parity-k01-opentofu",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k01-opentofu",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k01"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "found no differences, so no changes are needed."
+      },
+      "after_destroy": {
+        "exists": false
+      }
+    },
+    {
+      "runtime": "terraform",
+      "namespace": "ramen-parity-k01-terraform",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k01-terraform",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k01"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "and found no differences, so no changes are needed."
+      },
+      "after_destroy": {
+        "exists": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "namespace": "ramen-parity-k01-ramen",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k01-ramen",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k01"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "{Create:0 Update:0 Delete:0 Replace:0 NoOp:1 Read:0 Diagnostics:0}"
+      },
+      "after_destroy": {
+        "exists": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "metadata.labels",
+      "status.phase",
+      "no-op",
+      "destroy.absent"
+    ]
+  }
+}

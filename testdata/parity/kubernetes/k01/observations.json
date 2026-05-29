@@ -1,7 +1,7 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
   "lane": "K01",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
     "version": "3.1.0",
@@ -43,12 +43,16 @@
         "no-op",
         "destroy"
       ],
-      "observation_artifacts": []
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k01/live.observations.json"
+      ]
     }
   ],
+  "recorded_at": "2026-05-29T22:13:27Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
     "K01 owns the shared harness and first namespace lifecycle parity recording.",
-    "This artifact intentionally records planned scope only until OpenTofu, Terraform, and Ramen observations are captured from the same kind cluster.",
-    "A live attempt reached the Ramen+udon path but is blocked on Kubernetes Swagger 2.0 request-body execution: missing required body: []."
+    "OpenTofu, Terraform, and Ramen observations were captured from the same kind cluster and matched after normalization.",
+    "The Ramen+udon live path executes Kubernetes API calls through a scoped local kubectl proxy so udon still performs HTTP operations while kubectl handles local kind auth/TLS."
   ]
 }

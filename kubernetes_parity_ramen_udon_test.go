@@ -4,9 +4,17 @@ package corpus
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"net"
+	"net/http"
+	"net/url"
+	"os"
+	osexec "os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/OpenUdon/ramen/apply"
 	"github.com/OpenUdon/ramen/executor"
@@ -22,7 +30,12 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 	workDir := filepath.Join(t.TempDir(), runtimeName)
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
 	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "core.json")
-	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k01", "openapi", "core.json"), openAPIPath); err != nil {
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k01", "openapi", "core.json"), openAPIPath, serverURL); err != nil {
 		return kubernetesParityFailure(runtimeName, "fixture", err)
 	}
 	if err := renderKubernetesParityProject(filepath.Join(kubernetesParityFixtureRoot, "k01", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/core.json"); err != nil {
@@ -105,7 +118,7 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
 		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
 	}
-	afterDestroy, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	afterDestroy, err := observeKubernetesParityNamespaceAbsent(ctx, env, namespace)
 	if err != nil {
 		return kubernetesParityFailure(runtimeName, "observe", err)
 	}
@@ -116,6 +129,111 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 		NoOpPlan:     kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
 		AfterDestroy: afterDestroy,
 	}}
+}
+
+func startKubernetesParityProxy(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv) (string, func(), error) {
+	t.Helper()
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return "", nil, err
+	}
+	port := listener.Addr().(*net.TCPAddr).Port
+	if err := listener.Close(); err != nil {
+		return "", nil, err
+	}
+	proxyCtx, cancel := context.WithCancel(ctx)
+	logPath := filepath.Join(t.TempDir(), "kubectl-proxy.log")
+	logFile, err := os.Create(logPath)
+	if err != nil {
+		cancel()
+		return "", nil, err
+	}
+	args := []string{"--context", env.contextName}
+	if strings.TrimSpace(env.kubeconfig) != "" {
+		args = append(args, "--kubeconfig", env.kubeconfig)
+	}
+	args = append(args,
+		"proxy",
+		"--address=127.0.0.1",
+		fmt.Sprintf("--port=%d", port),
+		"--accept-hosts=^127\\.0\\.0\\.1$,^localhost$",
+	)
+	cmd := osexec.CommandContext(proxyCtx, env.kubectl, args...)
+	cmd.Stdout = logFile
+	cmd.Stderr = logFile
+	if err := cmd.Start(); err != nil {
+		_ = logFile.Close()
+		cancel()
+		return "", nil, err
+	}
+	waitCh := make(chan error, 1)
+	go func() {
+		err := cmd.Wait()
+		_ = logFile.Close()
+		waitCh <- err
+	}()
+	stop := func() {
+		cancel()
+		_ = cmd.Process.Kill()
+		<-waitCh
+	}
+	serverURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+	deadline := time.Now().Add(10 * time.Second)
+	for {
+		select {
+		case err := <-waitCh:
+			cancel()
+			logData, _ := os.ReadFile(logPath)
+			return "", nil, fmt.Errorf("kubectl proxy exited before readiness: %v: %s", err, strings.TrimSpace(string(logData)))
+		default:
+		}
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, serverURL+"/version", nil)
+		if err == nil {
+			resp, err := http.DefaultClient.Do(req)
+			if err == nil {
+				_ = resp.Body.Close()
+				if resp.StatusCode >= 200 && resp.StatusCode < 500 {
+					return serverURL, stop, nil
+				}
+			}
+		}
+		if time.Now().After(deadline) {
+			stop()
+			logData, _ := os.ReadFile(logPath)
+			return "", nil, fmt.Errorf("kubectl proxy did not become ready: %s", strings.TrimSpace(string(logData)))
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+}
+
+func renderKubernetesParityOpenAPI(srcPath, dstPath, serverURL string) error {
+	data, err := os.ReadFile(srcPath)
+	if err != nil {
+		return err
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return err
+	}
+	parsed, err := url.Parse(serverURL)
+	if err != nil {
+		return err
+	}
+	doc["host"] = parsed.Host
+	doc["schemes"] = []any{parsed.Scheme}
+	if path := strings.TrimRight(parsed.EscapedPath(), "/"); path != "" {
+		doc["basePath"] = path
+	} else {
+		delete(doc, "basePath")
+	}
+	rendered, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(dstPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dstPath, append(rendered, '\n'), 0o644)
 }
 
 func errUnexpectedKubernetesParitySummary(phase string, summary any) error {

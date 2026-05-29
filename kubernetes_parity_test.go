@@ -348,7 +348,7 @@ func runKubernetesParityHCLRuntime(ctx context.Context, t *testing.T, env kubern
 	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
 		return kubernetesParityFailure(runtimeName, "destroy", err)
 	}
-	afterDestroy, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	afterDestroy, err := observeKubernetesParityNamespaceAbsent(ctx, env, namespace)
 	if err != nil {
 		return kubernetesParityFailure(runtimeName, "observe", err)
 	}
@@ -428,6 +428,29 @@ func observeKubernetesParityNamespace(ctx context.Context, env kubernetesParityL
 		Labels: labels,
 		Phase:  strings.TrimSpace(doc.Status.Phase),
 	}, nil
+}
+
+func observeKubernetesParityNamespaceAbsent(ctx context.Context, env kubernetesParityLiveEnv, namespace string) (kubernetesParityObservation, error) {
+	var last kubernetesParityObservation
+	deadline := time.Now().Add(45 * time.Second)
+	for {
+		observed, err := observeKubernetesParityNamespace(ctx, env, namespace)
+		if err != nil {
+			return kubernetesParityObservation{}, err
+		}
+		last = observed
+		if !observed.Exists {
+			return observed, nil
+		}
+		if time.Now().After(deadline) {
+			return last, nil
+		}
+		select {
+		case <-ctx.Done():
+			return kubernetesParityObservation{}, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
 }
 
 func compareKubernetesParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
