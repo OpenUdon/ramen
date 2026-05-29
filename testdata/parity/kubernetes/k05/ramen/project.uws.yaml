@@ -1,0 +1,107 @@
+info:
+    description: K05 Kubernetes Role create/read/no-op/destroy provider parity fixture.
+    title: ramen_kubernetes_k05_role_parity
+    version: 1.0.0
+operations:
+    - description: Create the K05 Role.
+      operationId: kubernetes_role_v1_k05_create
+      sourceDescription: rbac
+      sourceOperationId: createRbacAuthorizationV1NamespacedRole
+    - description: Read the K05 Role.
+      operationId: kubernetes_role_v1_k05_read
+      sourceDescription: rbac
+      sourceOperationId: readRbacAuthorizationV1NamespacedRole
+    - description: Delete the K05 Role.
+      operationId: kubernetes_role_v1_k05_delete
+      sourceDescription: rbac
+      sourceOperationId: deleteRbacAuthorizationV1NamespacedRole
+sourceDescriptions:
+    - name: rbac
+      type: openapi
+      url: ../openapi/rbac.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, read, no-op, and destroy through Ramen.
+      steps:
+        - operationRef: kubernetes_role_v1_k05_create
+          stepId: create
+        - operationRef: kubernetes_role_v1_k05_read
+          stepId: read
+        - operationRef: kubernetes_role_v1_k05_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: rbac
+          kind: openapi
+          path: ../openapi/rbac.json
+    metadata:
+        source: K05 Kubernetes provider parity fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_role_v1.k05_role
+          attributes:
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k05
+                name: ramen-parity-k05-role
+                namespace: ramen-parity-k05-namespace
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k05
+            metadata.name: ramen-parity-k05-role
+            metadata.namespace: ramen-parity-k05-namespace
+            rule:
+                - apiGroups:
+                    - ""
+                  resources:
+                    - configmaps
+                    - secrets
+                  verbs:
+                    - get
+                    - list
+                    - watch
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_role_v1
+          name: k05_role
+          operations:
+            create:
+                operation_id: createRbacAuthorizationV1NamespacedRole
+                purpose: create
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            read:
+                operation_id: readRbacAuthorizationV1NamespacedRole
+                purpose: read
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            delete:
+                operation_id: deleteRbacAuthorizationV1NamespacedRole
+                purpose: delete
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+          redaction: {}
+          type: kubernetes_role_v1
+    version: ramen.project.v1

@@ -1,7 +1,7 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
   "lane": "K05",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
     "version": "3.1.0",
@@ -27,10 +27,17 @@
     {
       "name": "role_lifecycle",
       "resource_type": "kubernetes_role_v1",
+      "fixture_paths": [
+        "testdata/parity/kubernetes/k05/hcl/main.tf",
+        "testdata/parity/kubernetes/k05/openapi/rbac.json",
+        "testdata/parity/kubernetes/k05/ramen/project.uws.yaml"
+      ],
       "observed_fields": [
         "metadata.name",
         "metadata.namespace",
+        "metadata.labels",
         "apiVersion",
+        "kind",
         "rules"
       ],
       "expected_transitions": [
@@ -39,10 +46,14 @@
         "no-op",
         "destroy"
       ],
-      "observation_artifacts": []
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k05/live.observations.json"
+      ]
     }
   ],
+  "recorded_at": "2026-05-29T23:48:26Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k05 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
-    "K05 compares RBAC API group handling, nested rules, no-op, and destroy cleanup."
+    "K05 compares RBAC API group handling, metadata identity, labels, nested rules, no-op, and destroy cleanup."
   ]
 }

@@ -1,0 +1,172 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Kubernetes RBAC v1 Role provider parity subset",
+    "version": "v1.19.2-subset"
+  },
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/roles": {
+      "post": {
+        "operationId": "createRbacAuthorizationV1NamespacedRole",
+        "summary": "create a Role",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.rbac.v1.Role"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Role created",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.rbac.v1.Role"
+            }
+          }
+        }
+      }
+    },
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/roles/{name}": {
+      "get": {
+        "operationId": "readRbacAuthorizationV1NamespacedRole",
+        "summary": "read the specified Role",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.rbac.v1.Role"
+            }
+          },
+          "404": {
+            "description": "Role not found"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRbacAuthorizationV1NamespacedRole",
+        "summary": "delete a Role",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Role deleted"
+          },
+          "404": {
+            "description": "Role not found"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "io.k8s.api.rbac.v1.Role": {
+      "type": "object",
+      "required": [
+        "metadata",
+        "rules"
+      ],
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "required": [
+            "name",
+            "namespace"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/io.k8s.api.rbac.v1.PolicyRule"
+          }
+        }
+      }
+    },
+    "io.k8s.api.rbac.v1.PolicyRule": {
+      "type": "object",
+      "properties": {
+        "apiGroups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resources": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "verbs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}
