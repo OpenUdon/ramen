@@ -21,11 +21,11 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 	namespace := "ramen-parity-k01-" + runtimeName
 	workDir := filepath.Join(t.TempDir(), runtimeName)
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	openAPIPath := filepath.Join(workDir, "openapi", "core.json")
-	if err := renderKubernetesParityProject(filepath.Join(kubernetesParityFixtureRoot, "k01", "ramen", "project.uws.yaml"), projectPath, namespace); err != nil {
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "core.json")
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k01", "openapi", "core.json"), openAPIPath); err != nil {
 		return kubernetesParityFailure(runtimeName, "fixture", err)
 	}
-	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k01", "openapi", "core.json"), openAPIPath); err != nil {
+	if err := renderKubernetesParityProject(filepath.Join(kubernetesParityFixtureRoot, "k01", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/core.json"); err != nil {
 		return kubernetesParityFailure(runtimeName, "fixture", err)
 	}
 	statePath := filepath.Join(workDir, "state.db")
@@ -68,7 +68,7 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 		Executor:    udonExecutor,
 	})
 	if err != nil {
-		return kubernetesParityFailure(runtimeName, "apply", err)
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
 	}
 	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
 		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
@@ -88,7 +88,7 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 		Executor:    udonExecutor,
 	})
 	if err != nil {
-		return kubernetesParityFailure(runtimeName, "refresh", err)
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
 	}
 	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Unchanged != 1 || refreshResult.Summary.Failed != 0 {
 		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
@@ -100,7 +100,7 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 		Executor:    udonExecutor,
 	})
 	if err != nil {
-		return kubernetesParityFailure(runtimeName, "destroy", err)
+		return kubernetesParityFailure(runtimeName, "destroy", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(destroyResult)))
 	}
 	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
 		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
@@ -120,6 +120,41 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 
 func errUnexpectedKubernetesParitySummary(phase string, summary any) error {
 	return &kubernetesParitySummaryError{phase: phase, summary: summary}
+}
+
+func applyResultErrors(result *apply.Result) []string {
+	if result == nil {
+		return nil
+	}
+	return result.Errors
+}
+
+func applyResultFeedbackMessages(result *apply.Result) []string {
+	if result == nil {
+		return nil
+	}
+	var messages []string
+	for _, feedback := range result.Feedback {
+		messages = append(messages, feedback.Messages...)
+		if feedback.ErrorClass != "" {
+			messages = append(messages, feedback.ErrorClass)
+		}
+	}
+	return messages
+}
+
+func reconcileFeedbackMessages(result *reconcile.Result) []string {
+	if result == nil {
+		return nil
+	}
+	var messages []string
+	for _, feedback := range result.Feedback {
+		messages = append(messages, feedback.Messages...)
+		if feedback.ErrorClass != "" {
+			messages = append(messages, feedback.ErrorClass)
+		}
+	}
+	return messages
 }
 
 type kubernetesParitySummaryError struct {

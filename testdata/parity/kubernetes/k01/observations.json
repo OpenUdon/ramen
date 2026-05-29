@@ -48,6 +48,7 @@
   ],
   "notes": [
     "K01 owns the shared harness and first namespace lifecycle parity recording.",
-    "This artifact intentionally records planned scope only until OpenTofu, Terraform, and Ramen observations are captured from the same kind cluster."
+    "This artifact intentionally records planned scope only until OpenTofu, Terraform, and Ramen observations are captured from the same kind cluster.",
+    "A live attempt reached the Ramen+udon path but is blocked on Kubernetes Swagger 2.0 request-body execution: missing required body: []."
   ]
 }

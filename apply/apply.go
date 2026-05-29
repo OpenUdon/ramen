@@ -345,6 +345,9 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 			"desired_hash": resource.DesiredHash,
 		},
 	})
+	stepBody := executorStepBody(request)
+	stepBody["ramen_address"] = resource.Address
+	stepBody["ramen_action"] = resource.Action
 	doc := &uws1.Document{
 		UWS: "1.4.0",
 		Info: &uws1.Info{
@@ -374,10 +377,7 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 			Steps: []*uws1.Step{{
 				StepID:       operationID,
 				OperationRef: operationID,
-				Body: map[string]any{
-					"ramen_address": resource.Address,
-					"ramen_action":  resource.Action,
-				},
+				Body:         stepBody,
 			}},
 		}},
 		Extensions: map[string]any{
@@ -391,6 +391,32 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 		return nil, err
 	}
 	return doc, nil
+}
+
+func executorStepBody(request map[string]any) map[string]any {
+	out := map[string]any{}
+	for _, component := range []string{"path", "query", "header", "cookie", "body"} {
+		values, _ := request[component].(map[string]any)
+		for key, value := range cloneRequestMap(values) {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func cloneRequestMap(in map[string]any) map[string]any {
+	if len(in) == 0 {
+		return map[string]any{}
+	}
+	data, err := json.Marshal(in)
+	if err != nil {
+		return map[string]any{}
+	}
+	var out map[string]any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return map[string]any{}
+	}
+	return out
 }
 
 func loadResourceAttributes(configDir, projectPath string, varFiles, vars []string) map[string]map[string]any {

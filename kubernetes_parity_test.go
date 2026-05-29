@@ -18,11 +18,13 @@ import (
 )
 
 const (
-	kubernetesParityEnv         = "RAMEN_K8S_PARITY"
-	kubernetesParityRecordEnv   = "RAMEN_K8S_PARITY_RECORD_UPDATE"
-	kubernetesParityArtifactV1  = "ramen.kubernetes.provider-parity.v1"
-	kubernetesParityFixtureRoot = "testdata/parity/kubernetes"
-	kubernetesProviderVersion   = "3.1.0"
+	kubernetesParityEnv          = "RAMEN_K8S_PARITY"
+	kubernetesParityRecordEnv    = "RAMEN_K8S_PARITY_RECORD_UPDATE"
+	kubernetesParityTerraformEnv = "RAMEN_K8S_TERRAFORM"
+	kubernetesParityTofuEnv      = "RAMEN_K8S_TOFU"
+	kubernetesParityArtifactV1   = "ramen.kubernetes.provider-parity.v1"
+	kubernetesParityFixtureRoot  = "testdata/parity/kubernetes"
+	kubernetesProviderVersion    = "3.1.0"
 )
 
 var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05"}
@@ -140,14 +142,10 @@ func TestKubernetesProviderParity(t *testing.T) {
 	if os.Getenv(kubernetesParityEnv) != "1" {
 		t.Skipf("set %s=1 to run the opt-in Kubernetes provider parity harness", kubernetesParityEnv)
 	}
-	for _, tool := range []string{"terraform", "tofu", "kubectl", "kind"} {
-		if _, err := osexec.LookPath(tool); err != nil {
-			t.Skipf("%s is required when %s=1: %v", tool, kubernetesParityEnv, err)
-		}
-	}
-	kubectl, _ := osexec.LookPath("kubectl")
-	tofu, _ := osexec.LookPath("tofu")
-	terraform, _ := osexec.LookPath("terraform")
+	terraform := requireKubernetesParityTool(t, kubernetesParityTerraformEnv, "terraform")
+	tofu := requireKubernetesParityTool(t, kubernetesParityTofuEnv, "tofu")
+	kubectl := requireKubernetesParityTool(t, "", "kubectl")
+	_ = requireKubernetesParityTool(t, "", "kind")
 	out, err := osexec.Command(kubectl, "config", "current-context").CombinedOutput()
 	if err != nil {
 		t.Fatalf("kubectl current-context failed: %v: %s", err, strings.TrimSpace(string(out)))
@@ -572,6 +570,26 @@ func defaultKubernetesParityKubeconfig(t *testing.T) string {
 	return filepath.Join(home, ".kube", "config")
 }
 
+func requireKubernetesParityTool(t *testing.T, envName, defaultName string) string {
+	t.Helper()
+	if envName != "" {
+		if value := strings.TrimSpace(os.Getenv(envName)); value != "" {
+			if _, err := os.Stat(value); err != nil {
+				t.Skipf("%s=%s is not usable when %s=1: %v", envName, value, kubernetesParityEnv, err)
+			}
+			return value
+		}
+	}
+	path, err := osexec.LookPath(defaultName)
+	if err != nil {
+		if envName != "" {
+			t.Skipf("%s is required when %s=1; set %s to an executable path: %v", defaultName, kubernetesParityEnv, envName, err)
+		}
+		t.Skipf("%s is required when %s=1: %v", defaultName, kubernetesParityEnv, err)
+	}
+	return path
+}
+
 func kubernetesParityFailure(runtime, class string, err error) kubernetesParityRuntimeResult {
 	return kubernetesParityRuntimeResult{Failure: &kubernetesParityRuntimeFailure{Runtime: runtime, Class: class, Message: err.Error()}}
 }
@@ -595,7 +613,7 @@ func copyFixtureFile(src, dst string) error {
 	return os.WriteFile(dst, data, 0o644)
 }
 
-func renderKubernetesParityProject(src, dst, namespace string) error {
+func renderKubernetesParityProject(src, dst, namespace, sourcePath string) error {
 	data, err := os.ReadFile(src)
 	if err != nil {
 		return err
@@ -604,6 +622,9 @@ func renderKubernetesParityProject(src, dst, namespace string) error {
 		return err
 	}
 	rendered := strings.ReplaceAll(string(data), "ramen-parity-k01-namespace", namespace)
+	if strings.TrimSpace(sourcePath) != "" {
+		rendered = strings.ReplaceAll(rendered, "../openapi/core.json", filepath.ToSlash(sourcePath))
+	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
