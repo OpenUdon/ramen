@@ -21,6 +21,7 @@ import (
 
 const corpusRoot = "testdata/corpus"
 const diagnosticCorpusRoot = "testdata/diagnostic-corpus"
+const allowMissingCorpusEnv = "RAMEN_CORPUS_ALLOW_MISSING"
 
 type modelRef struct {
 	ID   string `json:"id"`
@@ -134,8 +135,80 @@ func TestCorpusConversionsReproduceGoldens(t *testing.T) {
 			assertHCLMatchesYAML(t, res.NativeProjectHCLPath, res.NativeProjectPath)
 		})
 	}
-	if executed == 0 {
-		t.Fatal("corpus conversion test executed zero entries; ensure referenced API source fixtures are available")
+	if allowMissingCorpusFixtures() {
+		if executed == 0 {
+			t.Fatal("corpus conversion test executed zero entries; ensure referenced API source fixtures are available")
+		}
+		return
+	}
+	if executed != len(m.Entries) {
+		t.Fatalf("corpus conversion test executed %d of %d entries", executed, len(m.Entries))
+	}
+}
+
+func TestCorpusMissingFixturePolicy(t *testing.T) {
+	t.Setenv(allowMissingCorpusEnv, "")
+	if allowMissingCorpusFixtures() {
+		t.Fatalf("%s unset should fail missing corpus fixtures", allowMissingCorpusEnv)
+	}
+	t.Setenv(allowMissingCorpusEnv, "0")
+	if allowMissingCorpusFixtures() {
+		t.Fatalf("%s=0 should fail missing corpus fixtures", allowMissingCorpusEnv)
+	}
+	t.Setenv(allowMissingCorpusEnv, "1")
+	if !allowMissingCorpusFixtures() {
+		t.Fatalf("%s=1 should skip missing corpus fixtures", allowMissingCorpusEnv)
+	}
+}
+
+func allowMissingCorpusFixtures() bool {
+	return os.Getenv(allowMissingCorpusEnv) == "1"
+}
+
+func requireCorpusFixture(t *testing.T, path, kind string) {
+	t.Helper()
+	if _, err := os.Stat(path); err != nil {
+		if allowMissingCorpusFixtures() {
+			t.Skipf("%s unavailable (%s): %v", kind, path, err)
+		}
+		t.Fatalf("%s unavailable (%s); set %s=1 to skip missing fixtures in partial checkouts: %v", kind, path, allowMissingCorpusEnv, err)
+	}
+}
+
+func assertCorpusExecuted(t *testing.T, name string, executed, total int) {
+	t.Helper()
+	if msg := corpusExecutionError(name, executed, total); msg != "" {
+		t.Fatal(msg)
+	}
+}
+
+func corpusExecutionError(name string, executed, total int) string {
+	if allowMissingCorpusFixtures() {
+		if executed == 0 {
+			return name + " conversion test executed zero entries; ensure referenced API source fixtures are available"
+		}
+		return ""
+	}
+	if executed != total {
+		return name + " conversion test did not execute every manifest entry"
+	}
+	return ""
+}
+
+func TestCorpusExecutionPolicyRequiresAllEntries(t *testing.T) {
+	t.Setenv(allowMissingCorpusEnv, "")
+	if msg := corpusExecutionError("test", 2, 2); msg != "" {
+		t.Fatalf("complete corpus should pass: %s", msg)
+	}
+	if msg := corpusExecutionError("test", 1, 2); msg == "" {
+		t.Fatal("partial corpus should fail by default")
+	}
+	t.Setenv(allowMissingCorpusEnv, "1")
+	if msg := corpusExecutionError("test", 1, 2); msg != "" {
+		t.Fatalf("allow-missing partial corpus should pass: %s", msg)
+	}
+	if msg := corpusExecutionError("test", 0, 2); msg == "" {
+		t.Fatal("allow-missing corpus should still require at least one executed entry")
 	}
 }
 
@@ -144,9 +217,7 @@ func apiSourcesForEntry(t *testing.T, entry entryMeta) []tfconvert.APISourceInpu
 	if len(entry.APISources) > 0 {
 		sources := make([]tfconvert.APISourceInput, 0, len(entry.APISources))
 		for _, src := range entry.APISources {
-			if _, err := os.Stat(src.Path); err != nil {
-				t.Skipf("API source unavailable (%s): %v", src.Path, err)
-			}
+			requireCorpusFixture(t, src.Path, "API source")
 			sources = append(sources, tfconvert.APISourceInput{
 				Kind: src.Kind,
 				ID:   src.ID,
@@ -158,9 +229,7 @@ func apiSourcesForEntry(t *testing.T, entry entryMeta) []tfconvert.APISourceInpu
 
 	sources := make([]tfconvert.APISourceInput, 0, len(entry.SmithyModels))
 	for _, model := range entry.SmithyModels {
-		if _, err := os.Stat(model.Path); err != nil {
-			t.Skipf("smithy model unavailable (%s): %v", model.Path, err)
-		}
+		requireCorpusFixture(t, model.Path, "smithy model")
 		sources = append(sources, tfconvert.APISourceInput{
 			Kind: "aws-smithy",
 			ID:   model.ID,
@@ -179,9 +248,7 @@ func TestDiagnosticCorpusProducesExpectedDiagnostics(t *testing.T) {
 			entryDir := filepath.Join(diagnosticCorpusRoot, filepath.FromSlash(entry.Path))
 			sources := make([]tfconvert.APISourceInput, 0, len(entry.SmithyModels))
 			for _, model := range entry.SmithyModels {
-				if _, err := os.Stat(model.Path); err != nil {
-					t.Skipf("smithy model unavailable (%s): %v", model.Path, err)
-				}
+				requireCorpusFixture(t, model.Path, "smithy model")
 				sources = append(sources, tfconvert.APISourceInput{
 					Kind: "aws-smithy",
 					ID:   model.ID,
@@ -206,9 +273,7 @@ func TestDiagnosticCorpusProducesExpectedDiagnostics(t *testing.T) {
 			}
 		})
 	}
-	if executed == 0 {
-		t.Fatal("diagnostic corpus conversion test executed zero entries; ensure referenced Smithy model fixtures are available")
-	}
+	assertCorpusExecuted(t, "diagnostic corpus", executed, len(m.Entries))
 }
 
 func assertHCLMatchesYAML(t *testing.T, hclPath, yamlPath string) {

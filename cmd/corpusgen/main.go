@@ -123,6 +123,7 @@ func main() {
 	providers := flag.String("providers", "aws,google,azurerm,cloudflare,kubernetes", "Comma-separated providers to scan: aws, google, azurerm, cloudflare, kubernetes")
 	outDir := flag.String("out", defaultOutDir, "Corpus output directory (relative to repo root)")
 	action := flag.String("action", "create", "Desired action passed to ramen convert")
+	check := flag.Bool("check", false, "Regenerate into a temporary directory and fail if committed corpus output is stale")
 	flag.Parse()
 
 	if err := run(runOptions{
@@ -139,6 +140,7 @@ func main() {
 		Providers:             *providers,
 		OutDir:                *outDir,
 		Action:                *action,
+		Check:                 *check,
 	}); err != nil {
 		fmt.Fprintln(os.Stderr, "corpusgen:", err)
 		os.Exit(1)
@@ -159,6 +161,7 @@ type runOptions struct {
 	Providers             string
 	OutDir                string
 	Action                string
+	Check                 bool
 }
 
 type providerSpec struct {
@@ -171,6 +174,9 @@ type providerSpec struct {
 }
 
 func run(opts runOptions) error {
+	if opts.Check {
+		return checkCorpus(opts)
+	}
 	ctx := context.Background()
 	registry := tfmapping.DefaultRegistry()
 	providerSpecs := specsForOptions(opts)
@@ -245,6 +251,26 @@ func run(opts runOptions) error {
 		return err
 	}
 	printSummary(st)
+	return nil
+}
+
+func checkCorpus(opts runOptions) error {
+	tmp, err := os.MkdirTemp("", "corpusgen-check-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
+
+	regenerated := opts
+	regenerated.OutDir = tmp
+	regenerated.Check = false
+	if err := run(regenerated); err != nil {
+		return err
+	}
+	if err := compareCorpusTrees(tmp, opts.OutDir); err != nil {
+		return err
+	}
+	fmt.Printf("corpusgen: %s is up to date\n", opts.OutDir)
 	return nil
 }
 
@@ -549,6 +575,136 @@ func hclSemanticEqual(a, b []byte) bool {
 		return false
 	}
 	return bytes.Equal(ja, jb)
+}
+
+func compareCorpusTrees(gotDir, wantDir string) error {
+	gotFiles, err := corpusFiles(gotDir)
+	if err != nil {
+		return err
+	}
+	wantFiles, err := corpusFiles(wantDir)
+	if err != nil {
+		return err
+	}
+	for _, rel := range sortedKeys(wantFiles) {
+		if !gotFiles[rel] {
+			return fmt.Errorf("corpus drift: missing regenerated file %s", rel)
+		}
+		if err := compareCorpusFile(filepath.Join(gotDir, filepath.FromSlash(rel)), filepath.Join(wantDir, filepath.FromSlash(rel)), rel); err != nil {
+			return err
+		}
+	}
+	for _, rel := range sortedKeys(gotFiles) {
+		if !wantFiles[rel] {
+			return fmt.Errorf("corpus drift: extra regenerated file %s", rel)
+		}
+	}
+	return nil
+}
+
+func corpusFiles(root string) (map[string]bool, error) {
+	out := map[string]bool{}
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		out[filepath.ToSlash(rel)] = true
+		return nil
+	})
+	return out, err
+}
+
+func compareCorpusFile(gotPath, wantPath, rel string) error {
+	got, err := os.ReadFile(gotPath)
+	if err != nil {
+		return err
+	}
+	want, err := os.ReadFile(wantPath)
+	if err != nil {
+		return err
+	}
+	if isProjectDocument(rel) {
+		equal, err := projectDocumentsEqual(got, want, rel)
+		if err != nil {
+			return err
+		}
+		if !equal {
+			return fmt.Errorf("corpus drift: regenerated %s differs structurally from committed output", rel)
+		}
+		return nil
+	}
+	if !bytes.Equal(got, want) {
+		return fmt.Errorf("corpus drift: regenerated %s differs from committed output; re-run `go run ./cmd/corpusgen`", rel)
+	}
+	return nil
+}
+
+func isProjectDocument(rel string) bool {
+	switch filepath.Base(rel) {
+	case "project.uws.yaml", "project.uws.hcl":
+		return true
+	default:
+		return false
+	}
+}
+
+func projectDocumentsEqual(got, want []byte, rel string) (bool, error) {
+	gotDoc, err := decodeProjectDocument(got, rel)
+	if err != nil {
+		return false, err
+	}
+	wantDoc, err := decodeProjectDocument(want, rel)
+	if err != nil {
+		return false, err
+	}
+	normalizeConfigDir(gotDoc)
+	normalizeConfigDir(wantDoc)
+	return reflect.DeepEqual(gotDoc, wantDoc), nil
+}
+
+func decodeProjectDocument(data []byte, rel string) (any, error) {
+	var jsonData []byte
+	var err error
+	switch filepath.Ext(rel) {
+	case ".hcl":
+		jsonData, err = convert.HCLToJSON(data)
+	case ".yaml", ".yml":
+		jsonData, err = convert.YAMLToJSON(data)
+	default:
+		return nil, fmt.Errorf("unsupported project document %s", rel)
+	}
+	if err != nil {
+		return nil, fmt.Errorf("parse %s: %w", rel, err)
+	}
+	var doc any
+	if err := json.Unmarshal(jsonData, &doc); err != nil {
+		return nil, fmt.Errorf("decode %s: %w", rel, err)
+	}
+	return doc, nil
+}
+
+func normalizeConfigDir(v any) {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, child := range x {
+			if k == "config_dir" {
+				x[k] = "<normalized-config-dir>"
+				continue
+			}
+			normalizeConfigDir(child)
+		}
+	case []any:
+		for _, child := range x {
+			normalizeConfigDir(child)
+		}
+	}
 }
 
 // pruneStaleEntries removes entry directories (those holding meta.json) under
