@@ -1,0 +1,47 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K02",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/kubernetes",
+    "version": "3.1.0",
+    "published": "2026-04-16",
+    "registry_latest": true
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json",
+    "fixture": "testdata/parity/kubernetes/k02/openapi/core.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_K8S_PARITY",
+    "record_update_env": "RAMEN_K8S_PARITY_RECORD_UPDATE",
+    "context_prefix": "kind-",
+    "resource_prefix": "ramen-parity-k02-"
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "namespace_read_missing",
+      "resource_type": "kubernetes_namespace_v1",
+      "observed_fields": [
+        "metadata.name",
+        "missing",
+        "diagnostic.classification"
+      ],
+      "expected_transitions": [
+        "create",
+        "out-of-band-delete",
+        "read-missing",
+        "cleanup"
+      ],
+      "observation_artifacts": []
+    }
+  ],
+  "notes": [
+    "K02 compares read-missing and cleanup behavior after the shared K01 harness exists."
+  ]
+}

@@ -1,0 +1,49 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K03",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/kubernetes",
+    "version": "3.1.0",
+    "published": "2026-04-16",
+    "registry_latest": true
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json",
+    "fixture": "testdata/parity/kubernetes/k03/openapi/core.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_K8S_PARITY",
+    "record_update_env": "RAMEN_K8S_PARITY_RECORD_UPDATE",
+    "context_prefix": "kind-",
+    "resource_prefix": "ramen-parity-k03-"
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "config_map_lifecycle",
+      "resource_type": "kubernetes_config_map_v1",
+      "observed_fields": [
+        "metadata.name",
+        "metadata.namespace",
+        "data",
+        "binaryData"
+      ],
+      "expected_transitions": [
+        "create",
+        "read",
+        "update",
+        "no-op",
+        "destroy"
+      ],
+      "observation_artifacts": []
+    }
+  ],
+  "notes": [
+    "K03 compares ConfigMap data, binaryData, update/replace, no-op, and destroy cleanup."
+  ]
+}
