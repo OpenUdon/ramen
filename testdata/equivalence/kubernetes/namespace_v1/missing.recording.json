@@ -1,0 +1,102 @@
+{
+  "version": "ramen.executor.recording.v1",
+  "calls": [
+    {
+      "key": "b5f267fcc84ca875534325f97764a1587db0c3081424eeff58425b0145039724",
+      "request": {
+        "run_id": 1,
+        "action": {
+          "address": "kubernetes_namespace_v1.m21_missing",
+          "type": "kubernetes_namespace_v1",
+          "action": "create",
+          "desired_hash": "sha256:8b613a730297fa7c4a2013d69f6f7e09a962268b9187ca407e2e406585dd6e45",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespace_v1/openapi/core.json",
+            "operation_id": "createCoreV1Namespace"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"namespace_name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespace_v1/missing",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-6676f67fe3ae03b10a84a73dac534157",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_namespace_v1.m21_missing",
+        "operation": "createCoreV1Namespace",
+        "success": true,
+        "identity": {
+          "namespace_name": "ramen-live-m21-missing"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m21-missing",
+          "status.phase": "Active"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "493fed3ec4d3ac6b02e2197d4a05a99ad508972fe20c2d0c7f8de177fc00e732",
+      "request": {
+        "run_id": 2,
+        "action": {
+          "address": "kubernetes_namespace_v1.m21_missing",
+          "type": "kubernetes_namespace_v1",
+          "action": "read",
+          "desired_hash": "sha256:8b613a730297fa7c4a2013d69f6f7e09a962268b9187ca407e2e406585dd6e45",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespace_v1/openapi/core.json",
+            "operation_id": "readCoreV1Namespace"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"namespace_name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespace_v1/missing",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "output.missing",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-652c7de8fa93399d4b9dd130b805594c",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_namespace_v1.m21_missing",
+        "operation": "readCoreV1Namespace",
+        "success": true,
+        "missing": true,
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

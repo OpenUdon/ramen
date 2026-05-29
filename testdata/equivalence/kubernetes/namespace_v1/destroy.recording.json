@@ -1,0 +1,157 @@
+{
+  "version": "ramen.executor.recording.v1",
+  "calls": [
+    {
+      "key": "b42afa368978047783bb9ae23d627751591736075d41d3a4e7e05e7f40df5d3b",
+      "request": {
+        "run_id": 1,
+        "action": {
+          "address": "kubernetes_namespace_v1.m21_destroy",
+          "type": "kubernetes_namespace_v1",
+          "action": "create",
+          "desired_hash": "sha256:0a7d87d02c21759e143bd969f2dc5f3bb8b500a6deefb1a0a37bfea200564614",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespace_v1/openapi/core.json",
+            "operation_id": "createCoreV1Namespace"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"namespace_name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespace_v1/destroy",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-ecccb73cc00844b64e539732ee2bb84f",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_namespace_v1.m21_destroy",
+        "operation": "createCoreV1Namespace",
+        "success": true,
+        "identity": {
+          "namespace_name": "ramen-live-m21-destroy"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m21-destroy",
+          "status.phase": "Active"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "8b39c72e0a7d4d483aa4b453ea9f25059847aee3c5838cd228bfc7fe12786501",
+      "request": {
+        "run_id": 2,
+        "action": {
+          "address": "kubernetes_namespace_v1.m21_destroy",
+          "type": "kubernetes_namespace_v1",
+          "action": "read",
+          "desired_hash": "sha256:0a7d87d02c21759e143bd969f2dc5f3bb8b500a6deefb1a0a37bfea200564614",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespace_v1/openapi/core.json",
+            "operation_id": "readCoreV1Namespace"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"namespace_name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespace_v1/destroy",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "output.missing",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-d7650a6123510e940405f62f3ecb56e6",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_namespace_v1.m21_destroy",
+        "operation": "readCoreV1Namespace",
+        "success": true,
+        "identity": {
+          "namespace_name": "ramen-live-m21-destroy"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m21-destroy",
+          "status.phase": "Active"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "a4c2f6babae123e3b444feda1c5b448d99dd611455f5145aaccb3a4334c28ab8",
+      "request": {
+        "run_id": 3,
+        "action": {
+          "address": "kubernetes_namespace_v1.m21_destroy",
+          "type": "kubernetes_namespace_v1",
+          "action": "delete",
+          "desired_hash": "sha256:e8f9a5053b12b1d358f7ceff291dfec478f7c0487b07f9a417fb7ab2bc82c064",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespace_v1/openapi/core.json",
+            "operation_id": "deleteCoreV1Namespace"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"namespace_name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespace_v1/destroy",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-0cb8fdf5652b20d49375d3c68177904d",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_namespace_v1.m21_destroy",
+        "operation": "deleteCoreV1Namespace",
+        "success": true,
+        "identity": {
+          "namespace_name": "ramen-live-m21-destroy"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m21-destroy",
+          "status.phase": "Active"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

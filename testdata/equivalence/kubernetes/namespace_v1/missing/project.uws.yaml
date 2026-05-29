@@ -1,0 +1,76 @@
+info:
+    description: M21 Kubernetes namespace missing equivalence fixture.
+    title: ramen_kubernetes_namespace_missing
+    version: 1.0.0
+operations:
+    - description: Create the M21 missing namespace.
+      operationId: kubernetes_namespace_v1_m21_missing_create
+      sourceDescription: core
+      sourceOperationId: createCoreV1Namespace
+    - description: Read the M21 missing namespace.
+      operationId: kubernetes_namespace_v1_m21_missing_read
+      sourceDescription: core
+      sourceOperationId: readCoreV1Namespace
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: ../openapi/core.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, no-op planning, and missing refresh through Ramen.
+      steps:
+        - operationRef: kubernetes_namespace_v1_m21_missing_create
+          stepId: create
+        - operationRef: kubernetes_namespace_v1_m21_missing_read
+          stepId: read
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: ../openapi/core.json
+    metadata:
+        source: M21 Kubernetes live/recorded equivalence fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_namespace_v1.m21_missing
+          attributes:
+            metadata:
+                name: ramen-live-m21-missing
+            metadata.name: ramen-live-m21-missing
+          identity_attributes:
+            - name: namespace_name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+          kind: resource
+          lifecycle: {}
+          metadata:
+            equivalence_target: kubernetes_namespace_v1
+          name: m21_missing
+          operations:
+            create:
+                operation_id: createCoreV1Namespace
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            read:
+                operation_id: readCoreV1Namespace
+                purpose: read
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            delete:
+                operation_id: deleteCoreV1Namespace
+                purpose: delete
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+          redaction: {}
+          type: kubernetes_namespace_v1
+    version: ramen.project.v1

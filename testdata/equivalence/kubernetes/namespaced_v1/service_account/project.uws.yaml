@@ -1,0 +1,87 @@
+info:
+    description: M22 Kubernetes ServiceAccount equivalence fixture.
+    title: ramen_kubernetes_service_account
+    version: 1.0.0
+operations:
+    - operationId: kubernetes_service_account_v1_m22_create
+      sourceDescription: core
+      sourceOperationId: createCoreV1NamespacedServiceAccount
+    - operationId: kubernetes_service_account_v1_m22_read
+      sourceDescription: core
+      sourceOperationId: readCoreV1NamespacedServiceAccount
+    - operationId: kubernetes_service_account_v1_m22_delete
+      sourceDescription: core
+      sourceOperationId: deleteCoreV1NamespacedServiceAccount
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: ../openapi/core.json
+uws: 1.4.0
+workflows:
+    - steps:
+        - operationRef: kubernetes_service_account_v1_m22_create
+          stepId: create
+        - operationRef: kubernetes_service_account_v1_m22_read
+          stepId: read
+        - operationRef: kubernetes_service_account_v1_m22_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: ../openapi/core.json
+    metadata:
+        source: M22 Kubernetes namespaced resource equivalence fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_service_account_v1.m22_service_account
+          attributes:
+            metadata:
+                name: ramen-live-m22-service-account
+                namespace: ramen-live-m22
+            metadata.name: ramen-live-m22-service-account
+            metadata.namespace: ramen-live-m22
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          kind: resource
+          lifecycle: {}
+          metadata:
+            equivalence_target: kubernetes_service_account_v1
+          name: m22_service_account
+          operations:
+            create:
+                operation_id: createCoreV1NamespacedServiceAccount
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            read:
+                operation_id: readCoreV1NamespacedServiceAccount
+                purpose: read
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            delete:
+                operation_id: deleteCoreV1NamespacedServiceAccount
+                purpose: delete
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+          redaction: {}
+          type: kubernetes_service_account_v1
+    version: ramen.project.v1

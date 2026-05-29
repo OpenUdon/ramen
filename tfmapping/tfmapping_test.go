@@ -53,8 +53,11 @@ func TestDefaultRegistrySupportedTypes(t *testing.T) {
 		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
 		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_role_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_service_account_v1", Kinds: []string{"resource", "data_source"}},
 	}
 	if !equalSupportedTypes(got, want) {
 		t.Fatalf("supported types = %#v, want %#v", got, want)
@@ -90,8 +93,11 @@ func TestRegistrySupportedTypesHonorsProviderOverrides(t *testing.T) {
 		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
 		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_role_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_service_account_v1", Kinds: []string{"resource", "data_source"}},
 	}
 	if !equalSupportedTypes(got, want) {
 		t.Fatalf("supported types with override = %#v, want %#v", got, want)
@@ -192,6 +198,24 @@ func TestDefaultRegistryIdentityAttributes(t *testing.T) {
 			Required:      true,
 		},
 	})
+
+	configMap := registry.MapObject(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, "create", "create")
+	assertIdentities(t, configMap.IdentityAttributes, []IdentityAttribute{
+		{
+			Name:          "name",
+			TerraformPath: "metadata.name",
+			RequestKeys:   []string{"name"},
+			ResponsePaths: []string{"metadata.name"},
+			Required:      true,
+		},
+		{
+			Name:          "namespace",
+			TerraformPath: "metadata.namespace",
+			RequestKeys:   []string{"namespace"},
+			ResponsePaths: []string{"metadata.namespace"},
+			Required:      true,
+		},
+	})
 }
 
 func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
@@ -250,6 +274,18 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "namespace read", obj: Object{Kind: "resource", Type: "kubernetes_namespace"}, purpose: "read", action: "read", operation: "readCoreV1Namespace"},
 		{name: "namespace update", obj: Object{Kind: "resource", Type: "kubernetes_namespace_v1"}, purpose: "update", action: "update", operation: "replaceCoreV1Namespace"},
 		{name: "namespace delete", obj: Object{Kind: "resource", Type: "kubernetes_namespace_v1"}, purpose: "delete", action: "delete", operation: "deleteCoreV1Namespace"},
+		{name: "configmap create", obj: Object{Kind: "resource", Type: "kubernetes_config_map_v1"}, purpose: "create", action: "create", operation: "createCoreV1NamespacedConfigMap"},
+		{name: "configmap read", obj: Object{Kind: "resource", Type: "kubernetes_config_map_v1"}, purpose: "read", action: "read", operation: "readCoreV1NamespacedConfigMap"},
+		{name: "configmap update", obj: Object{Kind: "resource", Type: "kubernetes_config_map_v1"}, purpose: "update", action: "update", operation: "replaceCoreV1NamespacedConfigMap"},
+		{name: "configmap delete", obj: Object{Kind: "resource", Type: "kubernetes_config_map_v1"}, purpose: "delete", action: "delete", operation: "deleteCoreV1NamespacedConfigMap"},
+		{name: "serviceaccount create", obj: Object{Kind: "resource", Type: "kubernetes_service_account_v1"}, purpose: "create", action: "create", operation: "createCoreV1NamespacedServiceAccount"},
+		{name: "serviceaccount read", obj: Object{Kind: "resource", Type: "kubernetes_service_account_v1"}, purpose: "read", action: "read", operation: "readCoreV1NamespacedServiceAccount"},
+		{name: "serviceaccount update", obj: Object{Kind: "resource", Type: "kubernetes_service_account_v1"}, purpose: "update", action: "update", operation: "replaceCoreV1NamespacedServiceAccount"},
+		{name: "serviceaccount delete", obj: Object{Kind: "resource", Type: "kubernetes_service_account_v1"}, purpose: "delete", action: "delete", operation: "deleteCoreV1NamespacedServiceAccount"},
+		{name: "role create", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1NamespacedRole"},
+		{name: "role read", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1NamespacedRole"},
+		{name: "role update", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "update", action: "update", operation: "replaceRbacAuthorizationV1NamespacedRole"},
+		{name: "role delete", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1NamespacedRole"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -353,6 +389,26 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_namespace", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createCoreV1Namespace", "metadata.0.name")
 	if len(keys) != 1 || keys[0] != "metadata.name" {
 		t.Fatalf("unexpected Kubernetes namespace request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "readCoreV1NamespacedConfigMap", "metadata.namespace")
+	if len(keys) != 1 || keys[0] != "namespace" {
+		t.Fatalf("unexpected Kubernetes ConfigMap namespace request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceCoreV1NamespacedConfigMap", "data")
+	if len(keys) != 1 || keys[0] != "data" {
+		t.Fatalf("unexpected Kubernetes ConfigMap data request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceCoreV1NamespacedConfigMap", "binary_data")
+	if len(keys) != 1 || keys[0] != "binaryData" {
+		t.Fatalf("unexpected Kubernetes ConfigMap binary data request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_service_account_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createCoreV1NamespacedServiceAccount", "metadata.name")
+	if len(keys) != 1 || keys[0] != "metadata.name" {
+		t.Fatalf("unexpected Kubernetes ServiceAccount request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1NamespacedRole", "rule")
+	if len(keys) != 1 || keys[0] != "rules" {
+		t.Fatalf("unexpected Kubernetes Role rules request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-create-bucket", "name")
 	if len(keys) != 1 || keys[0] != "name" {

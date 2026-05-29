@@ -108,8 +108,8 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return result, err
 	}
-	defer finish(&result.Summary)
 	defer store.Close()
+	defer finish(&result.Summary)
 	sourcePaths := sourcePathIndex(opts.APISources)
 	workingDir := opts.ConfigDir
 	if opts.ProjectPath != "" {
@@ -254,8 +254,8 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return result, err
 	}
-	defer finish(&result.Summary)
 	defer store.Close()
+	defer finish(&result.Summary)
 	for i := range planResult.Plan.Resources {
 		if deps := dependencies[planResult.Plan.Resources[i].Address]; len(deps) > 0 {
 			planResult.Plan.Resources[i].Dependencies = deps

@@ -1,0 +1,95 @@
+info:
+    description: M22 Kubernetes Role equivalence fixture.
+    title: ramen_kubernetes_role
+    version: 1.0.0
+operations:
+    - operationId: kubernetes_role_v1_m22_create
+      sourceDescription: rbac
+      sourceOperationId: createRbacAuthorizationV1NamespacedRole
+    - operationId: kubernetes_role_v1_m22_read
+      sourceDescription: rbac
+      sourceOperationId: readRbacAuthorizationV1NamespacedRole
+    - operationId: kubernetes_role_v1_m22_delete
+      sourceDescription: rbac
+      sourceOperationId: deleteRbacAuthorizationV1NamespacedRole
+sourceDescriptions:
+    - name: rbac
+      type: openapi
+      url: ../openapi/rbac.json
+uws: 1.4.0
+workflows:
+    - steps:
+        - operationRef: kubernetes_role_v1_m22_create
+          stepId: create
+        - operationRef: kubernetes_role_v1_m22_read
+          stepId: read
+        - operationRef: kubernetes_role_v1_m22_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: rbac
+          kind: openapi
+          path: ../openapi/rbac.json
+    metadata:
+        source: M22 Kubernetes namespaced resource equivalence fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_role_v1.m22_role
+          attributes:
+            metadata:
+                name: ramen-live-m22-role
+                namespace: ramen-live-m22
+            metadata.name: ramen-live-m22-role
+            metadata.namespace: ramen-live-m22
+            rule:
+                - apiGroups:
+                    - ""
+                  resources:
+                    - configmaps
+                  verbs:
+                    - get
+                    - list
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          kind: resource
+          lifecycle: {}
+          metadata:
+            equivalence_target: kubernetes_role_v1
+          name: m22_role
+          operations:
+            create:
+                operation_id: createRbacAuthorizationV1NamespacedRole
+                purpose: create
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            read:
+                operation_id: readRbacAuthorizationV1NamespacedRole
+                purpose: read
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            delete:
+                operation_id: deleteRbacAuthorizationV1NamespacedRole
+                purpose: delete
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+          redaction: {}
+          type: kubernetes_role_v1
+    version: ramen.project.v1

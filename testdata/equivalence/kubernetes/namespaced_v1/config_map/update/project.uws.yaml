@@ -1,0 +1,103 @@
+info:
+    description: M22 Kubernetes ConfigMap update equivalence fixture.
+    title: ramen_kubernetes_config_map_update
+    version: 1.0.0
+operations:
+    - operationId: kubernetes_config_map_v1_m22_update_create
+      sourceDescription: core
+      sourceOperationId: createCoreV1NamespacedConfigMap
+    - operationId: kubernetes_config_map_v1_m22_update_read
+      sourceDescription: core
+      sourceOperationId: readCoreV1NamespacedConfigMap
+    - operationId: kubernetes_config_map_v1_m22_update_update
+      sourceDescription: core
+      sourceOperationId: replaceCoreV1NamespacedConfigMap
+    - operationId: kubernetes_config_map_v1_m22_update_delete
+      sourceDescription: core
+      sourceOperationId: deleteCoreV1NamespacedConfigMap
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: ../../openapi/core.json
+uws: 1.4.0
+workflows:
+    - steps:
+        - operationRef: kubernetes_config_map_v1_m22_update_create
+          stepId: create
+        - operationRef: kubernetes_config_map_v1_m22_update_read
+          stepId: read
+        - operationRef: kubernetes_config_map_v1_m22_update_update
+          stepId: update
+        - operationRef: kubernetes_config_map_v1_m22_update_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: ../../openapi/core.json
+    metadata:
+        source: M22 Kubernetes namespaced resource equivalence fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_config_map_v1.m22_config_map
+          attributes:
+            binary_data:
+                payload: dXBkYXRlZA==
+            data:
+                mode: updated
+                owner: ramen
+            metadata:
+                name: ramen-live-m22-config-map
+                namespace: ramen-live-m22
+            metadata.name: ramen-live-m22-config-map
+            metadata.namespace: ramen-live-m22
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          kind: resource
+          lifecycle: {}
+          metadata:
+            equivalence_target: kubernetes_config_map_v1
+          name: m22_config_map
+          operations:
+            create:
+                operation_id: createCoreV1NamespacedConfigMap
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: ../../openapi/core.json
+            read:
+                operation_id: readCoreV1NamespacedConfigMap
+                purpose: read
+                source_id: core
+                source_kind: openapi
+                source_path: ../../openapi/core.json
+            update:
+                operation_id: replaceCoreV1NamespacedConfigMap
+                purpose: update
+                source_id: core
+                source_kind: openapi
+                source_path: ../../openapi/core.json
+            delete:
+                operation_id: deleteCoreV1NamespacedConfigMap
+                purpose: delete
+                source_id: core
+                source_kind: openapi
+                source_path: ../../openapi/core.json
+          redaction: {}
+          type: kubernetes_config_map_v1
+    version: ramen.project.v1

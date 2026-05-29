@@ -1,0 +1,142 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kubernetes Core v1 namespace equivalence subset",
+    "version": "v1.19.2-subset"
+  },
+  "paths": {
+    "/api/v1/namespaces": {
+      "post": {
+        "operationId": "createCoreV1Namespace",
+        "summary": "create a Namespace",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/io.k8s.api.core.v1.Namespace"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Namespace created"
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{name}": {
+      "get": {
+        "operationId": "readCoreV1Namespace",
+        "summary": "read the specified Namespace",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Namespace"
+          },
+          "404": {
+            "description": "Namespace not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceCoreV1Namespace",
+        "summary": "replace the specified Namespace",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/io.k8s.api.core.v1.Namespace"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Namespace replaced"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoreV1Namespace",
+        "summary": "delete a Namespace",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Namespace deleted"
+          },
+          "404": {
+            "description": "Namespace not found"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "io.k8s.api.core.v1.Namespace": {
+        "type": "object",
+        "required": [
+          "metadata"
+        ],
+        "properties": {
+          "metadata": {
+            "type": "object",
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "labels": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "status": {
+            "type": "object",
+            "properties": {
+              "phase": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

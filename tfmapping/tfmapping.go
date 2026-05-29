@@ -422,6 +422,92 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.name", "metadata.0.name":
 					return []string{"name"}
 				}
+			case "createCoreV1NamespacedConfigMap", "createCoreV1NamespacedServiceAccount":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"metadata.name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"metadata.namespace"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "data":
+					if operationID == "createCoreV1NamespacedConfigMap" {
+						return []string{"data"}
+					}
+				case "binary_data", "binaryData":
+					if operationID == "createCoreV1NamespacedConfigMap" {
+						return []string{"binaryData"}
+					}
+				case "automount_service_account_token", "automountServiceAccountToken":
+					if operationID == "createCoreV1NamespacedServiceAccount" {
+						return []string{"automountServiceAccountToken"}
+					}
+				}
+			case "replaceCoreV1NamespacedConfigMap", "replaceCoreV1NamespacedServiceAccount":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name", "metadata.name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"namespace", "metadata.namespace"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "data":
+					if operationID == "replaceCoreV1NamespacedConfigMap" {
+						return []string{"data"}
+					}
+				case "binary_data", "binaryData":
+					if operationID == "replaceCoreV1NamespacedConfigMap" {
+						return []string{"binaryData"}
+					}
+				case "automount_service_account_token", "automountServiceAccountToken":
+					if operationID == "replaceCoreV1NamespacedServiceAccount" {
+						return []string{"automountServiceAccountToken"}
+					}
+				}
+			case "readCoreV1NamespacedConfigMap", "deleteCoreV1NamespacedConfigMap", "readCoreV1NamespacedServiceAccount", "deleteCoreV1NamespacedServiceAccount":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"namespace"}
+				}
+			case "createRbacAuthorizationV1NamespacedRole":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"metadata.name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"metadata.namespace"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "rule", "rules":
+					return []string{"rules"}
+				}
+			case "replaceRbacAuthorizationV1NamespacedRole":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name", "metadata.name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"namespace", "metadata.namespace"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "rule", "rules":
+					return []string{"rules"}
+				}
+			case "readRbacAuthorizationV1NamespacedRole", "deleteRbacAuthorizationV1NamespacedRole":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"namespace"}
+				}
 			}
 		}
 	case "cloudflare":
@@ -948,6 +1034,84 @@ func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
 			return mapping
 		}
 		return unsupportedActionMapping(mapping, "Kubernetes namespace mapping supports read, create, update, and delete")
+	case "kubernetes_config_map_v1":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Kubernetes ConfigMap mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = kubernetesNamespacedIdentityAttributes()
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "createCoreV1NamespacedConfigMap")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1NamespacedConfigMap")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "replaceCoreV1NamespacedConfigMap")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "deleteCoreV1NamespacedConfigMap")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1NamespacedConfigMap")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Kubernetes ConfigMap mapping supports read, create, update, and delete")
+	case "kubernetes_service_account_v1":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Kubernetes ServiceAccount mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = kubernetesNamespacedIdentityAttributes()
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "createCoreV1NamespacedServiceAccount")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1NamespacedServiceAccount")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "replaceCoreV1NamespacedServiceAccount")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "deleteCoreV1NamespacedServiceAccount")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1NamespacedServiceAccount")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Kubernetes ServiceAccount mapping supports read, create, update, and delete")
+	case "kubernetes_role_v1":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Kubernetes Role mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = kubernetesNamespacedIdentityAttributes()
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "createRbacAuthorizationV1NamespacedRole")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "readRbacAuthorizationV1NamespacedRole")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "replaceRbacAuthorizationV1NamespacedRole")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "deleteRbacAuthorizationV1NamespacedRole")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "readRbacAuthorizationV1NamespacedRole")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Kubernetes Role mapping supports read, create, update, and delete")
 	default:
 		return unsupportedTypeMapping(mapping, "Kubernetes")
 	}
@@ -956,8 +1120,30 @@ func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
 // SupportedTypes must track the type switch in kubernetesMapper.MapObject.
 func (kubernetesMapper) SupportedTypes() []SupportedType {
 	return []SupportedType{
+		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_role_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_service_account_v1", Kinds: []string{"resource", "data_source"}},
+	}
+}
+
+func kubernetesNamespacedIdentityAttributes() []IdentityAttribute {
+	return []IdentityAttribute{
+		{
+			Name:          "name",
+			TerraformPath: "metadata.name",
+			RequestKeys:   []string{"name"},
+			ResponsePaths: []string{"metadata.name"},
+			Required:      true,
+		},
+		{
+			Name:          "namespace",
+			TerraformPath: "metadata.namespace",
+			RequestKeys:   []string{"namespace"},
+			ResponsePaths: []string{"metadata.namespace"},
+			Required:      true,
+		},
 	}
 }
 

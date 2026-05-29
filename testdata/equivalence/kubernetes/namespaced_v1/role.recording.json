@@ -1,0 +1,188 @@
+{
+  "version": "ramen.executor.recording.v1",
+  "calls": [
+    {
+      "key": "90d3fe01cc35038f9c1d448069a5713cd1946657bf12df24dddc05e37009a72a",
+      "request": {
+        "run_id": 1,
+        "action": {
+          "address": "kubernetes_role_v1.m22_role",
+          "type": "kubernetes_role_v1",
+          "action": "create",
+          "desired_hash": "sha256:1203badb8f573400dffdd294ecb6089bb15820895bb9b32ab19b8bc4dc5dedb0",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "rbac",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/rbac.json",
+            "operation_id": "createRbacAuthorizationV1NamespacedRole"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/role",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-e2bb3593d8973088b174e223327ae656",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_role_v1.m22_role",
+        "operation": "createRbacAuthorizationV1NamespacedRole",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-role",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m22-role",
+          "metadata.namespace": "ramen-live-m22",
+          "rules": [
+            {
+              "apiGroups": [
+                ""
+              ],
+              "resources": [
+                "configmaps"
+              ],
+              "verbs": [
+                "get",
+                "list"
+              ]
+            }
+          ]
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "0e2d27c121d0212c3becad7872860294134464ae1d5d295603f6e7250fdb1f40",
+      "request": {
+        "run_id": 2,
+        "action": {
+          "address": "kubernetes_role_v1.m22_role",
+          "type": "kubernetes_role_v1",
+          "action": "read",
+          "desired_hash": "sha256:1203badb8f573400dffdd294ecb6089bb15820895bb9b32ab19b8bc4dc5dedb0",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "rbac",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/rbac.json",
+            "operation_id": "readRbacAuthorizationV1NamespacedRole"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/role",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "output.missing",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-9ddbe5c7d3287bb979dc632a9c2ce991",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_role_v1.m22_role",
+        "operation": "readRbacAuthorizationV1NamespacedRole",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-role",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m22-role",
+          "metadata.namespace": "ramen-live-m22",
+          "rules": [
+            {
+              "apiGroups": [
+                ""
+              ],
+              "resources": [
+                "configmaps"
+              ],
+              "verbs": [
+                "get",
+                "list"
+              ]
+            }
+          ]
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "a430e63c979fd1b9060d1d7f80a1ac78943acbe78d2d2cfe2a80c1accb74b8d5",
+      "request": {
+        "run_id": 3,
+        "action": {
+          "address": "kubernetes_role_v1.m22_role",
+          "type": "kubernetes_role_v1",
+          "action": "delete",
+          "desired_hash": "sha256:a4ed3e8932585007d548f816db6020b30181d942734a100b34839fed9b1ca517",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "rbac",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/rbac.json",
+            "operation_id": "deleteRbacAuthorizationV1NamespacedRole"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/role",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-411656b3e747cb3cee17baba7ba5bae4",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_role_v1.m22_role",
+        "operation": "deleteRbacAuthorizationV1NamespacedRole",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-role",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m22-role",
+          "metadata.namespace": "ramen-live-m22"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

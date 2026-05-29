@@ -1,0 +1,293 @@
+{
+  "version": "ramen.executor.recording.v1",
+  "calls": [
+    {
+      "key": "cbe655d00209ace857e21219180d87de1673abc7d0dfe5f5d8f89c7525182841",
+      "request": {
+        "run_id": 1,
+        "action": {
+          "address": "kubernetes_config_map_v1.m22_config_map",
+          "type": "kubernetes_config_map_v1",
+          "action": "create",
+          "desired_hash": "sha256:a8818a2b528524578aec992a73e3c1543b48d27919b56e456a37084c6b234c2f",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/core.json",
+            "operation_id": "createCoreV1NamespacedConfigMap"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/config_map/create",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-ecec27d8b2137a22b72f8aa55a9424bf",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_config_map_v1.m22_config_map",
+        "operation": "createCoreV1NamespacedConfigMap",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-config-map",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "binaryData": {
+            "payload": "aW5pdGlhbA=="
+          },
+          "data": {
+            "mode": "initial",
+            "owner": "ramen"
+          },
+          "metadata.name": "ramen-live-m22-config-map",
+          "metadata.namespace": "ramen-live-m22"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "1beda4e60746da26e2ab3cbbc5ff80b13d008f7c8dfb746beeb79891ec0f0417",
+      "request": {
+        "run_id": 2,
+        "action": {
+          "address": "kubernetes_config_map_v1.m22_config_map",
+          "type": "kubernetes_config_map_v1",
+          "action": "read",
+          "desired_hash": "sha256:a8818a2b528524578aec992a73e3c1543b48d27919b56e456a37084c6b234c2f",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/core.json",
+            "operation_id": "readCoreV1NamespacedConfigMap"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/config_map/create",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "output.missing",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-0ea761d3b8e4cbb6a273a3f7207b2271",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_config_map_v1.m22_config_map",
+        "operation": "readCoreV1NamespacedConfigMap",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-config-map",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "binaryData": {
+            "payload": "aW5pdGlhbA=="
+          },
+          "data": {
+            "mode": "initial",
+            "owner": "ramen"
+          },
+          "metadata.name": "ramen-live-m22-config-map",
+          "metadata.namespace": "ramen-live-m22"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "3d1553bb06256e5f2fc8a9f0b938166801e6191a40b94c5664ab934a77a91057",
+      "request": {
+        "run_id": 3,
+        "action": {
+          "address": "kubernetes_config_map_v1.m22_config_map",
+          "type": "kubernetes_config_map_v1",
+          "action": "update",
+          "desired_hash": "sha256:754eeb7d9820ba1dc614366579770b1f5864c3ead21aed1210137a93e1d19ccb",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/core.json",
+            "operation_id": "replaceCoreV1NamespacedConfigMap"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/config_map/update",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-61a98178272f9abc0b25ce7dd4d81b58",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_config_map_v1.m22_config_map",
+        "operation": "replaceCoreV1NamespacedConfigMap",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-config-map",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "binaryData": {
+            "payload": "dXBkYXRlZA=="
+          },
+          "data": {
+            "mode": "updated",
+            "owner": "ramen"
+          },
+          "metadata.name": "ramen-live-m22-config-map",
+          "metadata.namespace": "ramen-live-m22"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "5f53a777ae55feede8526642ea021e1a704a9c400c521794afc310e47a1d9757",
+      "request": {
+        "run_id": 4,
+        "action": {
+          "address": "kubernetes_config_map_v1.m22_config_map",
+          "type": "kubernetes_config_map_v1",
+          "action": "read",
+          "desired_hash": "sha256:754eeb7d9820ba1dc614366579770b1f5864c3ead21aed1210137a93e1d19ccb",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/core.json",
+            "operation_id": "readCoreV1NamespacedConfigMap"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/config_map/update",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "output.identity",
+            "output.computed",
+            "output.missing",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-6f6ba062e8e6ca6cfdcf967bb611ee87",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_config_map_v1.m22_config_map",
+        "operation": "readCoreV1NamespacedConfigMap",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-config-map",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "binaryData": {
+            "payload": "dXBkYXRlZA=="
+          },
+          "data": {
+            "mode": "updated",
+            "owner": "ramen"
+          },
+          "metadata.name": "ramen-live-m22-config-map",
+          "metadata.namespace": "ramen-live-m22"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    },
+    {
+      "key": "61f983f9c672d61f5a10a5b75da19c4f50f878887d36b769723c19d2095723b0",
+      "request": {
+        "run_id": 5,
+        "action": {
+          "address": "kubernetes_config_map_v1.m22_config_map",
+          "type": "kubernetes_config_map_v1",
+          "action": "delete",
+          "desired_hash": "sha256:9d2d8fdb9e23b28b634953a6c24c2ddb422256811f1746d399cd269bf20bb06c",
+          "mapping": {
+            "source_kind": "openapi",
+            "source_id": "core",
+            "source_path": "testdata/equivalence/kubernetes/namespaced_v1/openapi/core.json",
+            "operation_id": "deleteCoreV1NamespacedConfigMap"
+          },
+          "metadata": {
+            "identity_attributes": "[{\"name\":\"name\",\"terraform_path\":\"metadata.name\",\"request_keys\":[\"name\"],\"response_paths\":[\"metadata.name\"],\"required\":true},{\"name\":\"namespace\",\"terraform_path\":\"metadata.namespace\",\"request_keys\":[\"namespace\"],\"response_paths\":[\"metadata.namespace\"],\"required\":true}]"
+          }
+        },
+        "working_dir": "testdata/equivalence/kubernetes/namespaced_v1/config_map/update",
+        "capabilities": {
+          "protocol": "openapi",
+          "features": [
+            "idempotency",
+            "progress.events"
+          ]
+        },
+        "idempotency": {
+          "key": "ramen-f73a2cc2731ea105e493df4afcffd855",
+          "scope": "resource-action",
+          "supported": true
+        },
+        "runtime": {}
+      },
+      "result": {
+        "address": "kubernetes_config_map_v1.m22_config_map",
+        "operation": "deleteCoreV1NamespacedConfigMap",
+        "success": true,
+        "identity": {
+          "name": "ramen-live-m22-config-map",
+          "namespace": "ramen-live-m22"
+        },
+        "computed": {
+          "metadata.name": "ramen-live-m22-config-map",
+          "metadata.namespace": "ramen-live-m22"
+        },
+        "started_at": "0001-01-01T00:00:00Z",
+        "finished_at": "0001-01-01T00:00:00Z"
+      }
+    }
+  ]
+}

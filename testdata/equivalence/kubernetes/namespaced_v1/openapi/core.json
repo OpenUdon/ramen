@@ -1,0 +1,101 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kubernetes Core v1 namespaced equivalence subset",
+    "version": "v1.19.2-subset"
+  },
+  "paths": {
+    "/api/v1/namespaces/{namespace}/configmaps": {
+      "post": {
+        "operationId": "createCoreV1NamespacedConfigMap",
+        "summary": "create a ConfigMap",
+        "responses": {
+          "201": {
+            "description": "ConfigMap created"
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/configmaps/{name}": {
+      "get": {
+        "operationId": "readCoreV1NamespacedConfigMap",
+        "summary": "read the specified ConfigMap",
+        "responses": {
+          "200": {
+            "description": "ConfigMap"
+          },
+          "404": {
+            "description": "ConfigMap not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceCoreV1NamespacedConfigMap",
+        "summary": "replace the specified ConfigMap",
+        "responses": {
+          "200": {
+            "description": "ConfigMap replaced"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoreV1NamespacedConfigMap",
+        "summary": "delete a ConfigMap",
+        "responses": {
+          "200": {
+            "description": "ConfigMap deleted"
+          },
+          "404": {
+            "description": "ConfigMap not found"
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/serviceaccounts": {
+      "post": {
+        "operationId": "createCoreV1NamespacedServiceAccount",
+        "summary": "create a ServiceAccount",
+        "responses": {
+          "201": {
+            "description": "ServiceAccount created"
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/serviceaccounts/{name}": {
+      "get": {
+        "operationId": "readCoreV1NamespacedServiceAccount",
+        "summary": "read the specified ServiceAccount",
+        "responses": {
+          "200": {
+            "description": "ServiceAccount"
+          },
+          "404": {
+            "description": "ServiceAccount not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceCoreV1NamespacedServiceAccount",
+        "summary": "replace the specified ServiceAccount",
+        "responses": {
+          "200": {
+            "description": "ServiceAccount replaced"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoreV1NamespacedServiceAccount",
+        "summary": "delete a ServiceAccount",
+        "responses": {
+          "200": {
+            "description": "ServiceAccount deleted"
+          },
+          "404": {
+            "description": "ServiceAccount not found"
+          }
+        }
+      }
+    }
+  }
+}

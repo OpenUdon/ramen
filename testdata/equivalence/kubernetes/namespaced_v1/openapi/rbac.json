@@ -1,0 +1,55 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Kubernetes RBAC v1 namespaced equivalence subset",
+    "version": "v1.19.2-subset"
+  },
+  "paths": {
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/roles": {
+      "post": {
+        "operationId": "createRbacAuthorizationV1NamespacedRole",
+        "summary": "create a Role",
+        "responses": {
+          "201": {
+            "description": "Role created"
+          }
+        }
+      }
+    },
+    "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/roles/{name}": {
+      "get": {
+        "operationId": "readRbacAuthorizationV1NamespacedRole",
+        "summary": "read the specified Role",
+        "responses": {
+          "200": {
+            "description": "Role"
+          },
+          "404": {
+            "description": "Role not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceRbacAuthorizationV1NamespacedRole",
+        "summary": "replace the specified Role",
+        "responses": {
+          "200": {
+            "description": "Role replaced"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteRbacAuthorizationV1NamespacedRole",
+        "summary": "delete a Role",
+        "responses": {
+          "200": {
+            "description": "Role deleted"
+          },
+          "404": {
+            "description": "Role not found"
+          }
+        }
+      }
+    }
+  }
+}
