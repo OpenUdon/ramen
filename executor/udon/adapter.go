@@ -55,6 +55,23 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	}
 	outputDir = filepath.Join(outputDir, safeOutputName(req.Action.Address))
 	if err := runner.ExecuteRuntimePlan(ctx, plan, outputDir); err != nil {
+		if e.OutputProjector != nil && req.Action.Action == "read" && isProjectedMissingReadError(err) {
+			projected, projectErr := e.OutputProjector(ctx, req, outputDir)
+			if projectErr == nil && projected.Missing {
+				events := append([]executor.Event{startEvent}, projected.Events...)
+				events = append(events, executor.Emit(req, "finished", "udon executor finished with projected missing read", nil))
+				return executor.Result{
+					Address:    req.Action.Address,
+					Operation:  req.Action.Mapping.OperationID,
+					Success:    true,
+					Missing:    true,
+					Messages:   append(projected.Messages, err.Error()),
+					Events:     events,
+					StartedAt:  started,
+					FinishedAt: time.Now().UTC(),
+				}, nil
+			}
+		}
 		return executor.Result{}, err
 	}
 	if e.OutputProjector == nil && req.Action.Action != "delete" {
@@ -81,6 +98,14 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	}
 	result.Events = append(result.Events, executor.Emit(req, "finished", "udon executor finished", nil))
 	return result, nil
+}
+
+func isProjectedMissingReadError(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "404") || strings.Contains(msg, "notfound") || strings.Contains(msg, "not found")
 }
 
 func safeOutputName(address string) string {

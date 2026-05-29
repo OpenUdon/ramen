@@ -12,3 +12,8 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 	t.Helper()
 	return kubernetesParityFailure("ramen", "udon-disabled", fmt.Errorf("build with -tags udon to run Ramen Kubernetes provider parity"))
 }
+
+func runKubernetesParityRamenReadMissingRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	return kubernetesParityFailure("ramen", "udon-disabled", fmt.Errorf("build with -tags udon to run Ramen Kubernetes provider parity"))
+}

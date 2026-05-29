@@ -1,7 +1,7 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
   "lane": "K02",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
     "version": "3.1.0",
@@ -27,10 +27,18 @@
     {
       "name": "namespace_read_missing",
       "resource_type": "kubernetes_namespace_v1",
+      "fixture_paths": [
+        "testdata/parity/kubernetes/k02/hcl/main.tf",
+        "testdata/parity/kubernetes/k02/openapi/core.json",
+        "testdata/parity/kubernetes/k02/ramen/project.uws.yaml"
+      ],
       "observed_fields": [
         "metadata.name",
+        "metadata.labels",
+        "out-of-band-delete.absent",
         "missing",
-        "diagnostic.classification"
+        "diagnostic.classification",
+        "cleanup.absent"
       ],
       "expected_transitions": [
         "create",
@@ -38,10 +46,15 @@
         "read-missing",
         "cleanup"
       ],
-      "observation_artifacts": []
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k02/live.observations.json"
+      ]
     }
   ],
+  "recorded_at": "2026-05-29T22:26:33Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k02 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
-    "K02 compares read-missing and cleanup behavior after the shared K01 harness exists."
+    "K02 compares read-missing and cleanup behavior after the shared K01 harness exists.",
+    "OpenTofu and Terraform use refresh-only planning to classify the out-of-band namespace deletion; Ramen+udon projects a Kubernetes 404 read into missing evidence after confirming API-visible absence."
   ]
 }

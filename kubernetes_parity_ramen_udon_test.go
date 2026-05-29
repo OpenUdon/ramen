@@ -126,8 +126,108 @@ func runKubernetesParityRamenRuntime(ctx context.Context, t *testing.T, env kube
 		Runtime:      runtimeName,
 		Namespace:    namespace,
 		AfterApply:   afterApply,
-		NoOpPlan:     kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
-		AfterDestroy: afterDestroy,
+		NoOpPlan:     &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
+		AfterDestroy: &afterDestroy,
+	}}
+}
+
+func runKubernetesParityRamenReadMissingRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	namespace := "ramen-parity-k02-" + runtimeName
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "core.json")
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k02", "openapi", "core.json"), openAPIPath, serverURL); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderKubernetesParityProject(filepath.Join(kubernetesParityFixtureRoot, "k02", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/core.json"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			observed, err := observeKubernetesParityNamespace(projectorCtx, env, namespace)
+			if err != nil {
+				if isKubernetesParityNotFound(err) {
+					result.Missing = true
+					return result, nil
+				}
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{"namespace_name": observed.Name}
+			result.Computed = map[string]any{
+				"metadata.name":   observed.Name,
+				"metadata.labels": observed.Labels,
+				"status.phase":    observed.Phase,
+			}
+			return result, nil
+		},
+	}
+	applyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
+	}
+	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
+	}
+	afterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	if err := deleteKubernetesParityNamespaceIfExists(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "out_of_band_delete", err)
+	}
+	afterDelete, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshResult, err := reconcile.Refresh(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
+	}
+	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Missing != 1 || refreshResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
+	}
+	afterCleanup, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:              runtimeName,
+		Namespace:            namespace,
+		AfterApply:           afterApply,
+		AfterOutOfBandDelete: &afterDelete,
+		ReadMissing: &kubernetesParityReadMissingObservation{
+			Missing:        true,
+			Classification: "missing",
+			Summary:        fmt.Sprintf("%+v", refreshResult.Summary),
+		},
+		AfterReadMissingCleanup: &afterCleanup,
 	}}
 }
 

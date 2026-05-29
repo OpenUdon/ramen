@@ -1,0 +1,88 @@
+info:
+    description: K02 Kubernetes namespace provider parity fixture.
+    title: ramen_kubernetes_k02_namespace_parity
+    version: 1.0.0
+operations:
+    - description: Create the K02 namespace.
+      operationId: kubernetes_namespace_v1_k02_create
+      sourceDescription: core
+      sourceOperationId: createCoreV1Namespace
+    - description: Read the K02 namespace.
+      operationId: kubernetes_namespace_v1_k02_read
+      sourceDescription: core
+      sourceOperationId: readCoreV1Namespace
+    - description: Delete the K02 namespace.
+      operationId: kubernetes_namespace_v1_k02_delete
+      sourceDescription: core
+      sourceOperationId: deleteCoreV1Namespace
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: ../openapi/core.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, read, no-op, and destroy through Ramen.
+      steps:
+        - operationRef: kubernetes_namespace_v1_k02_create
+          stepId: create
+        - operationRef: kubernetes_namespace_v1_k02_read
+          stepId: read
+        - operationRef: kubernetes_namespace_v1_k02_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: ../openapi/core.json
+    metadata:
+        source: K02 Kubernetes provider parity fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_namespace_v1.k02_namespace
+          attributes:
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k02
+                name: ramen-parity-k02-namespace
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k02
+            metadata.name: ramen-parity-k02-namespace
+          identity_attributes:
+            - name: namespace_name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_namespace_v1
+          name: k02_namespace
+          operations:
+            create:
+                operation_id: createCoreV1Namespace
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            read:
+                operation_id: readCoreV1Namespace
+                purpose: read
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            delete:
+                operation_id: deleteCoreV1Namespace
+                purpose: delete
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+          redaction: {}
+          type: kubernetes_namespace_v1
+    version: ramen.project.v1
