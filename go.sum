@@ -35,6 +35,8 @@ github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkp
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
 github.com/genelet/horizon v1.14.3 h1:LslljqzFUCsZ0gp/lTVP/NViiAVgJhxyqx7p2WuwGL0=
 github.com/genelet/horizon v1.14.3/go.mod h1:2QIiACDXXv32d8NzxuOkES7Q+5fEHG8zbr1CMyY8BCM=
+github.com/genelet/horizon v1.14.4 h1:LDMH255c9nK7EiMNhbXRVDk9uY2vGxorTszJdpXC0+4=
+github.com/genelet/horizon v1.14.4/go.mod h1:2QIiACDXXv32d8NzxuOkES7Q+5fEHG8zbr1CMyY8BCM=
 github.com/go-test/deep v1.0.3 h1:ZrJSEWsXzPOxaZnFteGEfooLba+ju3FYIbOrS+rQd68=
 github.com/go-test/deep v1.0.3/go.mod h1:wGDj63lr65AM2AQyKZd/NYHGb0R+1RLqB8NKt3aSFNA=
 github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da h1:oI5xCqsCo564l8iNU+DwB5epxmsaqB+rhGL0m5jtYqE=

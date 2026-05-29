@@ -1,6 +1,7 @@
 package tfmapping
 
 import (
+	"sort"
 	"strings"
 )
 
@@ -65,6 +66,21 @@ type Mapping struct {
 
 type ProviderMapper interface {
 	MapObject(obj Object, purpose, action string) Mapping
+}
+
+// SupportedType describes one Terraform type that a mapper can resolve to API
+// source operations, and which object kinds it supports.
+type SupportedType struct {
+	Provider string   `json:"provider"`
+	Type     string   `json:"type"`
+	Kinds    []string `json:"kinds"`
+}
+
+// typeLister is an optional interface a ProviderMapper may implement to report
+// the Terraform types it maps. Registry.SupportedTypes uses it to enumerate
+// coverage without callers duplicating the hardcoded mapping list.
+type typeLister interface {
+	SupportedTypes() []SupportedType
 }
 
 type RegistryOption func(*Registry)
@@ -135,6 +151,43 @@ func (r Registry) MapObject(obj Object, purpose, action string) Mapping {
 	default:
 		return unsupportedProviderMapping(obj, purpose, action, provider)
 	}
+}
+
+// SupportedTypes enumerates every Terraform type the registry can map, drawing
+// from registered provider mappers that implement typeLister and from the
+// built-in aws/google mappers for providers that are not overridden. The result
+// is deduplicated and sorted by provider then type.
+func (r Registry) SupportedTypes() []SupportedType {
+	var out []SupportedType
+	seen := map[string]bool{}
+	add := func(types []SupportedType) {
+		for _, t := range types {
+			key := t.Provider + "\x00" + t.Type
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+			out = append(out, t)
+		}
+	}
+	for _, mapper := range r.providerMappers {
+		if lister, ok := mapper.(typeLister); ok {
+			add(lister.SupportedTypes())
+		}
+	}
+	if _, ok := r.providerMappers["aws"]; !ok {
+		add(awsMapper{}.SupportedTypes())
+	}
+	if _, ok := r.providerMappers["google"]; !ok {
+		add(googleMapper{}.SupportedTypes())
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Provider != out[j].Provider {
+			return out[i].Provider < out[j].Provider
+		}
+		return out[i].Type < out[j].Type
+	})
+	return out
 }
 
 func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string) []string {
@@ -358,6 +411,19 @@ func (awsMapper) MapObject(obj Object, purpose, action string) Mapping {
 	return unsupportedActionMapping(mapping, "AWS mapping does not support this object kind, purpose, and action")
 }
 
+// SupportedTypes must track the type switch in awsMapper.MapObject.
+func (awsMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{
+		{Provider: "aws", Type: "aws_s3_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "aws", Type: "aws_s3_bucket_accelerate_configuration", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_caller_identity", Kinds: []string{"data_source"}},
+		{Provider: "aws", Type: "aws_iam_role", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_iam_role_policy", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_lambda_function", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_lambda_function_url", Kinds: []string{"resource"}},
+	}
+}
+
 type googleMapper struct{}
 
 func (googleMapper) MapObject(obj Object, purpose, action string) Mapping {
@@ -397,6 +463,13 @@ func (googleMapper) MapObject(obj Object, purpose, action string) Mapping {
 		return unsupportedActionMapping(mapping, "Google Storage bucket mapping supports read, create, update, and delete")
 	default:
 		return unsupportedTypeMapping(mapping, "Google")
+	}
+}
+
+// SupportedTypes must track the type switch in googleMapper.MapObject.
+func (googleMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{
+		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
 	}
 }
 

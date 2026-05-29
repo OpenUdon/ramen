@@ -1,0 +1,21 @@
+{
+  "version": "ramen.tfconvert.plan.v1",
+  "workflow": "terraform_conversion_draft",
+  "action": "create",
+  "steps": [
+    {
+      "address": "aws_s3_bucket.test",
+      "kind": "resource",
+      "type": "aws_s3_bucket",
+      "purpose": "create",
+      "action": "create",
+      "source_kind": "aws-smithy",
+      "source_id": "s3",
+      "source_path": "aws-smithy/s3.json",
+      "operation_id": "CreateBucket",
+      "credentials": [
+        "aws_hmac"
+      ]
+    }
+  ]
+}

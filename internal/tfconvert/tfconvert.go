@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -51,19 +52,21 @@ type APISourceInput struct {
 }
 
 type Result struct {
-	OutDir            string
-	ProjectPath       string
-	NativeProjectPath string
-	ConversionPath    string
-	MappingsPath      string
-	DiagnosticsJSON   string
-	DiagnosticsMD     string
-	ReviewPath        string
-	UWSPath           string
-	PlanJSONPath      string
-	PlanMDPath        string
-	Diagnostics       []Diagnostic
-	StrictFailed      bool
+	OutDir               string
+	ProjectPath          string
+	NativeProjectPath    string
+	ConversionPath       string
+	MappingsPath         string
+	DiagnosticsJSON      string
+	DiagnosticsMD        string
+	ReviewPath           string
+	UWSPath              string
+	NativeProjectHCLPath string
+	UWSHCLPath           string
+	PlanJSONPath         string
+	PlanMDPath           string
+	Diagnostics          []Diagnostic
+	StrictFailed         bool
 }
 
 type apiSourceStagingOwnership struct {
@@ -139,19 +142,21 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	conversion.sortAll()
 
 	result := &Result{
-		OutDir:            opts.OutDir,
-		ProjectPath:       filepath.Join(opts.OutDir, "project.md"),
-		NativeProjectPath: filepath.Join(opts.OutDir, project.DefaultFile),
-		ConversionPath:    filepath.Join(opts.OutDir, "expected", "conversion.json"),
-		MappingsPath:      filepath.Join(opts.OutDir, "expected", "mappings.json"),
-		DiagnosticsJSON:   filepath.Join(opts.OutDir, "expected", "diagnostics.json"),
-		DiagnosticsMD:     filepath.Join(opts.OutDir, "expected", "diagnostics.md"),
-		ReviewPath:        filepath.Join(opts.OutDir, "expected", "review.md"),
-		UWSPath:           filepath.Join(opts.OutDir, "workflows", "workflow.uws.yaml"),
-		PlanJSONPath:      filepath.Join(opts.OutDir, "expected", "plan.json"),
-		PlanMDPath:        filepath.Join(opts.OutDir, "expected", "plan.md"),
-		Diagnostics:       conversion.diagnostics,
-		StrictFailed:      opts.Strict && hasStrictFailure(conversion.diagnostics),
+		OutDir:               opts.OutDir,
+		ProjectPath:          filepath.Join(opts.OutDir, "project.md"),
+		NativeProjectPath:    filepath.Join(opts.OutDir, project.DefaultFile),
+		ConversionPath:       filepath.Join(opts.OutDir, "expected", "conversion.json"),
+		MappingsPath:         filepath.Join(opts.OutDir, "expected", "mappings.json"),
+		DiagnosticsJSON:      filepath.Join(opts.OutDir, "expected", "diagnostics.json"),
+		DiagnosticsMD:        filepath.Join(opts.OutDir, "expected", "diagnostics.md"),
+		ReviewPath:           filepath.Join(opts.OutDir, "expected", "review.md"),
+		UWSPath:              filepath.Join(opts.OutDir, "workflows", "workflow.uws.yaml"),
+		NativeProjectHCLPath: hclSibling(filepath.Join(opts.OutDir, project.DefaultFile)),
+		UWSHCLPath:           hclSibling(filepath.Join(opts.OutDir, "workflows", "workflow.uws.yaml")),
+		PlanJSONPath:         filepath.Join(opts.OutDir, "expected", "plan.json"),
+		PlanMDPath:           filepath.Join(opts.OutDir, "expected", "plan.md"),
+		Diagnostics:          conversion.diagnostics,
+		StrictFailed:         opts.Strict && hasStrictFailure(conversion.diagnostics),
 	}
 
 	if err := writeArtifacts(result, conversion); err != nil {
@@ -918,7 +923,7 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeFile(result.ProjectPath, renderProject(c)); err != nil {
 		return err
 	}
-	if err := writeNativeProject(result.NativeProjectPath, c); err != nil {
+	if err := writeNativeProject(result.NativeProjectPath, result.NativeProjectHCLPath, c); err != nil {
 		return err
 	}
 	diagJSON, err := json.MarshalIndent(c.diagnostics, "", "  ")
@@ -944,7 +949,7 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeFile(result.PlanMDPath, renderPlanMarkdown(c)); err != nil {
 		return err
 	}
-	if err := writeUWSDocument(result.UWSPath, c); err != nil {
+	if err := writeUWSDocument(result.UWSPath, result.UWSHCLPath, c); err != nil {
 		return err
 	}
 	return writeFile(result.ReviewPath, renderReview(c))
@@ -1352,36 +1357,149 @@ func renderPlanMarkdown(c conversionState) string {
 	return b.String()
 }
 
-func writeUWSDocument(path string, c conversionState) error {
-	doc := renderUWSDocument(c)
-	if err := doc.Validate(); err != nil {
-		return err
-	}
-	data, err := convert.MarshalYAML(doc)
-	if err != nil {
-		return err
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return err
-	}
-	return os.WriteFile(path, data, 0o644)
+func writeUWSDocument(yamlPath, hclPath string, c conversionState) error {
+	return writeDocumentFormats(renderUWSDocument(c), yamlPath, hclPath)
 }
 
-func writeNativeProject(path string, c conversionState) error {
+func writeNativeProject(yamlPath, hclPath string, c conversionState) error {
 	doc := renderUWSDocument(c)
 	doc.Info.Title = "ramen_native_project"
 	doc.Info.Description = "Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration."
+	return writeDocumentFormats(doc, yamlPath, hclPath)
+}
+
+// writeDocumentFormats validates a UWS document once and writes it as both YAML
+// and HCL so converted projects are available in either serialization.
+func writeDocumentFormats(doc *uws1.Document, yamlPath, hclPath string) error {
 	if err := doc.Validate(); err != nil {
 		return err
 	}
-	data, err := convert.MarshalYAML(doc)
+	yamlData, err := convert.MarshalYAML(doc)
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(yamlPath), 0o755); err != nil {
 		return err
 	}
-	return os.WriteFile(path, data, 0o644)
+	if err := os.WriteFile(yamlPath, yamlData, 0o644); err != nil {
+		return err
+	}
+	hclData, err := marshalDocumentHCL(doc, yamlData)
+	if err != nil {
+		return err
+	}
+	if err := os.MkdirAll(filepath.Dir(hclPath), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(hclPath, hclData, 0o644)
+}
+
+func marshalDocumentHCL(doc *uws1.Document, yamlData []byte) ([]byte, error) {
+	hclData, err := convert.MarshalHCL(doc)
+	if err != nil {
+		return nil, err
+	}
+	hclData = trimHCLTrailingWhitespace(hclData)
+	if ok, _ := hclDocumentMatchesYAML(hclData, yamlData); ok {
+		return hclData, nil
+	}
+
+	escapedDoc, err := hclEscapedDocument(doc)
+	if err != nil {
+		return nil, err
+	}
+	hclData, err = convert.MarshalHCL(escapedDoc)
+	if err != nil {
+		return nil, err
+	}
+	hclData = trimHCLTrailingWhitespace(hclData)
+	if ok, err := hclDocumentMatchesYAML(hclData, yamlData); ok {
+		return hclData, nil
+	} else if err != nil {
+		return nil, fmt.Errorf("generated UWS HCL does not parse: %w", err)
+	}
+	return nil, fmt.Errorf("generated UWS HCL does not match generated YAML")
+}
+
+func trimHCLTrailingWhitespace(data []byte) []byte {
+	lines := strings.Split(string(data), "\n")
+	for i, line := range lines {
+		lines[i] = strings.TrimRight(line, " \t")
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+func hclEscapedDocument(doc *uws1.Document) (*uws1.Document, error) {
+	data, err := json.Marshal(doc)
+	if err != nil {
+		return nil, err
+	}
+	var v any
+	if err := json.Unmarshal(data, &v); err != nil {
+		return nil, err
+	}
+	v = escapeHCLTemplateIntroducers(v)
+	data, err = json.Marshal(v)
+	if err != nil {
+		return nil, err
+	}
+	var escaped uws1.Document
+	if err := json.Unmarshal(data, &escaped); err != nil {
+		return nil, err
+	}
+	return &escaped, nil
+}
+
+func escapeHCLTemplateIntroducers(v any) any {
+	switch x := v.(type) {
+	case map[string]any:
+		for k, value := range x {
+			x[k] = escapeHCLTemplateIntroducers(value)
+		}
+		return x
+	case []any:
+		for i, value := range x {
+			x[i] = escapeHCLTemplateIntroducers(value)
+		}
+		return x
+	case string:
+		x = strings.ReplaceAll(x, "${", "$${")
+		x = strings.ReplaceAll(x, "%{", "%%{")
+		return x
+	default:
+		return v
+	}
+}
+
+func hclDocumentMatchesYAML(hclData, yamlData []byte) (bool, error) {
+	hclJSON, err := convert.HCLToJSON(hclData)
+	if err != nil {
+		return false, err
+	}
+	yamlJSON, err := convert.YAMLToJSON(yamlData)
+	if err != nil {
+		return false, err
+	}
+	var hclDoc, yamlDoc any
+	if err := json.Unmarshal(hclJSON, &hclDoc); err != nil {
+		return false, err
+	}
+	if err := json.Unmarshal(yamlJSON, &yamlDoc); err != nil {
+		return false, err
+	}
+	return reflect.DeepEqual(hclDoc, yamlDoc), nil
+}
+
+// hclSibling returns path with a .yaml/.yml suffix swapped for .hcl.
+func hclSibling(path string) string {
+	switch {
+	case strings.HasSuffix(path, ".yaml"):
+		return strings.TrimSuffix(path, ".yaml") + ".hcl"
+	case strings.HasSuffix(path, ".yml"):
+		return strings.TrimSuffix(path, ".yml") + ".hcl"
+	default:
+		return path + ".hcl"
+	}
 }
 
 func renderUWSDocument(c conversionState) *uws1.Document {

@@ -1,0 +1,619 @@
+{
+  "version": "ramen.corpus.v1",
+  "entries": [
+    {
+      "path": "aws/iam/Role/basic",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/basic"
+    },
+    {
+      "path": "aws/iam/Role/basic_v5.100.0",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/basic_v5.100.0"
+    },
+    {
+      "path": "aws/iam/Role/basic_v6.0.0",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/basic_v6.0.0"
+    },
+    {
+      "path": "aws/iam/Role/list_basic",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/list_basic"
+    },
+    {
+      "path": "aws/iam/Role/list_include_resource",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/list_include_resource"
+    },
+    {
+      "path": "aws/iam/Role/tags",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/tags"
+    },
+    {
+      "path": "aws/iam/Role/tags_defaults",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/tags_defaults"
+    },
+    {
+      "path": "aws/iam/Role/tags_ignore",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/Role/tags_ignore"
+    },
+    {
+      "path": "aws/iam/RolePolicy/basic",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy"
+      ],
+      "data_sources": [
+        "aws_iam_policy_document"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/RolePolicy/basic"
+    },
+    {
+      "path": "aws/iam/RolePolicy/basic_v6.0.0",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy"
+      ],
+      "data_sources": [
+        "aws_iam_policy_document"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/RolePolicy/basic_v6.0.0"
+    },
+    {
+      "path": "aws/iam/RolePolicy/list_basic",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/RolePolicy/list_basic"
+    },
+    {
+      "path": "aws/iam/RolePolicy/list_include_resource",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource"
+    },
+    {
+      "path": "aws/lambda/Function/basic",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/basic"
+    },
+    {
+      "path": "aws/lambda/Function/basic_v6.7.0",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/basic_v6.7.0"
+    },
+    {
+      "path": "aws/lambda/Function/basic_v6.8.0",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/basic_v6.8.0"
+    },
+    {
+      "path": "aws/lambda/Function/list_basic",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/list_basic"
+    },
+    {
+      "path": "aws/lambda/Function/list_include_resource",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/list_include_resource"
+    },
+    {
+      "path": "aws/lambda/Function/list_region_override",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/list_region_override"
+    },
+    {
+      "path": "aws/lambda/Function/region_override",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/region_override"
+    },
+    {
+      "path": "aws/lambda/Function/tags",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/tags"
+    },
+    {
+      "path": "aws/lambda/Function/tags_defaults",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/tags_defaults"
+    },
+    {
+      "path": "aws/lambda/Function/tags_ignore",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/Function/tags_ignore"
+    },
+    {
+      "path": "aws/s3/Bucket/basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/basic"
+    },
+    {
+      "path": "aws/s3/Bucket/basic_v5.100.0",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/basic_v5.100.0"
+    },
+    {
+      "path": "aws/s3/Bucket/basic_v6.0.0",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/basic_v6.0.0"
+    },
+    {
+      "path": "aws/s3/Bucket/list_basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/list_basic"
+    },
+    {
+      "path": "aws/s3/Bucket/list_include_resource",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/list_include_resource"
+    },
+    {
+      "path": "aws/s3/Bucket/list_region_override",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/list_region_override"
+    },
+    {
+      "path": "aws/s3/Bucket/namespace_account-regional_name_generated",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_generated"
+    },
+    {
+      "path": "aws/s3/Bucket/namespace_account-regional_name_prefix",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_prefix"
+    },
+    {
+      "path": "aws/s3/Bucket/namespace_global",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/namespace_global"
+    },
+    {
+      "path": "aws/s3/Bucket/region_override",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/region_override"
+    },
+    {
+      "path": "aws/s3/Bucket/tags",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/tags"
+    },
+    {
+      "path": "aws/s3/Bucket/tags_defaults",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/tags_defaults"
+    },
+    {
+      "path": "aws/s3/Bucket/tags_ignore",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/Bucket/tags_ignore"
+    }
+  ]
+}

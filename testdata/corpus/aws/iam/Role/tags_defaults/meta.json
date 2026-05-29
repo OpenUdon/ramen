@@ -1,0 +1,17 @@
+{
+  "path": "aws/iam/Role/tags_defaults",
+  "service": "iam",
+  "resource_types": [
+    "aws_iam_role"
+  ],
+  "data_sources": [
+    "aws_partition"
+  ],
+  "smithy_models": [
+    {
+      "id": "iam",
+      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+    }
+  ],
+  "source_dir": "internal/service/iam/testdata/Role/tags_defaults"
+}
