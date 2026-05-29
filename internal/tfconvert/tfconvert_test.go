@@ -507,6 +507,89 @@ resource "aws_iam_role" "role" {
 	}
 }
 
+func TestConvertAWSS3BucketVersioningNestsDottedTerraformAttributes(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	openAPIPath := filepath.Join(root, "s3.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_s3_bucket" "test" {
+  bucket = "tf-acc-openudon-bucket-versioning"
+}
+
+resource "aws_s3_bucket_versioning" "test" {
+  bucket = aws_s3_bucket.test.bucket
+
+  versioning_configuration {
+    status = "Enabled"
+  }
+}
+`)
+	writeFileForTest(t, openAPIPath, s3OpenAPIForTest())
+
+	result, err := Convert(context.Background(), Options{
+		ConfigDir: configDir,
+		OpenAPIs:  []OpenAPIInput{{ID: "s3", Path: openAPIPath}},
+		Action:    "create",
+		OutDir:    filepath.Join(root, "out"),
+		Strict:    true,
+	})
+	if err != nil {
+		t.Fatalf("Convert returned error: %v", err)
+	}
+	uws := readUWSDocForTest(t, result.UWSPath)
+	op := operationBySourceIDForTest(t, uws, "PutBucketVersioning")
+	body, ok := op.Request["body"].(map[string]any)
+	if !ok {
+		t.Fatalf("PutBucketVersioning body missing: %#v", op.Request)
+	}
+	config, ok := body["VersioningConfiguration"].(map[string]any)
+	if !ok {
+		t.Fatalf("PutBucketVersioning body did not nest versioning configuration: %#v", body)
+	}
+	if got := config["Status"]; got != `"Enabled"` {
+		t.Fatalf("unexpected versioning status binding: %#v", got)
+	}
+	nativeDoc, err := project.Load(result.NativeProjectPath)
+	if err != nil {
+		t.Fatalf("load native project: %v", err)
+	}
+	var versioning *project.Resource
+	for i := range nativeDoc.Profile.Resources {
+		if nativeDoc.Profile.Resources[i].Type == "aws_s3_bucket_versioning" {
+			versioning = &nativeDoc.Profile.Resources[i]
+			break
+		}
+	}
+	if versioning == nil {
+		t.Fatalf("native project missing bucket versioning resource: %#v", nativeDoc.Profile.Resources)
+	}
+	nested, ok := versioning.Attributes["versioning_configuration"].(map[string]any)
+	if !ok || nested["status"] != `"Enabled"` {
+		t.Fatalf("native project did not nest dotted Terraform attributes: %#v", versioning.Attributes)
+	}
+}
+
+func TestSetRequestBindingNestsDottedBodyKeys(t *testing.T) {
+	path := map[string]any{}
+	query := map[string]any{}
+	header := map[string]any{}
+	cookie := map[string]any{}
+	body := map[string]any{}
+
+	setRequestBinding("body", "PublicAccessBlockConfiguration.BlockPublicPolicy", false, path, query, header, cookie, body)
+
+	config, ok := body["PublicAccessBlockConfiguration"].(map[string]any)
+	if !ok {
+		t.Fatalf("expected nested body configuration, got %#v", body)
+	}
+	if got := config["BlockPublicPolicy"]; got != false {
+		t.Fatalf("unexpected nested body value: %#v", got)
+	}
+	if _, ok := body["PublicAccessBlockConfiguration.BlockPublicPolicy"]; ok {
+		t.Fatalf("body retained flat dotted key: %#v", body)
+	}
+}
+
 func TestConvertGoogleStorageBucketUsesNativeDiscoverySource(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
@@ -1258,6 +1341,29 @@ paths:
           description: ok
     put:
       operationId: PutBucketAccelerateConfiguration
+      parameters:
+        - name: Bucket
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+  /{Bucket}#versioning:
+    get:
+      operationId: GetBucketVersioning
+      parameters:
+        - name: Bucket
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+    put:
+      operationId: PutBucketVersioning
       parameters:
         - name: Bucket
           in: path

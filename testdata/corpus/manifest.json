@@ -204,6 +204,41 @@
       "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource"
     },
     {
+      "path": "aws/iam/tmpl/role_basic",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/tmpl/role_basic.gtpl"
+    },
+    {
+      "path": "aws/iam/tmpl/role_policy_basic",
+      "service": "iam",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy"
+      ],
+      "data_sources": [
+        "aws_iam_policy_document"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/iam/testdata/tmpl/role_policy_basic.gtpl"
+    },
+    {
       "path": "aws/lambda/Function/basic",
       "service": "lambda",
       "resource_types": [
@@ -434,6 +469,29 @@
       "source_dir": "internal/service/lambda/testdata/Function/tags_ignore"
     },
     {
+      "path": "aws/lambda/tmpl/function_basic",
+      "service": "lambda",
+      "resource_types": [
+        "aws_iam_role",
+        "aws_iam_role_policy",
+        "aws_lambda_function"
+      ],
+      "data_sources": [
+        "aws_partition"
+      ],
+      "smithy_models": [
+        {
+          "id": "iam",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+        },
+        {
+          "id": "lambda",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/lambda/testdata/tmpl/function_basic.gtpl"
+    },
+    {
       "path": "aws/s3/Bucket/basic",
       "service": "s3",
       "resource_types": [
@@ -614,6 +672,230 @@
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/tags_ignore"
+    },
+    {
+      "path": "aws/s3/BucketPublicAccessBlock/basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_public_access_block"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic"
+    },
+    {
+      "path": "aws/s3/BucketPublicAccessBlock/basic_v6.9.0",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_public_access_block"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic_v6.9.0"
+    },
+    {
+      "path": "aws/s3/BucketPublicAccessBlock/list_basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_public_access_block"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_basic"
+    },
+    {
+      "path": "aws/s3/BucketPublicAccessBlock/list_region_override",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_public_access_block"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_region_override"
+    },
+    {
+      "path": "aws/s3/BucketPublicAccessBlock/region_override",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_public_access_block"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/basic_v6.30.0",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.30.0"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/basic_v6.9.0",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.9.0"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/list_basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_basic"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/list_include_resource",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/list_region_override",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_region_override"
+    },
+    {
+      "path": "aws/s3/BucketVersioning/region_override",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/region_override"
+    },
+    {
+      "path": "aws/s3/tmpl/bucket_basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/tmpl/bucket_basic.gtpl"
+    },
+    {
+      "path": "aws/s3/tmpl/bucket_public_access_block_basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_public_access_block"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/tmpl/bucket_public_access_block_basic.gtpl"
+    },
+    {
+      "path": "aws/s3/tmpl/bucket_versioning_basic",
+      "service": "s3",
+      "resource_types": [
+        "aws_s3_bucket",
+        "aws_s3_bucket_versioning"
+      ],
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+        }
+      ],
+      "source_dir": "internal/service/s3/testdata/tmpl/bucket_versioning_basic.gtpl"
     }
   ]
 }

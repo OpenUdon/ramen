@@ -53,6 +53,22 @@ func TestDefaultRegistryIdentityAttributes(t *testing.T) {
 		ResponsePaths: []string{"name", "id"},
 		Required:      true,
 	})
+
+	s3Config := registry.MapObject(Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, "create", "create")
+	assertIdentity(t, s3Config.IdentityAttributes, IdentityAttribute{
+		Name:          "bucket",
+		TerraformPath: "bucket",
+		RequestKeys:   []string{"Bucket"},
+		Required:      true,
+	})
+
+	s3Versioning := registry.MapObject(Object{Kind: "resource", Type: "aws_s3_bucket_versioning"}, "create", "create")
+	assertIdentity(t, s3Versioning.IdentityAttributes, IdentityAttribute{
+		Name:          "bucket",
+		TerraformPath: "bucket",
+		RequestKeys:   []string{"Bucket"},
+		Required:      true,
+	})
 }
 
 func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
@@ -68,6 +84,13 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "iam create", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "create", action: "create", operation: "POST_CreateRole"},
 		{name: "iam update", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "update", action: "update", operation: "POST_UpdateRole"},
 		{name: "iam delete", obj: Object{Kind: "resource", Type: "aws_iam_role"}, purpose: "delete", action: "delete", operation: "POST_DeleteRole"},
+		{name: "s3 public access block create", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "create", action: "create", operation: "PutPublicAccessBlock"},
+		{name: "s3 public access block read", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "read", action: "read", operation: "GetPublicAccessBlock"},
+		{name: "s3 public access block update", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "update", action: "update", operation: "PutPublicAccessBlock"},
+		{name: "s3 public access block delete", obj: Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block"}, purpose: "delete", action: "delete", operation: "DeletePublicAccessBlock"},
+		{name: "s3 bucket versioning create", obj: Object{Kind: "resource", Type: "aws_s3_bucket_versioning"}, purpose: "create", action: "create", operation: "PutBucketVersioning"},
+		{name: "s3 bucket versioning read", obj: Object{Kind: "resource", Type: "aws_s3_bucket_versioning"}, purpose: "read", action: "read", operation: "GetBucketVersioning"},
+		{name: "s3 bucket versioning update", obj: Object{Kind: "resource", Type: "aws_s3_bucket_versioning"}, purpose: "update", action: "update", operation: "PutBucketVersioning"},
 		{name: "bucket read", obj: Object{Kind: "resource", Type: "google_storage_bucket"}, purpose: "read", action: "read", operation: "storage.buckets.get"},
 		{name: "bucket create", obj: Object{Kind: "resource", Type: "google_storage_bucket"}, purpose: "create", action: "create", operation: "storage.buckets.insert"},
 		{name: "bucket update", obj: Object{Kind: "resource", Type: "google_storage_bucket"}, purpose: "update", action: "update", operation: "storage.buckets.patch"},
@@ -147,6 +170,14 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "aws_s3_bucket", Provider: "provider.aws"}, APISourceKindOpenAPI, "CreateBucket", "bucket")
 	if len(keys) != 1 || keys[0] != "Bucket" {
 		t.Fatalf("unexpected S3 request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "aws_s3_bucket_public_access_block", Provider: "provider.aws"}, APISourceKindAWSSmithy, "PutPublicAccessBlock", "block_public_policy")
+	if len(keys) != 1 || keys[0] != "PublicAccessBlockConfiguration.BlockPublicPolicy" {
+		t.Fatalf("unexpected S3 public access block request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "aws_s3_bucket_versioning", Provider: "provider.aws"}, APISourceKindAWSSmithy, "PutBucketVersioning", "versioning_configuration.status")
+	if len(keys) != 1 || keys[0] != "VersioningConfiguration.Status" {
+		t.Fatalf("unexpected S3 bucket versioning request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "google_storage_bucket", Provider: "provider.google"}, APISourceKindGoogleDiscovery, "storage.buckets.patch", "name")
 	if len(keys) != 1 || keys[0] != "bucket" {

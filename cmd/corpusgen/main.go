@@ -21,6 +21,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"text/template"
 
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	"github.com/OpenUdon/ramen/tfmapping"
@@ -82,6 +83,7 @@ type stats struct {
 	droppedNoModel     int
 	droppedDiagnostics int
 	droppedHCL         int
+	droppedTemplate    int
 	emitted            int
 	perService         map[string]int
 }
@@ -138,13 +140,13 @@ func run(providerDir, smithyDir, outDir, action string) error {
 		}
 		st.servicesScanned++
 		testdata := filepath.Join(providerDir, "internal", "service", svc, "testdata")
-		dirs, err := configDirs(testdata)
+		inputs, err := configInputs(testdata)
 		if err != nil {
 			return err
 		}
-		for _, dir := range dirs {
+		for _, input := range inputs {
 			meta, emitted, err := processConfigDir(ctx, processArgs{
-				configDir:       dir,
+				input:           input,
 				service:         svc,
 				providerDir:     providerDir,
 				outDir:          outDir,
@@ -178,7 +180,7 @@ func run(providerDir, smithyDir, outDir, action string) error {
 }
 
 type processArgs struct {
-	configDir       string
+	input           configInput
 	service         string
 	providerDir     string
 	outDir          string
@@ -190,8 +192,12 @@ type processArgs struct {
 
 func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta, bool, error) {
 	st.configsConsidered++
-	resources, datas, err := extractTypes(a.configDir)
+	rendered, resources, datas, err := prepareInput(a.input)
 	if err != nil {
+		if a.input.Template {
+			st.droppedTemplate++
+			return entryMeta{}, false, nil
+		}
 		return entryMeta{}, false, err
 	}
 	if len(resources) == 0 {
@@ -210,18 +216,14 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 		return entryMeta{}, false, nil
 	}
 
-	rel, err := relUnderTestdata(a.providerDir, a.service, a.configDir)
-	if err != nil {
-		return entryMeta{}, false, err
-	}
-	entryRel := filepath.Join("aws", a.service, rel)
+	entryRel := filepath.Join("aws", a.service, a.input.EntryRel)
 	entryDir := filepath.Join(a.outDir, entryRel)
 
 	// Copy the input first and convert from the corpus input directory so the
 	// config_dir recorded in the generated project matches what the regression
 	// test reproduces (it converts from this same path).
 	inputDir := filepath.Join(entryDir, "input")
-	if err := copyInputFiles(a.configDir, inputDir); err != nil {
+	if err := copyInputFiles(a.input, rendered, inputDir); err != nil {
 		os.RemoveAll(entryDir)
 		return entryMeta{}, false, err
 	}
@@ -266,7 +268,7 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 		ResourceTypes: resources,
 		DataSources:   datas,
 		SmithyModels:  models,
-		SourceDir:     filepath.ToSlash(mustRel(a.providerDir, a.configDir)),
+		SourceDir:     filepath.ToSlash(mustRel(a.providerDir, a.input.Path)),
 	}
 	if err := writeJSON(filepath.Join(entryDir, "meta.json"), meta); err != nil {
 		return entryMeta{}, false, err
@@ -274,14 +276,17 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 	return meta, true, nil
 }
 
-func copyInputFiles(configDir, inputDir string) error {
+func copyInputFiles(input configInput, rendered []byte, inputDir string) error {
 	if err := os.RemoveAll(inputDir); err != nil {
 		return err
 	}
 	if err := os.MkdirAll(inputDir, 0o755); err != nil {
 		return err
 	}
-	tfFiles, err := filepath.Glob(filepath.Join(configDir, "*.tf"))
+	if input.Template {
+		return os.WriteFile(filepath.Join(inputDir, "main.tf"), rendered, 0o644)
+	}
+	tfFiles, err := filepath.Glob(filepath.Join(input.Path, "*.tf"))
 	if err != nil {
 		return err
 	}
@@ -429,6 +434,18 @@ func extractTypes(dir string) (resources, datas []string, err error) {
 	return sortedKeys(rset), sortedKeys(dset), nil
 }
 
+func extractTypesFromBytes(data []byte) (resources, datas []string) {
+	rset := map[string]bool{}
+	dset := map[string]bool{}
+	for _, m := range resourceRe.FindAllSubmatch(data, -1) {
+		rset[string(m[1])] = true
+	}
+	for _, m := range dataRe.FindAllSubmatch(data, -1) {
+		dset[string(m[1])] = true
+	}
+	return sortedKeys(rset), sortedKeys(dset)
+}
+
 func modelsForTypes(resources []string, serviceForType map[string]string, serviceModel map[string]string) ([]modelRef, bool) {
 	seen := map[string]bool{}
 	var out []modelRef
@@ -451,8 +468,56 @@ func modelsForTypes(resources []string, serviceForType map[string]string, servic
 	return out, true
 }
 
-func configDirs(testdata string) ([]string, error) {
-	set := map[string]bool{}
+type configInput struct {
+	Path     string
+	EntryRel string
+	Template bool
+}
+
+func prepareInput(input configInput) ([]byte, []string, []string, error) {
+	if !input.Template {
+		resources, datas, err := extractTypes(input.Path)
+		return nil, resources, datas, err
+	}
+	data, err := renderProviderTemplate(input.Path)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	resources, datas := extractTypesFromBytes(data)
+	return data, resources, datas, nil
+}
+
+func renderProviderTemplate(path string) ([]byte, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	const harnessTemplates = `{{ define "region" }}{{ end }}{{ define "tags" }}{{ end }}{{ define "acctest.ConfigAvailableAZsNoOptInExclude" }}{{ end }}`
+	tmpl, err := template.New(filepath.Base(path)).Option("missingkey=error").Parse(harnessTemplates + string(data))
+	if err != nil {
+		return nil, err
+	}
+	var b strings.Builder
+	if err := tmpl.Execute(&b, map[string]any{}); err != nil {
+		return nil, err
+	}
+	out := strings.TrimLeft(b.String(), "\n")
+	if strings.Contains(out, "var.rName") && !strings.Contains(out, `variable "rName"`) {
+		out += `
+
+variable "rName" {
+  description = "Name for resource"
+  type        = string
+  nullable    = false
+}
+`
+	}
+	return []byte(out), nil
+}
+
+func configInputs(testdata string) ([]configInput, error) {
+	static := map[string]bool{}
+	templates := map[string]string{}
 	err := filepath.WalkDir(testdata, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -463,15 +528,35 @@ func configDirs(testdata string) ([]string, error) {
 		if d.IsDir() {
 			return nil
 		}
-		if name := d.Name(); name == "main_gen.tf" || name == "main.tf" {
-			set[filepath.Dir(path)] = true
+		switch name := d.Name(); {
+		case name == "main_gen.tf" || name == "main.tf":
+			static[filepath.Dir(path)] = true
+		case strings.HasSuffix(name, ".gtpl"):
+			rel, err := filepath.Rel(testdata, path)
+			if err != nil {
+				return err
+			}
+			entryRel := strings.TrimSuffix(filepath.ToSlash(rel), ".gtpl")
+			templates[entryRel] = path
 		}
 		return nil
 	})
 	if err != nil {
 		return nil, err
 	}
-	return sortedKeys(set), nil
+	var out []configInput
+	for _, path := range sortedKeys(static) {
+		rel, err := filepath.Rel(testdata, path)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, configInput{Path: path, EntryRel: filepath.ToSlash(rel)})
+	}
+	for _, entryRel := range sortedKeys(templates) {
+		out = append(out, configInput{Path: templates[entryRel], EntryRel: entryRel, Template: true})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EntryRel < out[j].EntryRel })
+	return out, nil
 }
 
 func serviceForResourceType(t string) string {
@@ -491,15 +576,6 @@ func findSmithyModel(dir, svc string) (string, bool) {
 		}
 	}
 	return "", false
-}
-
-func relUnderTestdata(providerDir, svc, configDir string) (string, error) {
-	base := filepath.Join(providerDir, "internal", "service", svc, "testdata")
-	rel, err := filepath.Rel(base, configDir)
-	if err != nil {
-		return "", err
-	}
-	return rel, nil
 }
 
 func mustRel(base, path string) string {
@@ -546,13 +622,14 @@ func writeCoverage(outDir string, st *stats, registry tfmapping.Registry) error 
 	b.WriteString("Generated by `go run ./cmd/corpusgen`. Do not edit by hand.\n\n")
 	b.WriteString("## Summary\n\n")
 	fmt.Fprintf(&b, "- services scanned: %d\n", st.servicesScanned)
-	fmt.Fprintf(&b, "- config dirs considered: %d\n", st.configsConsidered)
+	fmt.Fprintf(&b, "- config inputs considered: %d\n", st.configsConsidered)
 	fmt.Fprintf(&b, "- clean entries emitted: %d\n", st.emitted)
 	fmt.Fprintf(&b, "- dropped (no managed resource): %d\n", st.droppedNoResource)
 	fmt.Fprintf(&b, "- dropped (unsupported resource type): %d\n", st.droppedUnsupported)
 	fmt.Fprintf(&b, "- dropped (no Smithy model for a needed service): %d\n", st.droppedNoModel)
 	fmt.Fprintf(&b, "- dropped (fallback/unsupported/error diagnostics): %d\n", st.droppedDiagnostics)
 	fmt.Fprintf(&b, "- dropped (HCL round-trip not yet clean): %d\n", st.droppedHCL)
+	fmt.Fprintf(&b, "- dropped (template render failed): %d\n", st.droppedTemplate)
 	if len(st.servicesNoModel) > 0 {
 		fmt.Fprintf(&b, "- mapped services without a local Smithy model: %s\n", strings.Join(st.servicesNoModel, ", "))
 	}
@@ -573,9 +650,9 @@ func writeCoverage(outDir string, st *stats, registry tfmapping.Registry) error 
 }
 
 func printSummary(st *stats) {
-	fmt.Printf("corpusgen: emitted=%d considered=%d services=%d dropped(unsupported=%d no-resource=%d no-model=%d diagnostics=%d hcl=%d)\n",
+	fmt.Printf("corpusgen: emitted=%d considered=%d services=%d dropped(unsupported=%d no-resource=%d no-model=%d diagnostics=%d hcl=%d template=%d)\n",
 		st.emitted, st.configsConsidered, st.servicesScanned,
-		st.droppedUnsupported, st.droppedNoResource, st.droppedNoModel, st.droppedDiagnostics, st.droppedHCL)
+		st.droppedUnsupported, st.droppedNoResource, st.droppedNoModel, st.droppedDiagnostics, st.droppedHCL, st.droppedTemplate)
 }
 
 func contains(list []string, v string) bool {

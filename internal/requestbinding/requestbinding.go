@@ -28,7 +28,7 @@ func Build(opts Options) map[string]any {
 			continue
 		}
 		for _, requestKey := range registry.RequestKeys(opts.Object, opts.SourceKind, opts.OperationID, attrPath) {
-			set(body, requestKey, value)
+			setBody(body, requestKey, value)
 		}
 	}
 	for _, identity := range opts.Identities {
@@ -41,7 +41,7 @@ func Build(opts Options) map[string]any {
 			requestKeys = identity.RequestKeys
 		}
 		for _, requestKey := range requestKeys {
-			set(body, requestKey, value)
+			setBody(body, requestKey, value)
 		}
 	}
 	static := registry.StaticRequestBindings(opts.Object, opts.SourceID, opts.SourcePath, opts.OperationID)
@@ -49,7 +49,7 @@ func Build(opts Options) map[string]any {
 		static = registry.StaticRequestBindings(opts.Object, opts.SourceID, opts.SourcePath, "POST_"+opts.OperationID)
 	}
 	for requestKey, value := range static {
-		set(query, requestKey, value)
+		setFlat(query, requestKey, value)
 	}
 	request := map[string]any{}
 	if opts.Extension != "" && len(opts.Metadata) > 0 {
@@ -64,13 +64,47 @@ func Build(opts Options) map[string]any {
 	return request
 }
 
-func set(target map[string]any, key string, value any) {
+func setFlat(target map[string]any, key string, value any) {
 	key = strings.TrimSpace(key)
 	if key == "" {
 		return
 	}
 	if _, ok := target[key]; !ok {
 		target[key] = value
+	}
+}
+
+func setBody(target map[string]any, key string, value any) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return
+	}
+	parts := strings.Split(key, ".")
+	current := target
+	for _, part := range parts[:len(parts)-1] {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return
+		}
+		next, ok := current[part]
+		if !ok {
+			nested := map[string]any{}
+			current[part] = nested
+			current = nested
+			continue
+		}
+		nested, ok := next.(map[string]any)
+		if !ok {
+			return
+		}
+		current = nested
+	}
+	last := strings.TrimSpace(parts[len(parts)-1])
+	if last == "" {
+		return
+	}
+	if _, ok := current[last]; !ok {
+		current[last] = value
 	}
 }
 

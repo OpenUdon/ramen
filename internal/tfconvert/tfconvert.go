@@ -1644,7 +1644,7 @@ func attributesMap(attrs []attributeFact) map[string]any {
 		if strings.TrimSpace(attr.Path) == "" {
 			continue
 		}
-		out[attr.Path] = attr.Value
+		setDottedMapValue(out, attr.Path, attr.Value)
 	}
 	return out
 }
@@ -1731,7 +1731,7 @@ func operationRequest(mapping objectMapping) map[string]any {
 		if strings.TrimSpace(attr.Path) == "" {
 			continue
 		}
-		terraformAttrs[attr.Path] = attr.Value
+		setDottedMapValue(terraformAttrs, attr.Path, attr.Value)
 		for _, requestKey := range terraformAPIRequestKeys(mapping, attr.Path) {
 			setRequestBinding(requestLocationForKey(mapping.Operation, requestKey), requestKey, attr.Value, path, query, header, cookie, body)
 		}
@@ -1801,9 +1801,40 @@ func setRequestBinding(location, key string, value any, path, query, header, coo
 			cookie[key] = value
 		}
 	default:
-		if _, ok := body[key]; !ok {
-			body[key] = value
+		setBodyRequestBinding(body, key, value)
+	}
+}
+
+func setBodyRequestBinding(body map[string]any, key string, value any) {
+	setDottedMapValue(body, key, value)
+}
+
+func setDottedMapValue(target map[string]any, key string, value any) {
+	parts := strings.Split(key, ".")
+	for _, part := range parts[:len(parts)-1] {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return
 		}
+		next, ok := target[part]
+		if !ok {
+			nested := map[string]any{}
+			target[part] = nested
+			target = nested
+			continue
+		}
+		nested, ok := next.(map[string]any)
+		if !ok {
+			return
+		}
+		target = nested
+	}
+	last := strings.TrimSpace(parts[len(parts)-1])
+	if last == "" {
+		return
+	}
+	if _, ok := target[last]; !ok {
+		target[last] = value
 	}
 }
 

@@ -209,6 +209,28 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 			case "status":
 				return []string{"Status"}
 			}
+		case "PutPublicAccessBlock", "GetPublicAccessBlock", "DeletePublicAccessBlock":
+			switch attrPath {
+			case "bucket":
+				return []string{"Bucket"}
+			case "block_public_acls":
+				return []string{"PublicAccessBlockConfiguration.BlockPublicAcls"}
+			case "block_public_policy":
+				return []string{"PublicAccessBlockConfiguration.BlockPublicPolicy"}
+			case "ignore_public_acls":
+				return []string{"PublicAccessBlockConfiguration.IgnorePublicAcls"}
+			case "restrict_public_buckets":
+				return []string{"PublicAccessBlockConfiguration.RestrictPublicBuckets"}
+			}
+		case "PutBucketVersioning", "GetBucketVersioning":
+			switch attrPath {
+			case "bucket":
+				return []string{"Bucket"}
+			case "versioning_configuration.status", "versioning_configuration.0.status":
+				return []string{"VersioningConfiguration.Status"}
+			case "versioning_configuration.mfa_delete", "versioning_configuration.0.mfa_delete":
+				return []string{"VersioningConfiguration.MFADelete"}
+			}
 		case "GetBucketLocation", "HeadBucket":
 			if attrPath == "bucket" {
 				return []string{"Bucket"}
@@ -341,6 +363,10 @@ func (awsMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = awsOperationTarget("s3", "PutBucketAccelerateConfiguration")
 			return mapping
 		}
+	case "aws_s3_bucket_public_access_block":
+		return s3BucketConfigurationMapping(mapping, purpose, action, "PutPublicAccessBlock", "GetPublicAccessBlock", "DeletePublicAccessBlock")
+	case "aws_s3_bucket_versioning":
+		return s3BucketVersioningMapping(mapping, purpose, action)
 	case "aws_caller_identity":
 		if obj.Kind == "data_source" && purpose == "read" {
 			mapping.Target = awsOperationTarget("sts", "POST_GetCallerIdentity")
@@ -416,11 +442,60 @@ func (awsMapper) SupportedTypes() []SupportedType {
 	return []SupportedType{
 		{Provider: "aws", Type: "aws_s3_bucket", Kinds: []string{"resource", "data_source"}},
 		{Provider: "aws", Type: "aws_s3_bucket_accelerate_configuration", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_s3_bucket_public_access_block", Kinds: []string{"resource"}},
+		{Provider: "aws", Type: "aws_s3_bucket_versioning", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_caller_identity", Kinds: []string{"data_source"}},
 		{Provider: "aws", Type: "aws_iam_role", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_iam_role_policy", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_lambda_function", Kinds: []string{"resource"}},
 		{Provider: "aws", Type: "aws_lambda_function_url", Kinds: []string{"resource"}},
+	}
+}
+
+func s3BucketVersioningMapping(mapping Mapping, purpose, action string) Mapping {
+	if mapping.Object.Kind != "resource" {
+		return unsupportedActionMapping(mapping, "AWS S3 bucket versioning mapping supports managed resources")
+	}
+	mapping.IdentityAttributes = []IdentityAttribute{{
+		Name:          "bucket",
+		TerraformPath: "bucket",
+		RequestKeys:   []string{"Bucket"},
+		Required:      true,
+	}}
+	switch {
+	case (purpose == "create" || purpose == "update") && (action == "create" || action == "update" || action == "replace"):
+		mapping.Target = awsOperationTarget("s3", "PutBucketVersioning")
+		return mapping
+	case purpose == "read":
+		mapping.Target = awsOperationTarget("s3", "GetBucketVersioning")
+		return mapping
+	default:
+		return unsupportedActionMapping(mapping, "AWS S3 bucket versioning mapping supports read, create, and update; delete requires a semantic suspend mapping")
+	}
+}
+
+func s3BucketConfigurationMapping(mapping Mapping, purpose, action, putOperation, getOperation, deleteOperation string) Mapping {
+	if mapping.Object.Kind != "resource" {
+		return unsupportedActionMapping(mapping, "AWS S3 bucket configuration mapping supports managed resources")
+	}
+	mapping.IdentityAttributes = []IdentityAttribute{{
+		Name:          "bucket",
+		TerraformPath: "bucket",
+		RequestKeys:   []string{"Bucket"},
+		Required:      true,
+	}}
+	switch {
+	case (purpose == "create" || purpose == "update") && (action == "create" || action == "update" || action == "replace"):
+		mapping.Target = awsOperationTarget("s3", putOperation)
+		return mapping
+	case purpose == "read":
+		mapping.Target = awsOperationTarget("s3", getOperation)
+		return mapping
+	case purpose == "delete":
+		mapping.Target = awsOperationTarget("s3", deleteOperation)
+		return mapping
+	default:
+		return unsupportedActionMapping(mapping, "AWS S3 bucket configuration mapping supports read, create, update, and delete")
 	}
 }
 

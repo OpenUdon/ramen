@@ -1,0 +1,15 @@
+{
+  "path": "aws/s3/BucketPublicAccessBlock/basic",
+  "service": "s3",
+  "resource_types": [
+    "aws_s3_bucket",
+    "aws_s3_bucket_public_access_block"
+  ],
+  "smithy_models": [
+    {
+      "id": "s3",
+      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+    }
+  ],
+  "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic"
+}
