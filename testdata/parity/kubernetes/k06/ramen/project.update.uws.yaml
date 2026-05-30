@@ -1,0 +1,118 @@
+info:
+    description: K06 Kubernetes Secret updated desired-state provider parity fixture.
+    title: ramen_kubernetes_k06_secret_update_parity
+    version: 1.0.0
+operations:
+    - description: Create the K06 Secret.
+      operationId: kubernetes_secret_v1_k06_update_create
+      sourceDescription: core
+      sourceOperationId: createCoreV1NamespacedSecret
+    - description: Read the K06 Secret.
+      operationId: kubernetes_secret_v1_k06_update_read
+      sourceDescription: core
+      sourceOperationId: readCoreV1NamespacedSecret
+    - description: Replace the K06 Secret.
+      operationId: kubernetes_secret_v1_k06_update_update
+      sourceDescription: core
+      sourceOperationId: replaceCoreV1NamespacedSecret
+    - description: Delete the K06 Secret.
+      operationId: kubernetes_secret_v1_k06_update_delete
+      sourceDescription: core
+      sourceOperationId: deleteCoreV1NamespacedSecret
+sourceDescriptions:
+    - name: core
+      type: openapi
+      url: ../openapi/core.json
+uws: 1.4.0
+workflows:
+    - description: Exercise update, no-op, and destroy through Ramen.
+      steps:
+        - operationRef: kubernetes_secret_v1_k06_update_create
+          stepId: create
+        - operationRef: kubernetes_secret_v1_k06_update_read
+          stepId: read
+        - operationRef: kubernetes_secret_v1_k06_update_update
+          stepId: update
+        - operationRef: kubernetes_secret_v1_k06_update_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: core
+          kind: openapi
+          path: ../openapi/core.json
+    metadata:
+        source: K06 Kubernetes provider parity fixture
+    redaction:
+        paths:
+            - kubernetes_secret_v1.k06_secret.string_data.sample
+            - kubernetes_secret_v1.k06_secret.data.sample
+    resources:
+        - address: kubernetes_secret_v1.k06_secret
+          attributes:
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k06
+                name: ramen-parity-k06-sample
+                namespace: ramen-parity-k06-namespace
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k06
+            metadata.name: ramen-parity-k06-sample
+            metadata.namespace: ramen-parity-k06-namespace
+            string_data:
+                sample: k06-update-value
+            type: Opaque
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_secret_v1
+          name: k06_secret
+          operations:
+            create:
+                operation_id: createCoreV1NamespacedSecret
+                purpose: create
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            read:
+                operation_id: readCoreV1NamespacedSecret
+                purpose: read
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            update:
+                operation_id: replaceCoreV1NamespacedSecret
+                purpose: update
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+            delete:
+                operation_id: deleteCoreV1NamespacedSecret
+                purpose: delete
+                source_id: core
+                source_kind: openapi
+                source_path: ../openapi/core.json
+          redaction:
+            paths:
+                - string_data.sample
+                - data.sample
+          type: kubernetes_secret_v1
+    version: ramen.project.v1

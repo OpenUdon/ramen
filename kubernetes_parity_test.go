@@ -28,7 +28,7 @@ const (
 	kubernetesProviderVersion    = "3.1.0"
 )
 
-var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05"}
+var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06"}
 
 type kubernetesParityArtifact struct {
 	Version          string                     `json:"version"`
@@ -89,6 +89,7 @@ type kubernetesParityRuntimeObservation struct {
 	ConfigMapName                      string                                     `json:"config_map_name,omitempty"`
 	ServiceAccountName                 string                                     `json:"service_account_name,omitempty"`
 	RoleName                           string                                     `json:"role_name,omitempty"`
+	SecretName                         string                                     `json:"secret_name,omitempty"`
 	AfterApply                         kubernetesParityObservation                `json:"after_apply"`
 	NoOpPlan                           *kubernetesParityNoOpObservation           `json:"no_op_plan,omitempty"`
 	AfterDestroy                       *kubernetesParityObservation               `json:"after_destroy,omitempty"`
@@ -104,6 +105,9 @@ type kubernetesParityRuntimeObservation struct {
 	ServiceAccountAfterCleanup         *kubernetesParityServiceAccountObservation `json:"service_account_after_cleanup,omitempty"`
 	RoleAfterApply                     *kubernetesParityRoleObservation           `json:"role_after_apply,omitempty"`
 	RoleAfterDestroy                   *kubernetesParityRoleObservation           `json:"role_after_destroy,omitempty"`
+	SecretAfterApply                   *kubernetesParitySecretObservation         `json:"secret_after_apply,omitempty"`
+	SecretAfterUpdate                  *kubernetesParitySecretObservation         `json:"secret_after_update,omitempty"`
+	SecretAfterDestroy                 *kubernetesParitySecretObservation         `json:"secret_after_destroy,omitempty"`
 }
 
 type kubernetesParityObservation struct {
@@ -138,6 +142,15 @@ type kubernetesParityRoleObservation struct {
 	Name       string                       `json:"name,omitempty"`
 	Labels     map[string]string            `json:"labels,omitempty"`
 	Rules      []kubernetesParityPolicyRule `json:"rules,omitempty"`
+}
+
+type kubernetesParitySecretObservation struct {
+	Exists    bool              `json:"exists"`
+	Namespace string            `json:"namespace,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Type      string            `json:"type,omitempty"`
+	Labels    map[string]string `json:"labels,omitempty"`
+	Data      map[string]string `json:"data,omitempty"`
 }
 
 type kubernetesParityPolicyRule struct {
@@ -205,6 +218,9 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 			if lane == "k05" {
 				assertKubernetesK05PlanFixture(t)
 			}
+			if lane == "k06" {
+				assertKubernetesK06PlanFixture(t)
+			}
 		})
 	}
 }
@@ -232,6 +248,7 @@ func TestKubernetesProviderParity(t *testing.T) {
 		{lane: "k03", run: runKubernetesK03LiveParity},
 		{lane: "k04", run: runKubernetesK04LiveParity},
 		{lane: "k05", run: runKubernetesK05LiveParity},
+		{lane: "k06", run: runKubernetesK06LiveParity},
 	}
 	selectedLane := strings.ToLower(strings.TrimSpace(os.Getenv(kubernetesParityLaneEnv)))
 	if selectedLane != "" && !slices.Contains(kubernetesParityLanes, selectedLane) {
@@ -409,6 +426,8 @@ func assertKubernetesParityLiveRecording(t *testing.T, lane, scenario string, ru
 		comparison = compareKubernetesServiceAccountParityObservations(t, recording.Observations)
 	case "k05":
 		comparison = compareKubernetesRoleParityObservations(t, recording.Observations)
+	case "k06":
+		comparison = compareKubernetesSecretParityObservations(t, recording.Observations)
 	default:
 		t.Fatalf("%s is recorded but has no semantic replay assertions", wantLane)
 	}
@@ -684,6 +703,57 @@ func runKubernetesK05LiveParity(t *testing.T, ctx context.Context, env kubernete
 		Version:      kubernetesParityArtifactV1,
 		Lane:         "K05",
 		Scenario:     "role_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runKubernetesK06LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLSecretRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLSecretRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenSecretRuntime, tool: ""},
+	}
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		namespace := "ramen-parity-k06-" + run.runtime
+		if err := validateKubernetesParityNamespace(namespace, "k06"); err != nil {
+			t.Fatalf("unsafe namespace %s: %v", namespace, err)
+		}
+		if err := deleteKubernetesParityNamespaceIfExists(ctx, env, namespace); err != nil {
+			t.Fatalf("pre-cleanup %s: %v", namespace, err)
+		}
+		t.Cleanup(func() {
+			if err := deleteKubernetesParityNamespaceIfExists(context.Background(), env, namespace); err != nil {
+				t.Logf("cleanup namespace %s: %v", namespace, err)
+			}
+		})
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K06 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesSecretParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K06",
+		Scenario:     "secret_lifecycle",
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
 		Context:      env.contextName,
 		Observations: observations,
@@ -1057,6 +1127,92 @@ func runKubernetesParityHCLRoleRuntime(ctx context.Context, t *testing.T, env ku
 	}}
 }
 
+func runKubernetesParityHCLSecretRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	namespace := "ramen-parity-k06-" + runtimeName
+	secretName := "ramen-parity-k06-sample"
+	if err := validateKubernetesParitySecretName(secretName, "k06"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := createKubernetesParityNamespace(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "namespace", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k06", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	createVars := map[string]string{
+		"kubeconfig_path": env.kubeconfig,
+		"kube_context":    env.contextName,
+		"namespace_name":  namespace,
+		"secret_name":     secretName,
+		"secret_value":    "k06-create-value",
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), createVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	namespaceAfterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	secretAfterApply, err := observeKubernetesParitySecret(ctx, env, namespace, secretName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	updateVars := map[string]string{
+		"kubeconfig_path": env.kubeconfig,
+		"kube_context":    env.contextName,
+		"namespace_name":  namespace,
+		"secret_name":     secretName,
+		"secret_value":    "k06-update-value",
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), updateVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "update", err)
+	}
+	secretAfterUpdate, err := observeKubernetesParitySecret(ctx, env, namespace, secretName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	secretAfterDestroy, err := observeKubernetesParitySecretAbsent(ctx, env, namespace, secretName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:            runtimeName,
+		Namespace:          namespace,
+		SecretName:         secretName,
+		AfterApply:         namespaceAfterApply,
+		SecretAfterApply:   &secretAfterApply,
+		SecretAfterUpdate:  &secretAfterUpdate,
+		SecretAfterDestroy: &secretAfterDestroy,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+	}}
+}
+
 func runKubernetesParityPlan(ctx context.Context, dir, tool string) (int, string, error) {
 	return runKubernetesParityPlanArgs(ctx, dir, tool, "plan", "-input=false", "-no-color", "-detailed-exitcode")
 }
@@ -1344,6 +1500,75 @@ func observeKubernetesParityRoleAbsent(ctx context.Context, env kubernetesParity
 	}
 }
 
+func observeKubernetesParitySecret(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) (kubernetesParitySecretObservation, error) {
+	if err := validateKubernetesParityNamespaceForLane(namespace); err != nil {
+		return kubernetesParitySecretObservation{}, err
+	}
+	lane, err := kubernetesParityLaneFromNamespace(namespace)
+	if err != nil {
+		return kubernetesParitySecretObservation{}, err
+	}
+	if err := validateKubernetesParitySecretName(name, lane); err != nil {
+		return kubernetesParitySecretObservation{}, err
+	}
+	out, err := runKubernetesParityKubectl(ctx, env, "get", "secret", name, "-n", namespace, "-o", "json")
+	if err != nil {
+		if isKubernetesParityNotFound(err) {
+			return kubernetesParitySecretObservation{Exists: false}, nil
+		}
+		return kubernetesParitySecretObservation{}, err
+	}
+	var doc struct {
+		Metadata struct {
+			Name      string            `json:"name"`
+			Namespace string            `json:"namespace"`
+			Labels    map[string]string `json:"labels"`
+		} `json:"metadata"`
+		Type string            `json:"type"`
+		Data map[string]string `json:"data"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return kubernetesParitySecretObservation{}, err
+	}
+	labels := map[string]string{}
+	for _, key := range []string{"app.kubernetes.io/managed-by", "ramen.openudon.dev/lane"} {
+		if value := doc.Metadata.Labels[key]; value != "" {
+			labels[key] = value
+		}
+	}
+	return kubernetesParitySecretObservation{
+		Exists:    true,
+		Namespace: doc.Metadata.Namespace,
+		Name:      doc.Metadata.Name,
+		Type:      doc.Type,
+		Labels:    labels,
+		Data:      cloneStringMap(doc.Data),
+	}, nil
+}
+
+func observeKubernetesParitySecretAbsent(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) (kubernetesParitySecretObservation, error) {
+	var last kubernetesParitySecretObservation
+	deadline := time.Now().Add(45 * time.Second)
+	for {
+		observed, err := observeKubernetesParitySecret(ctx, env, namespace, name)
+		if err != nil {
+			return kubernetesParitySecretObservation{}, err
+		}
+		last = observed
+		if !observed.Exists {
+			return observed, nil
+		}
+		if time.Now().After(deadline) {
+			return last, nil
+		}
+		select {
+		case <-ctx.Done():
+			return kubernetesParitySecretObservation{}, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
 func compareKubernetesParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
 	t.Helper()
 	if len(observations) != 3 {
@@ -1538,6 +1763,42 @@ func compareKubernetesRoleParityObservations(t *testing.T, observations []kubern
 	}
 }
 
+func compareKubernetesSecretParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	expectedLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k06",
+	}
+	expectedCreateData := map[string]string{"sample": "azA2LWNyZWF0ZS12YWx1ZQ=="}
+	expectedUpdateData := map[string]string{"sample": "azA2LXVwZGF0ZS12YWx1ZQ=="}
+	for _, observation := range observations {
+		if !observation.AfterApply.Exists {
+			t.Fatalf("%s namespace after_apply does not exist", observation.Runtime)
+		}
+		if !strings.HasPrefix(observation.Namespace, "ramen-parity-k06-") {
+			t.Fatalf("%s namespace = %q", observation.Runtime, observation.Namespace)
+		}
+		if observation.SecretName != "ramen-parity-k06-sample" {
+			t.Fatalf("%s secret_name = %q", observation.Runtime, observation.SecretName)
+		}
+		assertKubernetesSecretObservation(t, observation.Runtime+" secret_after_apply", observation.SecretAfterApply, observation.Namespace, observation.SecretName, expectedLabels, expectedCreateData)
+		assertKubernetesSecretObservation(t, observation.Runtime+" secret_after_update", observation.SecretAfterUpdate, observation.Namespace, observation.SecretName, expectedLabels, expectedUpdateData)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.SecretAfterDestroy == nil || observation.SecretAfterDestroy.Exists {
+			t.Fatalf("%s secret_after_destroy still exists: %#v", observation.Runtime, observation.SecretAfterDestroy)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"metadata.name", "metadata.namespace", "metadata.labels", "type", "data.sample", "update", "no-op", "destroy.absent"},
+	}
+}
+
 func assertKubernetesConfigMapObservation(t *testing.T, label string, observation *kubernetesParityConfigMapObservation, namespace, name string, labels, data, binaryData map[string]string) {
 	t.Helper()
 	if observation == nil || !observation.Exists {
@@ -1606,6 +1867,28 @@ func assertKubernetesRoleObservation(t *testing.T, label string, observation *ku
 	}
 	if !reflect.DeepEqual(observation.Rules, rules) {
 		t.Fatalf("%s rules = %#v, want %#v", label, observation.Rules, rules)
+	}
+}
+
+func assertKubernetesSecretObservation(t *testing.T, label string, observation *kubernetesParitySecretObservation, namespace, name string, labels, data map[string]string) {
+	t.Helper()
+	if observation == nil || !observation.Exists {
+		t.Fatalf("%s = %#v, want existing Secret", label, observation)
+	}
+	if observation.Namespace != namespace {
+		t.Fatalf("%s namespace = %q, want %q", label, observation.Namespace, namespace)
+	}
+	if observation.Name != name {
+		t.Fatalf("%s name = %q, want %q", label, observation.Name, name)
+	}
+	if observation.Type != "Opaque" {
+		t.Fatalf("%s type = %q, want Opaque", label, observation.Type)
+	}
+	if !reflect.DeepEqual(observation.Labels, labels) {
+		t.Fatalf("%s labels = %#v, want %#v", label, observation.Labels, labels)
+	}
+	if !reflect.DeepEqual(observation.Data, data) {
+		t.Fatalf("%s data = %#v, want %#v", label, observation.Data, data)
 	}
 }
 
@@ -1735,6 +2018,24 @@ func deleteKubernetesParityRoleIfExists(ctx context.Context, env kubernetesParit
 	return err
 }
 
+func deleteKubernetesParitySecretIfExists(ctx context.Context, env kubernetesParityLiveEnv, namespace, name string) error {
+	if err := validateKubernetesParityNamespaceForLane(namespace); err != nil {
+		return err
+	}
+	lane, err := kubernetesParityLaneFromNamespace(namespace)
+	if err != nil {
+		return err
+	}
+	if err := validateKubernetesParitySecretName(name, lane); err != nil {
+		return err
+	}
+	if _, err := runKubernetesParityKubectl(ctx, env, "delete", "secret", name, "-n", namespace, "--ignore-not-found=true", "--wait=true", "--timeout=30s"); err != nil {
+		return err
+	}
+	_, err = observeKubernetesParitySecretAbsent(ctx, env, namespace, name)
+	return err
+}
+
 func runKubernetesParityKubectl(ctx context.Context, env kubernetesParityLiveEnv, args ...string) ([]byte, error) {
 	fullArgs := []string{"--kubeconfig", env.kubeconfig, "--context", env.contextName}
 	fullArgs = append(fullArgs, args...)
@@ -1822,6 +2123,26 @@ func validateKubernetesParityRoleName(name, lane string) error {
 	}
 	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
 		return fmt.Errorf("Role name must not start or end with '-' or '.'")
+	}
+	return nil
+}
+
+func validateKubernetesParitySecretName(name, lane string) error {
+	prefix := "ramen-parity-" + lane + "-"
+	if !strings.HasPrefix(name, prefix) {
+		return fmt.Errorf("Secret name must use %s prefix", prefix)
+	}
+	if len(name) > 253 {
+		return fmt.Errorf("Secret name is too long")
+	}
+	for i, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' {
+			continue
+		}
+		return fmt.Errorf("Secret name contains invalid character %q at offset %d", r, i)
+	}
+	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
+		return fmt.Errorf("Secret name must not start or end with '-' or '.'")
 	}
 	return nil
 }
@@ -2027,6 +2348,12 @@ func assertKubernetesK04PlanFixture(t *testing.T) {
 func assertKubernetesK05PlanFixture(t *testing.T) {
 	t.Helper()
 	assertKubernetesRamenPlanFixture(t, "k05")
+}
+
+func assertKubernetesK06PlanFixture(t *testing.T) {
+	t.Helper()
+	assertKubernetesRamenPlanFixture(t, "k06")
+	assertKubernetesRamenPlanFixturePath(t, "K06 update", filepath.Join(kubernetesParityFixtureRoot, "k06", "ramen", "project.update.uws.yaml"))
 }
 
 func assertKubernetesRamenPlanFixture(t *testing.T, lane string) {

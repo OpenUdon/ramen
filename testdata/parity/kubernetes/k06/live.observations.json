@@ -1,0 +1,163 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K06",
+  "scenario": "secret_lifecycle",
+  "recorded_at": "2026-05-30T12:29:49Z",
+  "context": "kind-ramen-m21",
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "namespace": "ramen-parity-k06-opentofu",
+      "secret_name": "ramen-parity-k06-sample",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k06-opentofu",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "found no differences, so no changes are needed."
+      },
+      "secret_after_apply": {
+        "exists": true,
+        "namespace": "ramen-parity-k06-opentofu",
+        "name": "ramen-parity-k06-sample",
+        "type": "Opaque",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "data": {
+          "sample": "azA2LWNyZWF0ZS12YWx1ZQ=="
+        }
+      },
+      "secret_after_update": {
+        "exists": true,
+        "namespace": "ramen-parity-k06-opentofu",
+        "name": "ramen-parity-k06-sample",
+        "type": "Opaque",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "data": {
+          "sample": "azA2LXVwZGF0ZS12YWx1ZQ=="
+        }
+      },
+      "secret_after_destroy": {
+        "exists": false
+      }
+    },
+    {
+      "runtime": "terraform",
+      "namespace": "ramen-parity-k06-terraform",
+      "secret_name": "ramen-parity-k06-sample",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k06-terraform",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "and found no differences, so no changes are needed."
+      },
+      "secret_after_apply": {
+        "exists": true,
+        "namespace": "ramen-parity-k06-terraform",
+        "name": "ramen-parity-k06-sample",
+        "type": "Opaque",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "data": {
+          "sample": "azA2LWNyZWF0ZS12YWx1ZQ=="
+        }
+      },
+      "secret_after_update": {
+        "exists": true,
+        "namespace": "ramen-parity-k06-terraform",
+        "name": "ramen-parity-k06-sample",
+        "type": "Opaque",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "data": {
+          "sample": "azA2LXVwZGF0ZS12YWx1ZQ=="
+        }
+      },
+      "secret_after_destroy": {
+        "exists": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "namespace": "ramen-parity-k06-ramen",
+      "secret_name": "ramen-parity-k06-sample",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k06-ramen",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "{Create:0 Update:0 Delete:0 Replace:0 NoOp:1 Read:0 Diagnostics:0}"
+      },
+      "secret_after_apply": {
+        "exists": true,
+        "namespace": "ramen-parity-k06-ramen",
+        "name": "ramen-parity-k06-sample",
+        "type": "Opaque",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "data": {
+          "sample": "azA2LWNyZWF0ZS12YWx1ZQ=="
+        }
+      },
+      "secret_after_update": {
+        "exists": true,
+        "namespace": "ramen-parity-k06-ramen",
+        "name": "ramen-parity-k06-sample",
+        "type": "Opaque",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k06"
+        },
+        "data": {
+          "sample": "azA2LXVwZGF0ZS12YWx1ZQ=="
+        }
+      },
+      "secret_after_destroy": {
+        "exists": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "metadata.name",
+      "metadata.namespace",
+      "metadata.labels",
+      "type",
+      "data.sample",
+      "update",
+      "no-op",
+      "destroy.absent"
+    ]
+  }
+}

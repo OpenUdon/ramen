@@ -1,0 +1,197 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "Kubernetes Core v1 Secret provider parity subset",
+    "version": "v1.19.2-subset"
+  },
+  "schemes": [
+    "https"
+  ],
+  "paths": {
+    "/api/v1/namespaces/{namespace}/secrets": {
+      "post": {
+        "operationId": "createCoreV1NamespacedSecret",
+        "summary": "create a Secret",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.Secret"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Secret created",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.Secret"
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/namespaces/{namespace}/secrets/{name}": {
+      "get": {
+        "operationId": "readCoreV1NamespacedSecret",
+        "summary": "read the specified Secret",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.Secret"
+            }
+          },
+          "404": {
+            "description": "Secret not found"
+          }
+        }
+      },
+      "put": {
+        "operationId": "replaceCoreV1NamespacedSecret",
+        "summary": "replace the specified Secret",
+        "consumes": [
+          "application/json"
+        ],
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.Secret"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret replaced",
+            "schema": {
+              "$ref": "#/definitions/io.k8s.api.core.v1.Secret"
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteCoreV1NamespacedSecret",
+        "summary": "delete a Secret",
+        "produces": [
+          "application/json"
+        ],
+        "parameters": [
+          {
+            "name": "namespace",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          },
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Secret deleted"
+          },
+          "404": {
+            "description": "Secret not found"
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "io.k8s.api.core.v1.Secret": {
+      "type": "object",
+      "required": [
+        "metadata"
+      ],
+      "properties": {
+        "metadata": {
+          "type": "object",
+          "required": [
+            "name",
+            "namespace"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "namespace": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "type": {
+          "type": "string"
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "stringData": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

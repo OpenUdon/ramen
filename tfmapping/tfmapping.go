@@ -422,7 +422,7 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.name", "metadata.0.name":
 					return []string{"name"}
 				}
-			case "createCoreV1NamespacedConfigMap", "createCoreV1NamespacedServiceAccount":
+			case "createCoreV1NamespacedConfigMap", "createCoreV1NamespacedSecret", "createCoreV1NamespacedServiceAccount":
 				switch attrPath {
 				case "metadata.name", "metadata.0.name":
 					return []string{"metadata.name"}
@@ -433,8 +433,16 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.labels", "metadata.0.labels":
 					return []string{"metadata.labels"}
 				case "data":
-					if operationID == "createCoreV1NamespacedConfigMap" {
+					if operationID == "createCoreV1NamespacedConfigMap" || operationID == "createCoreV1NamespacedSecret" {
 						return []string{"data"}
+					}
+				case "string_data", "stringData":
+					if operationID == "createCoreV1NamespacedSecret" {
+						return []string{"stringData"}
+					}
+				case "type":
+					if operationID == "createCoreV1NamespacedSecret" {
+						return []string{"type"}
 					}
 				case "binary_data", "binaryData":
 					if operationID == "createCoreV1NamespacedConfigMap" {
@@ -445,7 +453,7 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 						return []string{"automountServiceAccountToken"}
 					}
 				}
-			case "replaceCoreV1NamespacedConfigMap", "replaceCoreV1NamespacedServiceAccount":
+			case "replaceCoreV1NamespacedConfigMap", "replaceCoreV1NamespacedSecret", "replaceCoreV1NamespacedServiceAccount":
 				switch attrPath {
 				case "metadata.name", "metadata.0.name":
 					return []string{"name", "metadata.name"}
@@ -456,8 +464,16 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.labels", "metadata.0.labels":
 					return []string{"metadata.labels"}
 				case "data":
-					if operationID == "replaceCoreV1NamespacedConfigMap" {
+					if operationID == "replaceCoreV1NamespacedConfigMap" || operationID == "replaceCoreV1NamespacedSecret" {
 						return []string{"data"}
+					}
+				case "string_data", "stringData":
+					if operationID == "replaceCoreV1NamespacedSecret" {
+						return []string{"stringData"}
+					}
+				case "type":
+					if operationID == "replaceCoreV1NamespacedSecret" {
+						return []string{"type"}
 					}
 				case "binary_data", "binaryData":
 					if operationID == "replaceCoreV1NamespacedConfigMap" {
@@ -468,7 +484,7 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 						return []string{"automountServiceAccountToken"}
 					}
 				}
-			case "readCoreV1NamespacedConfigMap", "deleteCoreV1NamespacedConfigMap", "readCoreV1NamespacedServiceAccount", "deleteCoreV1NamespacedServiceAccount":
+			case "readCoreV1NamespacedConfigMap", "deleteCoreV1NamespacedConfigMap", "readCoreV1NamespacedSecret", "deleteCoreV1NamespacedSecret", "readCoreV1NamespacedServiceAccount", "deleteCoreV1NamespacedServiceAccount":
 				switch attrPath {
 				case "metadata.name", "metadata.0.name":
 					return []string{"name"}
@@ -1086,6 +1102,32 @@ func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
 			return mapping
 		}
 		return unsupportedActionMapping(mapping, "Kubernetes ServiceAccount mapping supports read, create, update, and delete")
+	case "kubernetes_secret_v1":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Kubernetes Secret mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = kubernetesNamespacedIdentityAttributes()
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "createCoreV1NamespacedSecret")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1NamespacedSecret")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "replaceCoreV1NamespacedSecret")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "deleteCoreV1NamespacedSecret")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("core", "readCoreV1NamespacedSecret")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Kubernetes Secret mapping supports read, create, update, and delete")
 	case "kubernetes_role_v1":
 		if obj.Kind != "resource" && obj.Kind != "data_source" {
 			return unsupportedActionMapping(mapping, "Kubernetes Role mapping supports managed resources and data sources")
@@ -1124,6 +1166,7 @@ func (kubernetesMapper) SupportedTypes() []SupportedType {
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_role_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_secret_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_service_account_v1", Kinds: []string{"resource", "data_source"}},
 	}
 }

@@ -1,0 +1,61 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K06",
+  "status": "recorded",
+  "provider": {
+    "source": "hashicorp/kubernetes",
+    "version": "3.1.0",
+    "published": "2026-04-16",
+    "registry_latest": true
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json",
+    "fixture": "testdata/parity/kubernetes/k06/openapi/core.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_K8S_PARITY",
+    "record_update_env": "RAMEN_K8S_PARITY_RECORD_UPDATE",
+    "context_prefix": "kind-",
+    "resource_prefix": "ramen-parity-k06-"
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "secret_lifecycle",
+      "resource_type": "kubernetes_secret_v1",
+      "fixture_paths": [
+        "testdata/parity/kubernetes/k06/hcl/main.tf",
+        "testdata/parity/kubernetes/k06/openapi/core.json",
+        "testdata/parity/kubernetes/k06/ramen/project.uws.yaml",
+        "testdata/parity/kubernetes/k06/ramen/project.update.uws.yaml"
+      ],
+      "observed_fields": [
+        "metadata.name",
+        "metadata.namespace",
+        "metadata.labels",
+        "type",
+        "data.sample"
+      ],
+      "expected_transitions": [
+        "create",
+        "read",
+        "update",
+        "no-op",
+        "destroy"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k06/live.observations.json"
+      ]
+    }
+  ],
+  "recorded_at": "2026-05-30T12:29:49Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k06 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
+  "notes": [
+    "K06 uses explicitly non-sensitive fixture values and compares only API-visible Secret data for the sample key.",
+    "The Kubernetes object name avoids sensitive-key substrings so identity redaction does not mask the API name before refresh."
+  ]
+}
