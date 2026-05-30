@@ -12,6 +12,12 @@ JSON, Google Discovery, and OpenAPI, computes desired-state plans, records
 SQLite state history, and hands approved UWS execution documents to an
 explicit trusted executor boundary.
 
+Ramen uses shared `github.com/OpenUdon/evidence/...` primitives for neutral
+digest, artifact, diagnostic, redaction, and approval evidence where those
+records are product-independent. Ramen-specific wire formats and behavior,
+including `ramen.approval.v1`, `ramen.policy.v1`, state history, governance,
+and executor orchestration, remain Ramen-owned.
+
 ## Why Ramen
 
 Ramen is for teams that have API source documents and need desired-state
@@ -78,6 +84,10 @@ Ramen owns desired-state reconciliation:
 - SQLite state, locks, and revision history;
 - refresh, apply, destroy, and import orchestration;
 - public executor interfaces and optional trusted executor adapters.
+
+Shared evidence helpers live in `github.com/OpenUdon/evidence/...` only for
+neutral digest, artifact, diagnostic, redaction, and approval primitives. They
+do not own Ramen plan, policy, state, reconciliation, or executor semantics.
 
 Ramen does not import Terraform code, OpenTofu internals, Terraform providers,
 provider plugins, provider SDKs, or private udon packages in default public
