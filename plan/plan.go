@@ -3,8 +3,6 @@ package plan
 import (
 	"cmp"
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -15,6 +13,7 @@ import (
 	"time"
 
 	"github.com/OpenUdon/apitools"
+	"github.com/OpenUdon/evidence/digest"
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/graph"
 	"github.com/OpenUdon/ramen/project"
@@ -1266,8 +1265,7 @@ func DesiredHash(input DesiredHashInput) string {
 		"inputs_digest":     input.InputsDigest,
 	}
 	data, _ := json.Marshal(payload)
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func selectedSourceDigest(mapping *MappingPlan, sources []sourceDoc) string {
@@ -1775,8 +1773,7 @@ func fileDigest(path string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:]), nil
+	return digest.SHA256String(data), nil
 }
 
 func apiSourceRefs(sources []sourceDoc) []APISourceRef {
@@ -1797,8 +1794,7 @@ func projectDigest(profile project.Profile) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func stateBaselineDigest(ctx context.Context, store *state.Store) string {
@@ -1829,8 +1825,7 @@ func stateBaselineDigest(ctx context.Context, store *state.Store) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func projectRationale(profile project.Profile) string {
@@ -1903,8 +1898,7 @@ func approvalDigest(doc Document, approval *Approval) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func VerifyApproval(doc Document) error {

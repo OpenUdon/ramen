@@ -13,10 +13,12 @@ SQLite state history, and hands approved UWS execution documents to an
 explicit trusted executor boundary.
 
 Ramen uses shared `github.com/OpenUdon/evidence/...` primitives for neutral
-digest, artifact, diagnostic, redaction, and approval evidence where those
-records are product-independent. Ramen-specific wire formats and behavior,
-including `ramen.approval.v1`, `ramen.policy.v1`, state history, governance,
-and executor orchestration, remain Ramen-owned.
+evidence where the behavior is product-independent. Current shared use covers
+SHA-256 digest helpers, redaction pattern handling behind Ramen's stricter
+secret-keyword policy, and approval requirement evaluation behind Ramen-owned
+governance wire formats. Ramen-specific behavior, including
+`ramen.approval.v1`, `ramen.policy.v1`, state history, reconciliation, and
+executor orchestration, remains Ramen-owned.
 
 ## Why Ramen
 
@@ -86,8 +88,9 @@ Ramen owns desired-state reconciliation:
 - public executor interfaces and optional trusted executor adapters.
 
 Shared evidence helpers live in `github.com/OpenUdon/evidence/...` only for
-neutral digest, artifact, diagnostic, redaction, and approval primitives. They
-do not own Ramen plan, policy, state, reconciliation, or executor semantics.
+neutral digest, artifact, diagnostic, redaction, and approval primitives. Ramen
+uses them behind Ramen-owned package and wire boundaries; they do not own Ramen
+plan, policy, state, reconciliation, or executor semantics.
 
 Ramen does not import Terraform code, OpenTofu internals, Terraform providers,
 provider plugins, provider SDKs, or private udon packages in default public

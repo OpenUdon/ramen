@@ -2,8 +2,13 @@ module github.com/OpenUdon/ramen
 
 go 1.26.3
 
+// Shared trust/evidence primitives. Local path until the module is published.
+replace github.com/OpenUdon/evidence => ../evidence
+
 require (
 	github.com/OpenUdon/apitools v0.0.0-20260528142821-7498ae0c388f
+	github.com/OpenUdon/authoring v0.0.0-20260530174326-80e913657723
+	github.com/OpenUdon/evidence v0.0.0
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
 	github.com/OpenUdon/uws v0.0.0-20260530135301-b9c9a4efac74
 	gopkg.in/yaml.v3 v3.0.1
@@ -36,6 +41,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
+	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1 // indirect
 	github.com/zclconf/go-cty v1.18.1 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect

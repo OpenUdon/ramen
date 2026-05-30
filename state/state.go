@@ -2,9 +2,7 @@ package state
 
 import (
 	"context"
-	"crypto/sha256"
 	"database/sql"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net/url"
@@ -15,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/OpenUdon/evidence/digest"
 	_ "modernc.org/sqlite"
 )
 
@@ -656,12 +655,11 @@ func (s *Store) Audit(ctx context.Context) (AuditDocument, error) {
 	if err != nil {
 		return AuditDocument{}, err
 	}
-	sum := sha256.Sum256(data)
 	return AuditDocument{
 		Version:       AuditVersion,
 		SchemaVersion: exported.SchemaVersion,
 		ExportedAt:    exported.ExportedAt,
-		Digest:        "sha256:" + hex.EncodeToString(sum[:]),
+		Digest:        digest.SHA256String(data),
 		Counts:        counts,
 		Migrations:    exported.Migrations,
 		Runs:          exported.Runs,

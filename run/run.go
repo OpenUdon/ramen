@@ -2,8 +2,6 @@ package run
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/OpenUdon/evidence/digest"
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/internal/redact"
@@ -73,7 +72,7 @@ func Execute(ctx context.Context, opts Options) (*Result, error) {
 	if opts.DocumentPath == "" {
 		return nil, fmt.Errorf("run.document_required: UWS document path is required")
 	}
-	doc, digest, err := loadDocument(opts.DocumentPath)
+	doc, docDigest, err := loadDocument(opts.DocumentPath)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +83,7 @@ func Execute(ctx context.Context, opts Options) (*Result, error) {
 	result := &Result{
 		Version:        Version,
 		DocumentPath:   opts.DocumentPath,
-		DocumentDigest: digest,
+		DocumentDigest: docDigest,
 		StatePath:      opts.StatePath,
 		Workspace:      strings.TrimSpace(opts.Workspace),
 		Check:          opts.Check,
@@ -241,8 +240,7 @@ func loadDocument(path string) (*uws1.Document, string, error) {
 	if err := doc.Validate(); err != nil {
 		return nil, "", fmt.Errorf("run.document_invalid: %w", err)
 	}
-	sum := sha256.Sum256(data)
-	return doc, "sha256:" + hex.EncodeToString(sum[:]), nil
+	return doc, digest.SHA256String(data), nil
 }
 
 func approvalDigest(result Result, targets []string) string {
@@ -262,8 +260,7 @@ func approvalDigest(result Result, targets []string) string {
 		Governance:     result.Governance,
 	}
 	data, _ := json.Marshal(payload)
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func normalizeTargets(targets []string) []string {

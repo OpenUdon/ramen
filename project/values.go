@@ -1,8 +1,6 @@
 package project
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -12,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/OpenUdon/evidence/digest"
 	"github.com/OpenUdon/ramen/internal/redact"
 	"gopkg.in/yaml.v3"
 )
@@ -357,8 +356,7 @@ func inputsDigest(inputs ResolvedInputs) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func valueDigest(value any) string {
@@ -366,8 +364,7 @@ func valueDigest(value any) string {
 	if err != nil {
 		return ""
 	}
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
 
 func sortedKeys[V any](values map[string]V) []string {

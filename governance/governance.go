@@ -1,8 +1,6 @@
 package governance
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -11,6 +9,8 @@ import (
 	"strings"
 	"time"
 
+	evapproval "github.com/OpenUdon/evidence/approval"
+	"github.com/OpenUdon/evidence/digest"
 	"gopkg.in/yaml.v3"
 )
 
@@ -149,42 +149,36 @@ func MergeResults(results ...Result) Result {
 	return merged
 }
 
+// RequirementsSatisfied evaluates Ramen approval requirements using the shared
+// evidence/approval primitives. Ramen requirements never expire, so evaluation
+// is independent of the wall clock.
 func RequirementsSatisfied(requirements []ApprovalRequirement, approvers []Approver) error {
+	reqs := make([]evapproval.Requirement, 0, len(requirements))
 	for _, req := range requirements {
-		needed := req.MinApprovals
-		if needed <= 0 {
-			needed = 1
-		}
-		seen := map[string]bool{}
-		for _, approver := range approvers {
-			identity := strings.TrimSpace(approver.Identity)
-			if identity == "" || seen[identity] {
-				continue
-			}
-			if len(req.Roles) > 0 && !containsTrimmed(req.Roles, approver.Role) {
-				continue
-			}
-			seen[identity] = true
-		}
-		if len(seen) < needed {
-			return fmt.Errorf("approval requirement %s needs %d approver(s)", req.ID, needed)
-		}
+		reqs = append(reqs, evapproval.Requirement{
+			ID:           req.ID,
+			Reason:       req.Reason,
+			Address:      req.Address,
+			Action:       req.Action,
+			MinApprovals: req.MinApprovals,
+			Roles:        req.Roles,
+		})
 	}
-	return nil
+	evApprovers := make([]evapproval.Approver, 0, len(approvers))
+	for _, approver := range approvers {
+		evApprovers = append(evApprovers, evapproval.Approver(approver))
+	}
+	return evapproval.RequirementsSatisfied(reqs, evApprovers)
 }
 
+// NormalizeApprover trims approver identity metadata and normalizes the
+// approval timestamp to UTC via the shared evidence/approval primitive.
 func NormalizeApprover(approver Approver) (Approver, error) {
-	approver.Identity = strings.TrimSpace(approver.Identity)
-	approver.Role = strings.TrimSpace(approver.Role)
-	approver.Context = strings.TrimSpace(approver.Context)
-	if approver.Identity == "" {
-		return Approver{}, fmt.Errorf("approver identity is required")
+	normalized, err := evapproval.NormalizeApprover(evapproval.Approver(approver))
+	if err != nil {
+		return Approver{}, err
 	}
-	if approver.ApprovedAt.IsZero() {
-		return Approver{}, fmt.Errorf("approver approved_at is required")
-	}
-	approver.ApprovedAt = approver.ApprovedAt.UTC()
-	return approver, nil
+	return Approver(normalized), nil
 }
 
 func evaluatePolicy(policy Policy, input Input) []Decision {
@@ -272,6 +266,5 @@ func firstNonEmpty(values ...string) string {
 }
 
 func digestBytes(data []byte) string {
-	sum := sha256.Sum256(data)
-	return "sha256:" + hex.EncodeToString(sum[:])
+	return digest.SHA256String(data)
 }
