@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	sharedpromptcontext "github.com/OpenUdon/authoring/promptcontext"
+	sharedreport "github.com/OpenUdon/authoring/report"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	ramenrun "github.com/OpenUdon/ramen/run"
@@ -18,17 +20,41 @@ import (
 	"github.com/OpenUdon/uws/uws1"
 )
 
-func TestCLIConvertTFHelpIncludesContract(t *testing.T) {
-	cmd := helperCommand("convert", "--help")
+func TestCLIConvertHelpIncludesContract(t *testing.T) {
+	cmd := helperCommand("--help")
 	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("top-level help failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "author") {
+		t.Fatalf("top-level help missing author command:\n%s", output)
+	}
+
+	cmd = helperCommand("author", "--help")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("author help failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, expected := range []string{"Usage: ramen author", "--context", "--goal", "--out", "--validate", "--graph", "--plan", "does not execute"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("author help missing %q:\n%s", expected, text)
+		}
+	}
+
+	cmd = helperCommand("convert", "--help")
+	output, err = cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("convert help failed: %v\n%s", err, output)
 	}
-	text := string(output)
-	for _, expected := range []string{"Usage: ramen convert", "Subcommands:", "convert Terraform/OpenTofu"} {
+	text = string(output)
+	for _, expected := range []string{"Usage: ramen convert", "--config-dir", "--api-source", "--openapi", "--action", "--target", "--strict", "does not execute Terraform"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("convert help missing %q:\n%s", expected, text)
 		}
+	}
+	if strings.Contains(text, "legacy alias") || strings.Contains(text, "convert tf") {
+		t.Fatalf("convert help still mentions removed alias:\n%s", text)
 	}
 
 	for _, helpArg := range []string{"-h", "help"} {
@@ -44,23 +70,195 @@ func TestCLIConvertTFHelpIncludesContract(t *testing.T) {
 
 	cmd = helperCommand("convert", "tf", "--help")
 	output, err = cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("convert tf help failed: %v\n%s", err, output)
+	if err == nil {
+		t.Fatalf("convert tf unexpectedly succeeded:\n%s", output)
 	}
-	text = string(output)
-	for _, expected := range []string{
-		"Usage: ramen convert tf",
-		"--config-dir",
-		"--api-source",
-		"--openapi",
-		"--action",
-		"--target",
-		"--strict",
-		"does not execute Terraform",
+	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("convert tf exit = %v, output:\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "Usage: ramen convert") {
+		t.Fatalf("convert tf failure missing usage:\n%s", output)
+	}
+}
+
+func TestCLIAuthorDraftsProject(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	writeAuthorOpenAPIForCLITest(t, sourcePath)
+	contextPath := writeAuthorContextForCLITest(t, root, sharedpromptcontext.Context{
+		Version: sharedpromptcontext.Version,
+		Sources: []sharedpromptcontext.SourceDocument{{
+			ID:   "widgets",
+			Kind: "openapi",
+			URI:  sourcePath,
+		}},
+		Operations: []sharedpromptcontext.OperationCandidate{{
+			ID:              "widgets#createWidget",
+			SourceID:        "widgets",
+			OperationID:     "createWidget",
+			Verb:            "POST",
+			Path:            "/widgets",
+			RequestSchemaID: "createWidgetRequest",
+		}},
+		Schemas: []sharedpromptcontext.SchemaHint{{
+			ID:       "createWidgetRequest",
+			Required: []string{"name"},
+			Fields: []sharedpromptcontext.FieldHint{
+				{Name: "name", Type: "string", Required: true},
+			},
+		}},
+	})
+	outDir := filepath.Join(root, "draft")
+	cmd := helperCommand("author", "--context", contextPath, "--goal", "Manage widgets", "--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("author failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "ramen: author status=complete") {
+		t.Fatalf("author output missing complete status:\n%s", output)
+	}
+	projectPath := filepath.Join(outDir, project.DefaultFile)
+	if _, err := os.Stat(projectPath); err != nil {
+		t.Fatalf("project file missing: %v", err)
+	}
+	if _, err := project.Load(projectPath); err != nil {
+		t.Fatalf("generated project does not load: %v", err)
+	}
+}
+
+func TestCLIAuthorJSONWithGates(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	writeAuthorOpenAPIForCLITest(t, sourcePath)
+	contextPath := writeAuthorContextForCLITest(t, root, sharedpromptcontext.Context{
+		Version: sharedpromptcontext.Version,
+		Sources: []sharedpromptcontext.SourceDocument{{
+			ID:   "widgets",
+			Kind: "openapi",
+			URI:  sourcePath,
+		}},
+		Operations: []sharedpromptcontext.OperationCandidate{{
+			ID:              "widgets#createWidget",
+			SourceID:        "widgets",
+			OperationID:     "createWidget",
+			RequestSchemaID: "createWidgetRequest",
+		}},
+		Schemas: []sharedpromptcontext.SchemaHint{{
+			ID:       "createWidgetRequest",
+			Required: []string{"name"},
+			Fields: []sharedpromptcontext.FieldHint{
+				{Name: "name", Type: "string", Required: true},
+			},
+		}},
+	})
+	cmd := helperCommand("author", "--context", contextPath, "--goal", "Manage widgets", "--out", filepath.Join(root, "draft"), "--json", "--validate", "--graph", "--plan")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("author json gates failed: %v\n%s", err, output)
+	}
+	var result authorCLIResult
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("author JSON is not parseable: %v\n%s", err, output)
+	}
+	if result.Report.Status != sharedreport.StatusComplete || result.ProjectPath == "" {
+		t.Fatalf("author JSON report = %#v\n%s", result, output)
+	}
+	if result.Validation == nil || !result.Validation.Valid {
+		t.Fatalf("author validation = %#v\n%s", result.Validation, output)
+	}
+	if result.Graph == nil || len(result.Graph.Nodes) == 0 {
+		t.Fatalf("author graph = %#v\n%s", result.Graph, output)
+	}
+	if result.Plan == nil || result.Plan.Plan.Version != tfplan.Version {
+		t.Fatalf("author plan = %#v\n%s", result.Plan, output)
+	}
+}
+
+func TestCLIAuthorNeedsInputWithoutOperations(t *testing.T) {
+	root := t.TempDir()
+	contextPath := writeAuthorContextForCLITest(t, root, sharedpromptcontext.Context{
+		Version: sharedpromptcontext.Version,
+		Sources: []sharedpromptcontext.SourceDocument{{
+			ID:   "widgets",
+			Kind: "openapi",
+			URI:  filepath.Join(root, "api.yaml"),
+		}},
+	})
+	outDir := filepath.Join(root, "draft")
+	cmd := helperCommand("author", "--context", contextPath, "--goal", "Manage widgets", "--out", outDir, "--json")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("author without operations unexpectedly succeeded:\n%s", output)
+	}
+	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("author exit = %v, output:\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "ramen.authoring.missing_mapping_metadata") {
+		t.Fatalf("author needs-input output missing diagnostic:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
+		t.Fatalf("author wrote project despite needs_input: %v", err)
+	}
+
+	sourcePath := filepath.Join(root, "api.yaml")
+	writeAuthorOpenAPIForCLITest(t, sourcePath)
+	contextPath = writeAuthorContextForCLITest(t, root, sharedpromptcontext.Context{
+		Version: sharedpromptcontext.Version,
+		Sources: []sharedpromptcontext.SourceDocument{{
+			ID:   "widgets",
+			Kind: "openapi",
+			URI:  sourcePath,
+		}},
+		Operations: []sharedpromptcontext.OperationCandidate{{
+			ID:          "widgets#createWidget",
+			SourceID:    "widgets",
+			OperationID: "createWidget",
+		}},
+	})
+	outDir = filepath.Join(root, "missing-goal")
+	cmd = helperCommand("author", "--context", contextPath, "--out", outDir, "--json")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("author without goal unexpectedly succeeded:\n%s", output)
+	}
+	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("author missing-goal exit = %v, output:\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "ramen.authoring.missing_goal") {
+		t.Fatalf("author missing-goal output missing diagnostic:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
+		t.Fatalf("author wrote project despite missing goal: %v", err)
+	}
+}
+
+func TestCLIAuthorInputErrorsExitTwo(t *testing.T) {
+	root := t.TempDir()
+	for _, tt := range []struct {
+		name     string
+		args     []string
+		expected string
+	}{
+		{name: "missing context", args: []string{"author", "--goal", "Manage widgets"}, expected: "Usage: ramen author"},
+		{name: "invalid json", args: []string{"author", "--context", filepath.Join(root, "bad.json"), "--goal", "Manage widgets"}, expected: "author.context_parse_error"},
+		{name: "missing file", args: []string{"author", "--context", filepath.Join(root, "missing.json"), "--goal", "Manage widgets"}, expected: "author.context_read_error"},
 	} {
-		if !strings.Contains(text, expected) {
-			t.Fatalf("convert tf help missing %q:\n%s", expected, text)
-		}
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.name == "invalid json" {
+				mustWriteCLIFile(t, filepath.Join(root, "bad.json"), []byte(`{`))
+			}
+			cmd := helperCommand(tt.args...)
+			output, err := cmd.CombinedOutput()
+			if err == nil {
+				t.Fatalf("author input error unexpectedly succeeded:\n%s", output)
+			}
+			if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
+				t.Fatalf("author exit = %v, output:\n%s", err, output)
+			}
+			if !strings.Contains(string(output), tt.expected) {
+				t.Fatalf("author error missing %q:\n%s", tt.expected, output)
+			}
+		})
 	}
 }
 
@@ -514,7 +712,7 @@ resource "aws_iam_role" "role" {
 	}
 }
 
-func TestCLIConvertTFWritesDraftArtifacts(t *testing.T) {
+func TestCLIConvertWritesDraftArtifacts(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
 	openAPIPath := filepath.Join(root, "openapi.yaml")
@@ -536,12 +734,12 @@ paths:
         "200":
           description: ok
 `))
-	cmd := helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "aws="+openAPIPath, "--action", "create", "--out", outDir)
+	cmd := helperCommand("convert", "--config-dir", configDir, "--openapi", "aws="+openAPIPath, "--action", "create", "--out", outDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		t.Fatalf("convert tf failed: %v\n%s", err, output)
+		t.Fatalf("convert failed: %v\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "ramen: convert tf wrote") {
+	if !strings.Contains(string(output), "ramen: convert wrote") {
 		t.Fatalf("convert output missing summary:\n%s", output)
 	}
 	for _, rel := range []string{"project.md", "project.uws.yaml", "workflows/workflow.uws.yaml", "expected/conversion.json", "expected/mappings.json", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
@@ -557,6 +755,14 @@ paths:
 	}
 	if !strings.Contains(string(output), "create=1") {
 		t.Fatalf("native project plan output missing summary:\n%s", output)
+	}
+	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "aws="+openAPIPath, "--action", "create", "--out", filepath.Join(root, "alias-out"))
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("convert tf unexpectedly wrote artifacts:\n%s", output)
+	}
+	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("convert tf exit = %v, output:\n%s", err, output)
 	}
 }
 
@@ -896,6 +1102,33 @@ func mustWriteCLIFile(t *testing.T, path string, data []byte) {
 	if err := os.WriteFile(path, data, 0o644); err != nil {
 		t.Fatal(err)
 	}
+}
+
+func writeAuthorContextForCLITest(t *testing.T, dir string, ctx sharedpromptcontext.Context) string {
+	t.Helper()
+	data, err := sharedpromptcontext.CanonicalJSON(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, "context.json")
+	mustWriteCLIFile(t, path, data)
+	return path
+}
+
+func writeAuthorOpenAPIForCLITest(t *testing.T, path string) {
+	t.Helper()
+	mustWriteCLIFile(t, path, []byte(`openapi: 3.0.0
+info:
+  title: Author CLI Test
+  version: v1
+paths:
+  /widgets:
+    post:
+      operationId: createWidget
+      responses:
+        "200":
+          description: ok
+`))
 }
 
 func writeNativeProjectForCLITest(t *testing.T, dir string, profile project.Profile) string {

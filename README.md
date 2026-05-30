@@ -4,7 +4,7 @@ Ramen is a public API-source desired-state engine. Its native project
 format is a UWS project plus Ramen reconciliation metadata for resource
 identity, lifecycle, operation roles, hashes, state matching, and redaction
 policy. Terraform/OpenTofu HCL remains an optional authoring and migration
-input through `ramen convert tf`, which uses `github.com/OpenUdon/tfconfig` to
+input through `ramen convert`, which uses `github.com/OpenUdon/tfconfig` to
 produce native Ramen/UWS project artifacts.
 
 Ramen maps desired API resources to operations from sources such as AWS Smithy
@@ -46,7 +46,7 @@ Ramen differs from adjacent tools in a narrow way:
 
 Community users should be able to evaluate Ramen locally through native project
 examples, mock execution, readable plans, stable diagnostics, clear non-goals,
-and `ramen convert tf` for HCL migration. Enterprise users should look for
+and `ramen convert` for HCL migration. Enterprise users should look for
 approval artifacts, redacted SQLite state history, reproducible plans, explicit
 trusted executor boundaries, no credential value storage, and future policy
 integration points.
@@ -54,7 +54,9 @@ integration points.
 Ready now: provider-free native validation, graphing, planning, HCL conversion
 scaffolding, local state history, mock-backed apply/refresh/destroy flows,
 plan approval metadata, read-only show/state inspection, and documented safety
-boundaries. Still experimental: broader resource mappings, live executor
+boundaries. The first `ramen author` wrapper can also draft a native project
+from prompt-safe API operation context without provider execution. Still
+experimental: broader resource mappings, live executor
 adapters, policy hooks, parameterization ergonomics, release packaging, and
 operational support contracts.
 
@@ -78,7 +80,7 @@ Ramen owns desired-state reconciliation:
 - Ramen reconciliation metadata over UWS;
 - API source operation inventory consumption through public `apitools`;
 - Terraform/OpenTofu HCL conversion through public `tfconfig` via
-  `ramen convert tf`;
+  `ramen convert`;
 - resource-to-operation mapping, including public `tfmapping` for conversion
   compatibility;
 - dependency graph construction;
@@ -102,7 +104,8 @@ tag.
 Implemented public commands:
 
 ```bash
-ramen convert tf
+ramen author --context context.json --goal "Manage widgets"
+ramen convert
 ramen init
 ramen validate --project DIR --json
 ramen graph --project DIR --format json
@@ -118,7 +121,7 @@ ramen version --json
 
 The current implementation supports native UWS/Ramen project input through
 `--project`, while preserving the HCL-derived lifecycle path from the first
-milestones as transitional compatibility. `ramen convert tf` writes
+milestones as transitional compatibility. `ramen convert` writes
 `project.uws.yaml` in that native format. The first lifecycle surface is
 mock-backed in default public builds where execution is required. Live executor
 wiring remains opt-in behind trusted adapters. `ramen version --json` reports

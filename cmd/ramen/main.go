@@ -6,6 +6,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -15,7 +16,10 @@ import (
 	"syscall"
 	"time"
 
+	sharedpromptcontext "github.com/OpenUdon/authoring/promptcontext"
+	sharedreport "github.com/OpenUdon/authoring/report"
 	tfapply "github.com/OpenUdon/ramen/apply"
+	ramenauthoring "github.com/OpenUdon/ramen/authoring"
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/graph"
@@ -47,6 +51,7 @@ func main() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: ramen <command>\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Commands:\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved desired-state mutations through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  author    draft a native UWS/Ramen project from prompt-safe API context\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  convert   generate Ramen review scaffolding from supported source formats\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  destroy   delete tracked resources through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  force-unlock release a local Ramen state lock by exact holder token\n")
@@ -72,6 +77,8 @@ func main() {
 	switch command {
 	case "apply":
 		runApplyCommand(ctx, flag.Args()[1:])
+	case "author":
+		runAuthorCommand(ctx, flag.Args()[1:])
 	case "convert":
 		runConvertCommand(ctx, flag.Args()[1:])
 	case "destroy":
@@ -104,6 +111,125 @@ func main() {
 		fmt.Fprintf(os.Stderr, "unknown command %q\n", command)
 		flag.Usage()
 		os.Exit(2)
+	}
+}
+
+type authorCLIResult struct {
+	Report      sharedreport.Result   `json:"report"`
+	ProjectPath string                `json:"project_path,omitempty"`
+	Validation  *ramenvalidate.Result `json:"validation,omitempty"`
+	Graph       *graph.Document       `json:"graph,omitempty"`
+	Plan        *tfplan.Result        `json:"plan,omitempty"`
+}
+
+func runAuthorCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("author", flag.ExitOnError)
+	contextPath := fs.String("context", "", "authoring.prompt-context.v1 JSON input path")
+	goal := fs.String("goal", "", "Desired-state project goal; omitted goals return needs_input")
+	projectName := fs.String("project-name", "", "Optional generated project name")
+	outDir := fs.String("out", "./.ramen/author", "Output directory for project.uws.yaml")
+	validateGate := fs.Bool("validate", false, "Run native project validation after drafting")
+	graphGate := fs.Bool("graph", false, "Build the native dependency graph after drafting")
+	planGate := fs.Bool("plan", false, "Build a non-mutating desired-state plan after drafting")
+	statePath := fs.String("state", "", "Optional SQLite state path for --plan")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen author --context context.json [--goal TEXT] [--project-name NAME] [--out DIR] [--validate] [--graph] [--plan] [--state PATH] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nDrafts a native UWS/Ramen project from prompt-safe API operation context. It is noninteractive, provider-free, and does not execute Terraform/OpenTofu, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 || strings.TrimSpace(*contextPath) == "" {
+		fs.Usage()
+		os.Exit(2)
+	}
+	promptContext, err := loadPromptContextFile(*contextPath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	result, err := ramenauthoring.DraftProject(ctx, ramenauthoring.Options{
+		Goal:        *goal,
+		ProjectName: *projectName,
+		OutDir:      *outDir,
+		Context:     promptContext,
+		Validate:    *validateGate,
+		Graph:       *graphGate,
+		Plan:        *planGate,
+		StatePath:   *statePath,
+	})
+	cliResult := authorCLIResult{
+		Report:      result.Report,
+		ProjectPath: result.ProjectPath,
+		Validation:  result.Validation,
+		Graph:       result.Graph,
+		Plan:        result.Plan,
+	}
+	if *jsonOut {
+		writeJSONOutput(cliResult)
+		printAuthorDiagnostics(cliResult.Report)
+	} else {
+		printAuthorHuman(cliResult)
+		printAuthorDiagnostics(cliResult.Report)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if cliResult.Report.Status != sharedreport.StatusComplete {
+		os.Exit(1)
+	}
+}
+
+func loadPromptContextFile(path string) (sharedpromptcontext.Context, error) {
+	path = strings.TrimSpace(path)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return sharedpromptcontext.Context{}, fmt.Errorf("author.context_read_error: %w", err)
+	}
+	decoder := json.NewDecoder(strings.NewReader(string(data)))
+	var ctx sharedpromptcontext.Context
+	if err := decoder.Decode(&ctx); err != nil {
+		return sharedpromptcontext.Context{}, fmt.Errorf("author.context_parse_error: %w", err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return sharedpromptcontext.Context{}, fmt.Errorf("author.context_parse_error: context file must contain one JSON document")
+		}
+		return sharedpromptcontext.Context{}, fmt.Errorf("author.context_parse_error: %w", err)
+	}
+	if ctx.Version != "" && ctx.Version != sharedpromptcontext.Version {
+		return sharedpromptcontext.Context{}, fmt.Errorf("author.context_version_invalid: got %q, want %q", ctx.Version, sharedpromptcontext.Version)
+	}
+	return sharedpromptcontext.Normalize(ctx), nil
+}
+
+func printAuthorHuman(result authorCLIResult) {
+	fmt.Printf("ramen: author status=%s\n", result.Report.Status)
+	if result.ProjectPath != "" {
+		fmt.Printf("  project: %s\n", result.ProjectPath)
+	}
+	if result.Validation != nil {
+		fmt.Printf("  validate: valid=%t errors=%d warnings=%d diagnostics=%d\n", result.Validation.Valid, result.Validation.Summary.Errors, result.Validation.Summary.Warnings, result.Validation.Summary.Diagnostics)
+	}
+	if result.Graph != nil {
+		fmt.Printf("  graph: nodes=%d edges=%d diagnostics=%d\n", len(result.Graph.Nodes), len(result.Graph.Edges), len(result.Graph.Diagnostics))
+	}
+	if result.Plan != nil {
+		summary := result.Plan.Plan.Summary
+		fmt.Printf("  plan: create=%d update=%d delete=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Replace, summary.NoOp, summary.Diagnostics)
+	}
+}
+
+func printAuthorDiagnostics(report sharedreport.Result) {
+	if report.TopIssue != nil {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", report.TopIssue.Code, report.TopIssue.Message)
+	}
+	for _, diag := range report.Diagnostics {
+		fmt.Fprintf(os.Stderr, "%s: %s\n", diag.Code, diag.Message)
 	}
 }
 
@@ -1377,30 +1503,24 @@ func runPlanCommand(ctx context.Context, args []string) {
 
 func runConvertCommand(ctx context.Context, args []string) {
 	if len(args) == 0 {
-		convertUsage(os.Stderr)
+		convertUsage(os.Stderr, "ramen convert")
 		os.Exit(2)
 	}
 	switch args[0] {
-	case "tf":
-		runConvertTFCommand(ctx, args[1:])
 	case "-h", "--help", "help":
-		convertUsage(os.Stdout)
+		convertUsage(os.Stdout, "ramen convert")
 	default:
-		fmt.Fprintf(os.Stderr, "unknown convert subcommand %q\n", args[0])
-		convertUsage(os.Stderr)
-		os.Exit(2)
+		runConvertTFCommand(ctx, args)
 	}
 }
 
-func convertUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: ramen convert <tf> [args]\n\n")
-	fmt.Fprintf(out, "Generates Ramen review scaffolding from supported authoring and migration inputs.\n\n")
-	fmt.Fprintf(out, "Subcommands:\n")
-	fmt.Fprintf(out, "  tf        convert Terraform/OpenTofu configuration into native Ramen/UWS project artifacts\n")
+func convertUsage(out *os.File, command string) {
+	fmt.Fprintf(out, "Usage: %s [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n\n", command)
+	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration into native Ramen/UWS project artifacts. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
 }
 
 func runConvertTFCommand(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("convert tf", flag.ExitOnError)
+	fs := flag.NewFlagSet("ramen convert", flag.ExitOnError)
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	action := fs.String("action", "", "Managed resource action: create, update, delete, or replace")
 	outDir := fs.String("out", "./.ramen/convert", "Output directory for draft review artifacts")
@@ -1412,11 +1532,15 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Var(&targets, "target", "Repeatable Terraform address target")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert tf [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n")
 		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
 		os.Exit(2)
 	}
 	inputs, err := parseOpenAPIFlags(openAPIs)
@@ -1445,7 +1569,7 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 		}
 		os.Exit(1)
 	}
-	fmt.Printf("ramen: convert tf wrote %s\n", result.OutDir)
+	fmt.Printf("ramen: convert wrote %s\n", result.OutDir)
 	fmt.Printf("  project:     %s\n", result.ProjectPath)
 	fmt.Printf("  native:      %s\n", result.NativeProjectPath)
 	fmt.Printf("  native-hcl:  %s\n", result.NativeProjectHCLPath)
