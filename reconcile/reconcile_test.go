@@ -3,6 +3,7 @@ package reconcile
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -707,6 +708,105 @@ resource "aws_iam_role" "role" {
 		t.Fatalf("revisions = %#v", revs)
 	}
 	_ = store.Close()
+}
+
+func TestRefreshClassifiesNotFoundReadErrorAsMissing(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	statePath := filepath.Join(root, "state.db")
+	sourcePath := filepath.Join(root, "iam.json")
+	writeReconcileTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "role"
+  assume_role_policy = "{}"
+}
+`)
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{
+		ConfigDir: configDir,
+		StatePath: statePath,
+		APISources: []tfplan.APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	role := planResult.Plan.Resources[0]
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:      role.Address,
+		Type:         role.Type,
+		Provider:     role.Provider,
+		DesiredHash:  role.DesiredHash,
+		IdentityJSON: `{"role_name":"role"}`,
+		Status:       "managed",
+	}); err != nil {
+		t.Fatalf("record: %v", err)
+	}
+	_ = store.Close()
+	mock := &executor.MockExecutor{ExecuteFn: func(context.Context, executor.Request) (executor.Result, error) {
+		return executor.Result{
+			Success:  false,
+			Messages: []string{"read failed"},
+		}, errors.New(`{"status":"Failure","reason":"NotFound","code":404}`)
+	}}
+	result, err := Refresh(context.Background(), Options{
+		ConfigDir:  configDir,
+		StatePath:  statePath,
+		APISources: []APISourceInput{{Kind: "aws-smithy", ID: "iam", Path: sourcePath}},
+		Executor:   mock,
+	})
+	if err != nil {
+		t.Fatalf("Refresh returned error: %v", err)
+	}
+	if result.Summary.Read != 1 || result.Summary.Missing != 1 || result.Summary.Failed != 0 {
+		t.Fatalf("summary = %#v", result.Summary)
+	}
+	if len(result.Feedback) != 1 || !result.Feedback[0].Success || !result.Feedback[0].Missing || result.Feedback[0].ErrorClass != "" {
+		t.Fatalf("feedback = %#v", result.Feedback)
+	}
+	store, _ = state.Open(context.Background(), statePath)
+	snap, err := store.CurrentResource(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	if snap == nil || snap.Status != "managed" {
+		t.Fatalf("missing classification should not delete state: %#v", snap)
+	}
+	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("list revisions: %v", err)
+	}
+	if len(revs) != 1 || revs[0].Action != "refresh_missing" {
+		t.Fatalf("revisions = %#v", revs)
+	}
+	_ = store.Close()
+}
+
+func TestRefreshClassifiesNotFoundUnsuccessfulResultAsMissing(t *testing.T) {
+	result, err := classifyRefreshReadResult(executor.Result{
+		Success:  false,
+		Messages: []string{"Error from server (NotFound): resource does not exist"},
+	}, nil)
+	if err != nil {
+		t.Fatalf("classify returned error: %v", err)
+	}
+	if !result.Success || !result.Missing {
+		t.Fatalf("classified result = %#v", result)
+	}
+}
+
+func TestRefreshDoesNotMaskUnrelatedExecutorErrorWithMissingFlag(t *testing.T) {
+	_, err := classifyRefreshReadResult(executor.Result{Missing: true}, errors.New("connection refused"))
+	if err == nil {
+		t.Fatal("classify masked unrelated executor error")
+	}
 }
 
 func TestRefreshNativeReadRolesAndDriftSummary(t *testing.T) {

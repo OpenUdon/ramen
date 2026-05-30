@@ -159,6 +159,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 			return result, err
 		}
 		execResult, err := opts.Executor.Execute(ctx, req)
+		execResult, err = classifyRefreshReadResult(execResult, err)
 		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			result.Summary.Failed++
@@ -196,6 +197,73 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 		result.Actions = append(result.Actions, ActionResult{Address: resource.Address, Action: "read", Document: docPath})
 	}
 	return result, nil
+}
+
+func classifyRefreshReadResult(execResult executor.Result, execErr error) (executor.Result, error) {
+	if execResult.Missing && execErr == nil {
+		return refreshMissingResult(execResult, execErr), nil
+	}
+	if refreshReadNotFoundSignal(execErr) || (!execResult.Success && refreshResultNotFoundSignal(execResult)) {
+		return refreshMissingResult(execResult, execErr), nil
+	}
+	return execResult, execErr
+}
+
+func refreshMissingResult(execResult executor.Result, execErr error) executor.Result {
+	execResult.Success = true
+	execResult.Missing = true
+	if execErr != nil {
+		message := execErr.Error()
+		if !slices.Contains(execResult.Messages, message) {
+			execResult.Messages = append(execResult.Messages, message)
+		}
+	}
+	return execResult
+}
+
+func refreshResultNotFoundSignal(execResult executor.Result) bool {
+	for _, message := range execResult.Messages {
+		if refreshReadNotFoundText(message) {
+			return true
+		}
+	}
+	for _, event := range execResult.Events {
+		if refreshReadNotFoundText(event.Message) {
+			return true
+		}
+		for key, value := range event.Metadata {
+			if refreshReadNotFoundText(key) || refreshReadNotFoundText(fmt.Sprint(value)) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func refreshReadNotFoundSignal(err error) bool {
+	return err != nil && refreshReadNotFoundText(err.Error())
+}
+
+func refreshReadNotFoundText(text string) bool {
+	text = strings.ToLower(strings.TrimSpace(text))
+	if text == "" {
+		return false
+	}
+	normalized := strings.NewReplacer("_", " ", "-", " ", ".", " ", ":", " ").Replace(text)
+	switch {
+	case strings.Contains(text, "notfound"):
+		return true
+	case strings.Contains(normalized, "not found"):
+		return true
+	case strings.Contains(normalized, "no such entity"):
+		return true
+	case strings.Contains(normalized, "does not exist"):
+		return true
+	case strings.Contains(normalized, "404"):
+		return true
+	default:
+		return false
+	}
 }
 
 func Destroy(ctx context.Context, opts Options) (*Result, error) {
