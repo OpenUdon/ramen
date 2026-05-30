@@ -251,6 +251,139 @@ func TestBuildNativeProjectCarriesMappingMetadataIntoPlanHash(t *testing.T) {
 	}
 }
 
+func TestBuildNativeProjectPlansReplaceOnChangePath(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.role", nil)
+	resource.Attributes["name"] = "new-role"
+	resource.MappingLifecycle = &project.MappingLifecycle{Paths: []project.MappingLifecyclePath{{Path: "name", ReplaceOnChange: true}}}
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:      "aws_iam_role.role",
+		Type:         "aws_iam_role",
+		Provider:     "provider.aws",
+		DesiredHash:  "old-hash",
+		IdentityJSON: `{"role_name":"old-role"}`,
+		Status:       "managed",
+	}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+	result, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if result.Plan.Errored || result.Plan.Summary.Replace != 1 || result.Plan.Resources[0].Action != "replace" {
+		t.Fatalf("replace plan = %#v diagnostics=%#v", result.Plan, result.Diagnostics)
+	}
+}
+
+func TestBuildNativeProjectDoesNotReplaceWhenMappedIdentityPathUnchanged(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.role", nil)
+	resource.Attributes["name"] = "same-role"
+	resource.Attributes["assume_role_policy"] = `{"changed":true}`
+	resource.MappingLifecycle = &project.MappingLifecycle{Paths: []project.MappingLifecyclePath{{Path: "name", ReplaceOnChange: true}}}
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:      "aws_iam_role.role",
+		Type:         "aws_iam_role",
+		Provider:     "provider.aws",
+		DesiredHash:  "old-hash",
+		IdentityJSON: `{"role_name":"same-role"}`,
+		Status:       "managed",
+	}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+	result, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if result.Plan.Errored || result.Plan.Summary.Update != 1 || result.Plan.Resources[0].Action != "update" {
+		t.Fatalf("update plan = %#v diagnostics=%#v", result.Plan, result.Diagnostics)
+	}
+}
+
+func TestBuildNativeProjectIgnoresComputedAndResponseDerivedIdentityHashInputs(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.role", nil)
+	resource.Attributes["arn"] = "arn:first"
+	resource.Attributes["url"] = "url:first"
+	resource.Schema = []project.SchemaPath{
+		{Path: "name", Type: "string", Identity: true},
+		{Path: "arn", Type: "string", Computed: true, ReadOnly: true},
+		{Path: "url", Type: "string", ResponseDerivedIdentity: true},
+	}
+	resource.ResponseBindings = []project.ResponseBinding{{OperationRole: "read", ResponsePath: "Role.Arn", StatePath: "url", Identity: true, ResponseDerivedIdentity: true}}
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	initial, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("initial Build returned error: %v", err)
+	}
+	hash := initial.Plan.Resources[0].DesiredHash
+	resource.Attributes["arn"] = "arn:second"
+	resource.Attributes["url"] = "url:second"
+	projectPath = writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	changed, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("changed Build returned error: %v", err)
+	}
+	if changed.Plan.Resources[0].DesiredHash != hash {
+		t.Fatalf("computed/response-derived identity changed hash: %s -> %s", hash, changed.Plan.Resources[0].DesiredHash)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: "aws_iam_role.role", Type: "aws_iam_role", Provider: "provider.aws", DesiredHash: hash, Status: "managed"}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+	noOp, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("no-op Build returned error: %v", err)
+	}
+	if noOp.Plan.Errored || noOp.Plan.Summary.NoOp != 1 {
+		t.Fatalf("no-op plan = %#v diagnostics=%#v", noOp.Plan, noOp.Diagnostics)
+	}
+}
+
 func TestBuildNativeGoogleStorageProjectWithoutHCL(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")

@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"time"
@@ -642,6 +643,9 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 		} else if current != nil && current.DesiredHash == hash {
 			action = "no-op"
 			reason = "recorded desired hash matches native project"
+		} else if current != nil && projectReplacementChanged(resource, current, desiredMapping) {
+			action = "replace"
+			reason = "replace-on-change path differs from recorded state"
 		} else if current != nil {
 			action = "update"
 			reason = "recorded desired hash differs from native project"
@@ -1066,7 +1070,7 @@ func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, 
 }
 
 func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapping *MappingPlan, sources []sourceDoc, inputsDigest string) string {
-	attrs := project.AttributeStrings(resource.Attributes)
+	attrs := projectHashAttributes(resource, mapping)
 	if lifecycle.IgnoreAll {
 		attrs = map[string]string{}
 	} else {
@@ -1103,6 +1107,151 @@ func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapp
 		APISourceDigest: selectedDigest,
 		InputsDigest:    inputsDigest,
 	})
+}
+
+func projectHashAttributes(resource project.Resource, mapping *MappingPlan) map[string]string {
+	attrs := project.AttributeStrings(resource.Attributes)
+	for path := range projectHashExcludedPaths(mapping) {
+		delete(attrs, path)
+	}
+	return attrs
+}
+
+func projectHashExcludedPaths(mapping *MappingPlan) map[string]bool {
+	paths := map[string]bool{}
+	if mapping == nil {
+		return paths
+	}
+	for _, schema := range mapping.Schema {
+		if schema.Computed || schema.ReadOnly || schema.ResponseDerivedIdentity || schema.Ignored {
+			if path := strings.TrimSpace(schema.Path); path != "" {
+				paths[path] = true
+			}
+		}
+	}
+	if mapping.MappingLifecycle != nil {
+		for _, path := range mapping.MappingLifecycle.Paths {
+			if path.Computed || path.Ignored {
+				if name := strings.TrimSpace(path.Path); name != "" {
+					paths[name] = true
+				}
+			}
+		}
+	}
+	for _, binding := range mapping.ResponseBindings {
+		if binding.ResponseDerivedIdentity {
+			if path := strings.TrimSpace(binding.StatePath); path != "" {
+				paths[path] = true
+			}
+		}
+	}
+	return paths
+}
+
+func projectReplacementChanged(resource project.Resource, current *state.ResourceSnapshot, mapping *MappingPlan) bool {
+	for path := range projectReplacementPaths(mapping) {
+		desired, ok := dottedProjectAttribute(resource.Attributes, path)
+		if !ok {
+			continue
+		}
+		currentValue, ok := snapshotPathValue(current, path, mapping)
+		if !ok || !reflect.DeepEqual(jsonComparable(desired), jsonComparable(currentValue)) {
+			return true
+		}
+	}
+	return false
+}
+
+func projectReplacementPaths(mapping *MappingPlan) map[string]bool {
+	paths := map[string]bool{}
+	if mapping == nil {
+		return paths
+	}
+	for _, schema := range mapping.Schema {
+		if schema.ReplaceOnChange || schema.Immutable || schema.CreateOnly {
+			if path := strings.TrimSpace(schema.Path); path != "" {
+				paths[path] = true
+			}
+		}
+	}
+	if mapping.MappingLifecycle != nil {
+		for _, path := range mapping.MappingLifecycle.Paths {
+			if path.ReplaceOnChange || path.Immutable || path.CreateOnly {
+				if name := strings.TrimSpace(path.Path); name != "" {
+					paths[name] = true
+				}
+			}
+		}
+	}
+	return paths
+}
+
+func dottedProjectAttribute(attrs map[string]any, path string) (any, bool) {
+	return dottedMapValue(attrs, path)
+}
+
+func snapshotPathValue(current *state.ResourceSnapshot, path string, mapping *MappingPlan) (any, bool) {
+	if current == nil {
+		return nil, false
+	}
+	paths := []string{path}
+	if mapping != nil {
+		for _, attr := range mapping.IdentityAttributes {
+			if attr.TerraformPath == path || attr.Name == path {
+				paths = append(paths, attr.Name, attr.TerraformPath)
+				paths = append(paths, attr.ResponsePaths...)
+			}
+		}
+	}
+	for _, text := range []string{current.IdentityJSON, current.AttributesJSON} {
+		if strings.TrimSpace(text) == "" {
+			continue
+		}
+		var values map[string]any
+		if err := json.Unmarshal([]byte(text), &values); err != nil {
+			continue
+		}
+		for _, candidate := range paths {
+			if value, ok := dottedMapValue(values, candidate); ok {
+				return value, true
+			}
+		}
+	}
+	return nil, false
+}
+
+func dottedMapValue(values map[string]any, path string) (any, bool) {
+	path = strings.TrimSpace(path)
+	if path == "" || values == nil {
+		return nil, false
+	}
+	if value, ok := values[path]; ok {
+		return value, true
+	}
+	var cur any = values
+	for _, part := range strings.Split(path, ".") {
+		m, ok := cur.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		cur, ok = m[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return cur, true
+}
+
+func jsonComparable(value any) any {
+	data, err := json.Marshal(value)
+	if err != nil {
+		return value
+	}
+	var out any
+	if err := json.Unmarshal(data, &out); err != nil {
+		return value
+	}
+	return out
 }
 
 func DesiredHash(input DesiredHashInput) string {
