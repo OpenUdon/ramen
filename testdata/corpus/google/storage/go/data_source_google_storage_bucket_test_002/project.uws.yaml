@@ -78,7 +78,6 @@ workflows:
             terraform_type: google_storage_bucket
           operationRef: data_google_storage_bucket_bar_read
           stepId: data_google_storage_bucket_bar_read
-          type: ""
         - body:
             action: create
             purpose: create
@@ -86,7 +85,6 @@ workflows:
             terraform_type: google_storage_bucket
           operationRef: google_storage_bucket_foo_create
           stepId: google_storage_bucket_foo_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

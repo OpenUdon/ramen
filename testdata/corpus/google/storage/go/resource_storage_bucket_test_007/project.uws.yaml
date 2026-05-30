@@ -47,7 +47,6 @@ workflows:
             terraform_type: google_storage_bucket
           operationRef: google_storage_bucket_bucket_create
           stepId: google_storage_bucket_bucket_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

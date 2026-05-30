@@ -70,7 +70,6 @@ workflows:
             terraform_type: aws_s3_bucket
           operationRef: aws_s3_bucket_test_create
           stepId: aws_s3_bucket_test_create
-          type: ""
         - body:
             action: create
             purpose: create
@@ -78,7 +77,6 @@ workflows:
             terraform_type: aws_s3_bucket_public_access_block
           operationRef: aws_s3_bucket_public_access_block_test_create
           stepId: aws_s3_bucket_public_access_block_test_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

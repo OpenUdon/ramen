@@ -64,7 +64,6 @@ workflows:
             terraform_type: azurerm_cosmosdb_account
           operationRef: azurerm_cosmosdb_account_test_create
           stepId: azurerm_cosmosdb_account_test_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

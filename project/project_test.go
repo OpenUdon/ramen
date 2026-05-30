@@ -3,6 +3,7 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	uwsconvert "github.com/OpenUdon/uws/convert"
@@ -63,6 +64,28 @@ func TestLoadRequiresRamenProfileExtension(t *testing.T) {
 
 	if _, err := Load(path); err == nil {
 		t.Fatalf("Load succeeded without %s extension", ExtensionKey)
+	}
+}
+
+func TestLoadRunsUWSSchemaValidationBeforeProfileValidation(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, DefaultJSON)
+	writeProjectTestFile(t, path, `{
+  "uws": "1.4.0",
+  "info": {"title": "schema_invalid", "version": "1.0.0"},
+  "operations": [
+    {"operationId": "review", "x-uws-operation-profile": "ramen-project-test"}
+  ],
+  "workflows": [
+    {"workflowId": "main", "steps": [{"stepId": "review", "operationRef": "review"}]}
+  ],
+  "x-ramen-desired-state": {
+    "version": "ramen.project.v1"
+  }
+}`)
+	_, err := Load(path)
+	if err == nil || !strings.Contains(err.Error(), "jsonschema validation failed") {
+		t.Fatalf("expected UWS schema validation failure, got %v", err)
 	}
 }
 

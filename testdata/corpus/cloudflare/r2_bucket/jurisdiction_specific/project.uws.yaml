@@ -53,7 +53,6 @@ workflows:
             terraform_type: cloudflare_r2_bucket
           operationRef: cloudflare_r2_bucket_ramen_corpus_create
           stepId: cloudflare_r2_bucket_ramen_corpus_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

@@ -112,7 +112,6 @@ workflows:
             terraform_type: aws_iam_role
           operationRef: aws_iam_role_test_create
           stepId: aws_iam_role_test_create
-          type: ""
         - body:
             action: create
             purpose: create
@@ -120,7 +119,6 @@ workflows:
             terraform_type: aws_lambda_function
           operationRef: aws_lambda_function_test_create
           stepId: aws_lambda_function_test_create
-          type: ""
         - body:
             action: create
             purpose: create
@@ -128,7 +126,6 @@ workflows:
             terraform_type: aws_lambda_permission
           operationRef: aws_lambda_permission_test_create
           stepId: aws_lambda_permission_test_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

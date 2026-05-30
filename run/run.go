@@ -16,8 +16,9 @@ import (
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/internal/redact"
 	"github.com/OpenUdon/ramen/state"
-	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
+	"github.com/OpenUdon/uws/validation"
+	"github.com/OpenUdon/uws/versions"
 )
 
 const Version = "ramen.run.v1"
@@ -221,23 +222,27 @@ func loadDocument(path string) (*uws1.Document, string, error) {
 	if err != nil {
 		return nil, "", fmt.Errorf("run.document_load_error: %w", err)
 	}
-	var doc uws1.Document
 	switch strings.ToLower(filepath.Ext(path)) {
-	case ".json":
-		err = uwsconvert.UnmarshalJSON(data, &doc)
-	case ".yaml", ".yml":
-		err = uwsconvert.UnmarshalYAML(data, &doc)
 	default:
-		err = fmt.Errorf("unsupported UWS document extension %q", filepath.Ext(path))
+		return nil, "", fmt.Errorf("run.document_parse_error: unsupported UWS document extension %q", filepath.Ext(path))
+	case ".json", ".yaml", ".yml":
 	}
+	doc, err := validation.LoadDocumentFile(path)
 	if err != nil {
 		return nil, "", fmt.Errorf("run.document_parse_error: %w", err)
+	}
+	schemaVersion := strings.TrimSpace(doc.UWS)
+	if schemaVersion == "" {
+		schemaVersion = "1.0.0"
+	}
+	if err := validation.ValidateFile(versions.PathForVersion(filepath.Dir(path), schemaVersion), path); err != nil {
+		return nil, "", fmt.Errorf("run.document_invalid: %w", err)
 	}
 	if err := doc.Validate(); err != nil {
 		return nil, "", fmt.Errorf("run.document_invalid: %w", err)
 	}
 	sum := sha256.Sum256(data)
-	return &doc, "sha256:" + hex.EncodeToString(sum[:]), nil
+	return doc, "sha256:" + hex.EncodeToString(sum[:]), nil
 }
 
 func approvalDigest(result Result, targets []string) string {

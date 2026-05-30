@@ -47,7 +47,6 @@ workflows:
             terraform_type: kubernetes_namespace
           operationRef: kubernetes_namespace_example_create
           stepId: kubernetes_namespace_example_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

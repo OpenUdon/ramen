@@ -34,7 +34,6 @@ workflows:
             terraform_type: aws_s3_bucket
           operationRef: aws_s3_bucket_test_create
           stepId: aws_s3_bucket_test_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

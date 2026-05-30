@@ -8,8 +8,9 @@ import (
 	"slices"
 	"strings"
 
-	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
+	"github.com/OpenUdon/uws/validation"
+	"github.com/OpenUdon/uws/versions"
 )
 
 const (
@@ -181,26 +182,26 @@ func Load(path string) (*Document, error) {
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(resolved)
-	if err != nil {
-		return nil, err
-	}
-	var doc uws1.Document
 	switch strings.ToLower(filepath.Ext(resolved)) {
-	case ".json":
-		err = uwsconvert.UnmarshalJSON(data, &doc)
-	case ".yaml", ".yml":
-		err = uwsconvert.UnmarshalYAML(data, &doc)
 	default:
-		err = fmt.Errorf("unsupported native project document extension %q", filepath.Ext(resolved))
+		return nil, fmt.Errorf("unsupported native project document extension %q", filepath.Ext(resolved))
+	case ".json", ".yaml", ".yml":
 	}
+	doc, err := validation.LoadDocumentFile(resolved)
 	if err != nil {
 		return nil, fmt.Errorf("load UWS project document %s: %w", resolved, err)
+	}
+	schemaVersion := strings.TrimSpace(doc.UWS)
+	if schemaVersion == "" {
+		schemaVersion = "1.0.0"
+	}
+	if err := validation.ValidateFile(versions.PathForVersion(filepath.Dir(resolved), schemaVersion), resolved); err != nil {
+		return nil, fmt.Errorf("validate UWS project document %s: %w", resolved, err)
 	}
 	if err := doc.Validate(); err != nil {
 		return nil, fmt.Errorf("validate UWS project document %s: %w", resolved, err)
 	}
-	profile, err := ProfileFromDocument(&doc)
+	profile, err := ProfileFromDocument(doc)
 	if err != nil {
 		return nil, fmt.Errorf("load Ramen project profile %s: %w", resolved, err)
 	}
@@ -209,7 +210,7 @@ func Load(path string) (*Document, error) {
 	if err := ValidateProfile(profile); err != nil {
 		return nil, fmt.Errorf("validate Ramen project profile %s: %w", resolved, err)
 	}
-	return &Document{Path: resolved, Dir: dir, UWS: &doc, Profile: profile}, nil
+	return &Document{Path: resolved, Dir: dir, UWS: doc, Profile: profile}, nil
 }
 
 func ResolvePath(path string) (string, error) {

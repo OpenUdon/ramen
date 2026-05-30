@@ -51,7 +51,6 @@ workflows:
             terraform_type: cloudflare_d1_database
           operationRef: cloudflare_d1_database_ramen_corpus_create
           stepId: cloudflare_d1_database_ramen_corpus_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

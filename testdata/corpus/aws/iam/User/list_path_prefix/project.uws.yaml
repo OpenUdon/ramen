@@ -76,7 +76,6 @@ workflows:
             terraform_type: aws_iam_user
           operationRef: aws_iam_user_expected_create
           stepId: aws_iam_user_expected_create
-          type: ""
         - body:
             action: create
             purpose: create
@@ -84,7 +83,6 @@ workflows:
             terraform_type: aws_iam_user
           operationRef: aws_iam_user_not_expected_create
           stepId: aws_iam_user_not_expected_create
-          type: ""
       type: sequence
       workflowId: main
 x-ramen-desired-state:

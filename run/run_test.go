@@ -63,6 +63,27 @@ func TestRunRequiresApprovalAndRecordsHistory(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestRunLoadsDocumentThroughUWSSchemaValidation(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "run.uws.json")
+	if err := os.WriteFile(path, []byte(`{
+  "uws": "1.4.0",
+  "info": {"title": "schema_invalid", "version": "1.0.0"},
+  "operations": [
+    {"operationId": "do", "x-uws-operation-profile": "ramen-run-test"}
+  ],
+  "workflows": [
+    {"workflowId": "main", "steps": [{"stepId": "do", "operationRef": "do"}]}
+  ]
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, err := Execute(context.Background(), Options{DocumentPath: path, StatePath: filepath.Join(root, "state.db"), Check: true})
+	if err == nil || !strings.Contains(err.Error(), "run.document_invalid") || !strings.Contains(err.Error(), "jsonschema validation failed") {
+		t.Fatalf("expected UWS schema validation failure, got %v", err)
+	}
+}
+
 func writeRunTestUWS(t *testing.T, dir string) string {
 	t.Helper()
 	doc := &uws1.Document{
