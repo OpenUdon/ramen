@@ -11,7 +11,10 @@ import (
 
 	"github.com/OpenUdon/ramen/executor"
 	tfplan "github.com/OpenUdon/ramen/plan"
+	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	uwsconvert "github.com/OpenUdon/uws/convert"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 func TestApplyAWSIAMRoleCreateThenNoOpWithMockExecutor(t *testing.T) {
@@ -172,6 +175,140 @@ resource "aws_iam_role" "next" {
 	}
 	if result.Summary.Create != 1 || result.Summary.NoOp != 1 || result.Summary.Skipped != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("apply result=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+}
+
+func TestApplyNativeReadBeforeWriteAndReadAfterWrite(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{applyProjectRole("aws_iam_role.role", "apply-read-role")},
+	})
+	var actions []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		switch strings.Join(actions, ",") {
+		case "read":
+			return executor.Result{Success: true, Missing: true}, nil
+		case "read,create":
+			return executor.Result{Success: true, Identity: map[string]any{"role_name": "mutation-result"}}, nil
+		case "read,create,read":
+			return executor.Result{
+				Success: true,
+				Computed: map[string]any{"Role": map[string]any{
+					"RoleName": "apply-read-role",
+					"Arn":      "arn:aws:iam::123456789012:role/apply-read-role",
+				}},
+			}, nil
+		default:
+			t.Fatalf("unexpected action sequence %v", actions)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Create != 1 || strings.Join(actions, ",") != "read,create,read" {
+		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	snap, err := store.CurrentResource(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	_ = store.Close()
+	if snap == nil || !strings.Contains(snap.IdentityJSON, "apply-read-role") || strings.Contains(snap.IdentityJSON, "mutation-result") || !strings.Contains(snap.AttributesJSON, "arn:aws:iam") {
+		t.Fatalf("snapshot = %#v", snap)
+	}
+}
+
+func TestApplyNativeReadBeforeWriteRejectsExistingCreate(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{applyProjectRole("aws_iam_role.role", "existing-role")},
+	})
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Action != "read" {
+			t.Fatalf("unexpected mutation after existing baseline: %#v", req.Action)
+		}
+		return executor.Result{Success: true, Identity: map[string]any{"role_name": "existing-role"}}, nil
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.failed") {
+		t.Fatalf("expected apply failure, got %v", err)
+	}
+	if result.Summary.Failed != 1 || mock.RequestCount() != 1 || len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "apply.baseline_exists") {
+		t.Fatalf("result=%#v errors=%v requests=%d", result.Summary, result.Errors, mock.RequestCount())
+	}
+}
+
+func TestApplyNativeReadBeforeWriteRejectsUpdateDrift(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{applyProjectRole("aws_iam_role.role", "drift-role")},
+	})
+	planned, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:        "aws_iam_role.role",
+		Type:           "aws_iam_role",
+		Provider:       "provider.aws",
+		DesiredHash:    "old-hash",
+		IdentityJSON:   `{"role_name":"drift-role"}`,
+		AttributesJSON: `{"arn":"old"}`,
+		Status:         "managed",
+	}); err != nil {
+		t.Fatalf("record state: %v", err)
+	}
+	_ = store.Close()
+	if planned.Plan.Resources[0].DesiredHash == "old-hash" {
+		t.Fatal("test fixture did not create an update hash")
+	}
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Action != "read" {
+			t.Fatalf("unexpected mutation after drift baseline: %#v", req.Action)
+		}
+		return executor.Result{
+			Success: true,
+			Computed: map[string]any{"Role": map[string]any{
+				"RoleName": "drift-role",
+				"Arn":      "remote-drift",
+			}},
+		}, nil
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.failed") {
+		t.Fatalf("expected apply failure, got %v", err)
+	}
+	if result.Summary.Failed != 1 || mock.RequestCount() != 1 || len(result.Errors) != 1 || !strings.Contains(result.Errors[0], "apply.baseline_drift") {
+		t.Fatalf("result=%#v errors=%v requests=%d", result.Summary, result.Errors, mock.RequestCount())
 	}
 }
 
@@ -483,6 +620,67 @@ resource "aws_iam_role" "role" {
 	}
 	if mock.RequestCount() != 0 {
 		t.Fatalf("executor was called for errored artifact")
+	}
+}
+
+func writeApplyProjectForTest(t *testing.T, dir string, profile project.Profile) string {
+	t.Helper()
+	doc := &uws1.Document{
+		UWS: "1.4.0",
+		Info: &uws1.Info{
+			Title:   "apply_project_fixture",
+			Version: "1.0.0",
+		},
+		Operations: []*uws1.Operation{{
+			OperationID: "review",
+			Request:     map[string]any{"x-test": true},
+			Extensions:  map[string]any{uws1.ExtensionOperationProfile: "ramen-apply-test"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main",
+			Type:       uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{{
+				StepID:       "review",
+				OperationRef: "review",
+			}},
+		}},
+		Extensions: map[string]any{
+			project.ExtensionKey: profile,
+		},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	data = append(data, '\n')
+	path := filepath.Join(dir, project.DefaultJSON)
+	writeApplyTestFile(t, path, string(data))
+	return path
+}
+
+func applyProjectRole(address, name string) project.Resource {
+	return project.Resource{
+		Address:    address,
+		Kind:       "resource",
+		Type:       "aws_iam_role",
+		Name:       strings.TrimPrefix(address, "aws_iam_role."),
+		Provider:   "provider.aws",
+		Attributes: map[string]any{"name": name, "assume_role_policy": "{}"},
+		Operations: map[string]project.OperationRole{
+			"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+			"update": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+			"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+		},
+		IdentityAttributes: []project.IdentityAttribute{{
+			Name:        "role_name",
+			Path:        "name",
+			RequestKeys: []string{"RoleName"},
+			Required:    true,
+		}},
+		ResponseBindings: []project.ResponseBinding{
+			{OperationRole: "read", ResponsePath: "Role.RoleName", StatePath: "role_name", Identity: true},
+			{OperationRole: "read", ResponsePath: "Role.Arn", StatePath: "arn", Computed: true},
+		},
 	}
 }
 

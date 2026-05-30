@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/internal/stateprojection"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
@@ -790,7 +791,7 @@ resource "aws_iam_role" "role" {
 }
 
 func TestRefreshClassifiesNotFoundUnsuccessfulResultAsMissing(t *testing.T) {
-	result, err := classifyRefreshReadResult(executor.Result{
+	result, err := stateprojection.ClassifyReadResult(executor.Result{
 		Success:  false,
 		Messages: []string{"Error from server (NotFound): resource does not exist"},
 	}, nil)
@@ -803,7 +804,7 @@ func TestRefreshClassifiesNotFoundUnsuccessfulResultAsMissing(t *testing.T) {
 }
 
 func TestRefreshDoesNotMaskUnrelatedExecutorErrorWithMissingFlag(t *testing.T) {
-	_, err := classifyRefreshReadResult(executor.Result{Missing: true}, errors.New("connection refused"))
+	_, err := stateprojection.ClassifyReadResult(executor.Result{Missing: true}, errors.New("connection refused"))
 	if err == nil {
 		t.Fatal("classify masked unrelated executor error")
 	}

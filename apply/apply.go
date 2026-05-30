@@ -13,6 +13,7 @@ import (
 
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/internal/requestbinding"
+	"github.com/OpenUdon/ramen/internal/stateprojection"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
@@ -155,6 +156,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 
 	sourcePaths := sourcePathIndex(opts.APISources)
 	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath, opts.VarFiles, opts.Vars)
+	readMappings := applyReadMappings(opts.ProjectPath)
 	workingDir := opts.ConfigDir
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
@@ -182,6 +184,33 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 				return result, err
 			}
 			continue
+		}
+		readMapping := readMappings[resource.Address]
+		if readMapping != nil {
+			baseline, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "baseline")
+			result.Feedback = append(result.Feedback, baseline.Feedback...)
+			if err != nil {
+				runStatus = "failed"
+				result.Summary.Failed++
+				failed[resource.Address] = true
+				msg := fmt.Sprintf("apply.baseline_failed: %v", err)
+				result.Errors = append(result.Errors, msg)
+				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+					return result, recErr
+				}
+				continue
+			}
+			if err := validateReadBeforeWrite(ctx, store, resource, readMapping, baseline.Result); err != nil {
+				runStatus = "failed"
+				result.Summary.Failed++
+				failed[resource.Address] = true
+				msg := err.Error()
+				result.Errors = append(result.Errors, msg)
+				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+					return result, recErr
+				}
+				continue
+			}
 		}
 		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address], nil)
 		if err != nil {
@@ -255,7 +284,37 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			}
 			continue
 		}
-		if err := recordSuccessfulMutation(ctx, store, runID, resource, before, execResult); err != nil {
+		stateResult := execResult
+		stateMapping := (*tfplan.MappingPlan)(nil)
+		if readMapping != nil {
+			converged, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "convergence")
+			result.Feedback = append(result.Feedback, converged.Feedback...)
+			if err != nil {
+				runStatus = "failed"
+				result.Summary.Failed++
+				failed[resource.Address] = true
+				msg := fmt.Sprintf("apply.convergence_failed: %v", err)
+				result.Errors = append(result.Errors, msg)
+				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+					return result, recErr
+				}
+				continue
+			}
+			if converged.Result.Missing {
+				runStatus = "failed"
+				result.Summary.Failed++
+				failed[resource.Address] = true
+				msg := fmt.Sprintf("apply.convergence_missing: read-after-write reported missing for %s", resource.Address)
+				result.Errors = append(result.Errors, msg)
+				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+					return result, recErr
+				}
+				continue
+			}
+			stateResult = converged.Result
+			stateMapping = readMapping
+		}
+		if err := recordSuccessfulMutation(ctx, store, runID, resource, before, stateResult, stateMapping); err != nil {
 			runStatus = "failed"
 			return result, err
 		}
@@ -665,8 +724,174 @@ func executorAction(resource tfplan.ResourcePlan) executor.Action {
 	return action
 }
 
-func recordSuccessfulMutation(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, before *state.ResourceSnapshot, execResult executor.Result) error {
+type readCheckResult struct {
+	Result   executor.Result
+	Feedback []executor.FeedbackRecord
+}
+
+func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.Store, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir, phase string) (readCheckResult, error) {
+	readResource := resource
+	readResource.Action = "read"
+	readResource.Mapping = readMapping
+	identity, err := currentIdentity(ctx, store, resource.Address)
+	if err != nil {
+		return readCheckResult{}, err
+	}
+	doc, err := buildActionDocument(readResource, sourcePaths, attrs, identity)
+	if err != nil {
+		return readCheckResult{}, err
+	}
+	action := executorAction(readResource)
+	req := executor.Request{
+		RunID:      runID,
+		Action:     action,
+		Document:   doc,
+		WorkingDir: workingDir,
+		OutDir:     outDir,
+	}
+	req.Capabilities = executor.RequirementsForAction(action)
+	req.Idempotency = executor.IdempotencyForAction(action)
+	if phase != "" {
+		req.Idempotency.Key += "-" + phase
+	}
+	req.Events = ExecutorEventSink(store)
+	if err := executor.EnsureSupported(exec, req); err != nil {
+		return readCheckResult{}, err
+	}
+	execResult, err := exec.Execute(ctx, req)
+	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
+	feedback := executor.FeedbackFromResult(req, execResult, err)
+	if err != nil {
+		return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, err
+	}
+	if !execResult.Success {
+		return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, fmt.Errorf("executor reported unsuccessful read for %s", resource.Address)
+	}
+	return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, nil
+}
+
+func validateReadBeforeWrite(ctx context.Context, store *state.Store, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, execResult executor.Result) error {
+	switch resource.Action {
+	case "create":
+		if !execResult.Missing {
+			return fmt.Errorf("apply.baseline_exists: read-before-write found existing remote object for planned create %s", resource.Address)
+		}
+	case "update":
+		if execResult.Missing {
+			return fmt.Errorf("apply.baseline_missing: read-before-write reported missing remote object for planned update %s", resource.Address)
+		}
+		changed, err := readResultDiffersFromState(ctx, store, resource.Address, readMapping, execResult)
+		if err != nil {
+			return err
+		}
+		if changed {
+			return fmt.Errorf("apply.baseline_drift: read-before-write drift changed the approved baseline for %s", resource.Address)
+		}
+	}
+	return nil
+}
+
+func readResultDiffersFromState(ctx context.Context, store *state.Store, address string, mapping *tfplan.MappingPlan, execResult executor.Result) (bool, error) {
+	current, err := store.CurrentResource(ctx, address)
+	if err != nil {
+		return false, err
+	}
+	if current == nil {
+		return true, nil
+	}
+	identity, computed := stateprojection.Project(mapping, execResult)
+	if len(identity) > 0 {
+		data, _ := json.Marshal(redactMap(identity))
+		if current.IdentityJSON != string(data) {
+			return true, nil
+		}
+	}
+	if len(computed) > 0 {
+		data, _ := json.Marshal(redactMap(computed))
+		if current.AttributesJSON != string(data) {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func currentIdentity(ctx context.Context, store *state.Store, address string) (map[string]any, error) {
+	current, err := store.CurrentResource(ctx, address)
+	if err != nil || current == nil || strings.TrimSpace(current.IdentityJSON) == "" {
+		return nil, err
+	}
+	var identity map[string]any
+	if err := json.Unmarshal([]byte(current.IdentityJSON), &identity); err != nil {
+		return nil, err
+	}
+	return identity, nil
+}
+
+func applyReadMappings(projectPath string) map[string]*tfplan.MappingPlan {
+	if strings.TrimSpace(projectPath) == "" {
+		return nil
+	}
+	doc, err := project.Load(projectPath)
+	if err != nil {
+		return nil
+	}
+	out := map[string]*tfplan.MappingPlan{}
+	for _, resource := range doc.Profile.Resources {
+		if resource.Kind != "resource" {
+			continue
+		}
+		role, ok := resource.Operations["read"]
+		if !ok || strings.TrimSpace(role.OperationID) == "" {
+			continue
+		}
+		source := project.SourceForRole(doc.Profile, role)
+		out[resource.Address] = &tfplan.MappingPlan{
+			Purpose:            "read",
+			SourceKind:         firstNonEmpty(role.SourceKind, source.Kind),
+			SourceID:           firstNonEmpty(role.SourceID, source.ID),
+			SourcePath:         firstNonEmpty(role.SourcePath, source.Path),
+			OperationID:        role.OperationID,
+			IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes),
+			ResponseBindings:   slices.Clone(resource.ResponseBindings),
+			Normalizers:        slices.Clone(resource.Normalizers),
+			MappingLifecycle:   cloneMappingLifecycle(resource.MappingLifecycle),
+			RequiredOperations: slices.Clone(resource.RequiredOperations),
+		}
+	}
+	return out
+}
+
+func projectIdentityAttributes(attrs []project.IdentityAttribute) []tfmapping.IdentityAttribute {
+	out := make([]tfmapping.IdentityAttribute, 0, len(attrs))
+	for _, attr := range attrs {
+		out = append(out, tfmapping.IdentityAttribute{
+			Name:          attr.Name,
+			TerraformPath: attr.Path,
+			RequestKeys:   slices.Clone(attr.RequestKeys),
+			ResponsePaths: slices.Clone(attr.ResponsePaths),
+			Required:      attr.Required,
+		})
+	}
+	return out
+}
+
+func cloneMappingLifecycle(lifecycle *project.MappingLifecycle) *project.MappingLifecycle {
+	if lifecycle == nil {
+		return nil
+	}
+	return &project.MappingLifecycle{
+		OperationRoles: slices.Clone(lifecycle.OperationRoles),
+		Paths:          slices.Clone(lifecycle.Paths),
+	}
+}
+
+func recordSuccessfulMutation(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, before *state.ResourceSnapshot, execResult executor.Result, projection *tfplan.MappingPlan) error {
 	redacted := redactExecutorResult(execResult)
+	if projection != nil {
+		identity, computed := stateprojection.Project(projection, execResult)
+		redacted.Identity = redactMap(identity)
+		redacted.Computed = redactMap(computed)
+	}
 	identityJSON, err := marshalMap(redacted.Identity)
 	if err != nil {
 		return err

@@ -97,11 +97,11 @@ var (
 
 func TestKubernetesNamespaceReplayEquivalence(t *testing.T) {
 	t.Run(kubernetesDestroyScenario.name, func(t *testing.T) {
-		recorder := loadKubernetesRecording(t, kubernetesDestroyScenario.recordingPath)
+		recorder := loadKubernetesReplayRecording(t, kubernetesDestroyScenario.recordingPath)
 		runKubernetesDestroyScenario(t, context.Background(), kubernetesDestroyScenario, recorder, nil)
 	})
 	t.Run(kubernetesMissingScenario.name, func(t *testing.T) {
-		recorder := loadKubernetesRecording(t, kubernetesMissingScenario.recordingPath)
+		recorder := loadKubernetesReplayRecording(t, kubernetesMissingScenario.recordingPath)
 		runKubernetesMissingScenario(t, context.Background(), kubernetesMissingScenario, recorder, nil)
 	})
 }
@@ -151,15 +151,15 @@ func TestKubernetesNamespaceLiveEquivalence(t *testing.T) {
 
 func TestKubernetesNamespacedResourceReplayEquivalence(t *testing.T) {
 	t.Run(kubernetesConfigMapScenario.name, func(t *testing.T) {
-		recorder := loadKubernetesRecording(t, kubernetesConfigMapScenario.recordingPath)
+		recorder := loadKubernetesReplayRecording(t, kubernetesConfigMapScenario.recordingPath)
 		runKubernetesConfigMapScenario(t, context.Background(), kubernetesConfigMapScenario, recorder)
 	})
 	t.Run(kubernetesServiceAccountScenario.name, func(t *testing.T) {
-		recorder := loadKubernetesRecording(t, kubernetesServiceAccountScenario.recordingPath)
+		recorder := loadKubernetesReplayRecording(t, kubernetesServiceAccountScenario.recordingPath)
 		runKubernetesNamespacedMissingScenario(t, context.Background(), kubernetesServiceAccountScenario, recorder, nil)
 	})
 	t.Run(kubernetesRoleScenario.name, func(t *testing.T) {
-		recorder := loadKubernetesRecording(t, kubernetesRoleScenario.recordingPath)
+		recorder := loadKubernetesReplayRecording(t, kubernetesRoleScenario.recordingPath)
 		runKubernetesNamespacedDestroyScenario(t, context.Background(), kubernetesRoleScenario, recorder)
 	})
 }
@@ -501,6 +501,69 @@ func loadKubernetesRecording(t *testing.T, path string) *executor.RecordedExecut
 		t.Fatalf("load recording %s: %v", path, err)
 	}
 	return recorder
+}
+
+func loadKubernetesReplayRecording(t *testing.T, path string) executor.Executor {
+	t.Helper()
+	return &kubernetesReplayExecutor{
+		replay:  loadKubernetesRecording(t, path),
+		current: map[string]executor.Result{},
+	}
+}
+
+type kubernetesReplayExecutor struct {
+	replay  *executor.RecordedExecutor
+	current map[string]executor.Result
+}
+
+func (k *kubernetesReplayExecutor) Capabilities() executor.CapabilityDescriptor {
+	if k == nil || k.replay == nil {
+		return (&executor.MockExecutor{}).Capabilities()
+	}
+	return k.replay.Capabilities()
+}
+
+func (k *kubernetesReplayExecutor) Execute(ctx context.Context, req executor.Request) (executor.Result, error) {
+	result, err := k.replay.Execute(ctx, req)
+	if err == nil {
+		k.observe(req, result)
+		return result, nil
+	}
+	if req.Action.Action == "read" && strings.Contains(err.Error(), "recorded executor missing replay") {
+		return k.syntheticRead(req), nil
+	}
+	return result, err
+}
+
+func (k *kubernetesReplayExecutor) observe(req executor.Request, result executor.Result) {
+	switch req.Action.Action {
+	case "create", "update":
+		k.current[req.Action.Address] = result
+	case "delete":
+		delete(k.current, req.Action.Address)
+	case "read":
+		if result.Missing {
+			delete(k.current, req.Action.Address)
+		} else {
+			k.current[req.Action.Address] = result
+		}
+	}
+}
+
+func (k *kubernetesReplayExecutor) syntheticRead(req executor.Request) executor.Result {
+	if result, ok := k.current[req.Action.Address]; ok {
+		result.Address = req.Action.Address
+		result.Operation = req.Action.Mapping.OperationID
+		result.Success = true
+		result.Missing = false
+		return result
+	}
+	return executor.Result{
+		Address:   req.Action.Address,
+		Operation: req.Action.Mapping.OperationID,
+		Success:   true,
+		Missing:   true,
+	}
 }
 
 func compareOrUpdateKubernetesRecording(t *testing.T, recorder *executor.RecordedExecutor, path string) {
