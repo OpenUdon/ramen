@@ -55,7 +55,9 @@ Ready now: provider-free native validation, graphing, planning, HCL conversion
 scaffolding, local state history, mock-backed apply/refresh/destroy flows,
 plan approval metadata, read-only show/state inspection, and documented safety
 boundaries. The first `ramen author` wrapper can also draft a native project
-from prompt-safe API operation context without provider execution. Still
+from prompt-safe API operation context without provider execution. `ramen icot`
+adds the interactive local-metadata path for drafting create/update skeletons
+and read-only/list projects from local API source documents. Still
 experimental: broader resource mappings, live executor
 adapters, policy hooks, parameterization ergonomics, release packaging, and
 operational support contracts.
@@ -105,6 +107,7 @@ Implemented public commands:
 
 ```bash
 ramen author --context context.json --goal "Manage widgets"
+ramen icot --goal "List all Azure resources" --api-source openapi:azure=azure.json --no-llm --validate --graph
 ramen convert
 ramen init
 ramen validate --project DIR --json
@@ -126,6 +129,11 @@ milestones as transitional compatibility. `ramen convert` writes
 mock-backed in default public builds where execution is required. Live executor
 wiring remains opt-in behind trusted adapters. `ramen version --json` reports
 local build metadata without network checks.
+
+Manual Azure-start note: begin with a local Azure Resource Manager OpenAPI file
+and `ramen icot --no-llm --goal "List all Azure resources" --api-source
+openapi:azure=PATH --validate --graph`. This drafts and checks a read-only
+project only; live account listing remains a later trusted-executor step.
 
 ## Status Lanes
 

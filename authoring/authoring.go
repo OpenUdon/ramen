@@ -270,11 +270,15 @@ func buildDocument(s state) *uws1.Document {
 	sourceID := firstNonEmpty(source.ID, operation.SourceID, "api")
 	sourceKind := firstNonEmpty(source.Kind, "openapi")
 	resourceName := slug(firstNonEmpty(s.ProjectName, s.Goal, "resource"))
-	localOperationID := "create_" + resourceName
 	resources := append([]project.Resource(nil), s.Resources...)
 	if len(resources) == 0 {
 		resources = []project.Resource{defaultResource(s, source, operation, sourceID, sourceKind, sourceOperationID, resourceName)}
 	}
+	primaryRole := "create"
+	if readOnlyResources(resources) {
+		primaryRole = "read"
+	}
+	localOperationID := primaryRole + "_" + resourceName
 	profile := project.Profile{
 		Version:    project.Version,
 		APISources: apiSourcesForContext(s.Context, source, operation, sourceID, sourceKind),
@@ -304,7 +308,7 @@ func buildDocument(s state) *uws1.Document {
 			Type:        uws1.WorkflowTypeSequence,
 			Description: s.Goal,
 			Steps: []*uws1.Step{{
-				StepID:       "create_" + resourceName,
+				StepID:       localOperationID,
 				OperationRef: localOperationID,
 			}},
 		}},
@@ -351,6 +355,87 @@ func defaultResource(s state, source promptcontext.SourceDocument, operation pro
 		CredentialBindings: append([]string(nil), operation.CredentialBindings...),
 		Redaction:          resourceRedaction,
 	}
+}
+
+// ReadOnlyResource builds a Ramen resource skeleton for read/list-style goals.
+func ReadOnlyResource(ctx promptcontext.Context, goal, projectName string) project.Resource {
+	ctx = promptcontext.Normalize(ctx)
+	source := firstSource(ctx)
+	operation := firstOperation(ctx)
+	sourceOperationID := firstNonEmpty(operation.OperationID, operation.ID)
+	sourceID := firstNonEmpty(source.ID, operation.SourceID, "api")
+	sourceKind := firstNonEmpty(source.Kind, operation.Metadata["source_kind"], "openapi")
+	sourcePath := firstNonEmpty(source.URI, operation.Metadata["source_path"], source.ID)
+	resourceName := slug(firstNonEmpty(projectName, goal, operation.Name, operation.OperationID, "read_resource"))
+	var schema []project.SchemaPath
+	if strings.TrimSpace(operation.RequestSchemaID) != "" {
+		schema = schemaPathsForOperation(ctx, operation)
+	}
+	if len(schema) == 0 {
+		schema = []project.SchemaPath{{
+			Path:     "id",
+			Type:     "string",
+			Computed: true,
+			Identity: true,
+			ReadOnly: true,
+		}}
+	}
+	for i := range schema {
+		schema[i].ReadOnly = true
+		if !schema[i].Identity {
+			schema[i].Computed = true
+		}
+	}
+	identity := identityAttributesForSchema(schema)
+	attributes := map[string]any{}
+	for _, attr := range identity {
+		attributes[attr.Path] = resourceName
+	}
+	return project.Resource{
+		Address:    "resource." + resourceName,
+		Kind:       "resource",
+		Type:       resourceName,
+		Name:       resourceName,
+		Provider:   sourceKind,
+		Attributes: attributes,
+		Operations: map[string]project.OperationRole{
+			"read": {
+				Purpose:            "read",
+				SourceKind:         sourceKind,
+				SourceID:           sourceID,
+				SourcePath:         sourcePath,
+				OperationID:        sourceOperationID,
+				CredentialBindings: append([]string(nil), operation.CredentialBindings...),
+			},
+		},
+		IdentityAttributes: identity,
+		Schema:             schema,
+		ResponseBindings:   responseBindingsForSchema(schema, sourceOperationID),
+		RequiredOperations: []string{"read"},
+		CredentialBindings: append([]string(nil), operation.CredentialBindings...),
+		Redaction:          redactionForSchema(schema),
+		Metadata: map[string]any{
+			"goal":           strings.TrimSpace(goal),
+			"operation_role": "read",
+		},
+	}
+}
+
+func readOnlyResources(resources []project.Resource) bool {
+	if len(resources) == 0 {
+		return false
+	}
+	for _, resource := range resources {
+		if !contains(resource.RequiredOperations, "read") {
+			return false
+		}
+		for purpose := range resource.Operations {
+			if purpose != "read" {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func reportForRun(run sharedicot.Result[state, artifact], err error, result Result) sharedreport.Result {
@@ -548,6 +633,24 @@ func requestBindingsForSchema(schema []project.SchemaPath, operationID string) [
 			RequestPath:   path.Path,
 			Required:      path.Required,
 			Identity:      path.Identity,
+		})
+	}
+	return out
+}
+
+func responseBindingsForSchema(schema []project.SchemaPath, operationID string) []project.ResponseBinding {
+	var out []project.ResponseBinding
+	for _, path := range schema {
+		out = append(out, project.ResponseBinding{
+			OperationRole:           "read",
+			OperationID:             operationID,
+			ResponsePath:            path.Path,
+			StatePath:               path.Path,
+			Identity:                path.Identity,
+			ResponseDerivedIdentity: path.ResponseDerivedIdentity,
+			Computed:                path.Computed,
+			Observed:                true,
+			Sensitive:               path.Sensitive,
 		})
 	}
 	return out
