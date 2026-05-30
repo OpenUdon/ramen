@@ -141,9 +141,11 @@ type kubernetesParityRoleObservation struct {
 }
 
 type kubernetesParityPolicyRule struct {
-	APIGroups []string `json:"apiGroups"`
-	Resources []string `json:"resources"`
-	Verbs     []string `json:"verbs"`
+	APIGroups       []string `json:"apiGroups"`
+	NonResourceURLs []string `json:"nonResourceURLs,omitempty"`
+	ResourceNames   []string `json:"resourceNames,omitempty"`
+	Resources       []string `json:"resources"`
+	Verbs           []string `json:"verbs"`
 }
 
 type kubernetesParityNoOpObservation struct {
@@ -1245,17 +1247,11 @@ func observeKubernetesParityServiceAccount(ctx context.Context, env kubernetesPa
 	if err := json.Unmarshal(out, &doc); err != nil {
 		return kubernetesParityServiceAccountObservation{}, err
 	}
-	labels := map[string]string{}
-	for _, key := range []string{"app.kubernetes.io/managed-by", "ramen.openudon.dev/lane"} {
-		if value := doc.Metadata.Labels[key]; value != "" {
-			labels[key] = value
-		}
-	}
 	return kubernetesParityServiceAccountObservation{
 		Exists:                       true,
 		Namespace:                    doc.Metadata.Namespace,
 		Name:                         doc.Metadata.Name,
-		Labels:                       labels,
+		Labels:                       cloneStringMap(doc.Metadata.Labels),
 		AutomountServiceAccountToken: doc.AutomountServiceAccountToken,
 	}, nil
 }
@@ -1314,19 +1310,13 @@ func observeKubernetesParityRole(ctx context.Context, env kubernetesParityLiveEn
 	if err := json.Unmarshal(out, &doc); err != nil {
 		return kubernetesParityRoleObservation{}, err
 	}
-	labels := map[string]string{}
-	for _, key := range []string{"app.kubernetes.io/managed-by", "ramen.openudon.dev/lane"} {
-		if value := doc.Metadata.Labels[key]; value != "" {
-			labels[key] = value
-		}
-	}
 	return kubernetesParityRoleObservation{
 		Exists:     true,
 		APIVersion: doc.APIVersion,
 		Kind:       doc.Kind,
 		Namespace:  doc.Metadata.Namespace,
 		Name:       doc.Metadata.Name,
-		Labels:     labels,
+		Labels:     cloneStringMap(doc.Metadata.Labels),
 		Rules:      normalizeKubernetesParityPolicyRules(doc.Rules),
 	}, nil
 }
@@ -1518,9 +1508,11 @@ func compareKubernetesRoleParityObservations(t *testing.T, observations []kubern
 		"ramen.openudon.dev/lane":      "k05",
 	}
 	expectedRules := []kubernetesParityPolicyRule{{
-		APIGroups: []string{""},
-		Resources: []string{"configmaps", "secrets"},
-		Verbs:     []string{"get", "list", "watch"},
+		APIGroups:       []string{""},
+		NonResourceURLs: nil,
+		ResourceNames:   nil,
+		Resources:       []string{"configmaps", "secrets"},
+		Verbs:           []string{"get", "list", "watch"},
 	}}
 	for _, observation := range observations {
 		if !observation.AfterApply.Exists {
@@ -1542,7 +1534,7 @@ func compareKubernetesRoleParityObservations(t *testing.T, observations []kubern
 	}
 	return kubernetesParityObservationComparison{
 		Matched: true,
-		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.namespace", "metadata.labels", "rules", "no-op", "destroy.absent"},
+		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.namespace", "metadata.labels", "rules.apiGroups", "rules.nonResourceURLs", "rules.resourceNames", "rules.resources", "rules.verbs", "no-op", "destroy.absent"},
 	}
 }
 
@@ -1976,13 +1968,21 @@ func normalizeKubernetesParityPolicyRules(in []kubernetesParityPolicyRule) []kub
 	out := make([]kubernetesParityPolicyRule, 0, len(in))
 	for _, rule := range in {
 		out = append(out, kubernetesParityPolicyRule{
-			APIGroups: slices.Sorted(slices.Values(rule.APIGroups)),
-			Resources: slices.Sorted(slices.Values(rule.Resources)),
-			Verbs:     slices.Sorted(slices.Values(rule.Verbs)),
+			APIGroups:       slices.Sorted(slices.Values(rule.APIGroups)),
+			NonResourceURLs: slices.Sorted(slices.Values(rule.NonResourceURLs)),
+			ResourceNames:   slices.Sorted(slices.Values(rule.ResourceNames)),
+			Resources:       slices.Sorted(slices.Values(rule.Resources)),
+			Verbs:           slices.Sorted(slices.Values(rule.Verbs)),
 		})
 	}
 	slices.SortFunc(out, func(a, b kubernetesParityPolicyRule) int {
 		if c := strings.Compare(strings.Join(a.APIGroups, "\x00"), strings.Join(b.APIGroups, "\x00")); c != 0 {
+			return c
+		}
+		if c := strings.Compare(strings.Join(a.NonResourceURLs, "\x00"), strings.Join(b.NonResourceURLs, "\x00")); c != 0 {
+			return c
+		}
+		if c := strings.Compare(strings.Join(a.ResourceNames, "\x00"), strings.Join(b.ResourceNames, "\x00")); c != 0 {
 			return c
 		}
 		if c := strings.Compare(strings.Join(a.Resources, "\x00"), strings.Join(b.Resources, "\x00")); c != 0 {

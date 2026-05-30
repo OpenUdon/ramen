@@ -38,7 +38,11 @@
         "metadata.labels",
         "apiVersion",
         "kind",
-        "rules"
+        "rules.apiGroups",
+        "rules.nonResourceURLs",
+        "rules.resourceNames",
+        "rules.resources",
+        "rules.verbs"
       ],
       "expected_transitions": [
         "create",
@@ -54,6 +58,6 @@
   "recorded_at": "2026-05-29T23:48:26Z",
   "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k05 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.15.5, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
-    "K05 compares RBAC API group handling, metadata identity, labels, nested rules, no-op, and destroy cleanup."
+    "K05 compares RBAC API group handling, metadata identity, full labels, nested PolicyRule fields, no-op, and destroy cleanup."
   ]
 }

@@ -154,6 +154,18 @@
             "type": "string"
           }
         },
+        "nonResourceURLs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resourceNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "resources": {
           "type": "array",
           "items": {

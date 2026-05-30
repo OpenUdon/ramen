@@ -158,7 +158,11 @@
       "metadata.name",
       "metadata.namespace",
       "metadata.labels",
-      "rules",
+      "rules.apiGroups",
+      "rules.nonResourceURLs",
+      "rules.resourceNames",
+      "rules.resources",
+      "rules.verbs",
       "no-op",
       "destroy.absent"
     ]
