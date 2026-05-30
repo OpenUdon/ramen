@@ -297,6 +297,123 @@ func TestImportAcceptsSchemaAndResponseDerivedIdentity(t *testing.T) {
 	}
 }
 
+func TestImportWithReadVerificationProjectsStateAndPlansNoOp(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "verified-role", "assume_role_policy": "{}"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+				"read":   {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "role_name", Path: "name", RequestKeys: []string{"RoleName"}, Required: true}},
+			ResponseBindings: []project.ResponseBinding{
+				{OperationRole: "read", ResponsePath: "Role.RoleName", StatePath: "role_name", Identity: true},
+				{OperationRole: "read", ResponsePath: "Role.Arn", StatePath: "arn", Computed: true},
+			},
+		}},
+	})
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Action != "read" || req.Action.Mapping.OperationID != "GetRole" {
+			t.Fatalf("unexpected import verification action: %#v", req.Action)
+		}
+		return executor.Result{
+			Success: true,
+			Computed: map[string]any{"Role": map[string]any{
+				"RoleName": "verified-role",
+				"Arn":      "arn:aws:iam::123456789012:role/verified-role",
+			}},
+		}, nil
+	}}
+	result, err := Import(context.Background(), ImportOptions{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Address:     "aws_iam_role.role",
+		Type:        "aws_iam_role",
+		Provider:    "provider.aws",
+		Identity:    map[string]any{"role_name": "verified-role"},
+		Executor:    mock,
+	})
+	if err != nil {
+		t.Fatalf("Import returned error: %v", err)
+	}
+	if result.Summary.Imported != 1 || len(result.Feedback) != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("result=%#v feedback=%#v requests=%d", result.Summary, result.Feedback, mock.RequestCount())
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	snap, err := store.CurrentResource(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	_ = store.Close()
+	if snap == nil || !strings.Contains(snap.IdentityJSON, "verified-role") || !strings.Contains(snap.AttributesJSON, "arn:aws:iam") || snap.OperationID != "GetRole" {
+		t.Fatalf("snapshot = %#v", snap)
+	}
+	planned, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if planned.Plan.Errored || planned.Plan.Summary.NoOp != 1 {
+		t.Fatalf("plan after verified import = %#v diagnostics=%#v", planned.Plan, planned.Diagnostics)
+	}
+}
+
+func TestImportReadVerificationMissingFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{refreshProjectRole("aws_iam_role.role", "missing-import-role")},
+	})
+	mock := &executor.MockExecutor{ExecuteFn: func(context.Context, executor.Request) (executor.Result, error) {
+		return executor.Result{Success: true, Missing: true}, nil
+	}}
+	result, err := Import(context.Background(), ImportOptions{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Address:     "aws_iam_role.role",
+		Type:        "aws_iam_role",
+		Identity:    map[string]any{"role_name": "missing-import-role"},
+		Executor:    mock,
+	})
+	if err == nil || !strings.Contains(err.Error(), "import.read_missing") {
+		t.Fatalf("missing import read error = %v", err)
+	}
+	if result == nil || len(result.Feedback) != 1 {
+		t.Fatalf("result feedback = %#v", result)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	snap, err := store.CurrentResource(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	_ = store.Close()
+	if snap != nil {
+		t.Fatalf("missing verified import wrote state: %#v", snap)
+	}
+}
+
 func TestDestroyDeletesTrackedResourceWithMockExecutor(t *testing.T) {
 	root := t.TempDir()
 	statePath := filepath.Join(root, "state.db")

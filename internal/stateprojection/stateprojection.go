@@ -174,15 +174,22 @@ func deleteDottedAny(values map[string]any, path string) {
 	if len(parts) == 0 || parts[0] == "" {
 		return
 	}
-	cur := values
-	for _, part := range parts[:len(parts)-1] {
-		next, ok := cur[part].(map[string]any)
-		if !ok {
-			return
-		}
-		cur = next
+	deleteDottedAnyParts(values, parts)
+}
+
+func deleteDottedAnyParts(values map[string]any, parts []string) bool {
+	if len(parts) == 1 {
+		delete(values, parts[0])
+		return len(values) == 0
 	}
-	delete(cur, parts[len(parts)-1])
+	next, ok := values[parts[0]].(map[string]any)
+	if !ok {
+		return len(values) == 0
+	}
+	if deleteDottedAnyParts(next, parts[1:]) {
+		delete(values, parts[0])
+	}
+	return len(values) == 0
 }
 
 func applyNormalizers(values map[string]any, normalizers []project.Normalizer) {

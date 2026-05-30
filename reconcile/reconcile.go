@@ -87,6 +87,7 @@ type ImportOptions struct {
 	SourceKind  string
 	SourceID    string
 	OperationID string
+	Executor    executor.Executor
 }
 
 func Refresh(ctx context.Context, opts Options) (*Result, error) {
@@ -385,15 +386,11 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 	if err := store.AttachLockRun(ctx, "state", lockHolder, runID); err != nil {
 		return nil, err
 	}
-	identityJSON, err := json.Marshal(redact.Map(opts.Identity))
+	fallbackIdentityJSON, err := json.Marshal(redact.Map(opts.Identity))
 	if err != nil {
 		return nil, err
 	}
-	attrsJSON, err := json.Marshal(redact.Map(opts.Attributes))
-	if err != nil {
-		return nil, err
-	}
-	hash, mapping := importDesiredHash(ctx, opts, "import:"+opts.Address+":"+string(identityJSON))
+	hash, mapping := importDesiredHash(ctx, opts, "import:"+opts.Address+":"+string(fallbackIdentityJSON))
 	if opts.SourceKind == "" && mapping != nil {
 		opts.SourceKind = mapping.SourceKind
 	}
@@ -402,6 +399,31 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 	}
 	if opts.OperationID == "" && mapping != nil {
 		opts.OperationID = mapping.OperationID
+	}
+	result := &Result{Version: Version, StatePath: opts.StatePath, RunID: runID}
+	if opts.Executor != nil {
+		verified, err := verifyImportRead(ctx, opts, store, runID, hash)
+		result.Feedback = append(result.Feedback, verified.Feedback...)
+		if err != nil {
+			return result, err
+		}
+		if len(verified.Identity) > 0 {
+			opts.Identity = verified.Identity
+		}
+		if len(verified.Attributes) > 0 {
+			opts.Attributes = verified.Attributes
+		}
+		opts.SourceKind = verified.SourceKind
+		opts.SourceID = verified.SourceID
+		opts.OperationID = verified.OperationID
+	}
+	identityJSON, err := json.Marshal(redact.Map(opts.Identity))
+	if err != nil {
+		return nil, err
+	}
+	attrsJSON, err := json.Marshal(redact.Map(opts.Attributes))
+	if err != nil {
+		return nil, err
 	}
 	snap := state.ResourceSnapshot{
 		Address:        opts.Address,
@@ -432,7 +454,9 @@ func Import(ctx context.Context, opts ImportOptions) (*Result, error) {
 		return nil, err
 	}
 	runFinished = true
-	return &Result{Version: Version, StatePath: opts.StatePath, RunID: runID, Summary: summary, Actions: []ActionResult{{Address: opts.Address, Action: "import"}}}, nil
+	result.Summary = summary
+	result.Actions = []ActionResult{{Address: opts.Address, Action: "import"}}
+	return result, nil
 }
 
 func validateImportMetadata(ctx context.Context, opts ImportOptions) error {
@@ -529,6 +553,117 @@ func importIdentityFields(resource project.Resource) map[string]importIdentityFi
 		}
 	}
 	return out
+}
+
+type importReadVerification struct {
+	Identity    map[string]any
+	Attributes  map[string]any
+	SourceKind  string
+	SourceID    string
+	OperationID string
+	Feedback    []executor.FeedbackRecord
+}
+
+func verifyImportRead(ctx context.Context, opts ImportOptions, store *state.Store, runID int64, desiredHash string) (importReadVerification, error) {
+	readMappings, err := refreshReadMappings(ctx, Options{
+		ConfigDir:   opts.ConfigDir,
+		ProjectPath: opts.ProjectPath,
+		StatePath:   opts.StatePath,
+		APISources:  opts.APISources,
+		VarFiles:    opts.VarFiles,
+		Vars:        opts.Vars,
+		Workspace:   opts.Workspace,
+	})
+	if err != nil {
+		return importReadVerification{}, err
+	}
+	readMapping := readMappings[opts.Address]
+	if readMapping == nil || strings.TrimSpace(readMapping.OperationID) == "" {
+		return importReadVerification{}, nil
+	}
+	resource := tfplan.ResourcePlan{
+		Address:     opts.Address,
+		Kind:        "resource",
+		Type:        opts.Type,
+		Provider:    opts.Provider,
+		Action:      "read",
+		DesiredHash: desiredHash,
+		Mapping:     readMapping,
+	}
+	doc, err := tfapply.BuildActionDocumentWithBindings(resource, sourcePathIndex(opts.APISources), nil, opts.Identity)
+	if err != nil {
+		return importReadVerification{}, fmt.Errorf("import.read_document_invalid: %w", err)
+	}
+	action := executorAction(resource, "read")
+	workingDir := opts.ConfigDir
+	if opts.ProjectPath != "" {
+		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
+	}
+	req := executor.Request{
+		RunID:      runID,
+		Action:     action,
+		Document:   doc,
+		WorkingDir: workingDir,
+	}
+	req.Capabilities = executor.RequirementsForAction(action)
+	req.Idempotency = executor.IdempotencyForAction(action)
+	req.Events = tfapply.ExecutorEventSink(store)
+	if err := executor.EnsureSupported(opts.Executor, req); err != nil {
+		return importReadVerification{}, fmt.Errorf("import.read_unsupported: %w", err)
+	}
+	execResult, err := opts.Executor.Execute(ctx, req)
+	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
+	feedback := executor.FeedbackFromResult(req, execResult, err)
+	verification := importReadVerification{Feedback: []executor.FeedbackRecord{feedback}, SourceKind: readMapping.SourceKind, SourceID: readMapping.SourceID, OperationID: readMapping.OperationID}
+	if err != nil {
+		return verification, fmt.Errorf("import.read_failed: %w", err)
+	}
+	if !execResult.Success {
+		return verification, fmt.Errorf("import.read_failed: executor reported unsuccessful read for %s", opts.Address)
+	}
+	if execResult.Missing {
+		return verification, fmt.Errorf("import.read_missing: read verification reported missing remote object for %s", opts.Address)
+	}
+	identity, computed := stateprojection.Project(readMapping, execResult)
+	if err := verifyImportedIdentity(opts.Address, opts.Identity, identity); err != nil {
+		return verification, err
+	}
+	verification.Identity = mergeImportMaps(opts.Identity, identity)
+	verification.Attributes = mergeImportMaps(opts.Attributes, computed)
+	return verification, nil
+}
+
+func verifyImportedIdentity(address string, supplied, projected map[string]any) error {
+	for key, want := range supplied {
+		got, ok := projected[key]
+		if !ok {
+			continue
+		}
+		if !jsonEqual(want, got) {
+			return fmt.Errorf("import.read_mismatch: %s identity %s did not match read verification", address, key)
+		}
+	}
+	return nil
+}
+
+func mergeImportMaps(base, overlay map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, value := range base {
+		out[key] = value
+	}
+	for key, value := range overlay {
+		out[key] = value
+	}
+	return out
+}
+
+func jsonEqual(left, right any) bool {
+	leftJSON, leftErr := json.Marshal(left)
+	rightJSON, rightErr := json.Marshal(right)
+	if leftErr != nil || rightErr != nil {
+		return fmt.Sprint(left) == fmt.Sprint(right)
+	}
+	return string(leftJSON) == string(rightJSON)
 }
 
 func validateAPISources(inputs []APISourceInput) []ramenvalidate.APISourceInput {
