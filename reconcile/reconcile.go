@@ -117,6 +117,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
 	}
+	workingDir = executorWorkingDir(workingDir, sourcePaths)
 	for _, resource := range planResult.Plan.Resources {
 		if resource.Action != "no-op" && resource.Action != "update" {
 			result.Summary.Skipped++
@@ -270,6 +271,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
 	}
+	workingDir = executorWorkingDir(workingDir, sourcePaths)
 	for _, resource := range resources {
 		if resource.Action != "delete" {
 			continue
@@ -590,7 +592,8 @@ func verifyImportRead(ctx context.Context, opts ImportOptions, store *state.Stor
 		DesiredHash: desiredHash,
 		Mapping:     readMapping,
 	}
-	doc, err := tfapply.BuildActionDocumentWithBindings(resource, sourcePathIndex(opts.APISources), nil, opts.Identity)
+	sourcePaths := sourcePathIndex(opts.APISources)
+	doc, err := tfapply.BuildActionDocumentWithBindings(resource, sourcePaths, nil, opts.Identity)
 	if err != nil {
 		return importReadVerification{}, fmt.Errorf("import.read_document_invalid: %w", err)
 	}
@@ -599,6 +602,7 @@ func verifyImportRead(ctx context.Context, opts ImportOptions, store *state.Stor
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
 	}
+	workingDir = executorWorkingDir(workingDir, sourcePaths)
 	req := executor.Request{
 		RunID:      runID,
 		Action:     action,
@@ -963,7 +967,7 @@ func asAction(resource tfplan.ResourcePlan, action string) tfplan.ResourcePlan {
 func executorAction(resource tfplan.ResourcePlan, action string) executor.Action {
 	out := executor.Action{Address: resource.Address, Type: resource.Type, Provider: resource.Provider, Action: action, DesiredHash: resource.DesiredHash}
 	if resource.Mapping != nil {
-		out.Mapping = executor.ActionMapping{SourceKind: resource.Mapping.SourceKind, SourceID: resource.Mapping.SourceID, SourcePath: resource.Mapping.SourcePath, OperationID: resource.Mapping.OperationID}
+		out.Mapping = executor.ActionMapping{Method: resource.Mapping.Method, SourceKind: resource.Mapping.SourceKind, SourceID: resource.Mapping.SourceID, SourcePath: resource.Mapping.SourcePath, OperationID: resource.Mapping.OperationID}
 		if len(resource.Mapping.IdentityAttributes) > 0 {
 			attrs, err := json.Marshal(resource.Mapping.IdentityAttributes)
 			if err == nil {
@@ -1109,9 +1113,67 @@ func maybeWriteDocument(outDir, address, action string, doc any) (string, error)
 func sourcePathIndex(inputs []APISourceInput) map[string]string {
 	out := map[string]string{}
 	for _, input := range inputs {
-		out[strings.TrimSpace(input.Kind)+"\x00"+strings.TrimSpace(input.ID)] = input.Path
+		out[strings.TrimSpace(input.Kind)+"\x00"+strings.TrimSpace(input.ID)] = executorSourcePath(input.Path)
 	}
 	return out
+}
+
+func executorSourcePath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || strings.Contains(path, "://") || strings.HasPrefix(path, "urn:") {
+		return path
+	}
+	abs, err := filepath.Abs(filepath.FromSlash(path))
+	if err != nil {
+		return path
+	}
+	return abs
+}
+
+func executorWorkingDir(base string, sourcePaths map[string]string) string {
+	base = strings.TrimSpace(base)
+	if base == "" {
+		base = "."
+	}
+	root, err := filepath.Abs(filepath.FromSlash(base))
+	if err != nil {
+		return base
+	}
+	for _, sourcePath := range sourcePaths {
+		sourcePath = strings.TrimSpace(sourcePath)
+		if sourcePath == "" || strings.Contains(sourcePath, "://") || strings.HasPrefix(sourcePath, "urn:") {
+			continue
+		}
+		absSource, err := filepath.Abs(filepath.FromSlash(sourcePath))
+		if err != nil {
+			continue
+		}
+		root = commonPath(root, filepath.Dir(absSource))
+	}
+	return root
+}
+
+func commonPath(left, right string) string {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	for {
+		if sameOrChild(right, left) {
+			return left
+		}
+		parent := filepath.Dir(left)
+		if parent == left {
+			return left
+		}
+		left = parent
+	}
+}
+
+func sameOrChild(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func normalizeName(value string) string {

@@ -35,6 +35,9 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if !strings.Contains(string(output), "icot") {
 		t.Fatalf("top-level help missing icot command:\n%s", output)
 	}
+	if strings.Contains(string(output), "destroy") {
+		t.Fatalf("top-level help still advertises deprecated destroy command:\n%s", output)
+	}
 
 	cmd = helperCommand("author", "--help")
 	output, err = cmd.CombinedOutput()
@@ -46,6 +49,9 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("author help missing %q:\n%s", expected, text)
 		}
+	}
+	if strings.Contains(text, "destroy") {
+		t.Fatalf("author help still names deprecated destroy command:\n%s", text)
 	}
 
 	cmd = helperCommand("convert", "--help")
@@ -96,6 +102,9 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("icot help missing %q:\n%s", expected, text)
 		}
+	}
+	if strings.Contains(text, "destroy") {
+		t.Fatalf("icot help still names deprecated destroy command:\n%s", text)
 	}
 }
 
@@ -301,12 +310,44 @@ func TestCLIIcotNoLLMWritesProject(t *testing.T) {
 	if result.Report.Status != sharedreport.StatusComplete || result.ProjectPath == "" {
 		t.Fatalf("icot result = %#v\n%s", result, output)
 	}
+	if result.ProjectHCLPath == "" {
+		t.Fatalf("icot result missing HCL path: %#v\n%s", result, output)
+	}
+	hclData, err := os.ReadFile(result.ProjectHCLPath)
+	if err != nil {
+		t.Fatalf("generated icot HCL project is missing: %v", err)
+	}
+	if _, err := uwsconvert.HCLToJSON(hclData); err != nil {
+		t.Fatalf("generated icot HCL project does not parse: %v", err)
+	}
 	doc, err := project.Load(filepath.Join(outDir, project.DefaultFile))
 	if err != nil {
 		t.Fatalf("generated icot project does not load: %v", err)
 	}
-	if got := doc.Profile.Resources[0].RequiredOperations; len(got) != 1 || got[0] != "create" {
+	if got := doc.Profile.APISources[0].Path; got != sourcePath {
+		t.Fatalf("api source path = %q, want %q", got, sourcePath)
+	}
+	projectText, err := os.ReadFile(filepath.Join(outDir, project.DefaultFile))
+	if err != nil {
+		t.Fatalf("read generated icot project: %v", err)
+	}
+	if !strings.Contains(string(projectText), "../api.yaml") || strings.Contains(string(projectText), "widgets.yaml") {
+		t.Fatalf("generated project did not preserve local API source path:\n%s", projectText)
+	}
+	validateCmd := helperCommand("validate", "--project", outDir)
+	if validateOutput, err := validateCmd.CombinedOutput(); err != nil {
+		t.Fatalf("validate without --api-source failed: %v\n%s", err, validateOutput)
+	}
+	planPath := filepath.Join(root, "plan.json")
+	planCmd := helperCommand("plan", "--project", outDir, "--state", filepath.Join(root, "state.db"), "--out", planPath)
+	if planOutput, err := planCmd.CombinedOutput(); err != nil {
+		t.Fatalf("plan without --api-source failed: %v\n%s", err, planOutput)
+	}
+	if got := doc.Profile.Resources[0].RequiredOperations; len(got) != 1 || got[0] != "post" {
 		t.Fatalf("required operations = %#v", got)
+	}
+	if role := doc.Profile.Resources[0].Operations["post"]; role.Method != "POST" || role.OperationID != "createWidget" {
+		t.Fatalf("post operation role = %#v", role)
 	}
 }
 
@@ -334,7 +375,7 @@ func TestCLIIcotAgentAmbiguousOperationNeedsInput(t *testing.T) {
 	}
 }
 
-func TestCLIIcotReadOnlyValidateGraphPlanUnsupported(t *testing.T) {
+func TestCLIIcotReadOnlyValidateGraphPlan(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "api.yaml")
 	writeICOTOpenAPIForCLITest(t, sourcePath)
@@ -345,21 +386,18 @@ func TestCLIIcotReadOnlyValidateGraphPlanUnsupported(t *testing.T) {
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
-	if err == nil {
-		t.Fatalf("read-only icot with plan unexpectedly succeeded:\nstdout:\n%s\nstderr:\n%s", output, stderr.String())
-	}
-	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
-		t.Fatalf("icot exit = %v, output:\n%s", err, output)
+	if err != nil {
+		t.Fatalf("read-only icot with plan failed: %v\nstdout:\n%s\nstderr:\n%s", err, output, stderr.String())
 	}
 	var result authorCLIResult
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("icot JSON is not parseable: %v\n%s", err, output)
 	}
-	if result.Report.Status != sharedreport.StatusNeedsInput || !strings.Contains(string(output), "ramen.icot.plan_read_only_unsupported") {
+	if result.Report.Status != sharedreport.StatusComplete {
 		t.Fatalf("icot read-only result = %#v\n%s", result, output)
 	}
-	if result.Validation == nil || !result.Validation.Valid || result.Graph == nil {
-		t.Fatalf("read-only gates missing: validation=%#v graph=%#v\n%s", result.Validation, result.Graph, output)
+	if result.Validation == nil || !result.Validation.Valid || result.Graph == nil || result.Plan == nil || result.Plan.Plan.Summary.Read != 1 {
+		t.Fatalf("read-only gates missing: validation=%#v graph=%#v plan=%#v\n%s", result.Validation, result.Graph, result.Plan, output)
 	}
 	doc, err := project.Load(filepath.Join(outDir, project.DefaultFile))
 	if err != nil {
@@ -374,6 +412,57 @@ func TestCLIIcotReadOnlyValidateGraphPlanUnsupported(t *testing.T) {
 	}
 	if len(doc.UWS.Workflows) == 0 || len(doc.UWS.Workflows[0].Steps) == 0 || !strings.HasPrefix(doc.UWS.Workflows[0].Steps[0].StepID, "read_") {
 		t.Fatalf("read-only workflow step = %#v", doc.UWS.Workflows)
+	}
+}
+
+func TestCLIIcotDeleteOperationUsesDeleteRoleAndPlansDelete(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	mustWriteCLIFile(t, sourcePath, []byte(`openapi: 3.0.0
+info:
+  title: Delete API
+  version: v1
+paths:
+  /widgets/{name}:
+    delete:
+      operationId: deleteWidget
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+`))
+	outDir := filepath.Join(root, "delete")
+	answersPath := filepath.Join(root, "answers.txt")
+	mustWriteCLIFile(t, answersPath, []byte("deleteWidget\n"))
+	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "Delete widget named ramen", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("delete icot failed: %v\nstdout:\n%s\nstderr:\n%s", err, output, stderr.String())
+	}
+	var result authorCLIResult
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("icot JSON is not parseable: %v\n%s", err, output)
+	}
+	if result.Plan == nil || result.Plan.Plan.Summary.Delete != 1 {
+		t.Fatalf("delete plan = %#v\n%s", result.Plan, output)
+	}
+	doc, err := project.Load(filepath.Join(outDir, project.DefaultFile))
+	if err != nil {
+		t.Fatalf("delete project does not load: %v", err)
+	}
+	resource := doc.Profile.Resources[0]
+	if len(resource.RequiredOperations) != 1 || resource.RequiredOperations[0] != "delete" {
+		t.Fatalf("delete required operations = %#v", resource.RequiredOperations)
+	}
+	if role := resource.Operations["delete"]; role.Method != "DELETE" || role.OperationID != "deleteWidget" {
+		t.Fatalf("delete operation role = %#v", role)
 	}
 }
 
@@ -506,11 +595,10 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 		command  []string
 		expected []string
 	}{
-		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--executor", "--udon-output", "--json", "trusted executor"}},
-		{command: []string{"destroy", "--help"}, expected: []string{"Usage: ramen destroy", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--executor", "--udon-output", "--json", "trusted executor"}},
+		{command: []string{"apply", "--help"}, expected: []string{"Usage: ramen apply", "--plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--auto-approve", "--mock", "--executor", "--udon-output", "--json", "approved plan actions", "trusted executor"}},
 		{command: []string{"import", "--help"}, expected: []string{"Usage: ramen import", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--identity", "plan-compatible desired hash"}},
 		{command: []string{"init", "--help"}, expected: []string{"Usage: ramen init", "--config-dir", "--state", "--workspace", "does not execute Terraform"}},
-		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--policy-file", "--approved-by", "--approved-at", "--state", "--target", "--exclude", "--replace", "--destroy", "--out", "does not execute Terraform"}},
+		{command: []string{"plan", "--help"}, expected: []string{"Usage: ramen plan", "--config-dir", "--workspace", "--api-source", "--var-file", "--var", "--policy-file", "--approved-by", "--approved-at", "--state", "--target", "--exclude", "--replace", "--out", "--hcl-out", "does not execute Terraform"}},
 		{command: []string{"run", "--help"}, expected: []string{"Usage: ramen run", "--target", "--policy-file", "--check", "--approval-digest", "--auto-approve", "--mock", "trusted executor"}},
 		{command: []string{"show", "--help"}, expected: []string{"Usage: ramen show", "--json", "without reading state"}},
 		{command: []string{"state", "--help"}, expected: []string{"Usage: ramen state", "audit", "backup", "export", "list", "restore", "show ADDRESS", "history", "runs", "vacuum"}},
@@ -525,6 +613,67 @@ func TestCLIInitAndPlanHelpIncludesContracts(t *testing.T) {
 			if !strings.Contains(text, expected) {
 				t.Fatalf("%v help missing %q:\n%s", tt.command, expected, text)
 			}
+		}
+		if tt.command[0] == "plan" && strings.Contains(text, "--destroy") {
+			t.Fatalf("plan help still advertises deprecated --destroy flag:\n%s", text)
+		}
+	}
+}
+
+func TestCLIDestroyCommandRemoved(t *testing.T) {
+	cmd := helperCommand("destroy", "--help")
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("destroy command unexpectedly succeeded:\n%s", output)
+	}
+	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("destroy exit = %v, output:\n%s", err, output)
+	}
+	if !strings.Contains(string(output), `unknown command "destroy"`) {
+		t.Fatalf("destroy output missing unknown-command diagnostic:\n%s", output)
+	}
+}
+
+func TestPlanHasChangesIncludesAPIActions(t *testing.T) {
+	actions := []struct {
+		name    string
+		summary tfplan.Summary
+	}{
+		{name: "read", summary: tfplan.Summary{Read: 1}},
+		{name: "post", summary: tfplan.Summary{Post: 1}},
+		{name: "put", summary: tfplan.Summary{Put: 1}},
+		{name: "patch", summary: tfplan.Summary{Patch: 1}},
+	}
+	for _, tt := range actions {
+		if !planHasChanges(tfplan.Document{Summary: tt.summary}) {
+			t.Fatalf("%s action should count as plan work", tt.name)
+		}
+	}
+	if planHasChanges(tfplan.Document{Summary: tfplan.Summary{NoOp: 1}}) {
+		t.Fatalf("no-op summary should not count as executable plan work")
+	}
+}
+
+func TestCLIShowIncludesAPIMethodSummary(t *testing.T) {
+	root := t.TempDir()
+	planPath := filepath.Join(root, "method-plan.json")
+	data, err := json.Marshal(tfplan.Document{
+		Version: tfplan.Version,
+		Action:  "post",
+		Summary: tfplan.Summary{Post: 1, Put: 1, Patch: 1, Read: 1},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWriteCLIFile(t, planPath, data)
+	cmd := helperCommand("show", planPath)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("show failed: %v\n%s", err, output)
+	}
+	for _, expected := range []string{"post=1", "put=1", "patch=1", "read=1"} {
+		if !strings.Contains(string(output), expected) {
+			t.Fatalf("show output missing %q:\n%s", expected, output)
 		}
 	}
 }
@@ -1028,6 +1177,9 @@ resource "aws_iam_role" "role" {
 	if !strings.Contains(string(output), "create=1") {
 		t.Fatalf("plan output missing summary:\n%s", output)
 	}
+	if !strings.Contains(string(output), "plan-hcl:") {
+		t.Fatalf("plan output missing HCL path:\n%s", output)
+	}
 	planText, err := os.ReadFile(planPath)
 	if err != nil {
 		t.Fatalf("plan JSON missing: %v", err)
@@ -1035,6 +1187,16 @@ resource "aws_iam_role" "role" {
 	for _, expected := range []string{`"version": "ramen.plan.v1"`, `"address": "aws_iam_role.role"`, `"operation_id": "CreateRole"`} {
 		if !strings.Contains(string(planText), expected) {
 			t.Fatalf("plan JSON missing %q:\n%s", expected, planText)
+		}
+	}
+	planHCLPath := strings.TrimSuffix(planPath, filepath.Ext(planPath)) + ".hcl"
+	planHCL, err := os.ReadFile(planHCLPath)
+	if err != nil {
+		t.Fatalf("plan HCL missing: %v", err)
+	}
+	for _, expected := range []string{`"ramen.plan.v1"`, `resource "aws_iam_role.role"`, `operation_id = "CreateRole"`} {
+		if !strings.Contains(string(planHCL), expected) {
+			t.Fatalf("plan HCL missing %q:\n%s", expected, planHCL)
 		}
 	}
 }

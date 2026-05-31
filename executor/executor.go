@@ -28,6 +28,7 @@ type Action struct {
 }
 
 type ActionMapping struct {
+	Method      string `json:"method,omitempty"`
 	SourceKind  string `json:"source_kind,omitempty"`
 	SourceID    string `json:"source_id,omitempty"`
 	SourcePath  string `json:"source_path,omitempty"`
@@ -167,7 +168,7 @@ func RequirementsForAction(action Action) CapabilityRequirement {
 	switch action.Action {
 	case "read":
 		req.Features = append(req.Features, FeatureOutputIdentity, FeatureOutputComputed, FeatureMissingEvidence)
-	case "create", "update":
+	case "create", "update", "post", "put", "patch":
 		req.Features = append(req.Features, FeatureOutputIdentity, FeatureOutputComputed)
 	}
 	req.Features = append(req.Features, FeatureProgressEvents)

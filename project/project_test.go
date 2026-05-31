@@ -43,6 +43,38 @@ func TestLoadResolvesDefaultProjectAndRelativeSourcePaths(t *testing.T) {
 	}
 }
 
+func TestLoadPreservesRemoteSourcePaths(t *testing.T) {
+	root := t.TempDir()
+	sourceURL := "https://example.com/openapi.yaml"
+	writeProjectDocumentForTest(t, filepath.Join(root, DefaultJSON), Profile{
+		Version: Version,
+		APISources: []APISource{{
+			Kind: "openapi",
+			ID:   "api",
+			Path: sourceURL,
+		}},
+		Resources: []Resource{{
+			Address: "example_resource.test",
+			Kind:    "resource",
+			Type:    "example_resource",
+			Operations: map[string]OperationRole{
+				"create": {SourceKind: "openapi", SourceID: "api", SourcePath: sourceURL, OperationID: "createExample"},
+			},
+		}},
+	})
+
+	doc, err := Load(root)
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if got := doc.Profile.APISources[0].Path; got != sourceURL {
+		t.Fatalf("api source path = %q, want %q", got, sourceURL)
+	}
+	if got := doc.Profile.Resources[0].Operations["create"].SourcePath; got != sourceURL {
+		t.Fatalf("operation source path = %q, want %q", got, sourceURL)
+	}
+}
+
 func TestLoadRequiresRamenProfileExtension(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, DefaultJSON)

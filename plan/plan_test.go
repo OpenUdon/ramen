@@ -50,6 +50,18 @@ resource "aws_iam_role" "role" {
 	if role.Action != "create" || role.Mapping == nil || role.Mapping.OperationID != "CreateRole" || role.Mapping.SourceKind != "aws-smithy" {
 		t.Fatalf("unexpected create plan resource: %#v", role)
 	}
+	if createResult.HCLPath != filepath.Join(root, "plan-create.hcl") {
+		t.Fatalf("HCL path = %q", createResult.HCLPath)
+	}
+	hclText, err := os.ReadFile(createResult.HCLPath)
+	if err != nil {
+		t.Fatalf("plan HCL missing: %v", err)
+	}
+	for _, expected := range []string{`"ramen.plan.v1"`, `summary = {`, `resource "aws_iam_role.role"`, `operation_id = "CreateRole"`} {
+		if !strings.Contains(string(hclText), expected) {
+			t.Fatalf("plan HCL missing %q:\n%s", expected, hclText)
+		}
+	}
 
 	store, err := state.Open(context.Background(), statePath)
 	if err != nil {
@@ -193,6 +205,120 @@ func TestBuildNativeAWSIAMRoleProjectWithoutHCL(t *testing.T) {
 	role = noOp.Plan.Resources[0]
 	if role.Action != "no-op" || role.Mapping == nil || role.Mapping.OperationID != "GetRole" {
 		t.Fatalf("unexpected native no-op plan resource: %#v", role)
+	}
+}
+
+func TestBuildNativeProjectReadPlanUsesReadAction(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "native-read")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: "aws-smithy/iam.json",
+		}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "native-role"},
+			Operations: map[string]project.OperationRole{
+				"read": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "GetRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "role_name", Path: "name", Required: true}},
+			RequiredOperations: []string{"read"},
+		}},
+	})
+
+	result, err := Build(context.Background(), Options{
+		ProjectPath: projectPath,
+		StatePath:   filepath.Join(root, "state.db"),
+		Action:      "read",
+		OutPath:     filepath.Join(root, "read-plan.json"),
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if result.Plan.Errored || result.Plan.Summary.Read != 1 || result.Plan.Summary.Create != 0 {
+		t.Fatalf("read plan summary = %#v diagnostics=%#v", result.Plan.Summary, result.Diagnostics)
+	}
+	resource := result.Plan.Resources[0]
+	if resource.Action != "read" || resource.Mapping == nil || resource.Mapping.Purpose != "read" || resource.Mapping.OperationID != "GetRole" {
+		t.Fatalf("read plan resource = %#v", resource)
+	}
+	if !strings.Contains(readPlanTestFile(t, result.OutPath), `"action": "read"`) {
+		t.Fatalf("read plan JSON missing read action:\n%s", readPlanTestFile(t, result.OutPath))
+	}
+}
+
+func TestBuildNativeProjectReadPlanRequiresReadOperation(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "native-read-missing")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources: []project.Resource{{
+			Address:    "aws_iam_role.role",
+			Kind:       "resource",
+			Type:       "aws_iam_role",
+			Name:       "role",
+			Provider:   "provider.aws",
+			Attributes: map[string]any{"name": "native-role"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "aws-smithy", SourceID: "iam", SourcePath: "aws-smithy/iam.json", OperationID: "CreateRole"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "role_name", Path: "name", Required: true}},
+			RequiredOperations: []string{"create"},
+		}},
+	})
+
+	result, err := Build(context.Background(), Options{
+		ProjectPath: projectPath,
+		StatePath:   filepath.Join(root, "state.db"),
+		Action:      "read",
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || !hasPlanDiagnostic(result.Diagnostics, "project.operation_missing") {
+		t.Fatalf("read plan should fail closed: plan=%#v diagnostics=%#v", result.Plan, result.Diagnostics)
+	}
+}
+
+func TestBuildMappedReadPlanRequiresAvailableReadOperation(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	writePlanTestFile(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_iam_role" "role" {
+  name = "tf-acc-ramen-role"
+  assume_role_policy = "{}"
+}
+`)
+	writePlanTestFile(t, sourcePath, strings.Replace(minimalIAMSmithyForPlanTest(), `{"target": "com.amazonaws.iam#GetRole"},`, "", 1))
+
+	result, err := Build(context.Background(), Options{
+		ConfigDir: configDir,
+		StatePath: filepath.Join(root, "state.db"),
+		APISources: []APISourceInput{{
+			Kind: "aws-smithy",
+			ID:   "iam",
+			Path: sourcePath,
+		}},
+		Action: "read",
+	})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	if !result.Plan.Errored || !hasPlanDiagnostic(result.Diagnostics, "mapping.operation_unavailable") {
+		t.Fatalf("read plan should require an available read operation: plan=%#v diagnostics=%#v", result.Plan, result.Diagnostics)
 	}
 }
 

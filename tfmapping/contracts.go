@@ -28,6 +28,7 @@ type RequestBinding struct {
 	OperationID   string        `json:"operation_id,omitempty"`
 	Path          string        `json:"path"`
 	RequestPath   string        `json:"request_path"`
+	Location      string        `json:"location,omitempty"`
 	Required      bool          `json:"required,omitempty"`
 	Identity      bool          `json:"identity,omitempty"`
 }

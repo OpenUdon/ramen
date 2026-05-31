@@ -198,6 +198,36 @@ func TestOpenReadOnlyMissingStateReturnsNil(t *testing.T) {
 	}
 }
 
+func TestOpenReadOnlyAcceptsRelativeExistingStatePath(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, ".ramen", "state.db")
+	if err := Init(context.Background(), path); err != nil {
+		t.Fatalf("Init returned error: %v", err)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Fatal(err)
+		}
+	}()
+	if err := os.Chdir(root); err != nil {
+		t.Fatal(err)
+	}
+	store, err := OpenReadOnly(context.Background(), filepath.Join(".ramen", "state.db"))
+	if err != nil {
+		t.Fatalf("OpenReadOnly returned error: %v", err)
+	}
+	if store == nil {
+		t.Fatal("store = nil, want read-only store")
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("Close returned error: %v", err)
+	}
+}
+
 func TestWorkspacePathAndAuditDigest(t *testing.T) {
 	ctx := context.Background()
 	root := t.TempDir()

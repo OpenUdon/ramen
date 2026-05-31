@@ -86,6 +86,7 @@ type Lifecycle struct {
 
 type OperationRole struct {
 	Purpose            string      `json:"purpose,omitempty"`
+	Method             string      `json:"method,omitempty"`
 	SourceKind         string      `json:"source_kind,omitempty"`
 	SourceID           string      `json:"source_id,omitempty"`
 	SourcePath         string      `json:"source_path,omitempty"`
@@ -137,6 +138,7 @@ type RequestBinding struct {
 	OperationID   string `json:"operation_id,omitempty"`
 	Path          string `json:"path"`
 	RequestPath   string `json:"request_path"`
+	Location      string `json:"location,omitempty"`
 	Required      bool   `json:"required,omitempty"`
 	Identity      bool   `json:"identity,omitempty"`
 }
@@ -381,6 +383,7 @@ func normalizeProfilePaths(profile *Profile, dir string) {
 		resource.RequiredOperations = slices.Compact(resource.RequiredOperations)
 		for purpose, role := range resource.Operations {
 			role.Purpose = firstNonEmpty(role.Purpose, purpose)
+			role.Method = strings.ToUpper(strings.TrimSpace(role.Method))
 			role.SourceKind = strings.TrimSpace(role.SourceKind)
 			role.SourceID = strings.TrimSpace(role.SourceID)
 			role.SourcePath = resolveRelativePath(dir, role.SourcePath)
@@ -396,7 +399,7 @@ func normalizeProfilePaths(profile *Profile, dir string) {
 
 func resolveRelativePath(dir, path string) string {
 	path = strings.TrimSpace(path)
-	if path == "" || filepath.IsAbs(path) {
+	if path == "" || filepath.IsAbs(path) || strings.Contains(path, "://") || strings.HasPrefix(path, "urn:") {
 		return path
 	}
 	return filepath.Clean(filepath.Join(dir, filepath.FromSlash(path)))

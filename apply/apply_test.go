@@ -231,6 +231,65 @@ func TestApplyNativeReadBeforeWriteAndReadAfterWrite(t *testing.T) {
 	}
 }
 
+func TestApplyNativeAPIDeleteOperationExecutesWithoutDestroyCommand(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "api.yaml")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, `openapi: 3.0.0
+info:
+  title: Delete API
+  version: v1
+paths:
+  /widgets/{name}:
+    delete:
+      operationId: deleteWidget
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+`)
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: "api.yaml"}},
+		Resources: []project.Resource{{
+			Address:    "resource.widget",
+			Kind:       "resource",
+			Type:       "widget",
+			Name:       "widget",
+			Provider:   "openapi",
+			Attributes: map[string]any{"name": "ramen"},
+			Operations: map[string]project.OperationRole{
+				"delete": {Purpose: "delete", Method: "DELETE", SourceKind: "openapi", SourceID: "api", SourcePath: "api.yaml", OperationID: "deleteWidget"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "name", Path: "name", Required: true}},
+			Schema:             []project.SchemaPath{{Path: "name", Type: "string", Required: true, Identity: true}},
+			RequestBindings:    []project.RequestBinding{{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true}},
+			RequiredOperations: []string{"delete"},
+		}},
+	})
+	var actions []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		if req.Action.Mapping.Method != "DELETE" {
+			t.Fatalf("executor mapping method = %q", req.Action.Mapping.Method)
+		}
+		return executor.Result{Success: true}, nil
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Delete != 1 || strings.Join(actions, ",") != "delete" {
+		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
+	}
+}
+
 func TestApplyNativeReadBeforeWriteRejectsExistingCreate(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")
@@ -494,6 +553,69 @@ resource "aws_iam_role" "role" {
 	}
 	if result.Summary.Create != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("result=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+}
+
+func TestApplyExecutesReadPlanArtifact(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	planPath := filepath.Join(root, "read-plan.json")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{applyProjectRole("aws_iam_role.role", "read-plan-role")},
+	})
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Action:      "read",
+		OutPath:     planPath,
+	}); err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	var actions []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		return executor.Result{
+			Success: true,
+			Computed: map[string]any{"Role": map[string]any{
+				"RoleName": "read-plan-role",
+				"Arn":      "arn:aws:iam::123456789012:role/read-plan-role",
+			}},
+		}, nil
+	}}
+	outDir := filepath.Join(root, "out")
+	result, err := Apply(context.Background(), Options{PlanPath: planPath, AutoApprove: true, OutDir: outDir, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Read != 1 || result.Summary.Skipped != 0 || len(result.Executed) != 1 || strings.Join(actions, ",") != "read" {
+		t.Fatalf("summary=%#v executed=%#v actions=%v", result.Summary, result.Executed, actions)
+	}
+	if len(result.GeneratedDocuments) != 1 || !strings.Contains(readApplyTestFile(t, result.GeneratedDocuments[0]), "GetRole") {
+		t.Fatalf("generated read documents = %#v", result.GeneratedDocuments)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	snap, err := store.CurrentResource(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("current resource: %v", err)
+	}
+	revs, err := store.ListRevisions(context.Background(), "aws_iam_role.role")
+	if err != nil {
+		t.Fatalf("list revisions: %v", err)
+	}
+	_ = store.Close()
+	if snap == nil || snap.OperationID != "GetRole" || !strings.Contains(snap.IdentityJSON, "read-plan-role") || !strings.Contains(snap.AttributesJSON, "arn:aws:iam") {
+		t.Fatalf("snapshot = %#v", snap)
+	}
+	if len(revs) != 1 || revs[0].Action != "read" {
+		t.Fatalf("revisions = %#v", revs)
 	}
 }
 

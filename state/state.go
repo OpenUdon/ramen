@@ -247,7 +247,11 @@ func OpenReadOnly(ctx context.Context, path string) (*Store, error) {
 		}
 		return nil, err
 	}
-	dsn := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro"}
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, err
+	}
+	dsn := url.URL{Scheme: "file", Path: absPath, RawQuery: "mode=ro"}
 	db, err := sql.Open("sqlite", dsn.String())
 	if err != nil {
 		return nil, err

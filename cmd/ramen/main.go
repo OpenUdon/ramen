@@ -62,10 +62,9 @@ func main() {
 	flag.Usage = func() {
 		fmt.Fprintf(flag.CommandLine.Output(), "Usage: ramen <command>\n\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "Commands:\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved desired-state mutations through a trusted executor\n")
+		fmt.Fprintf(flag.CommandLine.Output(), "  apply     execute approved plans through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  author    draft a native UWS/Ramen project from prompt-safe API context\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  convert   generate Ramen review scaffolding from supported source formats\n")
-		fmt.Fprintf(flag.CommandLine.Output(), "  destroy   delete tracked resources through a trusted executor\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  force-unlock release a local Ramen state lock by exact holder token\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  graph     emit the native resource dependency graph\n")
 		fmt.Fprintf(flag.CommandLine.Output(), "  icot      interactively draft a native UWS/Ramen project from local API metadata\n")
@@ -94,8 +93,6 @@ func main() {
 		runAuthorCommand(ctx, flag.Args()[1:])
 	case "convert":
 		runConvertCommand(ctx, flag.Args()[1:])
-	case "destroy":
-		runDestroyCommand(ctx, flag.Args()[1:])
 	case "force-unlock":
 		runForceUnlockCommand(ctx, flag.Args()[1:])
 	case "graph":
@@ -130,11 +127,12 @@ func main() {
 }
 
 type authorCLIResult struct {
-	Report      sharedreport.Result   `json:"report"`
-	ProjectPath string                `json:"project_path,omitempty"`
-	Validation  *ramenvalidate.Result `json:"validation,omitempty"`
-	Graph       *graph.Document       `json:"graph,omitempty"`
-	Plan        *tfplan.Result        `json:"plan,omitempty"`
+	Report         sharedreport.Result   `json:"report"`
+	ProjectPath    string                `json:"project_path,omitempty"`
+	ProjectHCLPath string                `json:"project_hcl_path,omitempty"`
+	Validation     *ramenvalidate.Result `json:"validation,omitempty"`
+	Graph          *graph.Document       `json:"graph,omitempty"`
+	Plan           *tfplan.Result        `json:"plan,omitempty"`
 }
 
 func runAuthorCommand(ctx context.Context, args []string) {
@@ -150,7 +148,7 @@ func runAuthorCommand(ctx context.Context, args []string) {
 	jsonOut := fs.Bool("json", false, "Emit JSON")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen author --context context.json [--goal TEXT] [--project-name NAME] [--out DIR] [--validate] [--graph] [--plan] [--state PATH] [--json]\n")
-		fmt.Fprintf(fs.Output(), "\nDrafts a native UWS/Ramen project from prompt-safe API operation context. It is noninteractive, provider-free, and does not execute Terraform/OpenTofu, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "\nDrafts a native UWS/Ramen project from prompt-safe API operation context. It is noninteractive, provider-free, and does not execute Terraform/OpenTofu, providers, API source operations, refresh, apply, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -176,11 +174,12 @@ func runAuthorCommand(ctx context.Context, args []string) {
 		StatePath:   *statePath,
 	})
 	cliResult := authorCLIResult{
-		Report:      result.Report,
-		ProjectPath: result.ProjectPath,
-		Validation:  result.Validation,
-		Graph:       result.Graph,
-		Plan:        result.Plan,
+		Report:         result.Report,
+		ProjectPath:    result.ProjectPath,
+		ProjectHCLPath: result.ProjectHCLPath,
+		Validation:     result.Validation,
+		Graph:          result.Graph,
+		Plan:           result.Plan,
 	}
 	if *jsonOut {
 		writeJSONOutput(cliResult)
@@ -227,6 +226,9 @@ func printAuthorHuman(result authorCLIResult) {
 	if result.ProjectPath != "" {
 		fmt.Printf("  project: %s\n", result.ProjectPath)
 	}
+	if result.ProjectHCLPath != "" {
+		fmt.Printf("  project-hcl: %s\n", result.ProjectHCLPath)
+	}
 	if result.Validation != nil {
 		fmt.Printf("  validate: valid=%t errors=%d warnings=%d diagnostics=%d\n", result.Validation.Valid, result.Validation.Summary.Errors, result.Validation.Summary.Warnings, result.Validation.Summary.Diagnostics)
 	}
@@ -235,7 +237,7 @@ func printAuthorHuman(result authorCLIResult) {
 	}
 	if result.Plan != nil {
 		summary := result.Plan.Plan.Summary
-		fmt.Printf("  plan: create=%d update=%d delete=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Replace, summary.NoOp, summary.Diagnostics)
+		fmt.Printf("  plan: create=%d update=%d delete=%d post=%d put=%d patch=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Post, summary.Put, summary.Patch, summary.Replace, summary.NoOp, summary.Diagnostics)
 	}
 }
 
@@ -263,7 +265,7 @@ func runICOTCommand(ctx context.Context, args []string) {
 	sharedicotcli.AddFlags(fs, &common)
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen icot [--goal TEXT] [--api-source KIND:ID=PATH ...] [--project-name NAME] [--out DIR] [--validate] [--graph] [--plan] [--state PATH] [--prompt-mode full|normal|fast] [--no-llm] [--provider NAME] [--model NAME] [--temperature FLOAT] [--agent] [--json] [--answers PATH] [--no-transcript] [--report PATH]\n")
-		fmt.Fprintf(fs.Output(), "\nInteractively drafts a native UWS/Ramen project from local API source metadata. It never executes API calls, Terraform/OpenTofu, providers, refresh, apply, destroy, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "\nInteractively drafts a native UWS/Ramen project from local API source metadata. It never executes API calls, Terraform/OpenTofu, providers, refresh, apply, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -339,7 +341,7 @@ func runICOTDraft(ctx context.Context, goal, projectName, outDir, statePath stri
 	}
 	apiInputs := make([]ramenauthoring.APISourceInput, len(tfInputs))
 	for i, input := range tfInputs {
-		apiInputs[i] = ramenauthoring.APISourceInput{Kind: input.Kind, ID: input.ID, Path: input.Path}
+		apiInputs[i] = ramenauthoring.APISourceInput{Kind: input.Kind, ID: input.ID, Path: input.Path, DownloadDir: outDir}
 	}
 	promptContext, err := ramenauthoring.PromptContextFromAPISources(ctx, goal, apiInputs)
 	if err != nil {
@@ -405,11 +407,7 @@ func runICOTDraft(ctx context.Context, goal, projectName, outDir, statePath stri
 	}
 	operation := selection.Operation
 	promptContext.Operations = []sharedpromptcontext.OperationCandidate{operation}
-	readOnly := icotReadOnlyGoal(goal, operation)
-	var resources []project.Resource
-	if readOnly {
-		resources = []project.Resource{ramenauthoring.ReadOnlyResource(promptContext, goal, projectName)}
-	}
+	resources := []project.Resource{ramenauthoring.APIOperationResource(promptContext, goal, projectName)}
 	result, err := ramenauthoring.DraftProject(ctx, ramenauthoring.Options{
 		Goal:        goal,
 		ProjectName: projectName,
@@ -418,30 +416,13 @@ func runICOTDraft(ctx context.Context, goal, projectName, outDir, statePath stri
 		Resources:   resources,
 		Validate:    validateGate,
 		Graph:       graphGate,
-		Plan:        planGate && !readOnly,
+		Plan:        planGate,
 		StatePath:   statePath,
 	})
 	if err != nil {
 		return icotFailed("ramen.icot.draft_failed", err.Error())
 	}
-	cliResult := authorCLIResult{Report: result.Report, ProjectPath: result.ProjectPath, Validation: result.Validation, Graph: result.Graph, Plan: result.Plan}
-	if readOnly && planGate {
-		diag := trust.DiagnosticRecord{
-			Code:     "ramen.icot.plan_read_only_unsupported",
-			Severity: "blocking",
-			Message:  "read-only/list iCoT projects validate and graph, but plan is not represented safely yet",
-		}
-		cliResult.Report.Status = sharedreport.StatusNeedsInput
-		cliResult.Report.Diagnostics = append(cliResult.Report.Diagnostics, diag)
-		cliResult.Report.TopIssue = &sharedreadiness.Issue{Code: diag.Code, Severity: diag.Severity, Message: diag.Message, Slot: "plan"}
-		cliResult.Report.Readiness = &sharedreadiness.Result{
-			Ready:    false,
-			Issues:   []sharedreadiness.Issue{*cliResult.Report.TopIssue},
-			Blocking: []sharedreadiness.Issue{*cliResult.Report.TopIssue},
-			TopIssue: cliResult.Report.TopIssue,
-		}
-		cliResult.Report = sharedreport.Normalize(cliResult.Report)
-	}
+	cliResult := authorCLIResult{Report: result.Report, ProjectPath: result.ProjectPath, ProjectHCLPath: result.ProjectHCLPath, Validation: result.Validation, Graph: result.Graph, Plan: result.Plan}
 	return cliResult
 }
 
@@ -1096,6 +1077,9 @@ func printICOTHuman(result authorCLIResult) {
 	if result.ProjectPath != "" {
 		fmt.Printf("  project: %s\n", result.ProjectPath)
 	}
+	if result.ProjectHCLPath != "" {
+		fmt.Printf("  project-hcl: %s\n", result.ProjectHCLPath)
+	}
 	if result.Validation != nil {
 		fmt.Printf("  validate: valid=%t errors=%d warnings=%d diagnostics=%d\n", result.Validation.Valid, result.Validation.Summary.Errors, result.Validation.Summary.Warnings, result.Validation.Summary.Diagnostics)
 	}
@@ -1104,7 +1088,7 @@ func printICOTHuman(result authorCLIResult) {
 	}
 	if result.Plan != nil {
 		summary := result.Plan.Plan.Summary
-		fmt.Printf("  plan: create=%d update=%d delete=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Replace, summary.NoOp, summary.Diagnostics)
+		fmt.Printf("  plan: create=%d update=%d delete=%d post=%d put=%d patch=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Post, summary.Put, summary.Patch, summary.Replace, summary.NoOp, summary.Diagnostics)
 	}
 }
 
@@ -1181,7 +1165,7 @@ func runShowCommand(args []string) {
 		return
 	}
 	fmt.Printf("ramen: show version=%s action=%s errored=%t resources=%d diagnostics=%d\n", doc.Version, doc.Action, doc.Errored, len(doc.Resources), len(doc.Diagnostics))
-	fmt.Printf("  summary: create=%d update=%d delete=%d replace=%d no-op=%d read=%d diagnostics=%d\n", doc.Summary.Create, doc.Summary.Update, doc.Summary.Delete, doc.Summary.Replace, doc.Summary.NoOp, doc.Summary.Read, doc.Summary.Diagnostics)
+	fmt.Printf("  summary: create=%d update=%d delete=%d post=%d put=%d patch=%d replace=%d no-op=%d read=%d diagnostics=%d\n", doc.Summary.Create, doc.Summary.Update, doc.Summary.Delete, doc.Summary.Post, doc.Summary.Put, doc.Summary.Patch, doc.Summary.Replace, doc.Summary.NoOp, doc.Summary.Read, doc.Summary.Diagnostics)
 	if doc.Approval != nil {
 		fmt.Printf("  approval: version=%s digest=%s project=%s state=%s\n", doc.Approval.Version, doc.Approval.Digest, doc.Approval.ProjectDigest, doc.Approval.StateDigest)
 	}
@@ -1203,6 +1187,24 @@ func loadPlanForShow(path string) (tfplan.Document, error) {
 		return tfplan.Document{}, fmt.Errorf("show.plan_version_invalid: got %q, want %q", doc.Version, tfplan.Version)
 	}
 	return doc, nil
+}
+
+func printFlagDefaultsExcluding(fs *flag.FlagSet, excluded map[string]bool) {
+	fs.VisitAll(func(f *flag.Flag) {
+		if excluded[f.Name] {
+			return
+		}
+		name, usage := flag.UnquoteUsage(f)
+		if name != "" {
+			fmt.Fprintf(fs.Output(), "  -%s %s\n    \t%s", f.Name, name, usage)
+		} else {
+			fmt.Fprintf(fs.Output(), "  -%s\n    \t%s", f.Name, usage)
+		}
+		if f.DefValue != "" && f.DefValue != "false" {
+			fmt.Fprintf(fs.Output(), " (default %q)", f.DefValue)
+		}
+		fmt.Fprint(fs.Output(), "\n")
+	})
 }
 
 func positionalFirstLast(args []string) []string {
@@ -1963,69 +1965,6 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	fmt.Printf("ramen: refresh read=%d changed=%d unchanged=%d missing=%d skipped=%d failed=%d\n", result.Summary.Read, result.Summary.Changed, result.Summary.Unchanged, result.Summary.Missing, result.Summary.Skipped, result.Summary.Failed)
 }
 
-func runDestroyCommand(ctx context.Context, args []string) {
-	fs := flag.NewFlagSet("destroy", flag.ExitOnError)
-	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory")
-	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
-	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
-	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
-	planPath := fs.String("plan", "", "Digest-bound Ramen destroy plan artifact to verify and execute")
-	autoApprove := fs.Bool("auto-approve", false, "Approve planned delete mutations without an interactive prompt")
-	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
-	executorMode := fs.String("executor", "", "Trusted executor to use: mock or udon")
-	udonOutputDir := fs.String("udon-output", "", "Optional root directory for udon runtime artifacts when --executor udon is selected")
-	outDir := fs.String("out", "", "Optional directory for generated delete UWS action documents")
-	jsonOut := fs.Bool("json", false, "Emit JSON")
-	var apiSources repeatedStringFlag
-	var varFiles repeatedStringFlag
-	var cliVars repeatedStringFlag
-	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
-	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
-	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
-	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen destroy [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve [--mock | --executor udon] [--udon-output DIR] [--out DIR] [--json]\n")
-		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound destroy plan artifact or builds the same approval contract from project inputs, then deletes tracked resources through a trusted executor in deterministic reverse order. Public builds only include the mock executor; live udon execution requires an opt-in adapter build.\n\n")
-		fs.PrintDefaults()
-	}
-	if err := fs.Parse(args); err != nil {
-		os.Exit(2)
-	}
-	configDirSet := false
-	fs.Visit(func(f *flag.Flag) {
-		if f.Name == "config-dir" {
-			configDirSet = true
-		}
-	})
-	sources, err := parseReconcileAPISourceFlags(apiSources)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-	stateValue := *statePath
-	if strings.TrimSpace(stateValue) == "" && strings.TrimSpace(*planPath) == "" {
-		stateValue = statePathOrDefault(*statePath, *projectPath, *configDir, *workspace)
-	}
-	configDirValue := *configDir
-	if strings.TrimSpace(*planPath) != "" && !configDirSet {
-		configDirValue = ""
-	}
-	exec, err := selectTrustedExecutor(*executorMode, *mock, *udonOutputDir)
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(2)
-	}
-	result, err := reconcile.Destroy(ctx, reconcile.Options{ConfigDir: configDirValue, ProjectPath: *projectPath, StatePath: stateValue, APISources: sources, VarFiles: []string(varFiles), Vars: []string(cliVars), Workspace: *workspace, PlanPath: *planPath, AutoApprove: *autoApprove, OutDir: *outDir, Executor: exec})
-	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
-	}
-	if *jsonOut {
-		writeJSONOutput(result)
-		return
-	}
-	fmt.Printf("ramen: destroy delete=%d failed=%d\n", result.Summary.Delete, result.Summary.Failed)
-}
-
 func runImportCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("import", flag.ExitOnError)
 	projectPath := fs.String("project", "", "Native UWS/Ramen project file or directory used to compute plan-compatible desired hashes")
@@ -2170,7 +2109,7 @@ func diagnosticText(diag tfconfig.Diagnostic) string {
 }
 
 func planHasChanges(doc tfplan.Document) bool {
-	return doc.Summary.Create != 0 || doc.Summary.Update != 0 || doc.Summary.Delete != 0 || doc.Summary.Replace != 0
+	return doc.Summary.Create != 0 || doc.Summary.Update != 0 || doc.Summary.Delete != 0 || doc.Summary.Post != 0 || doc.Summary.Put != 0 || doc.Summary.Patch != 0 || doc.Summary.Replace != 0 || doc.Summary.Read != 0
 }
 
 func runApplyCommand(ctx context.Context, args []string) {
@@ -2180,7 +2119,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
 	planPath := fs.String("plan", "", "Digest-bound Ramen plan artifact to verify and execute")
-	autoApprove := fs.Bool("auto-approve", false, "Approve planned create/update mutations without an interactive prompt")
+	autoApprove := fs.Bool("auto-approve", false, "Approve planned actions without an interactive prompt")
 	mock := fs.Bool("mock", false, "Use the public mock executor instead of a live trusted executor")
 	executorMode := fs.String("executor", "", "Trusted executor to use: mock or udon")
 	udonOutputDir := fs.String("udon-output", "", "Optional root directory for udon runtime artifacts when --executor udon is selected")
@@ -2194,7 +2133,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen apply [--plan PLAN.json | --project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] --auto-approve [--mock | --executor udon] [--udon-output DIR] [--out DIR] [--json]\n")
-		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit mutation approval, generates executor-ready UWS action documents, and hands approved mutations to a trusted executor. Public builds only include the mock executor; live udon execution requires an opt-in adapter build.\n\n")
+		fmt.Fprintf(fs.Output(), "\nVerifies a digest-bound plan artifact or builds the same approval contract from project inputs, requires explicit approval, generates executor-ready UWS action documents, and hands approved plan actions to a trusted executor. Public builds only include the mock executor; live udon execution requires an opt-in adapter build.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -2239,13 +2178,18 @@ func runApplyCommand(ctx context.Context, args []string) {
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
+		if result != nil {
+			for _, msg := range result.Errors {
+				fmt.Fprintln(os.Stderr, msg)
+			}
+		}
 		os.Exit(1)
 	}
 	if *jsonOut {
 		writeJSONOutput(result)
 		return
 	}
-	fmt.Printf("ramen: apply create=%d update=%d delete=%d no-op=%d skipped=%d failed=%d blocked=%d executed=%d\n", result.Summary.Create, result.Summary.Update, result.Summary.Delete, result.Summary.NoOp, result.Summary.Skipped, result.Summary.Failed, result.Summary.Blocked, len(result.Executed))
+	fmt.Printf("ramen: apply create=%d update=%d delete=%d post=%d put=%d patch=%d read=%d no-op=%d skipped=%d failed=%d blocked=%d executed=%d\n", result.Summary.Create, result.Summary.Update, result.Summary.Delete, result.Summary.Post, result.Summary.Put, result.Summary.Patch, result.Summary.Read, result.Summary.NoOp, result.Summary.Skipped, result.Summary.Failed, result.Summary.Blocked, len(result.Executed))
 	if result.RunID != 0 {
 		fmt.Printf("  run:   %d\n", result.RunID)
 	}
@@ -2295,9 +2239,10 @@ func runPlanCommand(ctx context.Context, args []string) {
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	statePath := fs.String("state", "", "SQLite state path; defaults to CONFIG_DIR/.ramen/state.db")
 	workspace := fs.String("workspace", "", "Workspace name; defaults to the base local state path")
-	action := fs.String("action", "create", "Desired managed-resource action for absent resources")
-	destroy := fs.Bool("destroy", false, "Plan deletes for managed resources")
-	outPath := fs.String("out", "", "Optional JSON plan output path")
+	action := fs.String("action", "", "Desired action; native API-first projects default to their declared API operation, Terraform/OpenTofu config defaults to create")
+	destroy := fs.Bool("destroy", false, "Deprecated compatibility flag for Terraform/OpenTofu-shaped delete plans; prefer native API DELETE operation roles")
+	outPath := fs.String("out", "", "Optional JSON plan output path; also writes a sibling .hcl plan view")
+	hclOutPath := fs.String("hcl-out", "", "Optional HCL plan output path; defaults to sibling .hcl when --out is set")
 	detailedExitCode := fs.Bool("detailed-exitcode", false, "Return 2 when the plan has changes, 1 on errors, and 0 when empty")
 	var apiSources repeatedStringFlag
 	var targets repeatedStringFlag
@@ -2318,12 +2263,21 @@ func runPlanCommand(ctx context.Context, args []string) {
 	approvalContext := fs.String("approval-context", "", "Free-form approval context")
 	approvedAt := fs.String("approved-at", "", "Approval timestamp in RFC3339 format")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] [--policy-file PATH] [--approved-by ID --approved-at RFC3339] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--destroy] [--out PATH]\n")
-		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic desired-state plan from native UWS/Ramen project artifacts or transitional Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, destroy, or UWS workflows.\n\n")
-		fs.PrintDefaults()
+		fmt.Fprintf(fs.Output(), "Usage: ramen plan [--project DIR|FILE | --config-dir DIR] [--state PATH] [--workspace NAME] [--api-source KIND:ID=PATH] [--var-file PATH] [--var name=value] [--policy-file PATH] [--approved-by ID --approved-at RFC3339] [--target ADDRESS] [--exclude ADDRESS] [--replace ADDRESS] [--out PATH] [--hcl-out PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nBuilds a deterministic desired-state plan from native UWS/Ramen project artifacts or transitional Terraform/OpenTofu facts, API source metadata, and recorded SQLite state. It does not execute Terraform, providers, API source operations, refresh, apply, or UWS workflows.\n\n")
+		printFlagDefaultsExcluding(fs, map[string]bool{"destroy": true})
 	}
 	if err := fs.Parse(args); err != nil {
 		os.Exit(2)
+	}
+	destroySet := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "destroy" {
+			destroySet = true
+		}
+	})
+	if destroySet {
+		fmt.Fprintln(os.Stderr, "ramen plan --destroy is deprecated; model DELETE operations in the native project and use ramen apply --plan")
 	}
 	sources, err := parsePlanAPISourceFlags(apiSources)
 	if err != nil {
@@ -2347,6 +2301,7 @@ func runPlanCommand(ctx context.Context, args []string) {
 		Workspace:   *workspace,
 		Action:      *action,
 		OutPath:     *outPath,
+		HCLPath:     *hclOutPath,
 		Targets:     []string(targets),
 		Excludes:    []string(excludes),
 		Replaces:    []string(replaces),
@@ -2357,9 +2312,12 @@ func runPlanCommand(ctx context.Context, args []string) {
 		os.Exit(1)
 	}
 	summary := result.Plan.Summary
-	fmt.Printf("ramen: plan create=%d update=%d delete=%d replace=%d no-op=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Replace, summary.NoOp, summary.Diagnostics)
+	fmt.Printf("ramen: plan create=%d update=%d delete=%d post=%d put=%d patch=%d replace=%d no-op=%d read=%d diagnostics=%d\n", summary.Create, summary.Update, summary.Delete, summary.Post, summary.Put, summary.Patch, summary.Replace, summary.NoOp, summary.Read, summary.Diagnostics)
 	if result.OutPath != "" {
 		fmt.Printf("  plan: %s\n", result.OutPath)
+	}
+	if result.HCLPath != "" {
+		fmt.Printf("  plan-hcl: %s\n", result.HCLPath)
 	}
 	for _, diag := range result.Diagnostics {
 		if diag.Severity == "error" {

@@ -55,6 +55,41 @@ func TestImportRecordsRedactedIdentity(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestExecutorSourcePathsUseProcessRelativeLocalFiles(t *testing.T) {
+	root := t.TempDir()
+	oldwd, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	if err := os.Chdir(root); err != nil {
+		t.Fatalf("chdir: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(oldwd); err != nil {
+			t.Fatalf("restore wd: %v", err)
+		}
+	})
+
+	sourcePaths := sourcePathIndex([]APISourceInput{
+		{Kind: "openapi", ID: "azure_sql", Path: ".ramen/icot-sql-ramen/azure-sql-ramen-live.json"},
+		{Kind: "openapi", ID: "remote", Path: "https://example.test/openapi.json"},
+	})
+
+	localPath := sourcePaths["openapi\x00azure_sql"]
+	wantLocalPath := filepath.Join(root, ".ramen", "icot-sql-ramen", "azure-sql-ramen-live.json")
+	if localPath != wantLocalPath {
+		t.Fatalf("local source path = %q, want %q", localPath, wantLocalPath)
+	}
+	if remotePath := sourcePaths["openapi\x00remote"]; remotePath != "https://example.test/openapi.json" {
+		t.Fatalf("remote source path = %q", remotePath)
+	}
+	projectDir := filepath.Join(root, ".ramen", "my-sql-ramen-drop")
+	wantWorkingDir := filepath.Join(root, ".ramen")
+	if got := executorWorkingDir(projectDir, sourcePaths); got != wantWorkingDir {
+		t.Fatalf("working dir = %q, want %q", got, wantWorkingDir)
+	}
+}
+
 func TestImportThenPlanNoOpForMatchingConfig(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")

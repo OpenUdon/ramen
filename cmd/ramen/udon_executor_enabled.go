@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"reflect"
 	"strings"
 
 	"github.com/OpenUdon/ramen/executor"
@@ -36,8 +37,16 @@ func projectUdonExecutorOutput(_ context.Context, req executor.Request, outputDi
 	if err != nil {
 		return executor.Result{}, err
 	}
+	if len(identity) == 0 && isAsyncAcceptedMutation(req, computed) {
+		return executor.Result{
+			Address:   req.Action.Address,
+			Operation: req.Action.Mapping.OperationID,
+			Computed:  computed,
+			Messages:  []string{"mutation accepted asynchronously; identity is expected from read-after-write convergence"},
+		}, nil
+	}
 	if req.Action.Action != "delete" && len(identity) == 0 {
-		return executor.Result{}, fmt.Errorf("udon output projection for %s produced no identity facts; output dir: %s", req.Action.Address, outputDir)
+		return executor.Result{}, fmt.Errorf("udon output projection for %s produced no identity facts (%s); output dir: %s", req.Action.Address, projectionSummary(computed), outputDir)
 	}
 	return executor.Result{
 		Address:   req.Action.Address,
@@ -45,6 +54,66 @@ func projectUdonExecutorOutput(_ context.Context, req executor.Request, outputDi
 		Identity:  identity,
 		Computed:  computed,
 	}, nil
+}
+
+func isAsyncAcceptedMutation(req executor.Request, computed map[string]any) bool {
+	switch req.Action.Action {
+	case "create", "update", "post", "put", "patch":
+	default:
+		return false
+	}
+	if len(computed) == 0 {
+		return false
+	}
+	if _, ok := computed["operation"]; !ok {
+		return false
+	}
+	if _, ok := computed["startTime"]; ok {
+		return true
+	}
+	if _, ok := computed["status"]; ok {
+		return true
+	}
+	return false
+}
+
+func projectionSummary(value any) string {
+	switch typed := value.(type) {
+	case nil:
+		return "empty"
+	case map[string]any:
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, fmt.Sprintf("%s:%s", key, projectionValueShape(typed[key])))
+			if len(keys) == 5 {
+				break
+			}
+		}
+		return "map keys: " + strings.Join(keys, ",")
+	default:
+		return fmt.Sprintf("%T", value)
+	}
+}
+
+func projectionValueShape(value any) string {
+	switch typed := value.(type) {
+	case []any:
+		if len(typed) == 0 {
+			return "[]interface {}(empty)"
+		}
+		return fmt.Sprintf("[]interface {} first=%s", projectionValueShape(typed[0]))
+	case map[string]any:
+		keys := make([]string, 0, len(typed))
+		for key := range typed {
+			keys = append(keys, key)
+			if len(keys) == 5 {
+				break
+			}
+		}
+		return "map[" + strings.Join(keys, ",") + "]"
+	default:
+		return fmt.Sprintf("%T", value)
+	}
 }
 
 func udonResponseBody(req executor.Request) any {
@@ -85,6 +154,12 @@ func computedProjection(body any) map[string]any {
 		return nil
 	case map[string]any:
 		return cloneMapAny(typed)
+	case string:
+		var decoded any
+		if err := json.Unmarshal([]byte(typed), &decoded); err == nil {
+			return computedProjection(decoded)
+		}
+		return map[string]any{"result": typed}
 	default:
 		return map[string]any{"result": typed}
 	}
@@ -115,6 +190,10 @@ func identityProjection(req executor.Request, body any, computed map[string]any)
 	if len(identity) == 0 {
 		for _, key := range []string{"id", "ID", "name", "Name", "arn", "Arn", "ARN", "selfLink"} {
 			if value, ok := lookupPath(computed, strings.Split(key, ".")); ok {
+				identity[strings.ToLower(key)] = value
+				break
+			}
+			if value, ok := lookupPathDeep(computed, strings.Split(key, ".")); ok {
 				identity[strings.ToLower(key)] = value
 				break
 			}
@@ -209,6 +288,15 @@ func lookupPathDeep(root any, parts []string) (any, bool) {
 		for _, value := range typed {
 			if found, ok := lookupPathDeep(value, parts); ok {
 				return found, true
+			}
+		}
+	default:
+		reflected := reflect.ValueOf(root)
+		if reflected.Kind() == reflect.Slice || reflected.Kind() == reflect.Array {
+			for i := 0; i < reflected.Len(); i++ {
+				if found, ok := lookupPathDeep(reflected.Index(i).Interface(), parts); ok {
+					return found, true
+				}
 			}
 		}
 	}

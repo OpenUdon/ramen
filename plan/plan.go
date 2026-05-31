@@ -37,6 +37,7 @@ type Options struct {
 	Workspace   string
 	Action      string
 	OutPath     string
+	HCLPath     string
 	Targets     []string
 	Excludes    []string
 	Replaces    []string
@@ -52,6 +53,7 @@ type APISourceInput struct {
 type Result struct {
 	StatePath   string
 	OutPath     string
+	HCLPath     string
 	Plan        Document
 	Diagnostics []Diagnostic
 }
@@ -104,6 +106,9 @@ type Summary struct {
 	Create      int `json:"create"`
 	Update      int `json:"update"`
 	Delete      int `json:"delete"`
+	Post        int `json:"post,omitempty"`
+	Put         int `json:"put,omitempty"`
+	Patch       int `json:"patch,omitempty"`
 	Replace     int `json:"replace"`
 	NoOp        int `json:"no_op"`
 	Read        int `json:"read"`
@@ -126,6 +131,7 @@ type ResourcePlan struct {
 
 type MappingPlan struct {
 	Purpose            string                        `json:"purpose"`
+	Method             string                        `json:"method,omitempty"`
 	SourceKind         string                        `json:"source_kind,omitempty"`
 	SourceID           string                        `json:"source_id,omitempty"`
 	SourcePath         string                        `json:"source_path,omitempty"`
@@ -299,11 +305,9 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	}
 	document.Summary = summarize(document)
 	document.Approval = buildApproval(document, "", stateBaselineDigest(ctx, store), approvers)
-	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
-	if opts.OutPath != "" {
-		if err := writeJSON(opts.OutPath, document); err != nil {
-			return result, err
-		}
+	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, HCLPath: hclOutPath(opts), Plan: document, Diagnostics: diagnostics}
+	if err := writePlanOutputs(result.OutPath, result.HCLPath, document); err != nil {
+		return result, err
 	}
 	return result, nil
 }
@@ -324,11 +328,9 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 			Diagnostics: diagnostics,
 		}
 		document.Summary = summarize(document)
-		result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
-		if opts.OutPath != "" {
-			if writeErr := writeJSON(opts.OutPath, document); writeErr != nil {
-				return result, writeErr
-			}
+		result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, HCLPath: hclOutPath(opts), Plan: document, Diagnostics: diagnostics}
+		if err := writePlanOutputs(result.OutPath, result.HCLPath, document); err != nil {
+			return result, err
 		}
 		return result, nil
 	}
@@ -412,11 +414,9 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 	}
 	document.Summary = summarize(document)
 	document.Approval = buildApproval(document, projectDigest(proj.Profile), stateBaselineDigest(ctx, store), approvers)
-	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, Plan: document, Diagnostics: diagnostics}
-	if opts.OutPath != "" {
-		if err := writeJSON(opts.OutPath, document); err != nil {
-			return result, err
-		}
+	result := &Result{StatePath: opts.StatePath, OutPath: opts.OutPath, HCLPath: hclOutPath(opts), Plan: document, Diagnostics: diagnostics}
+	if err := writePlanOutputs(result.OutPath, result.HCLPath, document); err != nil {
+		return result, err
 	}
 	return result, nil
 }
@@ -532,11 +532,15 @@ type plannedResource struct {
 func planResource(ctx context.Context, store *state.Store, obj objectFact, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool) plannedResource {
 	lifecycle := analyzeLifecycle(obj)
 	diagnostics := slices.Clone(lifecycle.Diagnostics)
-	desiredMapping, desiredMappingDiagnostics := mapResource(obj, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
+	desiredMapping, desiredMappingDiagnostics := mapResource(obj, desiredPurpose(requestedAction), requestedAction, sources, mappingRequired(requestedAction, requestedAction))
 	diagnostics = append(diagnostics, desiredMappingDiagnostics...)
 	hash := desiredHash(obj, lifecycle, desiredMapping, sources)
 	action := "create"
 	reason := "resource is not recorded in state"
+	if requestedAction == "read" {
+		action = "read"
+		reason = "read requested"
+	}
 	var current *state.ResourceSnapshot
 	if store != nil {
 		var err error
@@ -547,7 +551,10 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 				diagnostics: []Diagnostic{{Code: "state.read_error", Severity: "error", Message: err.Error(), Address: obj.Address, ModuleAddress: obj.ModuleAddress}},
 			}
 		}
-		if requestedAction == "delete" {
+		if requestedAction == "read" {
+			action = "read"
+			reason = "read requested"
+		} else if requestedAction == "delete" {
 			if current != nil {
 				action = "delete"
 				reason = "destroy requested for recorded resource"
@@ -611,13 +618,22 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 }
 
 func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool, inputsDigest string) plannedResource {
+	requestedAction = defaultProjectAction(resource, requestedAction)
 	lifecycle := analyzeProjectLifecycle(resource)
 	diagnostics := slices.Clone(lifecycle.Diagnostics)
-	desiredMapping, desiredMappingDiagnostics := mapProjectResource(profile, resource, desiredPurpose(requestedAction), requestedAction, sources, requestedAction == "create" || requestedAction == "delete")
+	desiredMapping, desiredMappingDiagnostics := mapProjectResource(profile, resource, desiredPurpose(requestedAction), requestedAction, sources, mappingRequired(requestedAction, requestedAction))
 	diagnostics = append(diagnostics, desiredMappingDiagnostics...)
 	hash := desiredProjectHash(resource, lifecycle, desiredMapping, sources, inputsDigest)
 	action := "create"
 	reason := "resource is not recorded in state"
+	apiOperation := projectAPIAction(resource, requestedAction) || inferredSingleOperation(resource, requestedAction) && apiFirstAction(requestedAction)
+	if apiOperation {
+		action = requestedAction
+		reason = "API operation requested"
+	} else if requestedAction == "read" {
+		action = "read"
+		reason = "read requested"
+	}
 	var current *state.ResourceSnapshot
 	if store != nil {
 		var err error
@@ -628,7 +644,13 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 				diagnostics: []Diagnostic{{Code: "state.read_error", Severity: "error", Message: err.Error(), Address: resource.Address}},
 			}
 		}
-		if requestedAction == "delete" {
+		if apiOperation {
+			action = requestedAction
+			reason = "API operation requested"
+		} else if requestedAction == "read" {
+			action = "read"
+			reason = "read requested"
+		} else if requestedAction == "delete" {
 			if current != nil {
 				action = "delete"
 				reason = "destroy requested for recorded resource"
@@ -649,7 +671,7 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 			action = "update"
 			reason = "recorded desired hash differs from native project"
 		}
-	} else if requestedAction == "delete" {
+	} else if requestedAction == "delete" && !apiOperation {
 		action = "no-op"
 		reason = "destroy requested but state is unavailable"
 	} else if forcedReplace {
@@ -695,15 +717,83 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 }
 
 func desiredPurpose(action string) string {
+	if action == "read" {
+		return "read"
+	}
 	if action == "delete" {
 		return "delete"
+	}
+	if isHTTPMutationAction(action) {
+		return action
 	}
 	return "create"
 }
 
 func mappingRequired(requestedAction, actualAction string) bool {
 	return requestedAction == "create" && (actualAction == "create" || actualAction == "update" || actualAction == "replace") ||
-		requestedAction == "delete" && actualAction == "delete"
+		requestedAction == "delete" && actualAction == "delete" ||
+		requestedAction == "read" && actualAction == "read" ||
+		isHTTPMutationAction(requestedAction) && requestedAction == actualAction
+}
+
+func defaultProjectAction(resource project.Resource, requestedAction string) string {
+	requestedAction = strings.ToLower(strings.TrimSpace(requestedAction))
+	if requestedAction != "" {
+		return requestedAction
+	}
+	if len(resource.RequiredOperations) == 1 {
+		if action := strings.ToLower(strings.TrimSpace(resource.RequiredOperations[0])); action != "" {
+			return action
+		}
+	}
+	if len(resource.Operations) == 1 {
+		for action := range resource.Operations {
+			if action = strings.ToLower(strings.TrimSpace(action)); action != "" {
+				return action
+			}
+		}
+	}
+	for _, action := range []string{"create", "post", "put", "patch", "read", "delete"} {
+		if _, ok := resource.Operations[action]; ok {
+			return action
+		}
+	}
+	return "create"
+}
+
+func projectAPIAction(resource project.Resource, action string) bool {
+	role, ok := resource.Operations[strings.ToLower(strings.TrimSpace(action))]
+	return ok && strings.TrimSpace(role.Method) != ""
+}
+
+func inferredSingleOperation(resource project.Resource, action string) bool {
+	action = strings.ToLower(strings.TrimSpace(action))
+	if action == "" {
+		return false
+	}
+	if len(resource.RequiredOperations) == 1 && strings.ToLower(strings.TrimSpace(resource.RequiredOperations[0])) == action {
+		return true
+	}
+	if len(resource.Operations) == 1 {
+		if _, ok := resource.Operations[action]; ok {
+			return true
+		}
+	}
+	return false
+}
+
+func apiFirstAction(action string) bool {
+	action = strings.ToLower(strings.TrimSpace(action))
+	return action == "read" || action == "delete" || isHTTPMutationAction(action)
+}
+
+func isHTTPMutationAction(action string) bool {
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "post", "put", "patch":
+		return true
+	default:
+		return false
+	}
 }
 
 func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, required bool) (*MappingPlan, []Diagnostic) {
@@ -769,6 +859,7 @@ func mapProjectResource(profile project.Profile, resource project.Resource, purp
 	sourceID := firstNonEmpty(role.SourceID, source.ID)
 	sourcePath := firstNonEmpty(role.SourcePath, source.Path)
 	mapping := mappingPlanForProjectResource(resource, purpose)
+	mapping.Method = strings.ToUpper(strings.TrimSpace(role.Method))
 	mapping.SourceKind = sourceKind
 	mapping.SourceID = sourceID
 	mapping.SourcePath = sourcePath
@@ -915,6 +1006,7 @@ func requestBindingsFromMapping(bindings []tfmapping.RequestBinding) []project.R
 			OperationID:   binding.OperationID,
 			Path:          binding.Path,
 			RequestPath:   binding.RequestPath,
+			Location:      binding.Location,
 			Required:      binding.Required,
 			Identity:      binding.Identity,
 		})
@@ -1698,7 +1790,7 @@ func normalizeOptions(opts Options) Options {
 	if opts.Destroy {
 		opts.Action = "delete"
 	}
-	if opts.Action == "" {
+	if opts.Action == "" && opts.ProjectPath == "" {
 		opts.Action = "create"
 	}
 	opts.Targets = uniqueNonEmpty(opts.Targets)
@@ -1766,6 +1858,38 @@ func writeJSON(path string, value any) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+func writePlanOutputs(jsonPath, hclPath string, document Document) error {
+	if strings.TrimSpace(jsonPath) != "" {
+		if err := writeJSON(jsonPath, document); err != nil {
+			return err
+		}
+	}
+	if strings.TrimSpace(hclPath) != "" {
+		if err := writePlanHCL(hclPath, document); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func hclOutPath(opts Options) string {
+	if strings.TrimSpace(opts.HCLPath) != "" {
+		return opts.HCLPath
+	}
+	if strings.TrimSpace(opts.OutPath) == "" {
+		return ""
+	}
+	return hclSiblingPath(opts.OutPath)
+}
+
+func hclSiblingPath(path string) string {
+	ext := filepath.Ext(path)
+	if ext == "" {
+		return path + ".hcl"
+	}
+	return strings.TrimSuffix(path, ext) + ".hcl"
 }
 
 func fileDigest(path string) (string, error) {
@@ -1930,6 +2054,12 @@ func summarize(doc Document) Summary {
 			summary.Update++
 		case "delete":
 			summary.Delete++
+		case "post":
+			summary.Post++
+		case "put":
+			summary.Put++
+		case "patch":
+			summary.Patch++
 		case "replace":
 			summary.Replace++
 		case "no-op":

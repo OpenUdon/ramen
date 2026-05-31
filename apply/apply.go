@@ -56,6 +56,10 @@ type Summary struct {
 	Create  int `json:"create"`
 	Update  int `json:"update"`
 	Delete  int `json:"delete"`
+	Post    int `json:"post,omitempty"`
+	Put     int `json:"put,omitempty"`
+	Patch   int `json:"patch,omitempty"`
+	Read    int `json:"read"`
 	NoOp    int `json:"no_op"`
 	Skipped int `json:"skipped"`
 	Failed  int `json:"failed"`
@@ -96,6 +100,10 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			return &Result{Version: Version, StatePath: opts.StatePath, Plan: *artifact}, err
 		}
 	} else {
+		action := ""
+		if strings.TrimSpace(opts.ProjectPath) == "" {
+			action = "create"
+		}
 		planResult, err = tfplan.Build(ctx, tfplan.Options{
 			ConfigDir:   opts.ConfigDir,
 			ProjectPath: opts.ProjectPath,
@@ -104,7 +112,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			VarFiles:    opts.VarFiles,
 			Vars:        opts.Vars,
 			Workspace:   opts.Workspace,
-			Action:      "create",
+			Action:      action,
 		})
 		if err != nil {
 			return nil, err
@@ -114,14 +122,14 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	if err := rejectErroredPlan(planResult); err != nil {
 		return result, err
 	}
-	mutations := mutableResources(planResult.Plan.Resources)
-	if len(mutations) == 0 {
+	executable := executableResources(planResult.Plan.Resources)
+	if len(executable) == 0 {
 		result.Summary.NoOp = planResult.Plan.Summary.NoOp
 		result.Summary.Skipped = len(planResult.Plan.Resources)
 		return result, nil
 	}
 	if !opts.AutoApprove {
-		return result, fmt.Errorf("apply.approval_required: apply requires explicit approval for %d mutation(s); rerun with --auto-approve after reviewing the plan", len(mutations))
+		return result, fmt.Errorf("apply.approval_required: apply requires explicit approval for %d action(s); rerun with --auto-approve after reviewing the plan", len(executable))
 	}
 	if opts.Executor == nil {
 		return result, fmt.Errorf("apply.executor_required: apply requires a trusted executor; pass --mock for recorded/mock execution in public builds")
@@ -161,8 +169,9 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
 	}
+	workingDir = executorWorkingDir(workingDir, sourcePaths)
 	failed := map[string]bool{}
-	for _, resource := range mutations {
+	for _, resource := range executable {
 		if blockedByFailure(resource, failed) {
 			runStatus = "failed"
 			result.Summary.Blocked++
@@ -174,15 +183,35 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			}
 			continue
 		}
-		if resource.Action == "delete" {
-			runStatus = "failed"
-			result.Summary.Failed++
-			failed[resource.Address] = true
-			msg := fmt.Sprintf("apply.delete_unsupported: apply delete for %s is handled by ramen destroy", resource.Address)
-			result.Errors = append(result.Errors, msg)
-			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
+		if resource.Action == "read" {
+			executed, err := executeReadPlanAction(ctx, opts.Executor, store, runID, resource, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir)
+			result.Feedback = append(result.Feedback, executed.Feedback...)
+			if executed.Document != "" {
+				result.GeneratedDocuments = append(result.GeneratedDocuments, executed.Document)
+			}
+			if err != nil {
+				runStatus = "failed"
+				result.Summary.Failed++
+				failed[resource.Address] = true
+				msg := fmt.Sprintf("apply.read_failed: %v", err)
+				result.Errors = append(result.Errors, msg)
+				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+					return result, recErr
+				}
+				continue
+			}
+			if err := recordSuccessfulRead(ctx, store, runID, resource, executed.Result); err != nil {
+				runStatus = "failed"
 				return result, err
 			}
+			result.Executed = append(result.Executed, ExecutedAction{
+				Address:   resource.Address,
+				Action:    resource.Action,
+				Operation: resource.Mapping.OperationID,
+				Document:  executed.Document,
+				Result:    redactExecutorResult(executed.Result),
+			})
+			result.Summary.Read++
 			continue
 		}
 		readMapping := readMappings[resource.Address]
@@ -314,7 +343,12 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			stateResult = converged.Result
 			stateMapping = readMapping
 		}
-		if err := recordSuccessfulMutation(ctx, store, runID, resource, before, stateResult, stateMapping); err != nil {
+		if resource.Action == "delete" {
+			if err := recordSuccessfulDelete(ctx, store, runID, resource, before); err != nil {
+				runStatus = "failed"
+				return result, err
+			}
+		} else if err := recordSuccessfulMutation(ctx, store, runID, resource, before, stateResult, stateMapping); err != nil {
 			runStatus = "failed"
 			return result, err
 		}
@@ -330,10 +364,18 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			result.Summary.Create++
 		case "update":
 			result.Summary.Update++
+		case "delete":
+			result.Summary.Delete++
+		case "post":
+			result.Summary.Post++
+		case "put":
+			result.Summary.Put++
+		case "patch":
+			result.Summary.Patch++
 		}
 	}
 	result.Summary.NoOp = planResult.Plan.Summary.NoOp
-	result.Summary.Skipped = len(planResult.Plan.Resources) - len(mutations)
+	result.Summary.Skipped = len(planResult.Plan.Resources) - len(executable)
 	if len(result.Errors) > 0 {
 		return result, fmt.Errorf("apply.failed: apply failed for %d resource(s) and blocked %d resource(s)", result.Summary.Failed, result.Summary.Blocked)
 	}
@@ -385,7 +427,7 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 	if operationID == "" {
 		operationID = "apply_action"
 	}
-	sourcePath := firstNonEmpty(resource.Mapping.SourcePath, sourcePaths[sourcePathKey(resource.Mapping.SourceKind, resource.Mapping.SourceID)], resource.Mapping.SourceID)
+	sourcePath := firstNonEmpty(sourcePaths[sourcePathKey(resource.Mapping.SourceKind, resource.Mapping.SourceID)], resource.Mapping.SourcePath, resource.Mapping.SourceID)
 	request := requestbinding.Build(requestbinding.Options{
 		Object:      tfmapping.Object{Kind: resource.Kind, Type: resource.Type, Provider: resource.Provider},
 		SourceKind:  resource.Mapping.SourceKind,
@@ -404,6 +446,7 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 			"desired_hash": resource.DesiredHash,
 		},
 	})
+	applyNativeRequestBindings(request, resource, attrs, identity)
 	stepBody := executorStepBody(request)
 	stepBody["ramen_address"] = resource.Address
 	stepBody["ramen_action"] = resource.Action
@@ -452,12 +495,113 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 	return doc, nil
 }
 
+func applyNativeRequestBindings(request map[string]any, resource tfplan.ResourcePlan, attrs, identity map[string]any) {
+	if resource.Mapping == nil {
+		return
+	}
+	for _, binding := range resource.Mapping.RequestBindings {
+		if !requestBindingApplies(binding, resource.Action, resource.Mapping.OperationID) {
+			continue
+		}
+		value, ok := bindingValue(binding, attrs, identity)
+		if !ok {
+			continue
+		}
+		location := strings.ToLower(strings.TrimSpace(binding.Location))
+		if location == "" {
+			location = "body"
+		}
+		requestPath := firstNonEmpty(binding.RequestPath, binding.Path)
+		switch location {
+		case "path", "query", "header", "cookie":
+			values, _ := request[location].(map[string]any)
+			if values == nil {
+				values = map[string]any{}
+				request[location] = values
+			}
+			if _, exists := values[requestPath]; !exists {
+				values[requestPath] = value
+			}
+		default:
+			body, _ := request["body"].(map[string]any)
+			if body == nil {
+				body = map[string]any{}
+				request["body"] = body
+			}
+			setRequestBodyValue(body, requestPath, value)
+		}
+	}
+}
+
+func requestBindingApplies(binding project.RequestBinding, action, operationID string) bool {
+	role := strings.TrimSpace(binding.OperationRole)
+	if role != "" && role != action {
+		return false
+	}
+	op := strings.TrimSpace(binding.OperationID)
+	return op == "" || op == operationID
+}
+
+func bindingValue(binding project.RequestBinding, attrs, identity map[string]any) (any, bool) {
+	for _, key := range []string{binding.Path, binding.RequestPath} {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if value, ok := attrs[key]; ok {
+			return value, true
+		}
+		if value, ok := identity[key]; ok {
+			return value, true
+		}
+	}
+	return nil, false
+}
+
+func setRequestBodyValue(target map[string]any, path string, value any) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	parts := strings.Split(path, ".")
+	current := target
+	for _, part := range parts[:len(parts)-1] {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return
+		}
+		next, ok := current[part]
+		if !ok {
+			nested := map[string]any{}
+			current[part] = nested
+			current = nested
+			continue
+		}
+		nested, ok := next.(map[string]any)
+		if !ok {
+			return
+		}
+		current = nested
+	}
+	last := strings.TrimSpace(parts[len(parts)-1])
+	if last == "" {
+		return
+	}
+	if _, exists := current[last]; !exists {
+		current[last] = value
+	}
+}
+
 func executorStepBody(request map[string]any) map[string]any {
 	out := map[string]any{}
 	for _, component := range []string{"path", "query", "header", "cookie", "body"} {
 		values, _ := request[component].(map[string]any)
 		for key, value := range cloneRequestMap(values) {
-			out[key] = value
+			if component == "body" {
+				out[key] = value
+			} else {
+				out[component+"."+key] = value
+			}
 		}
 	}
 	return out
@@ -585,9 +729,6 @@ func validateLoadedPlanArtifact(doc tfplan.Document) error {
 	if err := tfplan.VerifyApproval(doc); err != nil {
 		return fmt.Errorf("apply.approval_invalid: %w", err)
 	}
-	if doc.Action == "delete" || doc.Controls.Destroy {
-		return fmt.Errorf("apply.plan_action_invalid: apply requires a non-destroy plan artifact")
-	}
 	return nil
 }
 
@@ -679,11 +820,11 @@ func rejectErroredPlan(planResult *tfplan.Result) error {
 	return tfplan.VerifyApproval(planResult.Plan)
 }
 
-func mutableResources(resources []tfplan.ResourcePlan) []tfplan.ResourcePlan {
+func executableResources(resources []tfplan.ResourcePlan) []tfplan.ResourcePlan {
 	var out []tfplan.ResourcePlan
 	for _, resource := range resources {
 		switch resource.Action {
-		case "create", "update", "delete":
+		case "read", "create", "update", "delete", "post", "put", "patch":
 			out = append(out, resource)
 		}
 	}
@@ -709,6 +850,7 @@ func executorAction(resource tfplan.ResourcePlan) executor.Action {
 	}
 	if resource.Mapping != nil {
 		action.Mapping = executor.ActionMapping{
+			Method:      resource.Mapping.Method,
 			SourceKind:  resource.Mapping.SourceKind,
 			SourceID:    resource.Mapping.SourceID,
 			SourcePath:  resource.Mapping.SourcePath,
@@ -727,6 +869,55 @@ func executorAction(resource tfplan.ResourcePlan) executor.Action {
 type readCheckResult struct {
 	Result   executor.Result
 	Feedback []executor.FeedbackRecord
+}
+
+type readActionResult struct {
+	Result   executor.Result
+	Feedback []executor.FeedbackRecord
+	Document string
+}
+
+func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *state.Store, runID int64, resource tfplan.ResourcePlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir string) (readActionResult, error) {
+	identity, err := currentIdentity(ctx, store, resource.Address)
+	if err != nil {
+		return readActionResult{}, err
+	}
+	doc, err := buildActionDocument(resource, sourcePaths, attrs, identity)
+	if err != nil {
+		return readActionResult{}, fmt.Errorf("document invalid: %w", err)
+	}
+	docPath := ""
+	if outDir != "" {
+		docPath, err = writeActionDocument(outDir, resource.Address, doc)
+		if err != nil {
+			return readActionResult{}, err
+		}
+	}
+	action := executorAction(resource)
+	req := executor.Request{
+		RunID:      runID,
+		Action:     action,
+		Document:   doc,
+		WorkingDir: workingDir,
+		OutDir:     outDir,
+	}
+	req.Capabilities = executor.RequirementsForAction(action)
+	req.Idempotency = executor.IdempotencyForAction(action)
+	req.Events = ExecutorEventSink(store)
+	if err := executor.EnsureSupported(exec, req); err != nil {
+		return readActionResult{Document: docPath}, err
+	}
+	execResult, err := exec.Execute(ctx, req)
+	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
+	feedback := executor.FeedbackFromResult(req, execResult, err)
+	out := readActionResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}, Document: docPath}
+	if err != nil {
+		return out, err
+	}
+	if !execResult.Success {
+		return out, fmt.Errorf("executor reported unsuccessful read for %s", resource.Address)
+	}
+	return out, nil
 }
 
 func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.Store, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir, phase string) (readCheckResult, error) {
@@ -852,6 +1043,8 @@ func applyReadMappings(projectPath string) map[string]*tfplan.MappingPlan {
 			SourcePath:         firstNonEmpty(role.SourcePath, source.Path),
 			OperationID:        role.OperationID,
 			IdentityAttributes: projectIdentityAttributes(resource.IdentityAttributes),
+			Schema:             slices.Clone(resource.Schema),
+			RequestBindings:    slices.Clone(resource.RequestBindings),
 			ResponseBindings:   slices.Clone(resource.ResponseBindings),
 			Normalizers:        slices.Clone(resource.Normalizers),
 			MappingLifecycle:   cloneMappingLifecycle(resource.MappingLifecycle),
@@ -949,6 +1142,124 @@ func recordSuccessfulMutation(ctx context.Context, store *state.Store, runID int
 	})
 }
 
+func recordSuccessfulDelete(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, before *state.ResourceSnapshot) error {
+	beforeJSON := []byte(nil)
+	if before != nil {
+		var err error
+		beforeJSON, err = json.Marshal(before)
+		if err != nil {
+			return err
+		}
+	}
+	diffJSON, err := json.Marshal(map[string]any{
+		"operation": mappingOperationID(resource.Mapping),
+	})
+	if err != nil {
+		return err
+	}
+	return store.WithTx(ctx, func(tx *state.Tx) error {
+		if err := tx.DeleteResource(ctx, resource.Address); err != nil {
+			return err
+		}
+		return tx.RecordRevision(ctx, state.Revision{
+			ResourceAddress: resource.Address,
+			RunID:           runID,
+			Action:          "delete",
+			BeforeJSON:      string(beforeJSON),
+			DiffJSON:        string(diffJSON),
+		})
+	})
+}
+
+func recordSuccessfulRead(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, execResult executor.Result) error {
+	before, err := store.CurrentResource(ctx, resource.Address)
+	if err != nil {
+		return err
+	}
+	beforeJSON := []byte(nil)
+	if before != nil {
+		beforeJSON, err = json.Marshal(before)
+		if err != nil {
+			return err
+		}
+	}
+	if execResult.Missing {
+		diffJSON, err := json.Marshal(map[string]any{
+			"status":       "missing",
+			"desired_hash": resource.DesiredHash,
+			"operation":    mappingOperationID(resource.Mapping),
+		})
+		if err != nil {
+			return err
+		}
+		return store.RecordRevision(ctx, state.Revision{
+			ResourceAddress: resource.Address,
+			RunID:           runID,
+			Action:          "read_missing",
+			BeforeJSON:      string(beforeJSON),
+			DiffJSON:        string(diffJSON),
+		})
+	}
+	redacted := redactExecutorResult(execResult)
+	if resource.Mapping != nil {
+		identity, computed := stateprojection.Project(resource.Mapping, execResult)
+		if len(identity) > 0 {
+			redacted.Identity = redactMap(identity)
+		}
+		if len(computed) > 0 {
+			redacted.Computed = redactMap(computed)
+		}
+	}
+	identityJSON, err := marshalMap(redacted.Identity)
+	if err != nil {
+		return err
+	}
+	attributesJSON, err := marshalMap(redacted.Computed)
+	if err != nil {
+		return err
+	}
+	snap := state.ResourceSnapshot{
+		Address:        resource.Address,
+		Type:           resource.Type,
+		Provider:       resource.Provider,
+		DesiredHash:    resource.DesiredHash,
+		IdentityJSON:   identityJSON,
+		AttributesJSON: attributesJSON,
+		Status:         "managed",
+		UpdatedRunID:   runID,
+		UpdatedAt:      time.Now().UTC(),
+	}
+	if resource.Mapping != nil {
+		snap.SourceKind = resource.Mapping.SourceKind
+		snap.SourceID = resource.Mapping.SourceID
+		snap.OperationID = resource.Mapping.OperationID
+	}
+	afterJSON, err := json.Marshal(snap)
+	if err != nil {
+		return err
+	}
+	diffJSON, err := json.Marshal(map[string]any{
+		"desired_hash": resource.DesiredHash,
+		"operation":    snap.OperationID,
+	})
+	if err != nil {
+		return err
+	}
+	return store.WithTx(ctx, func(tx *state.Tx) error {
+		if err := tx.RecordResource(ctx, snap); err != nil {
+			return err
+		}
+		return tx.RecordRevision(ctx, state.Revision{
+			ResourceAddress: resource.Address,
+			RunID:           runID,
+			Action:          "read",
+			BeforeJSON:      string(beforeJSON),
+			AfterJSON:       string(afterJSON),
+			DiffJSON:        string(diffJSON),
+		})
+	})
+}
+
 func recordFailedMutation(ctx context.Context, store *state.Store, runID int64, resource tfplan.ResourcePlan, action, message string) error {
 	diffJSON, err := json.Marshal(map[string]any{
 		"status":       action,
@@ -964,6 +1275,13 @@ func recordFailedMutation(ctx context.Context, store *state.Store, runID int64, 
 		Action:          action,
 		DiffJSON:        string(diffJSON),
 	})
+}
+
+func mappingOperationID(mapping *tfplan.MappingPlan) string {
+	if mapping == nil {
+		return ""
+	}
+	return mapping.OperationID
 }
 
 func marshalMap(value map[string]any) (string, error) {
@@ -993,9 +1311,67 @@ func writeActionDocument(outDir, address string, doc *uws1.Document) (string, er
 func sourcePathIndex(inputs []APISourceInput) map[string]string {
 	out := map[string]string{}
 	for _, input := range inputs {
-		out[sourcePathKey(input.Kind, input.ID)] = input.Path
+		out[sourcePathKey(input.Kind, input.ID)] = executorSourcePath(input.Path)
 	}
 	return out
+}
+
+func executorSourcePath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || filepath.IsAbs(path) || strings.Contains(path, "://") || strings.HasPrefix(path, "urn:") {
+		return path
+	}
+	abs, err := filepath.Abs(filepath.FromSlash(path))
+	if err != nil {
+		return path
+	}
+	return abs
+}
+
+func executorWorkingDir(base string, sourcePaths map[string]string) string {
+	base = strings.TrimSpace(base)
+	if base == "" {
+		base = "."
+	}
+	root, err := filepath.Abs(filepath.FromSlash(base))
+	if err != nil {
+		return base
+	}
+	for _, sourcePath := range sourcePaths {
+		sourcePath = strings.TrimSpace(sourcePath)
+		if sourcePath == "" || strings.Contains(sourcePath, "://") || strings.HasPrefix(sourcePath, "urn:") {
+			continue
+		}
+		absSource, err := filepath.Abs(filepath.FromSlash(sourcePath))
+		if err != nil {
+			continue
+		}
+		root = commonPath(root, filepath.Dir(absSource))
+	}
+	return root
+}
+
+func commonPath(left, right string) string {
+	left = filepath.Clean(left)
+	right = filepath.Clean(right)
+	for {
+		if sameOrChild(right, left) {
+			return left
+		}
+		parent := filepath.Dir(left)
+		if parent == left {
+			return left
+		}
+		left = parent
+	}
+}
+
+func sameOrChild(path, root string) bool {
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)))
 }
 
 func sourcePathKey(kind, id string) string {

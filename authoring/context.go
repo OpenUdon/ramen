@@ -2,6 +2,7 @@ package authoring
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"slices"
@@ -12,15 +13,21 @@ import (
 	"github.com/OpenUdon/authoring/promptcontext"
 )
 
-// APISourceInput identifies one local API source document for interactive
-// authoring. It mirrors the CLI flag shape without importing command packages.
-type APISourceInput struct {
-	Kind string
-	ID   string
-	Path string
+var newAPIToolsClient = func() *apitools.Client {
+	return &apitools.Client{}
 }
 
-// APISourceInputError reports a local API source flag that cannot be converted
+// APISourceInput identifies one API source document for interactive authoring.
+// Local file paths are read in place; remote HTTP(S) URLs are materialized into
+// DownloadDir before metadata extraction.
+type APISourceInput struct {
+	Kind        string
+	ID          string
+	Path        string
+	DownloadDir string
+}
+
+// APISourceInputError reports an API source flag that cannot be converted
 // into prompt-safe operation metadata.
 type APISourceInputError struct {
 	Code string
@@ -38,7 +45,7 @@ func (err APISourceInputError) Error() string {
 	}
 }
 
-// PromptContextFromAPISources loads local API source metadata and translates it
+// PromptContextFromAPISources loads API source metadata and translates it
 // into Authoring's prompt-safe context contract.
 func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APISourceInput) (promptcontext.Context, error) {
 	docs := make([]apitools.APISourceDocument, 0, len(inputs))
@@ -53,6 +60,15 @@ func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APIS
 		}
 		if input.Kind == "" {
 			return promptcontext.Context{}, APISourceInputError{Code: "ramen.icot.api_source_unsupported", Kind: rawKind, ID: input.ID, Path: input.Path}
+		}
+		if isRemoteAPISource(input.Path) {
+			materialized, err := materializeRemoteAPISource(ctx, input)
+			if err != nil {
+				return promptcontext.Context{}, err
+			}
+			input.Path = materialized
+		} else {
+			input.Path = absoluteLocalPath(input.Path)
 		}
 		rel := filepath.Join(input.Kind, input.ID, filepath.Base(input.Path))
 		docs = append(docs, apitools.APISourceDocument{
@@ -96,6 +112,16 @@ func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APIS
 			requestSchemaID = "request:" + firstNonEmpty(op.OperationID, op.ID)
 			out.Schemas = append(out.Schemas, schemaHintFromRequestBody(requestSchemaID, op.RequestBody))
 		}
+		metadata := map[string]string{
+			"source_kind": firstNonEmpty(input.Kind, "openapi"),
+			"source_path": firstNonEmpty(input.Path, op.DocumentPath, op.DocumentRelativePath),
+		}
+		parameters := operationParametersMetadataForOperation(op, input.Path)
+		if len(parameters) > 0 {
+			if data, err := json.Marshal(parameters); err == nil {
+				metadata["parameters"] = string(data)
+			}
+		}
 		out.Operations = append(out.Operations, promptcontext.OperationCandidate{
 			ID:                 firstNonEmpty(op.ID, op.OperationID),
 			SourceID:           sourceID,
@@ -109,16 +135,127 @@ func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APIS
 			Tags:               append([]string(nil), op.Tags...),
 			Confidence:         confidenceForScore(op.Score),
 			SelectionRationale: selectionRationale(op.Score),
-			Metadata: map[string]string{
-				"source_kind": firstNonEmpty(input.Kind, "openapi"),
-				"source_path": firstNonEmpty(input.Path, op.DocumentPath, op.DocumentRelativePath),
-			},
+			Metadata:           metadata,
 		})
 	}
 	for _, credential := range credentialsForOperations(inventory.Operations) {
 		out.Credentials = append(out.Credentials, credential)
 	}
 	return promptcontext.Normalize(out), nil
+}
+
+type operationParameterMetadata struct {
+	Name     string `json:"name,omitempty"`
+	In       string `json:"in,omitempty"`
+	Type     string `json:"type,omitempty"`
+	Required bool   `json:"required,omitempty"`
+}
+
+func operationParametersMetadata(parameters []apitools.ParameterSummary) []operationParameterMetadata {
+	out := make([]operationParameterMetadata, 0, len(parameters))
+	for _, parameter := range parameters {
+		name := strings.TrimSpace(parameter.Name)
+		if name == "" {
+			continue
+		}
+		out = append(out, operationParameterMetadata{
+			Name:     name,
+			In:       strings.TrimSpace(parameter.In),
+			Type:     firstNonEmpty(parameter.Type, parameter.Format, "string"),
+			Required: parameter.Required,
+		})
+	}
+	return out
+}
+
+func operationParametersMetadataForOperation(op apitools.OperationSummary, sourcePath string) []operationParameterMetadata {
+	out := operationParametersMetadata(op.Parameters)
+	seen := map[string]bool{}
+	for _, parameter := range out {
+		seen[strings.ToLower(parameter.In)+"\x00"+parameter.Name] = true
+	}
+	for _, name := range pathParameterNames(op.Path) {
+		key := "path\x00" + name
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, operationParameterMetadata{Name: name, In: "path", Type: "string", Required: true})
+	}
+	if apiVersionFromSourcePath(sourcePath) != "" && !parameterNameSeen(seen, "api-version") {
+		out = append(out, operationParameterMetadata{Name: "api-version", In: "query", Type: "string", Required: true})
+	}
+	return out
+}
+
+func pathParameterNames(path string) []string {
+	var out []string
+	for {
+		start := strings.Index(path, "{")
+		if start < 0 {
+			return out
+		}
+		rest := path[start+1:]
+		end := strings.Index(rest, "}")
+		if end < 0 {
+			return out
+		}
+		name := strings.TrimSpace(rest[:end])
+		if name != "" {
+			out = append(out, name)
+		}
+		path = rest[end+1:]
+	}
+}
+
+func parameterNameSeen(seen map[string]bool, name string) bool {
+	for key := range seen {
+		if strings.HasSuffix(key, "\x00"+name) {
+			return true
+		}
+	}
+	return false
+}
+
+func materializeRemoteAPISource(ctx context.Context, input APISourceInput) (string, error) {
+	if !isHTTPAPISource(input.Path) {
+		return "", fmt.Errorf("remote API source %q uses unsupported download scheme; use http(s) or a local file path", input.Path)
+	}
+	dir := strings.TrimSpace(input.DownloadDir)
+	if dir == "" {
+		return "", fmt.Errorf("remote API source %q requires a download directory", input.Path)
+	}
+	imported, err := newAPIToolsClient().Import(ctx, apitools.ImportOptions{
+		URL:  input.Path,
+		Dir:  dir,
+		Name: input.ID,
+	})
+	if err != nil {
+		return "", err
+	}
+	return imported.Path, nil
+}
+
+func absoluteLocalPath(path string) string {
+	path = strings.TrimSpace(path)
+	if path == "" || filepath.IsAbs(path) || strings.Contains(path, "://") || strings.HasPrefix(path, "urn:") {
+		return path
+	}
+	abs, err := filepath.Abs(filepath.FromSlash(path))
+	if err != nil {
+		return path
+	}
+	return abs
+}
+
+func isRemoteAPISource(path string) bool {
+	path = strings.TrimSpace(path)
+	return strings.Contains(path, "://") && !strings.HasPrefix(strings.ToLower(path), "file://")
+}
+
+func isHTTPAPISource(path string) bool {
+	path = strings.ToLower(strings.TrimSpace(path))
+	return strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://")
 }
 
 func schemaHintFromRequestBody(id string, body *apitools.RequestBodySummary) promptcontext.SchemaHint {

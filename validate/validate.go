@@ -546,7 +546,7 @@ func finalize(result *Result) {
 
 func knownOperationPurpose(purpose string) bool {
 	switch strings.TrimSpace(purpose) {
-	case "read", "create", "update", "delete", "import", "replace", "suspend", "detach", "disable", "remove_config", "noop":
+	case "read", "create", "update", "delete", "post", "put", "patch", "import", "replace", "suspend", "detach", "disable", "remove_config", "noop":
 		return true
 	default:
 		return false

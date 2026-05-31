@@ -52,12 +52,13 @@ trusted executor boundaries, no credential value storage, and future policy
 integration points.
 
 Ready now: provider-free native validation, graphing, planning, HCL conversion
-scaffolding, local state history, mock-backed apply/refresh/destroy flows,
+scaffolding, local state history, mock-backed apply/refresh flows,
 plan approval metadata, read-only show/state inspection, and documented safety
 boundaries. The first `ramen author` wrapper can also draft a native project
 from prompt-safe API operation context without provider execution. `ramen icot`
-adds the interactive local-metadata path for drafting create/update skeletons
-and read-only/list projects from local API source documents. Still
+adds the interactive local-metadata path for drafting API-method projects,
+including read/list, DELETE, POST, PUT, and PATCH actions, from local API
+source documents. Still
 experimental: broader resource mappings, live executor
 adapters, policy hooks, parameterization ergonomics, release packaging, and
 operational support contracts.
@@ -88,7 +89,7 @@ Ramen owns desired-state reconciliation:
 - dependency graph construction;
 - deterministic plan and diff output;
 - SQLite state, locks, and revision history;
-- refresh, apply, destroy, and import orchestration;
+- refresh, apply, and import orchestration;
 - public executor interfaces and optional trusted executor adapters.
 
 Shared evidence helpers live in `github.com/OpenUdon/evidence/...` only for
@@ -114,10 +115,9 @@ ramen validate --project DIR --json
 ramen graph --project DIR --format json
 ramen force-unlock LOCK_HOLDER --state PATH
 ramen plan --project DIR --target ADDRESS --exclude ADDRESS --replace ADDRESS
-ramen plan --project DIR --destroy --out plan.json
+ramen plan --project DIR --out plan.json
 ramen apply --auto-approve --mock
 ramen refresh --mock
-ramen destroy --auto-approve --mock
 ramen import
 ramen version --json
 ```
@@ -157,7 +157,9 @@ Lane meanings:
 - `Mxx`: main milestone scope, cross-cutting delivery records, common command
   infrastructure, and non-subcommand migration history.
 - `Axx`: `ramen apply` command-specific tasks.
-- `Dxx`: `ramen destroy` command-specific tasks.
+- `Dxx`: historical `ramen destroy` command-specific tasks; the public
+  `destroy` CLI command has been removed, and `apply --plan` is the execution
+  path for approved delete/API-method plans.
 - `Fxx`: `ramen force-unlock` command-specific tasks.
 - `Gxx`: `ramen graph` command-specific tasks.
 - `Ixx`: `ramen init` and `ramen import` command-specific tasks.
