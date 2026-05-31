@@ -4,14 +4,19 @@ package udon
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/uws/uws1"
 	"github.com/genelet/udon/generator"
 	"github.com/genelet/udon/pkg/runner"
+	"github.com/genelet/udon/pkg/uwsprofile"
 )
 
 type Executor struct {
@@ -42,6 +47,7 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 		return executor.Result{}, err
 	}
 	startEvent := executor.Emit(req, "started", "udon executor started", nil)
+	ensureUdonExecutionHints(req.Document, req.WorkingDir)
 	plan, err := generator.NewRuntimePlanFromUWSDocument(req.Document, req.WorkingDir)
 	if err != nil {
 		return executor.Result{}, err
@@ -98,6 +104,118 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	}
 	result.Events = append(result.Events, executor.Emit(req, "finished", "udon executor finished", nil))
 	return result, nil
+}
+
+func ensureUdonExecutionHints(doc *uws1.Document, workDir string) {
+	if doc == nil {
+		return
+	}
+	sources := map[string]*uws1.SourceDescription{}
+	for _, source := range doc.SourceDescriptions {
+		if source != nil && strings.TrimSpace(source.Name) != "" {
+			sources[source.Name] = source
+		}
+	}
+	for _, op := range doc.Operations {
+		ensureUdonOperationHints(op, sources, workDir)
+	}
+}
+
+func ensureUdonOperationHints(op *uws1.Operation, sources map[string]*uws1.SourceDescription, workDir string) {
+	if op == nil {
+		return
+	}
+	config, _, err := uwsprofile.ReadOperationConfigExtension(op.Extensions)
+	if err != nil {
+		return
+	}
+	if config == nil {
+		config = &uwsprofile.OperationConfig{}
+	}
+	changed := false
+	if len(op.Request) > 0 && config.PathPars == nil {
+		if schema := requestSectionSchema(op.Request, "path"); schema != nil {
+			config.PathPars = schema
+			changed = true
+		}
+	}
+	if len(op.Request) > 0 && config.QueryPars == nil {
+		if schema := requestSectionSchema(op.Request, "query"); schema != nil {
+			config.QueryPars = schema
+			changed = true
+		}
+	}
+	if len(op.Request) > 0 && config.HeaderPars == nil {
+		if schema := requestSectionSchema(op.Request, "header"); schema != nil {
+			config.HeaderPars = schema
+			changed = true
+		}
+	}
+	if len(op.Request) > 0 && config.CookiePars == nil {
+		if schema := requestSectionSchema(op.Request, "cookie"); schema != nil {
+			config.CookiePars = schema
+			changed = true
+		}
+	}
+	if len(config.Security) == 0 && sourceHasAzureAuth(sources[op.SourceDescription], workDir) {
+		config.Security = []*uwsprofile.SecurityRequirement{{
+			Name:    "azure_auth",
+			Binding: "azure_auth",
+			Scopes:  []string{"user_impersonation"},
+		}}
+		changed = true
+	}
+	if changed {
+		_ = uwsprofile.SetOperationConfigExtension(&op.Extensions, config)
+	}
+}
+
+func requestSectionSchema(request map[string]any, section string) *uws1.ParamSchema {
+	values, ok := request[section].(map[string]any)
+	if !ok || len(values) == 0 {
+		return nil
+	}
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+	properties := make(map[string]*uws1.ParamSchema, len(keys))
+	for _, key := range keys {
+		properties[key] = &uws1.ParamSchema{Type: "string"}
+	}
+	return &uws1.ParamSchema{Type: "object", Properties: properties, Required: keys}
+}
+
+func sourceHasAzureAuth(source *uws1.SourceDescription, workDir string) bool {
+	if source == nil || !strings.EqualFold(string(source.Type), string(uws1.SourceDescriptionTypeOpenAPI)) {
+		return false
+	}
+	path := strings.TrimSpace(source.URL)
+	if path == "" {
+		return false
+	}
+	if !filepath.IsAbs(path) && strings.TrimSpace(workDir) != "" {
+		path = filepath.Join(workDir, path)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return false
+	}
+	var doc struct {
+		SecurityDefinitions map[string]any `json:"securityDefinitions"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		return false
+	}
+	_, ok := doc.SecurityDefinitions["azure_auth"]
+	return ok
 }
 
 func isProjectedMissingReadError(err error) bool {
