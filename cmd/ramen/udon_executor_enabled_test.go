@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 func TestIdentityProjectionFallsBackToDeepID(t *testing.T) {
@@ -48,6 +49,31 @@ func TestProjectUdonExecutorOutputAllowsAsyncMutationWithoutIdentity(t *testing.
 	}
 }
 
+func TestIdentityProjectionFallsBackToIdentityAttributeNameInRequest(t *testing.T) {
+	req := executor.Request{
+		Action: executor.Action{
+			Address: "resource.sql_database_ramen",
+			Action:  "put",
+			Metadata: map[string]string{
+				"identity_attributes": `[{"name":"databaseName","terraform_path":"databaseName","required":true}]`,
+			},
+		},
+		Document: testUdonDocumentRequest(map[string]any{
+			"path": map[string]any{
+				"databaseName": "ramen-m27",
+			},
+		}),
+	}
+
+	identity, err := identityProjection(req, map[string]any{"operation": "UpsertDatabase"}, map[string]any{"operation": "UpsertDatabase"})
+	if err != nil {
+		t.Fatalf("identity projection failed: %v", err)
+	}
+	if identity["databaseName"] != "ramen-m27" {
+		t.Fatalf("identity = %#v", identity)
+	}
+}
+
 func TestComputedProjectionParsesJSONResponseString(t *testing.T) {
 	computed := computedProjection(`{"value":[{"id":"/subscriptions/example/resourceGroups/rg/providers/example/type/name","name":"name"}]}`)
 	if len(computed) == 0 {
@@ -80,6 +106,15 @@ func TestLookupPathDeepFindsValuesInTypedSlices(t *testing.T) {
 
 func zeroReadExecutorRequest() executor.Request {
 	return executor.Request{Action: executor.Action{Action: "read"}}
+}
+
+func testUdonDocumentRequest(request map[string]any) *uws1.Document {
+	return &uws1.Document{
+		Operations: []*uws1.Operation{{
+			OperationID: "resource_sql_database_ramen_put",
+			Request:     request,
+		}},
+	}
 }
 
 func projectUdonExecutorOutputForBody(req executor.Request, body any) (executor.Result, error) {

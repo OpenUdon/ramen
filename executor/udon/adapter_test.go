@@ -50,6 +50,60 @@ func TestEnsureUdonRequestSectionSchemasAddsQueryAPIParameter(t *testing.T) {
 	}
 }
 
+func TestEnsureUdonRequestBodySchemaAddsPayloadParameters(t *testing.T) {
+	doc := &uws1.Document{
+		Operations: []*uws1.Operation{{
+			OperationID:       "create_database",
+			SourceDescription: "azure",
+			SourceOperationID: "Databases_CreateOrUpdate",
+			Request: map[string]any{
+				"body": map[string]any{
+					"location": "eastus",
+					"sku": map[string]any{
+						"name": "Basic",
+						"tier": "Basic",
+					},
+				},
+				"x-ramen-apply": map[string]any{
+					"action":  "put",
+					"address": "resource.sql_database_ramen_m27",
+				},
+			},
+		}},
+	}
+
+	ensureUdonExecutionHints(doc, "")
+
+	cfg, ok, err := uwsprofile.ReadOperationConfigExtension(doc.Operations[0].Extensions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || cfg == nil {
+		t.Fatalf("x-udon-config was not written")
+	}
+	if cfg.PayloadPars == nil {
+		t.Fatalf("payload schema missing")
+	}
+	if cfg.PayloadRequired == nil || !*cfg.PayloadRequired {
+		t.Fatalf("payload required flag missing: %#v", cfg.PayloadRequired)
+	}
+	if got := cfg.PayloadPars.Properties["location"]; got == nil || got.Type != "string" {
+		t.Fatalf("location schema = %#v", got)
+	}
+	sku := cfg.PayloadPars.Properties["sku"]
+	if sku == nil || sku.Type != "object" {
+		t.Fatalf("sku schema = %#v", sku)
+	}
+	for _, key := range []string{"name", "tier"} {
+		if got := sku.Properties[key]; got == nil || got.Type != "string" {
+			t.Fatalf("sku.%s schema = %#v", key, got)
+		}
+	}
+	if cfg.ResponseBody == nil || cfg.ResponseBody.Type != "object" {
+		t.Fatalf("response body override missing: %#v", cfg.ResponseBody)
+	}
+}
+
 func TestEnsureUdonExecutionHintsAddsAzureAuthRequirement(t *testing.T) {
 	dir := t.TempDir()
 	sourcePath := filepath.Join(dir, "azure.json")

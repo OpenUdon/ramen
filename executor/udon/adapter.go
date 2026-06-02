@@ -157,6 +157,18 @@ func ensureUdonOperationHints(op *uws1.Operation, sources map[string]*uws1.Sourc
 			changed = true
 		}
 	}
+	if len(op.Request) > 0 && config.PayloadPars == nil {
+		if schema := requestPayloadSchema(op.Request); schema != nil {
+			config.PayloadPars = schema
+			required := true
+			config.PayloadRequired = &required
+			changed = true
+		}
+	}
+	if config.ResponseBody == nil && isRamenMutationApplyRequest(op.Request) {
+		config.ResponseBody = &uws1.ParamSchema{Type: "object"}
+		changed = true
+	}
 	if len(config.Security) == 0 && sourceHasAzureAuth(sources[op.SourceDescription], workDir) {
 		config.Security = []*uwsprofile.SecurityRequirement{{
 			Name:    "azure_auth",
@@ -191,6 +203,71 @@ func requestSectionSchema(request map[string]any, section string) *uws1.ParamSch
 		properties[key] = &uws1.ParamSchema{Type: "string"}
 	}
 	return &uws1.ParamSchema{Type: "object", Properties: properties, Required: keys}
+}
+
+func isRamenMutationApplyRequest(request map[string]any) bool {
+	apply, ok := request["x-ramen-apply"].(map[string]any)
+	if !ok {
+		return false
+	}
+	action, _ := apply["action"].(string)
+	switch strings.ToLower(strings.TrimSpace(action)) {
+	case "create", "update", "delete", "replace", "post", "put", "patch":
+		return true
+	default:
+		return false
+	}
+}
+
+func requestPayloadSchema(request map[string]any) *uws1.ParamSchema {
+	values, ok := request["body"].(map[string]any)
+	if !ok || len(values) == 0 {
+		return nil
+	}
+	return objectSchemaFromMap(values)
+}
+
+func objectSchemaFromMap(values map[string]any) *uws1.ParamSchema {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		key = strings.TrimSpace(key)
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sort.Strings(keys)
+	properties := make(map[string]*uws1.ParamSchema, len(keys))
+	for _, key := range keys {
+		properties[key] = schemaFromValue(values[key])
+	}
+	return &uws1.ParamSchema{Type: "object", Properties: properties, Required: keys}
+}
+
+func schemaFromValue(value any) *uws1.ParamSchema {
+	switch v := value.(type) {
+	case map[string]any:
+		if schema := objectSchemaFromMap(v); schema != nil {
+			return schema
+		}
+		return &uws1.ParamSchema{Type: "object"}
+	case []any:
+		schema := &uws1.ParamSchema{Type: "array"}
+		if len(v) > 0 {
+			schema.Items = schemaFromValue(v[0])
+		}
+		return schema
+	case bool:
+		return &uws1.ParamSchema{Type: "boolean"}
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64:
+		return &uws1.ParamSchema{Type: "integer"}
+	case float32, float64, json.Number:
+		return &uws1.ParamSchema{Type: "number"}
+	default:
+		return &uws1.ParamSchema{Type: "string"}
+	}
 }
 
 func sourceHasAzureAuth(source *uws1.SourceDescription, workDir string) bool {

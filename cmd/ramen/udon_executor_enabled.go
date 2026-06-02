@@ -22,6 +22,8 @@ func newUdonExecutor(outputDir string) (executor.Executor, error) {
 
 type udonIdentityAttribute struct {
 	Name          string   `json:"name"`
+	Path          string   `json:"path,omitempty"`
+	TerraformPath string   `json:"terraform_path,omitempty"`
 	RequestKeys   []string `json:"request_keys,omitempty"`
 	ResponsePaths []string `json:"response_paths,omitempty"`
 	Required      bool     `json:"required,omitempty"`
@@ -179,7 +181,7 @@ func identityProjection(req executor.Request, body any, computed map[string]any)
 			identity[attr.Name] = value
 			continue
 		}
-		if value, ok := firstRequestKeyValue(req, attr.RequestKeys); ok {
+		if value, ok := firstRequestKeyValue(req, attrRequestKeys(attr)); ok {
 			identity[attr.Name] = value
 			continue
 		}
@@ -215,6 +217,27 @@ func udonIdentityAttributes(raw string) ([]udonIdentityAttribute, error) {
 		return nil, fmt.Errorf("parse udon identity projection metadata: %w", err)
 	}
 	return attrs, nil
+}
+
+func attrRequestKeys(attr udonIdentityAttribute) []string {
+	keys := append([]string(nil), attr.RequestKeys...)
+	for _, key := range []string{attr.Path, attr.TerraformPath, attr.Name} {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		seen := false
+		for _, existing := range keys {
+			if strings.TrimSpace(existing) == key {
+				seen = true
+				break
+			}
+		}
+		if !seen {
+			keys = append(keys, key)
+		}
+	}
+	return keys
 }
 
 func firstPathValue(root any, paths []string) (any, bool) {
