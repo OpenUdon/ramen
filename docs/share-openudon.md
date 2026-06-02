@@ -32,6 +32,13 @@ versioning rules. Executor interfaces, imperative run scaffolding, CLI helpers,
 and redaction may become shareable later, but each has more product-specific
 coupling today.
 
+The current Ramen-side priority is to finish the evidence-gated API execution
+tracks first: M27 live Azure lifecycle evidence, A03 retry/waiter policy, and
+D02 internal delete confirmation. Ramen should contribute stable plan approval,
+executor handoff, run/audit, governance, and sanitized feedback contracts to
+the OpenUdon review, but OpenUdon should continue to lead package review,
+approval-template, package digest, and runner-handoff requirements.
+
 ## Next Moves
 
 1. Compare Ramen `governance` artifacts with OpenUdon approval and
