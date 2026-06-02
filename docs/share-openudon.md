@@ -38,6 +38,10 @@ D02 internal delete confirmation. Ramen should contribute stable plan approval,
 executor handoff, run/audit, governance, and sanitized feedback contracts to
 the OpenUdon review, but OpenUdon should continue to lead package review,
 approval-template, package digest, and runner-handoff requirements.
+That Ramen-side contribution now includes concrete A03/D02 contracts:
+approval-bound runtime hints, provider-neutral executor retry/read-waiter
+behavior, and read-confirmed delete semantics for native resources with read
+roles.
 
 ## Next Moves
 

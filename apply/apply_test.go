@@ -396,6 +396,88 @@ paths:
 	}
 }
 
+func TestApplyNativeAzureSQLPutUsesBodyBindings(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath, err := filepath.Abs(filepath.Join("..", "testdata", "api-sources", "azure-sql-database-openapi.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "azure-sql", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:  "resource.sql_database_ramen_m28",
+			Kind:     "resource",
+			Type:     "azure_sql_database",
+			Name:     "ramen-m28",
+			Provider: "openapi",
+			Attributes: map[string]any{
+				"api-version":       "2023-08-01",
+				"databaseName":      "ramen-m28",
+				"location":          "eastus",
+				"resourceGroupName": "SQL",
+				"serverName":        "greetingland-sql-server",
+				"sku":               map[string]any{"name": "Basic", "tier": "Basic"},
+				"subscriptionId":    "00000000-0000-0000-0000-000000000000",
+			},
+			Operations: map[string]project.OperationRole{
+				"put": {Purpose: "put", Method: "PUT", SourceKind: "openapi", SourceID: "azure-sql", SourcePath: sourcePath, OperationID: "Databases_CreateOrUpdate"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "databaseName", Path: "databaseName", RequestKeys: []string{"databaseName"}, Required: true}},
+			Schema: []project.SchemaPath{
+				{Path: "subscriptionId", Type: "string", Required: true},
+				{Path: "resourceGroupName", Type: "string", Required: true},
+				{Path: "serverName", Type: "string", Required: true},
+				{Path: "databaseName", Type: "string", Required: true, Identity: true},
+				{Path: "api-version", Type: "string", Required: true},
+				{Path: "location", Type: "string", Required: true},
+				{Path: "sku", Type: "object", Required: true},
+			},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "subscriptionId", RequestPath: "subscriptionId", Location: "path", Required: true},
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "resourceGroupName", RequestPath: "resourceGroupName", Location: "path", Required: true},
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "serverName", RequestPath: "serverName", Location: "path", Required: true},
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "databaseName", RequestPath: "databaseName", Location: "path", Required: true, Identity: true},
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "api-version", RequestPath: "api-version", Location: "query", Required: true},
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "location", RequestPath: "location", Location: "body", Required: true},
+				{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "sku", RequestPath: "sku", Location: "body", Required: true},
+			},
+			RequiredOperations: []string{"put"},
+		}},
+	})
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Action != "put" || req.Action.Mapping.OperationID != "Databases_CreateOrUpdate" {
+			t.Fatalf("action = %#v", req.Action)
+		}
+		op := req.Document.Operations[0]
+		body, ok := op.Request["body"].(map[string]any)
+		if !ok {
+			t.Fatalf("body request missing: %#v", op.Request)
+		}
+		if body["location"] != "eastus" {
+			t.Fatalf("body location = %#v", body["location"])
+		}
+		sku, ok := body["sku"].(map[string]any)
+		if !ok || sku["name"] != "Basic" || sku["tier"] != "Basic" {
+			t.Fatalf("body sku = %#v", body["sku"])
+		}
+		query, ok := op.Request["query"].(map[string]any)
+		if !ok || query["api-version"] != "2023-08-01" {
+			t.Fatalf("query = %#v", op.Request["query"])
+		}
+		return executor.Result{Success: true, Identity: map[string]any{"databaseName": "ramen-m28"}}, nil
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Put != 1 || mock.RequestCount() != 1 {
+		t.Fatalf("summary=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+}
+
 func TestApplyNativeDeleteConfirmsMissingWithReadRole(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")
