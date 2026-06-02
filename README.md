@@ -105,7 +105,7 @@ ramen graph --project DIR --format json
 ramen force-unlock LOCK_HOLDER --state PATH
 ramen plan --project DIR --target ADDRESS --exclude ADDRESS --replace ADDRESS
 ramen plan --project DIR --out plan.json
-ramen apply --auto-approve --mock
+ramen apply --plan plan.json --auto-approve --mock
 ramen refresh --mock
 ramen import
 ramen version --json
@@ -119,10 +119,64 @@ mock-backed in default public builds where execution is required. Live executor
 wiring remains opt-in behind trusted adapters. `ramen version --json` reports
 local build metadata without network checks.
 
-Manual Azure-start note: begin with a local Azure Resource Manager OpenAPI file
-and `ramen icot --no-llm --goal "List all Azure resources" --api-source
-openapi:azure=PATH --validate --graph`. This drafts and checks a read-only
-project only; live account listing remains a later trusted-executor step.
+### Azure API-First Example
+
+Start from a local Azure Resource Manager OpenAPI file and draft a read-only
+project:
+
+```bash
+go run ./cmd/ramen icot \
+  --goal "List Azure resources in the selected subscription" \
+  --api-source openapi:azure-resources=../azure-rest-api-specs/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json \
+  --out ./.ramen/azure-read \
+  --no-transcript \
+  --validate \
+  --graph
+```
+
+Choose `Resources_List` if prompted for an operation ID. Then plan the read
+without embedding credentials in the project:
+
+```bash
+go run ./cmd/ramen plan \
+  --project ./.ramen/azure-read \
+  --action read \
+  --var azure_subscription_id="$AZURE_SUBSCRIPTION_ID" \
+  --out ./.ramen/azure-read/read-plan.json
+```
+
+Default public execution can stay mock-backed:
+
+```bash
+go run ./cmd/ramen apply \
+  --plan ./.ramen/azure-read/read-plan.json \
+  --var azure_subscription_id="$AZURE_SUBSCRIPTION_ID" \
+  --auto-approve \
+  --mock \
+  --out ./.ramen/azure-read/mock-apply
+```
+
+Live Azure reads require an explicit trusted executor and a short-lived access
+token supplied through the operator environment:
+
+```bash
+UDON_CREDENTIAL_AZURE_AUTH="$(az account get-access-token \
+  --resource https://management.azure.com/ \
+  --query accessToken \
+  -o tsv)" \
+go run -tags udon ./cmd/ramen apply \
+  --plan ./.ramen/azure-read/read-plan.json \
+  --var azure_subscription_id="$AZURE_SUBSCRIPTION_ID" \
+  --auto-approve \
+  --executor udon \
+  --udon-output ./.ramen/azure-read/udon \
+  --out ./.ramen/azure-read/apply
+```
+
+Do not commit `.ramen/` state, live response payloads, subscription IDs,
+tenant IDs, client IDs, secrets, or access tokens. Mutating Azure examples
+should use disposable resources, explicit scoped permissions, tags, cost
+guardrails, and a verified cleanup command.
 
 ## Development Checks
 
