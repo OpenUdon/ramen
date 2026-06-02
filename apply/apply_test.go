@@ -396,6 +396,94 @@ paths:
 	}
 }
 
+func TestApplyNativeDeleteConfirmsMissingWithReadRole(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "api.yaml")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, `openapi: 3.0.0
+info:
+  title: Delete API
+  version: v1
+paths:
+  /widgets/{name}:
+    get:
+      operationId: getWidget
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+    delete:
+      operationId: deleteWidget
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+`)
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: "api.yaml"}},
+		Resources: []project.Resource{{
+			Address:    "resource.widget",
+			Kind:       "resource",
+			Type:       "widget",
+			Name:       "widget",
+			Provider:   "openapi",
+			Attributes: map[string]any{"name": "ramen"},
+			Operations: map[string]project.OperationRole{
+				"read":   {Purpose: "read", Method: "GET", SourceKind: "openapi", SourceID: "api", SourcePath: "api.yaml", OperationID: "getWidget"},
+				"delete": {Purpose: "delete", Method: "DELETE", SourceKind: "openapi", SourceID: "api", SourcePath: "api.yaml", OperationID: "deleteWidget"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "name", Path: "name", RequestKeys: []string{"name"}, Required: true}},
+			Schema:             []project.SchemaPath{{Path: "name", Type: "string", Required: true, Identity: true}},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "read", OperationID: "getWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
+				{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
+			},
+			RequiredOperations: []string{"delete"},
+			RuntimeHints:       &project.RuntimeHints{Waiter: map[string]any{"max_attempts": 2}},
+		}},
+	})
+	var actions []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		switch strings.Join(actions, ",") {
+		case "read":
+			if req.Runtime.Waiter["until"] != nil {
+				t.Fatalf("baseline read should not force waiter: %#v", req.Runtime)
+			}
+			return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+		case "read,delete":
+			return executor.Result{Success: true}, nil
+		case "read,delete,read":
+			if req.Runtime.Waiter["until"] != "missing" {
+				t.Fatalf("delete confirmation waiter = %#v", req.Runtime.Waiter)
+			}
+			return executor.Result{Success: true, Missing: true}, nil
+		default:
+			t.Fatalf("unexpected actions %v", actions)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Delete != 1 || strings.Join(actions, ",") != "read,delete,read" {
+		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
+	}
+}
+
 func TestApplyNativeReadBeforeWriteRejectsExistingCreate(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")

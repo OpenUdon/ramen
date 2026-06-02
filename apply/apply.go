@@ -317,32 +317,59 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		stateResult := execResult
 		stateMapping := (*tfplan.MappingPlan)(nil)
 		if readMapping != nil {
-			converged, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "convergence")
-			result.Feedback = append(result.Feedback, converged.Feedback...)
-			if err != nil {
-				runStatus = "failed"
-				result.Summary.Failed++
-				failed[resource.Address] = true
-				msg := fmt.Sprintf("apply.convergence_failed: %v", err)
-				result.Errors = append(result.Errors, msg)
-				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
-					return result, recErr
+			if resource.Action == "delete" {
+				confirmed, err := executeReadCheck(ctx, opts.Executor, store, runID, deleteConfirmationResource(resource), readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "delete-confirmation")
+				result.Feedback = append(result.Feedback, confirmed.Feedback...)
+				if err != nil {
+					runStatus = "failed"
+					result.Summary.Failed++
+					failed[resource.Address] = true
+					msg := fmt.Sprintf("apply.delete_confirmation_failed: %v", err)
+					result.Errors = append(result.Errors, msg)
+					if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+						return result, recErr
+					}
+					continue
 				}
-				continue
-			}
-			if converged.Result.Missing {
-				runStatus = "failed"
-				result.Summary.Failed++
-				failed[resource.Address] = true
-				msg := fmt.Sprintf("apply.convergence_missing: read-after-write reported missing for %s", resource.Address)
-				result.Errors = append(result.Errors, msg)
-				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
-					return result, recErr
+				if !confirmed.Result.Missing {
+					runStatus = "failed"
+					result.Summary.Failed++
+					failed[resource.Address] = true
+					msg := fmt.Sprintf("apply.delete_confirmation_exists: read-after-delete still found %s", resource.Address)
+					result.Errors = append(result.Errors, msg)
+					if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+						return result, recErr
+					}
+					continue
 				}
-				continue
+			} else {
+				converged, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "convergence")
+				result.Feedback = append(result.Feedback, converged.Feedback...)
+				if err != nil {
+					runStatus = "failed"
+					result.Summary.Failed++
+					failed[resource.Address] = true
+					msg := fmt.Sprintf("apply.convergence_failed: %v", err)
+					result.Errors = append(result.Errors, msg)
+					if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+						return result, recErr
+					}
+					continue
+				}
+				if converged.Result.Missing {
+					runStatus = "failed"
+					result.Summary.Failed++
+					failed[resource.Address] = true
+					msg := fmt.Sprintf("apply.convergence_missing: read-after-write reported missing for %s", resource.Address)
+					result.Errors = append(result.Errors, msg)
+					if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+						return result, recErr
+					}
+					continue
+				}
+				stateResult = converged.Result
+				stateMapping = readMapping
 			}
-			stateResult = converged.Result
-			stateMapping = readMapping
 		}
 		if resource.Action == "delete" {
 			if err := recordSuccessfulDelete(ctx, store, runID, resource, before); err != nil {
@@ -1039,6 +1066,21 @@ func waiterSatisfied(until string, result executor.Result) bool {
 	}
 }
 
+func deleteConfirmationResource(resource tfplan.ResourcePlan) tfplan.ResourcePlan {
+	out := resource
+	hints := project.RuntimeHints{}
+	if resource.RuntimeHints != nil {
+		hints.Retry = cloneAnyMap(resource.RuntimeHints.Retry)
+		hints.Waiter = cloneAnyMap(resource.RuntimeHints.Waiter)
+	}
+	if hints.Waiter == nil {
+		hints.Waiter = map[string]any{}
+	}
+	hints.Waiter["until"] = "missing"
+	out.RuntimeHints = &hints
+	return out
+}
+
 func hintAttempts(hints map[string]any, key string, fallback int) int {
 	value, ok := hints[key]
 	if !ok {
@@ -1143,6 +1185,10 @@ func validateReadBeforeWrite(ctx context.Context, store *state.Store, resource t
 		}
 		if changed {
 			return fmt.Errorf("apply.baseline_drift: read-before-write drift changed the approved baseline for %s", resource.Address)
+		}
+	case "delete":
+		if execResult.Missing {
+			return fmt.Errorf("apply.baseline_missing: read-before-delete reported missing remote object for planned delete %s", resource.Address)
 		}
 	}
 	return nil
