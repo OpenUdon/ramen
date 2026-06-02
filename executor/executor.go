@@ -175,6 +175,19 @@ func RequirementsForAction(action Action) CapabilityRequirement {
 	return req
 }
 
+func RequirementsForRuntimeHints(req CapabilityRequirement, hints RuntimeHints) CapabilityRequirement {
+	if len(hints.Retry) > 0 && !contains(req.Features, FeatureRetry) {
+		req.Features = append(req.Features, FeatureRetry)
+	}
+	if len(hints.Waiter) > 0 && !contains(req.Features, FeatureWaiter) {
+		req.Features = append(req.Features, FeatureWaiter)
+	}
+	if len(hints.Pagination) > 0 && !contains(req.Features, FeaturePagination) {
+		req.Features = append(req.Features, FeaturePagination)
+	}
+	return req
+}
+
 func IdempotencyForAction(action Action) Idempotency {
 	payload := []string{
 		action.Address,

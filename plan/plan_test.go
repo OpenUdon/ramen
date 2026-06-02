@@ -377,6 +377,50 @@ func TestBuildNativeProjectCarriesMappingMetadataIntoPlanHash(t *testing.T) {
 	}
 }
 
+func TestBuildNativeProjectBindsRuntimeHintsIntoPlanHash(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
+	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.role", nil)
+	resource.RuntimeHints = &project.RuntimeHints{
+		Retry: map[string]any{
+			"max_attempts": 3,
+			"backoff":      "exponential",
+		},
+		Waiter: map[string]any{
+			"until":   "exists",
+			"timeout": "2m",
+		},
+	}
+	profile := project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	}
+	projectPath := writeNativeProjectForPlanTest(t, projectDir, profile)
+	result, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(projectDir, ".ramen", "state.db")})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	planned := result.Plan.Resources[0]
+	if planned.RuntimeHints == nil || planned.RuntimeHints.Retry["backoff"] != "exponential" || planned.RuntimeHints.Waiter["until"] != "exists" {
+		t.Fatalf("runtime hints not carried into plan: %#v", planned.RuntimeHints)
+	}
+
+	modifiedDir := filepath.Join(root, "project-modified")
+	writePlanTestFile(t, filepath.Join(modifiedDir, "aws-smithy", "iam.json"), minimalIAMSmithyForPlanTest())
+	profile.Resources[0].RuntimeHints.Retry["max_attempts"] = 5
+	modifiedPath := writeNativeProjectForPlanTest(t, modifiedDir, profile)
+	modified, err := Build(context.Background(), Options{ProjectPath: modifiedPath, StatePath: filepath.Join(modifiedDir, ".ramen", "state.db")})
+	if err != nil {
+		t.Fatalf("Build modified returned error: %v", err)
+	}
+	if planned.DesiredHash == modified.Plan.Resources[0].DesiredHash {
+		t.Fatalf("desired hash did not change after runtime hints changed: %s", planned.DesiredHash)
+	}
+}
+
 func TestBuildNativeProjectPlansReplaceOnChangePath(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")

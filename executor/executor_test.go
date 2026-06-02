@@ -29,6 +29,24 @@ func TestCapabilitiesAndIdempotency(t *testing.T) {
 	}
 }
 
+func TestRequirementsForRuntimeHints(t *testing.T) {
+	action := Action{
+		Address: "example.one",
+		Type:    "example",
+		Action:  "create",
+		Mapping: ActionMapping{SourceKind: "openapi", SourceID: "api", OperationID: "createOne"},
+	}
+	reqs := RequirementsForRuntimeHints(RequirementsForAction(action), RuntimeHints{
+		Retry:  map[string]any{"max_attempts": 3},
+		Waiter: map[string]any{"until": "exists"},
+	})
+	for _, feature := range []string{FeatureRetry, FeatureWaiter} {
+		if !contains(reqs.Features, feature) {
+			t.Fatalf("features %v missing %s", reqs.Features, feature)
+		}
+	}
+}
+
 func TestRecordedExecutorReplayAndRecord(t *testing.T) {
 	action := Action{
 		Address: "example.one",

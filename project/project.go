@@ -72,6 +72,7 @@ type Resource struct {
 	MappingLifecycle   *MappingLifecycle        `json:"mapping_lifecycle,omitempty"`
 	RequiredOperations []string                 `json:"required_operations,omitempty"`
 	CredentialBindings []string                 `json:"credential_bindings,omitempty"`
+	RuntimeHints       *RuntimeHints            `json:"runtime_hints,omitempty"`
 	Redaction          Redaction                `json:"redaction,omitempty"`
 	AI                 *AIMetadata              `json:"ai,omitempty"`
 	Metadata           map[string]any           `json:"metadata,omitempty"`
@@ -93,6 +94,11 @@ type OperationRole struct {
 	OperationID        string      `json:"operation_id,omitempty"`
 	CredentialBindings []string    `json:"credential_bindings,omitempty"`
 	AI                 *AIMetadata `json:"ai,omitempty"`
+}
+
+type RuntimeHints struct {
+	Retry  map[string]any `json:"retry,omitempty"`
+	Waiter map[string]any `json:"waiter,omitempty"`
 }
 
 type AIMetadata struct {

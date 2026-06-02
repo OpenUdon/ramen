@@ -270,7 +270,8 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		}
-		req.Capabilities = executor.RequirementsForAction(action)
+		req.Runtime = executorRuntimeHints(resource.RuntimeHints)
+		req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 		req.Idempotency = executor.IdempotencyForAction(action)
 		req.Events = ExecutorEventSink(store)
 		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
@@ -289,7 +290,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			return result, err
 		}
-		execResult, err := opts.Executor.Execute(ctx, req)
+		execResult, err := executeExecutorRequest(ctx, opts.Executor, req)
 		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			runStatus = "failed"
@@ -901,13 +902,14 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 		WorkingDir: workingDir,
 		OutDir:     outDir,
 	}
-	req.Capabilities = executor.RequirementsForAction(action)
+	req.Runtime = executorRuntimeHints(resource.RuntimeHints)
+	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	req.Events = ExecutorEventSink(store)
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readActionResult{Document: docPath}, err
 	}
-	execResult, err := exec.Execute(ctx, req)
+	execResult, err := executeReadRequest(ctx, exec, req, true)
 	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
 	feedback := executor.FeedbackFromResult(req, execResult, err)
 	out := readActionResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}, Document: docPath}
@@ -940,7 +942,8 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 		WorkingDir: workingDir,
 		OutDir:     outDir,
 	}
-	req.Capabilities = executor.RequirementsForAction(action)
+	req.Runtime = executorRuntimeHints(resource.RuntimeHints)
+	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	if phase != "" {
 		req.Idempotency.Key += "-" + phase
@@ -949,7 +952,7 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readCheckResult{}, err
 	}
-	execResult, err := exec.Execute(ctx, req)
+	execResult, err := executeReadRequest(ctx, exec, req, phase != "baseline")
 	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
 	feedback := executor.FeedbackFromResult(req, execResult, err)
 	if err != nil {
@@ -959,6 +962,169 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 		return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, fmt.Errorf("executor reported unsuccessful read for %s", resource.Address)
 	}
 	return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, nil
+}
+
+func executeExecutorRequest(ctx context.Context, exec executor.Executor, req executor.Request) (executor.Result, error) {
+	attempts := hintAttempts(req.Runtime.Retry, "max_attempts", 1)
+	interval := hintInterval(req.Runtime.Retry)
+	var last executor.Result
+	var lastErr error
+	for attempt := 1; attempt <= attempts; attempt++ {
+		last, lastErr = exec.Execute(ctx, req)
+		if lastErr == nil && last.Success {
+			return last, nil
+		}
+		if attempt == attempts {
+			break
+		}
+		if err := sleepRuntimeInterval(ctx, interval); err != nil {
+			return last, err
+		}
+	}
+	if attempts > 1 {
+		if lastErr != nil {
+			return last, fmt.Errorf("apply.retry_exhausted: executor failed after %d attempt(s): %w", attempts, lastErr)
+		}
+		if !last.Success {
+			return last, fmt.Errorf("apply.retry_exhausted: executor reported unsuccessful result after %d attempt(s)", attempts)
+		}
+	}
+	return last, lastErr
+}
+
+func executeReadRequest(ctx context.Context, exec executor.Executor, req executor.Request, useWaiter bool) (executor.Result, error) {
+	if !useWaiter || len(req.Runtime.Waiter) == 0 {
+		return executeExecutorRequest(ctx, exec, req)
+	}
+	until := strings.ToLower(strings.TrimSpace(fmt.Sprint(req.Runtime.Waiter["until"])))
+	if until == "" {
+		return executeExecutorRequest(ctx, exec, req)
+	}
+	if until != "exists" && until != "missing" && until != "success" {
+		return executor.Result{}, fmt.Errorf("apply.waiter_unsupported: unsupported waiter predicate %q", until)
+	}
+	attempts := hintAttempts(req.Runtime.Waiter, "max_attempts", hintAttempts(req.Runtime.Retry, "max_attempts", 1))
+	interval := hintInterval(req.Runtime.Waiter)
+	var last executor.Result
+	for attempt := 1; attempt <= attempts; attempt++ {
+		result, err := executeExecutorRequest(ctx, exec, req)
+		result, err = stateprojection.ClassifyReadResult(result, err)
+		last = result
+		if err != nil {
+			return result, err
+		}
+		if waiterSatisfied(until, result) {
+			return result, nil
+		}
+		if attempt == attempts {
+			break
+		}
+		if err := sleepRuntimeInterval(ctx, interval); err != nil {
+			return result, err
+		}
+	}
+	return last, fmt.Errorf("apply.waiter_timeout: read waiter %q not satisfied for %s after %d attempt(s)", until, req.Action.Address, attempts)
+}
+
+func waiterSatisfied(until string, result executor.Result) bool {
+	switch until {
+	case "exists":
+		return result.Success && !result.Missing
+	case "missing":
+		return result.Success && result.Missing
+	case "success":
+		return result.Success
+	default:
+		return false
+	}
+}
+
+func hintAttempts(hints map[string]any, key string, fallback int) int {
+	value, ok := hints[key]
+	if !ok {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case int:
+		if typed > 0 {
+			return typed
+		}
+	case int64:
+		if typed > 0 {
+			return int(typed)
+		}
+	case float64:
+		if typed > 0 {
+			return int(typed)
+		}
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil && parsed > 0 {
+			return int(parsed)
+		}
+	case string:
+		var parsed int
+		if _, err := fmt.Sscanf(strings.TrimSpace(typed), "%d", &parsed); err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+	return fallback
+}
+
+func hintInterval(hints map[string]any) time.Duration {
+	value, ok := hints["interval"]
+	if !ok {
+		value = hints["delay"]
+	}
+	if value == nil {
+		return 0
+	}
+	switch typed := value.(type) {
+	case time.Duration:
+		if typed > 0 {
+			return typed
+		}
+	case int:
+		if typed > 0 {
+			return time.Duration(typed) * time.Millisecond
+		}
+	case int64:
+		if typed > 0 {
+			return time.Duration(typed) * time.Millisecond
+		}
+	case float64:
+		if typed > 0 {
+			return time.Duration(typed) * time.Millisecond
+		}
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil && parsed > 0 {
+			return time.Duration(parsed) * time.Millisecond
+		}
+	case string:
+		parsed, err := time.ParseDuration(strings.TrimSpace(typed))
+		if err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func sleepRuntimeInterval(ctx context.Context, interval time.Duration) error {
+	if interval <= 0 {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+			return nil
+		}
+	}
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 func validateReadBeforeWrite(ctx context.Context, store *state.Store, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, execResult executor.Result) error {
@@ -1052,6 +1218,42 @@ func applyReadMappings(projectPath string) map[string]*tfplan.MappingPlan {
 		}
 	}
 	return out
+}
+
+func executorRuntimeHints(hints *project.RuntimeHints) executor.RuntimeHints {
+	if hints == nil {
+		return executor.RuntimeHints{}
+	}
+	return executor.RuntimeHints{
+		Retry:  cloneAnyMap(hints.Retry),
+		Waiter: cloneAnyMap(hints.Waiter),
+	}
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(src))
+	for key, value := range src {
+		out[key] = cloneAny(value)
+	}
+	return out
+}
+
+func cloneAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneAnyMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = cloneAny(item)
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func projectIdentityAttributes(attrs []project.IdentityAttribute) []tfmapping.IdentityAttribute {

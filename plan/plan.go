@@ -116,17 +116,18 @@ type Summary struct {
 }
 
 type ResourcePlan struct {
-	Address      string              `json:"address"`
-	Kind         string              `json:"kind"`
-	Type         string              `json:"type"`
-	Name         string              `json:"name"`
-	Provider     string              `json:"provider,omitempty"`
-	Action       string              `json:"action"`
-	Reason       string              `json:"reason"`
-	DesiredHash  string              `json:"desired_hash,omitempty"`
-	Dependencies []string            `json:"dependencies,omitempty"`
-	Mapping      *MappingPlan        `json:"mapping,omitempty"`
-	AI           *project.AIMetadata `json:"ai,omitempty"`
+	Address      string                `json:"address"`
+	Kind         string                `json:"kind"`
+	Type         string                `json:"type"`
+	Name         string                `json:"name"`
+	Provider     string                `json:"provider,omitempty"`
+	Action       string                `json:"action"`
+	Reason       string                `json:"reason"`
+	DesiredHash  string                `json:"desired_hash,omitempty"`
+	Dependencies []string              `json:"dependencies,omitempty"`
+	Mapping      *MappingPlan          `json:"mapping,omitempty"`
+	RuntimeHints *project.RuntimeHints `json:"runtime_hints,omitempty"`
+	AI           *project.AIMetadata   `json:"ai,omitempty"`
 }
 
 type MappingPlan struct {
@@ -152,6 +153,7 @@ type DesiredHashInput struct {
 	Provider        string
 	Attributes      map[string]string
 	Lifecycle       map[string]any
+	RuntimeHints    *project.RuntimeHints
 	Mapping         *MappingHashInput
 	APISourceDigest string
 	InputsDigest    string
@@ -710,6 +712,7 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 			DesiredHash:  hash,
 			Dependencies: slices.Clone(dependencies),
 			Mapping:      mapping,
+			RuntimeHints: cloneRuntimeHints(resource.RuntimeHints),
 			AI:           resource.AI,
 		},
 		diagnostics: diagnostics,
@@ -1075,6 +1078,42 @@ func cloneMappingLifecycle(lifecycle *project.MappingLifecycle) *project.Mapping
 	}
 }
 
+func cloneRuntimeHints(hints *project.RuntimeHints) *project.RuntimeHints {
+	if hints == nil || len(hints.Retry) == 0 && len(hints.Waiter) == 0 {
+		return nil
+	}
+	return &project.RuntimeHints{
+		Retry:  cloneAnyMap(hints.Retry),
+		Waiter: cloneAnyMap(hints.Waiter),
+	}
+}
+
+func cloneAnyMap(src map[string]any) map[string]any {
+	if len(src) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(src))
+	for key, value := range src {
+		out[key] = cloneAny(value)
+	}
+	return out
+}
+
+func cloneAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneAnyMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i, item := range typed {
+			out[i] = cloneAny(item)
+		}
+		return out
+	default:
+		return value
+	}
+}
+
 func findOperation(sources []sourceDoc, target tfmapping.OperationTarget) (*operationMatch, bool) {
 	for _, kind := range target.SourceKinds {
 		for _, operationID := range target.OperationIDs {
@@ -1194,6 +1233,7 @@ func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapp
 		Provider:        resource.Provider,
 		Attributes:      attrs,
 		Lifecycle:       lifecycle.Hash,
+		RuntimeHints:    cloneRuntimeHints(resource.RuntimeHints),
 		Mapping:         mappingHash,
 		APISourceDigest: selectedDigest,
 		InputsDigest:    inputsDigest,
@@ -1355,6 +1395,9 @@ func DesiredHash(input DesiredHashInput) string {
 		"mapping":           input.Mapping,
 		"api_source_digest": input.APISourceDigest,
 		"inputs_digest":     input.InputsDigest,
+	}
+	if input.RuntimeHints != nil && (len(input.RuntimeHints.Retry) > 0 || len(input.RuntimeHints.Waiter) > 0) {
+		payload["runtime_hints"] = input.RuntimeHints
 	}
 	data, _ := json.Marshal(payload)
 	return digest.SHA256String(data)

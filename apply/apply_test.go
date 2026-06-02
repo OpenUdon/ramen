@@ -231,6 +231,112 @@ func TestApplyNativeReadBeforeWriteAndReadAfterWrite(t *testing.T) {
 	}
 }
 
+func TestApplyNativeRuntimeHintsReachExecutorRequests(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	resource := applyProjectRole("aws_iam_role.role", "apply-hinted-role")
+	resource.RuntimeHints = &project.RuntimeHints{
+		Retry: map[string]any{
+			"max_attempts": 3,
+			"backoff":      "exponential",
+		},
+		Waiter: map[string]any{
+			"until":        "exists",
+			"max_attempts": 3,
+		},
+	}
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	var requests []executor.Request
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		requests = append(requests, req)
+		switch len(requests) {
+		case 1:
+			return executor.Result{Success: true, Missing: true}, nil
+		case 2:
+			return executor.Result{Success: true, Identity: map[string]any{"role_name": "mutation-result"}}, nil
+		case 3:
+			return executor.Result{Success: true, Missing: true}, nil
+		case 4:
+			return executor.Result{
+				Success: true,
+				Computed: map[string]any{"Role": map[string]any{
+					"RoleName": "apply-hinted-role",
+					"Arn":      "arn:aws:iam::123456789012:role/apply-hinted-role",
+				}},
+			}, nil
+		default:
+			t.Fatalf("unexpected request count %d", len(requests))
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Create != 1 || len(requests) != 4 {
+		t.Fatalf("summary=%#v requests=%d", result.Summary, len(requests))
+	}
+	for i, req := range requests {
+		if req.Runtime.Retry["backoff"] != "exponential" || req.Runtime.Waiter["until"] != "exists" {
+			t.Fatalf("request %d runtime hints = %#v", i, req.Runtime)
+		}
+		for _, feature := range []string{executor.FeatureRetry, executor.FeatureWaiter} {
+			if !containsApplyTest(req.Capabilities.Features, feature) {
+				t.Fatalf("request %d capabilities %v missing %s", i, req.Capabilities.Features, feature)
+			}
+		}
+	}
+}
+
+func TestApplyNativeWaiterTimeoutFailsConvergence(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	resource := applyProjectRole("aws_iam_role.role", "apply-wait-timeout-role")
+	resource.RuntimeHints = &project.RuntimeHints{
+		Waiter: map[string]any{
+			"until":        "exists",
+			"max_attempts": 2,
+		},
+	}
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	var requests []executor.Request
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		requests = append(requests, req)
+		switch len(requests) {
+		case 1:
+			return executor.Result{Success: true, Missing: true}, nil
+		case 2:
+			return executor.Result{Success: true, Identity: map[string]any{"role_name": "mutation-result"}}, nil
+		default:
+			return executor.Result{Success: true, Missing: true}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply failed") {
+		t.Fatalf("Apply error = %v, want failed apply", err)
+	}
+	if result.Summary.Failed != 1 || len(requests) != 4 {
+		t.Fatalf("summary=%#v requests=%d", result.Summary, len(requests))
+	}
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0], "apply.waiter_timeout") {
+		t.Fatalf("errors = %#v", result.Errors)
+	}
+}
+
 func TestApplyNativeAPIDeleteOperationExecutesWithoutDestroyCommand(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")
@@ -823,6 +929,15 @@ func readApplyTestFile(t *testing.T, path string) string {
 		t.Fatal(err)
 	}
 	return string(data)
+}
+
+func containsApplyTest(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func minimalIAMSmithyForApplyTest() string {
