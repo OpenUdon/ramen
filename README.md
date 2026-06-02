@@ -63,17 +63,6 @@ experimental: broader resource mappings, live executor
 adapters, policy hooks, parameterization ergonomics, release packaging, and
 operational support contracts.
 
-The canonical roadmap and project memory live in the symlinked harness files:
-
-```text
-AGENTS.md
-memory-bank/
-evolution/
-```
-
-In this checkout those paths point to `../tofu/ramen`, so planning history is
-tracked in the shared tofu harness repository while remaining easy to read from
-the Ramen repo. Short non-roadmap notes belong in [docs/notes.md](docs/notes.md).
 
 ## Scope
 
@@ -134,46 +123,6 @@ Manual Azure-start note: begin with a local Azure Resource Manager OpenAPI file
 and `ramen icot --no-llm --goal "List all Azure resources" --api-source
 openapi:azure=PATH --validate --graph`. This drafts and checks a read-only
 project only; live account listing remains a later trusted-executor step.
-
-## Status Lanes
-
-Ramen uses zero-padded status lanes:
-
-```text
-M01, M02, M03, ... M09, M10, M11, ...
-A01, A02, A03, ... A09, A10, A11, ...
-D01, D02, D03, ... D09, D10, D11, ...
-F01, F02, F03, ... F09, F10, F11, ...
-G01, G02, G03, ... G09, G10, G11, ...
-I01, I02, I03, ... I09, I10, I11, ...
-P01, P02, P03, ... P09, P10, P11, ...
-R01, R02, R03, ... R09, R10, R11, ...
-S01, S02, S03, ... S09, S10, S11, ...
-V01, V02, V03, ... V09, V10, V11, ...
-```
-
-Lane meanings:
-
-- `Mxx`: main milestone scope, cross-cutting delivery records, common command
-  infrastructure, and non-subcommand migration history.
-- `Axx`: `ramen apply` command-specific tasks.
-- `Dxx`: historical `ramen destroy` command-specific tasks; the public
-  `destroy` CLI command has been removed, and `apply --plan` is the execution
-  path for approved delete/API-method plans.
-- `Fxx`: `ramen force-unlock` command-specific tasks.
-- `Gxx`: `ramen graph` command-specific tasks.
-- `Ixx`: `ramen init` and `ramen import` command-specific tasks.
-- `Pxx`: `ramen plan` command-specific tasks.
-- `Rxx`: `ramen refresh` command-specific tasks.
-- `Sxx`: `ramen show` and `ramen state` command-specific tasks.
-- `Vxx`: `ramen validate` and `ramen version` command-specific tasks.
-
-The native UWS desired-state project model is tracked in the completed
-[memory-bank/status-M08.md](memory-bank/status-M08.md). Plan approval controls
-are tracked in completed [memory-bank/status-P02.md](memory-bank/status-P02.md).
-Accepted subcommand lane normalization is tracked in completed
-[memory-bank/status-M10.md](memory-bank/status-M10.md). Adoption positioning is
-tracked in completed [memory-bank/status-M12.md](memory-bank/status-M12.md).
 
 ## Development Checks
 
