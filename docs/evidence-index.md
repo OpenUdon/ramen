@@ -1,0 +1,84 @@
+# Ramen Evidence Index
+
+This index summarizes the public-safe proof points that support current Ramen
+claims. It separates credential-free fixtures, recorded replay, and sanitized
+live evidence so adopters can inspect what has actually been proven.
+
+## Credential-Free Default Evidence
+
+- Native validation, graph, plan, apply/mock, refresh/mock, import, show,
+  state, author, and iCoT tests run without provider credentials.
+- `testdata/corpus` records the clean conversion and mapping corpus across AWS,
+  Google, AzureRM, Kubernetes, and Cloudflare examples.
+- `testdata/evidence/m28-sql` records Azure SQL native project fixtures for
+  read, create/update, delete, runtime hints, and delete confirmation through
+  mock execution.
+- `executor/evidence_test.go` validates Ramen executor request, response,
+  status, and confirmation-read records through the shared
+  `github.com/OpenUdon/evidence/async` validators.
+
+## Recorded Replay Evidence
+
+- `testdata/equivalence/kubernetes` records Ramen-only Kubernetes namespace and
+  selected namespaced-resource evidence that replays without a live cluster.
+- `testdata/parity/kubernetes/k01` through `k06` record normalized
+  API-visible observations for OpenTofu, Terraform, and Ramen+udon across
+  Namespace, read-missing Namespace, ConfigMap, ServiceAccount, Role, and
+  Opaque Secret lanes.
+- `testdata/parity/kubernetes/k07` records RoleBinding parity across OpenTofu,
+  Terraform, and Ramen+udon with HCL, reduced RBAC OpenAPI, native Ramen
+  project, semantic replay assertions, and sanitized live observations.
+- Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
+  OpenTofu, provider plugins, private credentials, or network access.
+
+## Sanitized Live Evidence
+
+- M27 recorded Azure Resource Manager read evidence and a scoped Azure SQL
+  create/read/delete lifecycle through approved `ramen apply --plan --executor
+  udon` runs.
+- M27/M28 evidence records only operation IDs, action counts, public-safe
+  resource names, and command summaries. It does not commit tenant IDs,
+  subscription IDs, client IDs, access tokens, state databases, plan files, or
+  live response payloads.
+- Kubernetes live parity remains opt-in through `RAMEN_K8S_PARITY=1`, refuses
+  non-`kind-*` contexts, and writes committed observations only when explicitly
+  recording.
+
+## Validation Evidence
+
+- V03 covers provider-neutral schema and mapping metadata checks: required and
+  unknown attributes, type and enum checks, sensitive redaction coverage,
+  required operation roles, binding-to-operation consistency, binding
+  `operation_id` mismatches, retry/waiter hint shape, waiter read-role
+  requirements, and updateable/replacement-only schema conflicts.
+- Validation remains static and credential-free. It does not call provider
+  APIs or infer provider-specific behavior from private SDKs.
+
+## Async Evidence Boundary
+
+- M29 maps Ramen executor requests, responses, status events, and confirmation
+  reads into neutral Evidence async records.
+- These records are evidence inputs only. An `accepted` executor response does
+  not imply desired-state convergence, delete success, or state mutation.
+- M30 is the planned follow-on for durable async evidence persistence, resume
+  inspection, and operation-handle capture.
+
+## OpenUdon Boundary
+
+- Ramen and OpenUdon do not import each other.
+- Shared evidence belongs in `github.com/OpenUdon/evidence` when the record
+  shape is product-neutral.
+- Ramen owns desired-state convergence, state history, delete confirmation,
+  governance, and plan approval semantics.
+- OpenUdon owns package review, approval templates, package digests, and
+  trusted-runner handoff.
+
+## Review Checklist For New Evidence
+
+- State whether the evidence is mock, recorded replay, or live sanitized.
+- Keep default tests credential-free.
+- Record operation IDs, action counts, diagnostics, and artifact paths instead
+  of credential values or raw live payloads.
+- Use explicit opt-in environment variables for live runs.
+- Update the matching `memory-bank/status-*.md` file and this index when a new
+  proof point changes a public claim.

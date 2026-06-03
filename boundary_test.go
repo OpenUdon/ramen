@@ -19,6 +19,7 @@ func TestNoForbiddenProviderRuntimeImports(t *testing.T) {
 		"github.com/hashicorp/terraform/",
 		"github.com/hashicorp/terraform-exec",
 		"github.com/opentofu/opentofu",
+		"github.com/OpenUdon/openudon",
 		"github.com/OpenUdon/tfconfig/_upstream/",
 	}
 	err := filepath.WalkDir(".", func(path string, entry fs.DirEntry, err error) error {

@@ -15,10 +15,11 @@ explicit trusted executor boundary.
 Ramen uses shared `github.com/OpenUdon/evidence/...` primitives for neutral
 evidence where the behavior is product-independent. Current shared use covers
 SHA-256 digest helpers, redaction pattern handling behind Ramen's stricter
-secret-keyword policy, and approval requirement evaluation behind Ramen-owned
-governance wire formats. Ramen-specific behavior, including
-`ramen.approval.v1`, `ramen.policy.v1`, state history, reconciliation, and
-executor orchestration, remains Ramen-owned.
+secret-keyword policy, approval requirement evaluation behind Ramen-owned
+governance wire formats, and neutral async executor evidence records.
+Ramen-specific behavior, including `ramen.approval.v1`, `ramen.policy.v1`,
+state history, reconciliation, delete confirmation, and executor
+orchestration, remains Ramen-owned.
 
 ## Why Ramen
 
@@ -63,6 +64,10 @@ experimental: broader resource mappings, live executor
 adapters, policy hooks, parameterization ergonomics, release packaging, and
 operational support contracts.
 
+See [docs/evidence-index.md](docs/evidence-index.md) for the current
+credential-free, recorded replay, and sanitized live evidence that backs these
+claims.
+
 
 ## Scope
 
@@ -82,9 +87,11 @@ Ramen owns desired-state reconciliation:
 - public executor interfaces and optional trusted executor adapters.
 
 Shared evidence helpers live in `github.com/OpenUdon/evidence/...` only for
-neutral digest, artifact, diagnostic, redaction, and approval primitives. Ramen
-uses them behind Ramen-owned package and wire boundaries; they do not own Ramen
-plan, policy, state, reconciliation, or executor semantics.
+neutral digest, artifact, diagnostic, redaction, approval, and async execution
+primitives. Ramen uses them behind Ramen-owned package and wire boundaries;
+they do not own Ramen plan, policy, state, reconciliation, delete
+confirmation, or executor semantics. The OpenUdon/Ramen boundary is summarized
+in [docs/openudon-evidence-alignment.md](docs/openudon-evidence-alignment.md).
 
 Ramen does not import Terraform code, OpenTofu internals, Terraform providers,
 provider plugins, provider SDKs, or private udon packages in default public

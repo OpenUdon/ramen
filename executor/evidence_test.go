@@ -80,3 +80,50 @@ func TestAsyncConfirmationReadObservationEvidenceClassifiesReadOutcome(t *testin
 		t.Fatalf("diagnostics = %#v", diagnostics)
 	}
 }
+
+func TestAsyncEvidenceAlignmentUsesNeutralValidators(t *testing.T) {
+	now := time.Date(2026, 6, 3, 13, 0, 0, 0, time.UTC)
+	req := Request{
+		Action: Action{
+			Address: "azurerm_sql_database.ramen",
+			Type:    "azurerm_sql_database",
+			Action:  "put",
+			Mapping: ActionMapping{
+				Method:      "put",
+				SourceKind:  "openapi",
+				SourceID:    "azure-sql",
+				SourcePath:  "azure-sql.json",
+				OperationID: "Databases_CreateOrUpdate",
+			},
+		},
+		Idempotency: Idempotency{Key: "sha256:test", Scope: "resource-action"},
+		Runtime: RuntimeHints{
+			Retry:  map[string]any{"max_attempts": 2},
+			Waiter: map[string]any{"until": "exists"},
+		},
+	}
+
+	request := AsyncExecutionRequestEvidence(req, "ev-request", "attempt-1", 1, now)
+	response := AsyncExecutionResponseEvidence(req, Result{Success: true, StartedAt: now, FinishedAt: now.Add(time.Second)}, nil, "ev-response", "attempt-1", request.Attempt.EvidenceID, 2, now.Add(time.Second))
+	status := AsyncStatusObservationEvidence(req, Event{Phase: "waiting", Time: now.Add(2 * time.Second)}, "ev-status", "attempt-1", request.Attempt.EvidenceID, 3)
+	read := AsyncConfirmationReadObservationEvidence(req, Result{Success: true}, nil, "ev-read", "attempt-1", request.Attempt.EvidenceID, 4, now.Add(3*time.Second))
+
+	if diagnostics := asyncevidence.ValidateExecutionRequest(request); len(diagnostics) != 0 {
+		t.Fatalf("request diagnostics = %#v", diagnostics)
+	}
+	if diagnostics := asyncevidence.ValidateExecutionResponse(response); len(diagnostics) != 0 {
+		t.Fatalf("response diagnostics = %#v", diagnostics)
+	}
+	if diagnostics := asyncevidence.ValidateStatusObservation(status); len(diagnostics) != 0 {
+		t.Fatalf("status diagnostics = %#v", diagnostics)
+	}
+	if diagnostics := asyncevidence.ValidateConfirmationReadObservation(read); len(diagnostics) != 0 {
+		t.Fatalf("read diagnostics = %#v", diagnostics)
+	}
+	if response.Outcome != "accepted" || read.Outcome != "exists" {
+		t.Fatalf("records should separate accepted execution from confirmation read: response=%#v read=%#v", response, read)
+	}
+	if request.Operation.SubjectKind != "azurerm_sql_database" || request.Operation.SubjectID != "azurerm_sql_database.ramen" {
+		t.Fatalf("operation should remain product-neutral resource identity: %#v", request.Operation)
+	}
+}
