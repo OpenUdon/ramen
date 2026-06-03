@@ -50,9 +50,17 @@ live evidence so adopters can inspect what has actually been proven.
   unknown attributes, type and enum checks, sensitive redaction coverage,
   required operation roles, binding-to-operation consistency, binding
   `operation_id` mismatches, retry/waiter hint shape, waiter read-role
-  requirements, and updateable/replacement-only schema conflicts.
+  requirements, updateable/replacement-only schema conflicts, unknown
+  normalizer rejection, and updateable identity-path warnings.
 - Validation remains static and credential-free. It does not call provider
   APIs or infer provider-specific behavior from private SDKs.
+
+## Projection Evidence
+
+- M33 adds credential-free coverage that response bindings can traverse JSON
+  strings and numeric array indexes. This supports embedded policy-document
+  projection, such as reading a statement field out of a string-valued policy
+  response, without provider-specific code.
 
 ## Async Evidence Boundary
 

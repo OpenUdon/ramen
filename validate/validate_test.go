@@ -251,7 +251,13 @@ func TestRunValidatesCrossFieldMappingMetadata(t *testing.T) {
 				Type:       "string",
 				Updateable: true,
 				Immutable:  true,
+			}, {
+				Path:       "renamable_id",
+				Type:       "string",
+				Identity:   true,
+				Updateable: true,
 			}},
+			Normalizers: []project.Normalizer{{Path: "name", Kind: "custom_diff"}},
 			RequestBindings: []project.RequestBinding{{
 				OperationRole: "update",
 				OperationID:   "updateExample",
@@ -281,6 +287,8 @@ func TestRunValidatesCrossFieldMappingMetadata(t *testing.T) {
 	for _, code := range []string{
 		"validate.binding_operation_missing",
 		"validate.binding_operation_mismatch",
+		"validate.identity_update_unsupported",
+		"validate.normalizer_unknown",
 		"validate.retry_invalid",
 		"validate.schema_lifecycle_conflict",
 		"validate.waiter_invalid",

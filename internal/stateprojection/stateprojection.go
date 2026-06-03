@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/OpenUdon/ramen/executor"
@@ -140,12 +141,32 @@ func dottedAny(values map[string]any, path string) (any, bool) {
 	}
 	var cur any = values
 	for _, part := range strings.Split(path, ".") {
-		m, ok := cur.(map[string]any)
-		if !ok {
-			return nil, false
+		for {
+			switch typed := cur.(type) {
+			case string:
+				var decoded any
+				if err := json.Unmarshal([]byte(typed), &decoded); err != nil {
+					return nil, false
+				}
+				cur = decoded
+				continue
+			}
+			break
 		}
-		cur, ok = m[part]
-		if !ok {
+		switch typed := cur.(type) {
+		case map[string]any:
+			next, ok := typed[part]
+			if !ok {
+				return nil, false
+			}
+			cur = next
+		case []any:
+			index, err := strconv.Atoi(part)
+			if err != nil || index < 0 || index >= len(typed) {
+				return nil, false
+			}
+			cur = typed[index]
+		default:
 			return nil, false
 		}
 	}

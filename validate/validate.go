@@ -173,6 +173,9 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 		if schema.Updateable && (schema.Immutable || schema.CreateOnly || schema.ReplaceOnChange) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.schema_lifecycle_conflict", Severity: "error", Message: fmt.Sprintf("resource %s schema path %s cannot be updateable and replacement-only", resource.Address, schema.Path), Address: resource.Address})
 		}
+		if schema.Identity && schema.Updateable {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.identity_update_unsupported", Severity: "warning", Message: fmt.Sprintf("resource %s identity path %s is marked updateable; identity-changing update semantics require mapping-specific evidence", resource.Address, schema.Path), Address: resource.Address})
+		}
 		value, ok := attributeValue(resource.Attributes, schema.Path)
 		if ok {
 			if !schemaValueMatchesType(value, schema.Type) {
@@ -219,6 +222,13 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 		}
 		if binding.Sensitive && !redactionCovers(profileRedaction, resource.Redaction, resource.Address, binding.StatePath) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.sensitive_path_unredacted", Severity: "error", Message: fmt.Sprintf("resource %s sensitive response state %s is not covered by redaction metadata", resource.Address, binding.StatePath), Address: resource.Address})
+		}
+	}
+	for _, normalizer := range resource.Normalizers {
+		switch strings.TrimSpace(normalizer.Kind) {
+		case "json_semantic", "case_fold", "unordered_collection", "empty_null_absent_equivalent", "sensitive_placeholder":
+		default:
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.normalizer_unknown", Severity: "error", Message: fmt.Sprintf("resource %s normalizer %q is not supported", resource.Address, normalizer.Kind), Address: resource.Address})
 		}
 	}
 	return diagnostics
