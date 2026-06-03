@@ -793,6 +793,7 @@ func refreshReadMappings(ctx context.Context, opts Options) (map[string]*tfplan.
 			SourcePath:         firstNonEmpty(role.SourcePath, source.Path),
 			OperationID:        role.OperationID,
 			IdentityAttributes: reconcileProjectIdentityAttributes(resource.IdentityAttributes),
+			RequestBindings:    slices.Clone(resource.RequestBindings),
 			ResponseBindings:   slices.Clone(resource.ResponseBindings),
 			Normalizers:        slices.Clone(resource.Normalizers),
 			MappingLifecycle:   cloneProjectMappingLifecycle(resource.MappingLifecycle),

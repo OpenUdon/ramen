@@ -33,6 +33,11 @@ func runKubernetesParityRamenRoleRuntime(ctx context.Context, t *testing.T, env 
 	return kubernetesParityFailure("ramen", "udon-disabled", fmt.Errorf("build with -tags udon to run Ramen Kubernetes provider parity"))
 }
 
+func runKubernetesParityRamenRoleBindingRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	return kubernetesParityFailure("ramen", "udon-disabled", fmt.Errorf("build with -tags udon to run Ramen Kubernetes provider parity"))
+}
+
 func runKubernetesParityRamenSecretRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
 	t.Helper()
 	return kubernetesParityFailure("ramen", "udon-disabled", fmt.Errorf("build with -tags udon to run Ramen Kubernetes provider parity"))

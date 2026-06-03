@@ -1042,6 +1042,67 @@ func TestRefreshNativeReadRolesAndDriftSummary(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestRefreshPreservesNativeReadRequestBindings(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	writeReconcileTestFile(t, sourcePath, minimalIAMSmithyForRefreshTest())
+	resource := refreshProjectRole("aws_iam_role.bound", "bound-role")
+	resource.IdentityAttributes = []project.IdentityAttribute{{Name: "name", Path: "name", RequestKeys: []string{"name"}, Required: true}}
+	resource.RequestBindings = []project.RequestBinding{{
+		OperationRole: "read",
+		OperationID:   "GetRole",
+		Path:          "name",
+		RequestPath:   "name",
+		Location:      "path",
+		Required:      true,
+		Identity:      true,
+	}}
+	projectPath := writeReconcileProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	planResult, err := tfplan.Build(context.Background(), tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		t.Fatalf("Build returned error: %v", err)
+	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
+		Address:      "aws_iam_role.bound",
+		Type:         "aws_iam_role",
+		Provider:     "provider.aws",
+		DesiredHash:  planResult.Plan.Resources[0].DesiredHash,
+		IdentityJSON: mustReconcileJSON(t, map[string]any{"name": "bound-role"}),
+		Status:       "managed",
+	}); err != nil {
+		t.Fatalf("record resource: %v", err)
+	}
+	_ = store.Close()
+
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if len(req.Document.Operations) != 1 {
+			t.Fatalf("operations = %d", len(req.Document.Operations))
+		}
+		pathSection, ok := req.Document.Operations[0].Request["path"].(map[string]any)
+		if !ok || pathSection["name"] != "bound-role" {
+			t.Fatalf("refresh request path = %#v request=%#v", pathSection, req.Document.Operations[0].Request)
+		}
+		return executor.Result{Success: true, Identity: map[string]any{"name": "bound-role"}}, nil
+	}}
+	result, err := Refresh(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Executor: mock})
+	if err != nil {
+		t.Fatalf("Refresh returned error: %v", err)
+	}
+	if result.Summary.Read != 1 || result.Summary.Failed != 0 {
+		t.Fatalf("summary = %#v", result.Summary)
+	}
+}
+
 func TestRecordRefreshUsesResponseBindingsNormalizersAndRedaction(t *testing.T) {
 	ctx := context.Background()
 	statePath := filepath.Join(t.TempDir(), "state.db")
