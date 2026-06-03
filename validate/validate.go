@@ -128,6 +128,7 @@ func validateProfile(profile project.Profile) []Diagnostic {
 		}
 		diagnostics = append(diagnostics, validateSchema(resource, profile.Redaction)...)
 		diagnostics = append(diagnostics, validateOperationRequirements(resource)...)
+		diagnostics = append(diagnostics, validateRuntimeHints(resource)...)
 		diagnostics = append(diagnostics, redactionDiagnostics(resource.Redaction, resource.Address)...)
 		for purpose, role := range resource.Operations {
 			rolePurpose := strings.TrimSpace(firstNonEmpty(role.Purpose, purpose))
@@ -169,6 +170,9 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 		if schema.Required && !hasAttributePath(resource.Attributes, schema.Path) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires attribute %s", resource.Address, schema.Path), Address: resource.Address})
 		}
+		if schema.Updateable && (schema.Immutable || schema.CreateOnly || schema.ReplaceOnChange) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.schema_lifecycle_conflict", Severity: "error", Message: fmt.Sprintf("resource %s schema path %s cannot be updateable and replacement-only", resource.Address, schema.Path), Address: resource.Address})
+		}
 		value, ok := attributeValue(resource.Attributes, schema.Path)
 		if ok {
 			if !schemaValueMatchesType(value, schema.Type) {
@@ -194,6 +198,11 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_invalid", Severity: "error", Message: fmt.Sprintf("resource %s request bindings require operation_role, path, and request_path", resource.Address), Address: resource.Address})
 			continue
 		}
+		if !resourceHasOperation(resource, binding.OperationRole) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_operation_missing", Severity: "error", Message: fmt.Sprintf("resource %s request binding references missing %s operation metadata", resource.Address, binding.OperationRole), Address: resource.Address, OperationID: binding.OperationID})
+		} else if strings.TrimSpace(binding.OperationID) != "" && !operationIDMatchesRole(resource, binding.OperationRole, binding.OperationID) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_operation_mismatch", Severity: "error", Message: fmt.Sprintf("resource %s request binding operation_id %s does not match %s operation metadata", resource.Address, binding.OperationID, binding.OperationRole), Address: resource.Address, OperationID: binding.OperationID})
+		}
 		if binding.Required && !hasAttributePath(resource.Attributes, binding.Path) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires request-bound attribute %s", resource.Address, binding.Path), Address: resource.Address})
 		}
@@ -203,11 +212,71 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_invalid", Severity: "error", Message: fmt.Sprintf("resource %s response bindings require operation_role, response_path, and state_path", resource.Address), Address: resource.Address})
 			continue
 		}
+		if !resourceHasOperation(resource, binding.OperationRole) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_operation_missing", Severity: "error", Message: fmt.Sprintf("resource %s response binding references missing %s operation metadata", resource.Address, binding.OperationRole), Address: resource.Address, OperationID: binding.OperationID})
+		} else if strings.TrimSpace(binding.OperationID) != "" && !operationIDMatchesRole(resource, binding.OperationRole, binding.OperationID) {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_operation_mismatch", Severity: "error", Message: fmt.Sprintf("resource %s response binding operation_id %s does not match %s operation metadata", resource.Address, binding.OperationID, binding.OperationRole), Address: resource.Address, OperationID: binding.OperationID})
+		}
 		if binding.Sensitive && !redactionCovers(profileRedaction, resource.Redaction, resource.Address, binding.StatePath) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.sensitive_path_unredacted", Severity: "error", Message: fmt.Sprintf("resource %s sensitive response state %s is not covered by redaction metadata", resource.Address, binding.StatePath), Address: resource.Address})
 		}
 	}
 	return diagnostics
+}
+
+func validateRuntimeHints(resource project.Resource) []Diagnostic {
+	var diagnostics []Diagnostic
+	if resource.RuntimeHints == nil {
+		return diagnostics
+	}
+	if attempts, ok := positiveIntHint(resource.RuntimeHints.Retry, "max_attempts"); ok && attempts < 1 {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.retry_invalid", Severity: "error", Message: fmt.Sprintf("resource %s retry.max_attempts must be positive", resource.Address), Address: resource.Address})
+	}
+	untilValue, hasUntil := resource.RuntimeHints.Waiter["until"]
+	if !hasUntil {
+		return diagnostics
+	}
+	until := strings.ToLower(strings.TrimSpace(fmt.Sprint(untilValue)))
+	if until == "" {
+		return diagnostics
+	}
+	switch until {
+	case "exists", "missing", "success":
+	default:
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.waiter_invalid", Severity: "error", Message: fmt.Sprintf("resource %s waiter.until %q is not supported", resource.Address, until), Address: resource.Address})
+		return diagnostics
+	}
+	if attempts, ok := positiveIntHint(resource.RuntimeHints.Waiter, "max_attempts"); ok && attempts < 1 {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.waiter_invalid", Severity: "error", Message: fmt.Sprintf("resource %s waiter.max_attempts must be positive", resource.Address), Address: resource.Address})
+	}
+	if until == "exists" || until == "missing" {
+		if !resourceHasOperation(resource, "read") {
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.waiter_read_role_missing", Severity: "error", Message: fmt.Sprintf("resource %s waiter.until %s requires read operation metadata", resource.Address, until), Address: resource.Address})
+		}
+	}
+	return diagnostics
+}
+
+func positiveIntHint(values map[string]any, key string) (int64, bool) {
+	if len(values) == 0 {
+		return 0, false
+	}
+	value, ok := values[key]
+	if !ok {
+		return 0, false
+	}
+	switch typed := value.(type) {
+	case int:
+		return int64(typed), true
+	case int64:
+		return typed, true
+	case float64:
+		return int64(typed), typed == float64(int64(typed))
+	case float32:
+		return int64(typed), typed == float32(int64(typed))
+	default:
+		return 0, true
+	}
 }
 
 func validateOperationRequirements(resource project.Resource) []Diagnostic {
@@ -238,6 +307,17 @@ func resourceHasOperation(resource project.Resource, required string) bool {
 	required = strings.TrimSpace(required)
 	for key, role := range resource.Operations {
 		if firstNonEmpty(role.Purpose, key) == required {
+			return true
+		}
+	}
+	return false
+}
+
+func operationIDMatchesRole(resource project.Resource, required, operationID string) bool {
+	required = strings.TrimSpace(required)
+	operationID = strings.TrimSpace(operationID)
+	for key, role := range resource.Operations {
+		if firstNonEmpty(role.Purpose, key) == required && strings.TrimSpace(role.OperationID) == operationID {
 			return true
 		}
 	}
