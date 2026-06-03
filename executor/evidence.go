@@ -5,6 +5,7 @@ import (
 	"time"
 
 	asyncevidence "github.com/OpenUdon/evidence/async"
+	"github.com/OpenUdon/ramen/internal/redact"
 )
 
 func AsyncExecutionRequestEvidence(req Request, evidenceID, attemptID string, sequence int64, recordedAt time.Time) asyncevidence.ExecutionRequest {
@@ -39,10 +40,10 @@ func AsyncExecutionResponseEvidence(req Request, result Result, execErr error, e
 	errorSummary := ""
 	if execErr != nil {
 		outcome = "fatal_failure"
-		errorSummary = execErr.Error()
+		errorSummary = redact.String(execErr.Error())
 	} else if !result.Success {
 		outcome = "rejected"
-		errorSummary = strings.Join(result.Messages, "; ")
+		errorSummary = redact.String(strings.Join(result.Messages, "; "))
 	}
 	return asyncevidence.NormalizeExecutionResponse(asyncevidence.ExecutionResponse{
 		Version: asyncevidence.ExecutionResponseVersion,
@@ -63,6 +64,10 @@ func AsyncExecutionResponseEvidence(req Request, result Result, execErr error, e
 }
 
 func AsyncStatusObservationEvidence(req Request, event Event, evidenceID, attemptID, requestEvidenceID string, sequence int64) asyncevidence.StatusObservation {
+	observedAt := event.Time
+	if observedAt.IsZero() {
+		observedAt = time.Now().UTC()
+	}
 	return asyncevidence.NormalizeStatusObservation(asyncevidence.StatusObservation{
 		Version: asyncevidence.StatusObservationVersion,
 		Attempt: asyncevidence.AttemptMetadata{
@@ -70,13 +75,13 @@ func AsyncStatusObservationEvidence(req Request, event Event, evidenceID, attemp
 			AttemptID:  attemptID,
 			Sequence:   sequence,
 			Source:     "ramen.executor",
-			RecordedAt: event.Time,
+			RecordedAt: observedAt,
 		},
 		RequestEvidenceID: strings.TrimSpace(requestEvidenceID),
 		Operation:         asyncOperationRef(req.Action),
 		Status:            event.Phase,
 		TerminalityHint:   terminalityHint(event.Phase),
-		ObservedAt:        event.Time,
+		ObservedAt:        observedAt,
 	})
 }
 

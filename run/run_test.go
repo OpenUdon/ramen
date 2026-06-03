@@ -60,6 +60,20 @@ func TestRunRequiresApprovalAndRecordsHistory(t *testing.T) {
 	if err != nil || len(events) == 0 {
 		t.Fatalf("events=%#v err=%v", events, err)
 	}
+	asyncRecords, err := store.ListAsyncEvidence(context.Background(), state.AsyncEvidenceFilter{RunID: result.RunID})
+	if err != nil {
+		t.Fatalf("async evidence: %v", err)
+	}
+	if len(asyncRecords) < 6 {
+		t.Fatalf("async evidence records = %#v", asyncRecords)
+	}
+	kinds := map[string]int{}
+	for _, record := range asyncRecords {
+		kinds[record.RecordKind]++
+	}
+	if kinds["execution_request"] != 2 || kinds["execution_response"] != 2 || kinds["status_observation"] < 2 {
+		t.Fatalf("async evidence kinds = %#v records=%#v", kinds, asyncRecords)
+	}
 	_ = store.Close()
 }
 

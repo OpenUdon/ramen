@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/internal/asyncrecord"
 	"github.com/OpenUdon/ramen/internal/requestbinding"
 	"github.com/OpenUdon/ramen/internal/stateprojection"
 	tfplan "github.com/OpenUdon/ramen/plan"
@@ -161,6 +162,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		runStatus = "failed"
 		return result, err
 	}
+	asyncRecorder := asyncrecord.New(store, runID)
 
 	sourcePaths := sourcePathIndex(opts.APISources)
 	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath, opts.VarFiles, opts.Vars)
@@ -184,7 +186,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			continue
 		}
 		if resource.Action == "read" {
-			executed, err := executeReadPlanAction(ctx, opts.Executor, store, runID, resource, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir)
+			executed, err := executeReadPlanAction(ctx, opts.Executor, store, asyncRecorder, runID, resource, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir)
 			result.Feedback = append(result.Feedback, executed.Feedback...)
 			if executed.Document != "" {
 				result.GeneratedDocuments = append(result.GeneratedDocuments, executed.Document)
@@ -227,7 +229,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			continue
 		}
 		if readMapping != nil {
-			baseline, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "baseline")
+			baseline, err := executeReadCheck(ctx, opts.Executor, store, asyncRecorder, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "baseline")
 			result.Feedback = append(result.Feedback, baseline.Feedback...)
 			if err != nil {
 				runStatus = "failed"
@@ -284,7 +286,6 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		req.Runtime = executorRuntimeHints(resource.RuntimeHints, false)
 		req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 		req.Idempotency = executor.IdempotencyForAction(action)
-		req.Events = ExecutorEventSink(store)
 		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
 			runStatus = "failed"
 			result.Summary.Failed++
@@ -301,7 +302,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			return result, err
 		}
-		execResult, err := executeExecutorRequest(ctx, opts.Executor, req)
+		execResult, _, err := executeExecutorRequest(ctx, opts.Executor, asyncRecorder, req)
 		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			runStatus = "failed"
@@ -329,7 +330,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 		stateMapping := (*tfplan.MappingPlan)(nil)
 		if readMapping != nil {
 			if resource.Action == "delete" {
-				confirmed, err := executeReadCheck(ctx, opts.Executor, store, runID, deleteConfirmationResource(resource), readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "delete-confirmation")
+				confirmed, err := executeReadCheck(ctx, opts.Executor, store, asyncRecorder, runID, deleteConfirmationResource(resource), readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "delete-confirmation")
 				result.Feedback = append(result.Feedback, confirmed.Feedback...)
 				if err != nil {
 					runStatus = "failed"
@@ -354,7 +355,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 					continue
 				}
 			} else {
-				converged, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "convergence")
+				converged, err := executeReadCheck(ctx, opts.Executor, store, asyncRecorder, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "convergence")
 				result.Feedback = append(result.Feedback, converged.Feedback...)
 				if err != nil {
 					runStatus = "failed"
@@ -936,7 +937,7 @@ type readActionResult struct {
 	Document string
 }
 
-func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *state.Store, runID int64, resource tfplan.ResourcePlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir string) (readActionResult, error) {
+func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *state.Store, recorder *asyncrecord.Recorder, runID int64, resource tfplan.ResourcePlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir string) (readActionResult, error) {
 	identity, err := currentIdentity(ctx, store, resource.Address)
 	if err != nil {
 		return readActionResult{}, err
@@ -963,12 +964,16 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 	req.Runtime = executorRuntimeHints(resource.RuntimeHints, true)
 	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
-	req.Events = ExecutorEventSink(store)
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readActionResult{Document: docPath}, err
 	}
-	execResult, err := executeReadRequest(ctx, exec, req, true)
+	execResult, requestEvidenceID, err := executeReadRequest(ctx, exec, recorder, req, true)
 	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
+	if requestEvidenceID != "" {
+		if recordErr := recorder.RecordConfirmationRead(ctx, req, execResult, err, requestEvidenceID); recordErr != nil {
+			return readActionResult{Document: docPath}, recordErr
+		}
+	}
 	feedback := executor.FeedbackFromResult(req, execResult, err)
 	out := readActionResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}, Document: docPath}
 	if err != nil {
@@ -980,7 +985,7 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 	return out, nil
 }
 
-func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.Store, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir, phase string) (readCheckResult, error) {
+func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.Store, recorder *asyncrecord.Recorder, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir, phase string) (readCheckResult, error) {
 	readResource := resource
 	readResource.Action = "read"
 	readResource.Mapping = readMapping
@@ -1006,12 +1011,16 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 	if phase != "" {
 		req.Idempotency.Key += "-" + phase
 	}
-	req.Events = ExecutorEventSink(store)
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readCheckResult{}, err
 	}
-	execResult, err := executeReadRequest(ctx, exec, req, phase != "baseline")
+	execResult, requestEvidenceID, err := executeReadRequest(ctx, exec, recorder, req, phase != "baseline")
 	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
+	if requestEvidenceID != "" {
+		if recordErr := recorder.RecordConfirmationRead(ctx, req, execResult, err, requestEvidenceID); recordErr != nil {
+			return readCheckResult{}, recordErr
+		}
+	}
 	feedback := executor.FeedbackFromResult(req, execResult, err)
 	if err != nil {
 		return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, err
@@ -1022,7 +1031,12 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 	return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, nil
 }
 
-func executeExecutorRequest(ctx context.Context, exec executor.Executor, req executor.Request) (executor.Result, error) {
+func executeExecutorRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request) (executor.Result, string, error) {
+	requestEvidenceID, recordErr := recorder.RecordRequest(ctx, req)
+	if recordErr != nil {
+		return executor.Result{}, "", recordErr
+	}
+	req.Events = recorder.EventSink(ctx, req, requestEvidenceID, ExecutorEventSink(recorder.Store))
 	attempts := hintAttempts(req.Runtime.Retry, "max_attempts", 1)
 	interval := hintInterval(req.Runtime.Retry)
 	var last executor.Result
@@ -1030,58 +1044,74 @@ func executeExecutorRequest(ctx context.Context, exec executor.Executor, req exe
 	for attempt := 1; attempt <= attempts; attempt++ {
 		last, lastErr = exec.Execute(ctx, req)
 		if lastErr == nil && last.Success {
-			return last, nil
+			if err := recorder.RecordResponse(ctx, req, last, nil, requestEvidenceID); err != nil {
+				return last, requestEvidenceID, err
+			}
+			return last, requestEvidenceID, nil
 		}
 		if attempt == attempts {
 			break
 		}
 		if err := sleepRuntimeInterval(ctx, interval); err != nil {
-			return last, err
+			return last, requestEvidenceID, err
 		}
 	}
 	if attempts > 1 {
 		if lastErr != nil {
-			return last, fmt.Errorf("apply.retry_exhausted: executor failed after %d attempt(s): %w", attempts, lastErr)
+			lastErr = fmt.Errorf("apply.retry_exhausted: executor failed after %d attempt(s): %w", attempts, lastErr)
+			if err := recorder.RecordResponse(ctx, req, last, lastErr, requestEvidenceID); err != nil {
+				return last, requestEvidenceID, err
+			}
+			return last, requestEvidenceID, lastErr
 		}
 		if !last.Success {
-			return last, fmt.Errorf("apply.retry_exhausted: executor reported unsuccessful result after %d attempt(s)", attempts)
+			lastErr = fmt.Errorf("apply.retry_exhausted: executor reported unsuccessful result after %d attempt(s)", attempts)
+			if err := recorder.RecordResponse(ctx, req, last, lastErr, requestEvidenceID); err != nil {
+				return last, requestEvidenceID, err
+			}
+			return last, requestEvidenceID, lastErr
 		}
 	}
-	return last, lastErr
+	if err := recorder.RecordResponse(ctx, req, last, lastErr, requestEvidenceID); err != nil {
+		return last, requestEvidenceID, err
+	}
+	return last, requestEvidenceID, lastErr
 }
 
-func executeReadRequest(ctx context.Context, exec executor.Executor, req executor.Request, useWaiter bool) (executor.Result, error) {
+func executeReadRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request, useWaiter bool) (executor.Result, string, error) {
 	if !useWaiter || len(req.Runtime.Waiter) == 0 {
-		return executeExecutorRequest(ctx, exec, req)
+		return executeExecutorRequest(ctx, exec, recorder, req)
 	}
 	until := strings.ToLower(strings.TrimSpace(fmt.Sprint(req.Runtime.Waiter["until"])))
 	if until == "" {
-		return executeExecutorRequest(ctx, exec, req)
+		return executeExecutorRequest(ctx, exec, recorder, req)
 	}
 	if until != "exists" && until != "missing" && until != "success" {
-		return executor.Result{}, fmt.Errorf("apply.waiter_unsupported: unsupported waiter predicate %q", until)
+		return executor.Result{}, "", fmt.Errorf("apply.waiter_unsupported: unsupported waiter predicate %q", until)
 	}
 	attempts := hintAttempts(req.Runtime.Waiter, "max_attempts", hintAttempts(req.Runtime.Retry, "max_attempts", 1))
 	interval := hintInterval(req.Runtime.Waiter)
 	var last executor.Result
+	var lastRequestEvidenceID string
 	for attempt := 1; attempt <= attempts; attempt++ {
-		result, err := executeExecutorRequest(ctx, exec, req)
+		result, requestEvidenceID, err := executeExecutorRequest(ctx, exec, recorder, req)
 		result, err = stateprojection.ClassifyReadResult(result, err)
 		last = result
+		lastRequestEvidenceID = requestEvidenceID
 		if err != nil {
-			return result, err
+			return result, requestEvidenceID, err
 		}
 		if waiterSatisfied(until, result) {
-			return result, nil
+			return result, requestEvidenceID, nil
 		}
 		if attempt == attempts {
 			break
 		}
 		if err := sleepRuntimeInterval(ctx, interval); err != nil {
-			return result, err
+			return result, requestEvidenceID, err
 		}
 	}
-	return last, fmt.Errorf("apply.waiter_timeout: read waiter %q not satisfied for %s after %d attempt(s)", until, req.Action.Address, attempts)
+	return last, lastRequestEvidenceID, fmt.Errorf("apply.waiter_timeout: read waiter %q not satisfied for %s after %d attempt(s)", until, req.Action.Address, attempts)
 }
 
 func waiterSatisfied(until string, result executor.Result) bool {

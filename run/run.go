@@ -8,11 +8,13 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/OpenUdon/evidence/digest"
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/governance"
+	"github.com/OpenUdon/ramen/internal/asyncrecord"
 	"github.com/OpenUdon/ramen/internal/redact"
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/uws/uws1"
@@ -123,8 +125,9 @@ func Execute(ctx context.Context, opts Options) (*Result, error) {
 	}
 	result.RunID = runID
 	defer finishRun(store, result)
+	recorder := asyncrecord.New(store, runID)
 	for _, target := range targets {
-		executed := executeTarget(ctx, opts, doc, target, runID, store)
+		executed := executeTarget(ctx, opts, doc, target, runID, store, recorder)
 		result.Executed = append(result.Executed, executed)
 		if executed.Error != "" {
 			result.Summary.Failed++
@@ -154,7 +157,7 @@ func rejectGovernance(result governance.Result) error {
 	return nil
 }
 
-func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, target string, runID int64, store *state.Store) ExecutedTarget {
+func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, target string, runID int64, store *state.Store, recorder *asyncrecord.Recorder) ExecutedTarget {
 	action := executor.Action{
 		Address:  "run." + target,
 		Type:     "uws_run",
@@ -163,6 +166,7 @@ func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, target
 		Metadata: map[string]string{"target": target},
 	}
 	var events []executor.Event
+	var eventsMu sync.Mutex
 	req := executor.Request{
 		RunID:        runID,
 		Action:       action,
@@ -171,30 +175,43 @@ func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, target
 		OutDir:       opts.OutDir,
 		Capabilities: executor.RequirementsForAction(action),
 		Idempotency:  executor.IdempotencyForAction(action),
-		Events: func(event executor.Event) {
-			events = append(events, event)
-			_ = store.RecordRunEvent(context.Background(), state.RunEvent{
-				RunID:           runID,
-				ResourceAddress: "run." + target,
-				Action:          "run",
-				OperationID:     action.Mapping.OperationID,
-				Phase:           event.Phase,
-				Message:         event.Message,
-				MetadataJSON:    mustJSON(event.Metadata),
-				CreatedAt:       event.Time,
-			})
-		},
 	}
 	if err := executor.EnsureSupported(opts.Executor, req); err != nil {
 		recordRunEvent(store, runID, target, action, "failed", err.Error(), nil)
 		return ExecutedTarget{Target: target, Action: "run", Error: err.Error()}
 	}
+	requestEvidenceID, recordErr := recorder.RecordRequest(ctx, req)
+	if recordErr != nil {
+		recordRunEvent(store, runID, target, action, "failed", recordErr.Error(), nil)
+		return ExecutedTarget{Target: target, Action: "run", Error: recordErr.Error()}
+	}
+	req.Events = recorder.EventSink(ctx, req, requestEvidenceID, func(event executor.Event) {
+		eventsMu.Lock()
+		events = append(events, event)
+		eventsMu.Unlock()
+		_ = store.RecordRunEvent(context.Background(), state.RunEvent{
+			RunID:           runID,
+			ResourceAddress: "run." + target,
+			Action:          "run",
+			OperationID:     action.Mapping.OperationID,
+			Phase:           event.Phase,
+			Message:         event.Message,
+			MetadataJSON:    mustJSON(event.Metadata),
+			CreatedAt:       event.Time,
+		})
+	})
 	result, err := opts.Executor.Execute(ctx, req)
+	if recordErr := recorder.RecordResponse(ctx, req, result, err, requestEvidenceID); recordErr != nil {
+		recordRunEvent(store, runID, target, action, "failed", recordErr.Error(), nil)
+		return ExecutedTarget{Target: target, Action: "run", Result: result, Error: recordErr.Error()}
+	}
 	if err != nil {
 		recordRunEvent(store, runID, target, action, "failed", err.Error(), nil)
 		return ExecutedTarget{Target: target, Action: "run", Error: err.Error()}
 	}
+	eventsMu.Lock()
 	result.Events = append(result.Events, events...)
+	eventsMu.Unlock()
 	if !result.Success {
 		message := strings.Join(result.Messages, "; ")
 		recordRunEvent(store, runID, target, action, "failed", message, nil)

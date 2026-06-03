@@ -95,9 +95,28 @@ resource "aws_iam_role" "role" {
 	if err != nil {
 		t.Fatalf("list run events: %v", err)
 	}
+	asyncRecords, err := store.ListAsyncEvidence(context.Background(), state.AsyncEvidenceFilter{RunID: result.RunID})
+	if err != nil {
+		t.Fatalf("list async evidence: %v", err)
+	}
 	_ = store.Close()
 	if len(events) < 2 || events[0].ResourceAddress != "aws_iam_role.role" || events[0].Phase != "started" {
 		t.Fatalf("run events = %#v", events)
+	}
+	if len(asyncRecords) < 4 {
+		t.Fatalf("async evidence records = %#v", asyncRecords)
+	}
+	kinds := map[string]bool{}
+	for _, record := range asyncRecords {
+		kinds[record.RecordKind] = true
+		if strings.Contains(record.RecordJSON, "should-not-persist") {
+			t.Fatalf("async evidence leaked secret-like executor value: %s", record.RecordJSON)
+		}
+	}
+	for _, kind := range []string{"execution_request", "execution_response", "status_observation"} {
+		if !kinds[kind] {
+			t.Fatalf("async evidence missing %s: %#v", kind, asyncRecords)
+		}
 	}
 
 	result, err = Apply(context.Background(), Options{

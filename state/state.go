@@ -17,7 +17,7 @@ import (
 	_ "modernc.org/sqlite"
 )
 
-const SchemaVersion = 3
+const SchemaVersion = 4
 
 type Store struct {
 	db *sql.DB
@@ -74,6 +74,28 @@ type RunEvent struct {
 	Message         string    `json:"message,omitempty"`
 	MetadataJSON    string    `json:"metadata_json,omitempty"`
 	CreatedAt       time.Time `json:"created_at,omitempty"`
+}
+
+type AsyncEvidenceRecord struct {
+	ID                int64     `json:"id,omitempty"`
+	RunID             int64     `json:"run_id,omitempty"`
+	ResourceAddress   string    `json:"resource_address,omitempty"`
+	Action            string    `json:"action,omitempty"`
+	OperationID       string    `json:"operation_id,omitempty"`
+	RecordKind        string    `json:"record_kind"`
+	Phase             string    `json:"phase,omitempty"`
+	EvidenceID        string    `json:"evidence_id"`
+	AttemptID         string    `json:"attempt_id,omitempty"`
+	RequestEvidenceID string    `json:"request_evidence_id,omitempty"`
+	Sequence          int64     `json:"sequence,omitempty"`
+	RecordJSON        string    `json:"record_json"`
+	CreatedAt         time.Time `json:"created_at,omitempty"`
+}
+
+type AsyncEvidenceFilter struct {
+	RunID           int64
+	ResourceAddress string
+	RecordKind      string
 }
 
 type Lock struct {
@@ -134,27 +156,29 @@ type MigrationRecord struct {
 }
 
 type ExportDocument struct {
-	Version       string             `json:"version"`
-	SchemaVersion int                `json:"schemaVersion"`
-	ExportedAt    time.Time          `json:"exportedAt"`
-	Migrations    []MigrationRecord  `json:"migrations"`
-	Resources     []ResourceSnapshot `json:"resources"`
-	Revisions     []Revision         `json:"revisions"`
-	Runs          []Run              `json:"runs"`
-	RunEvents     []RunEvent         `json:"run_events,omitempty"`
-	Locks         []Lock             `json:"locks"`
+	Version       string                `json:"version"`
+	SchemaVersion int                   `json:"schemaVersion"`
+	ExportedAt    time.Time             `json:"exportedAt"`
+	Migrations    []MigrationRecord     `json:"migrations"`
+	Resources     []ResourceSnapshot    `json:"resources"`
+	Revisions     []Revision            `json:"revisions"`
+	Runs          []Run                 `json:"runs"`
+	RunEvents     []RunEvent            `json:"run_events,omitempty"`
+	AsyncEvidence []AsyncEvidenceRecord `json:"async_evidence,omitempty"`
+	Locks         []Lock                `json:"locks"`
 }
 
 type AuditDocument struct {
-	Version       string            `json:"version"`
-	SchemaVersion int               `json:"schemaVersion"`
-	ExportedAt    time.Time         `json:"exportedAt"`
-	Digest        string            `json:"digest"`
-	Counts        map[string]int    `json:"counts"`
-	Migrations    []MigrationRecord `json:"migrations,omitempty"`
-	Runs          []Run             `json:"runs,omitempty"`
-	RunEvents     []RunEvent        `json:"run_events,omitempty"`
-	Locks         []Lock            `json:"locks,omitempty"`
+	Version       string                `json:"version"`
+	SchemaVersion int                   `json:"schemaVersion"`
+	ExportedAt    time.Time             `json:"exportedAt"`
+	Digest        string                `json:"digest"`
+	Counts        map[string]int        `json:"counts"`
+	Migrations    []MigrationRecord     `json:"migrations,omitempty"`
+	Runs          []Run                 `json:"runs,omitempty"`
+	RunEvents     []RunEvent            `json:"run_events,omitempty"`
+	AsyncEvidence []AsyncEvidenceRecord `json:"async_evidence,omitempty"`
+	Locks         []Lock                `json:"locks,omitempty"`
 }
 
 func (e LockHeldError) Error() string {
@@ -437,6 +461,28 @@ var stateMigrations = []migration{
 			)`,
 		},
 	},
+	{
+		Version: 4,
+		Statements: []string{
+			`CREATE TABLE IF NOT EXISTS async_evidence (
+				id INTEGER PRIMARY KEY AUTOINCREMENT,
+				run_id INTEGER,
+				resource_address TEXT,
+				action TEXT,
+				operation_id TEXT,
+				record_kind TEXT NOT NULL,
+				phase TEXT,
+				evidence_id TEXT NOT NULL,
+				attempt_id TEXT,
+				request_evidence_id TEXT,
+				sequence INTEGER,
+				record_json TEXT NOT NULL,
+				created_at TEXT NOT NULL
+			)`,
+			`CREATE INDEX IF NOT EXISTS idx_async_evidence_run ON async_evidence(run_id, id)`,
+			`CREATE INDEX IF NOT EXISTS idx_async_evidence_resource ON async_evidence(resource_address, id)`,
+		},
+	},
 }
 
 func (s *Store) appliedMigrationVersions(ctx context.Context) (map[int]bool, int, error) {
@@ -607,6 +653,10 @@ func (s *Store) Export(ctx context.Context) (ExportDocument, error) {
 	if err != nil {
 		return ExportDocument{}, err
 	}
+	asyncEvidence, err := s.ListAsyncEvidence(ctx, AsyncEvidenceFilter{})
+	if err != nil {
+		return ExportDocument{}, err
+	}
 	locks, err := s.ListLocks(ctx)
 	if err != nil {
 		return ExportDocument{}, err
@@ -620,6 +670,7 @@ func (s *Store) Export(ctx context.Context) (ExportDocument, error) {
 		Revisions:     revisions,
 		Runs:          runs,
 		RunEvents:     runEvents,
+		AsyncEvidence: asyncEvidence,
 		Locks:         locks,
 	}, nil
 }
@@ -630,21 +681,23 @@ func (s *Store) Audit(ctx context.Context) (AuditDocument, error) {
 		return AuditDocument{}, err
 	}
 	counts := map[string]int{
-		"resources":  len(exported.Resources),
-		"revisions":  len(exported.Revisions),
-		"runs":       len(exported.Runs),
-		"run_events": len(exported.RunEvents),
-		"locks":      len(exported.Locks),
+		"resources":      len(exported.Resources),
+		"revisions":      len(exported.Revisions),
+		"runs":           len(exported.Runs),
+		"run_events":     len(exported.RunEvents),
+		"async_evidence": len(exported.AsyncEvidence),
+		"locks":          len(exported.Locks),
 	}
 	payload := struct {
-		Version       string             `json:"version"`
-		SchemaVersion int                `json:"schemaVersion"`
-		Migrations    []MigrationRecord  `json:"migrations"`
-		Resources     []ResourceSnapshot `json:"resources"`
-		Revisions     []Revision         `json:"revisions"`
-		Runs          []Run              `json:"runs"`
-		RunEvents     []RunEvent         `json:"run_events,omitempty"`
-		Locks         []Lock             `json:"locks"`
+		Version       string                `json:"version"`
+		SchemaVersion int                   `json:"schemaVersion"`
+		Migrations    []MigrationRecord     `json:"migrations"`
+		Resources     []ResourceSnapshot    `json:"resources"`
+		Revisions     []Revision            `json:"revisions"`
+		Runs          []Run                 `json:"runs"`
+		RunEvents     []RunEvent            `json:"run_events,omitempty"`
+		AsyncEvidence []AsyncEvidenceRecord `json:"async_evidence,omitempty"`
+		Locks         []Lock                `json:"locks"`
 	}{
 		Version:       AuditVersion,
 		SchemaVersion: exported.SchemaVersion,
@@ -653,6 +706,7 @@ func (s *Store) Audit(ctx context.Context) (AuditDocument, error) {
 		Revisions:     exported.Revisions,
 		Runs:          exported.Runs,
 		RunEvents:     exported.RunEvents,
+		AsyncEvidence: exported.AsyncEvidence,
 		Locks:         exported.Locks,
 	}
 	data, err := json.Marshal(payload)
@@ -668,6 +722,7 @@ func (s *Store) Audit(ctx context.Context) (AuditDocument, error) {
 		Migrations:    exported.Migrations,
 		Runs:          exported.Runs,
 		RunEvents:     exported.RunEvents,
+		AsyncEvidence: exported.AsyncEvidence,
 		Locks:         exported.Locks,
 	}, nil
 }
@@ -958,6 +1013,69 @@ func (s *Store) ListRunEvents(ctx context.Context, runID int64) ([]RunEvent, err
 			event.CreatedAt = t
 		}
 		out = append(out, event)
+	}
+	return out, rows.Err()
+}
+
+func (s *Store) RecordAsyncEvidence(ctx context.Context, record AsyncEvidenceRecord) error {
+	if s == nil || s.db == nil {
+		return fmt.Errorf("state store is nil")
+	}
+	record.RecordKind = strings.TrimSpace(record.RecordKind)
+	record.EvidenceID = strings.TrimSpace(record.EvidenceID)
+	record.RecordJSON = strings.TrimSpace(record.RecordJSON)
+	if record.RecordKind == "" {
+		return fmt.Errorf("async evidence record kind is required")
+	}
+	if record.EvidenceID == "" {
+		return fmt.Errorf("async evidence id is required")
+	}
+	if record.RecordJSON == "" {
+		return fmt.Errorf("async evidence record json is required")
+	}
+	if record.CreatedAt.IsZero() {
+		record.CreatedAt = time.Now().UTC()
+	}
+	_, err := s.db.ExecContext(ctx, `INSERT INTO async_evidence(run_id, resource_address, action, operation_id, record_kind, phase, evidence_id, attempt_id, request_evidence_id, sequence, record_json, created_at)
+VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, nullableRunID(record.RunID), nullableString(record.ResourceAddress), nullableString(record.Action), nullableString(record.OperationID), record.RecordKind, nullableString(record.Phase), record.EvidenceID, nullableString(record.AttemptID), nullableString(record.RequestEvidenceID), nullableRunID(record.Sequence), record.RecordJSON, record.CreatedAt.Format(time.RFC3339Nano))
+	return err
+}
+
+func (s *Store) ListAsyncEvidence(ctx context.Context, filter AsyncEvidenceFilter) ([]AsyncEvidenceRecord, error) {
+	if s == nil || s.db == nil {
+		return nil, fmt.Errorf("state store is nil")
+	}
+	query := `SELECT id, run_id, resource_address, action, operation_id, record_kind, phase, evidence_id, attempt_id, request_evidence_id, sequence, record_json, created_at FROM async_evidence`
+	var where []string
+	var args []any
+	if filter.RunID != 0 {
+		where = append(where, `run_id = ?`)
+		args = append(args, filter.RunID)
+	}
+	if strings.TrimSpace(filter.ResourceAddress) != "" {
+		where = append(where, `resource_address = ?`)
+		args = append(args, strings.TrimSpace(filter.ResourceAddress))
+	}
+	if strings.TrimSpace(filter.RecordKind) != "" {
+		where = append(where, `record_kind = ?`)
+		args = append(args, strings.TrimSpace(filter.RecordKind))
+	}
+	if len(where) > 0 {
+		query += ` WHERE ` + strings.Join(where, ` AND `)
+	}
+	query += ` ORDER BY id`
+	rows, err := s.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []AsyncEvidenceRecord
+	for rows.Next() {
+		record, err := scanAsyncEvidence(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, *record)
 	}
 	return out, rows.Err()
 }
@@ -1441,4 +1559,30 @@ func scanRun(scanner snapshotScanner) (*Run, error) {
 	}
 	run.SummaryJSON = summaryJSON.String
 	return &run, nil
+}
+
+func scanAsyncEvidence(scanner snapshotScanner) (*AsyncEvidenceRecord, error) {
+	var record AsyncEvidenceRecord
+	var runID, sequence sql.NullInt64
+	var resourceAddress, action, operationID, phase, attemptID, requestEvidenceID sql.NullString
+	var createdAt string
+	if err := scanner.Scan(&record.ID, &runID, &resourceAddress, &action, &operationID, &record.RecordKind, &phase, &record.EvidenceID, &attemptID, &requestEvidenceID, &sequence, &record.RecordJSON, &createdAt); err != nil {
+		return nil, err
+	}
+	if runID.Valid {
+		record.RunID = runID.Int64
+	}
+	record.ResourceAddress = resourceAddress.String
+	record.Action = action.String
+	record.OperationID = operationID.String
+	record.Phase = phase.String
+	record.AttemptID = attemptID.String
+	record.RequestEvidenceID = requestEvidenceID.String
+	if sequence.Valid {
+		record.Sequence = sequence.Int64
+	}
+	if t, err := time.Parse(time.RFC3339Nano, createdAt); err == nil {
+		record.CreatedAt = t
+	}
+	return &record, nil
 }

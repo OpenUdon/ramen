@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -1558,6 +1559,49 @@ resource "aws_iam_role" "role" {
 	}
 	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
 		t.Fatalf("plan exit = %v, output:\n%s", err, output)
+	}
+}
+
+func TestCLIStateAsyncEvidenceJSON(t *testing.T) {
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	runID, err := store.StartRun(context.Background(), "apply")
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	if err := store.RecordAsyncEvidence(context.Background(), state.AsyncEvidenceRecord{
+		RunID:           runID,
+		ResourceAddress: "example.one",
+		Action:          "create",
+		OperationID:     "createOne",
+		RecordKind:      "execution_request",
+		Phase:           "submitted",
+		EvidenceID:      "ev-cli",
+		AttemptID:       "attempt-cli",
+		Sequence:        1,
+		RecordJSON:      `{"version":"evidence.async.execution-request.v1"}`,
+	}); err != nil {
+		t.Fatalf("record async evidence: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
+
+	cmd := helperCommand("state", "async-evidence", "--state", statePath, "--run", fmt.Sprint(runID), "--json")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state async-evidence failed: %v\n%s", err, output)
+	}
+	var records []state.AsyncEvidenceRecord
+	if err := json.Unmarshal(output, &records); err != nil {
+		t.Fatalf("async evidence JSON parse: %v\n%s", err, output)
+	}
+	if len(records) != 1 || records[0].EvidenceID != "ev-cli" || records[0].RecordKind != "execution_request" {
+		t.Fatalf("records = %#v", records)
 	}
 }
 

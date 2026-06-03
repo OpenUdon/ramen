@@ -60,8 +60,11 @@ live evidence so adopters can inspect what has actually been proven.
   reads into neutral Evidence async records.
 - These records are evidence inputs only. An `accepted` executor response does
   not imply desired-state convergence, delete success, or state mutation.
-- M30 is the planned follow-on for durable async evidence persistence, resume
-  inspection, and operation-handle capture.
+- M30 persists normalized request, response, status, and confirmation-read
+  records in local SQLite state and exposes read-only
+  `ramen state async-evidence` inspection. Automatic resume/resubmit policy
+  remains parked until operation handles and terminal observations are proven
+  by fixtures.
 
 ## OpenUdon Boundary
 

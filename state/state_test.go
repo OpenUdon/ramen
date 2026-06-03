@@ -102,6 +102,63 @@ func TestStoreRevisionsAndLocks(t *testing.T) {
 	_ = store.Close()
 }
 
+func TestStoreRecordsAsyncEvidence(t *testing.T) {
+	ctx := context.Background()
+	store, err := Open(ctx, filepath.Join(t.TempDir(), "state.db"))
+	if err != nil {
+		t.Fatalf("open: %v", err)
+	}
+	runID, err := store.StartRun(ctx, "apply")
+	if err != nil {
+		t.Fatalf("start run: %v", err)
+	}
+	record := AsyncEvidenceRecord{
+		RunID:             runID,
+		ResourceAddress:   "example.one",
+		Action:            "create",
+		OperationID:       "createOne",
+		RecordKind:        "execution_request",
+		Phase:             "submitted",
+		EvidenceID:        "ev-request",
+		AttemptID:         "attempt-one",
+		RequestEvidenceID: "",
+		Sequence:          1,
+		RecordJSON:        `{"version":"evidence.async.execution-request.v1"}`,
+	}
+	if err := store.RecordAsyncEvidence(ctx, record); err != nil {
+		t.Fatalf("record async evidence: %v", err)
+	}
+	records, err := store.ListAsyncEvidence(ctx, AsyncEvidenceFilter{RunID: runID})
+	if err != nil {
+		t.Fatalf("list async evidence: %v", err)
+	}
+	if len(records) != 1 || records[0].EvidenceID != "ev-request" || records[0].Phase != "submitted" || records[0].CreatedAt.IsZero() {
+		t.Fatalf("records = %#v", records)
+	}
+	filtered, err := store.ListAsyncEvidence(ctx, AsyncEvidenceFilter{ResourceAddress: "missing"})
+	if err != nil {
+		t.Fatalf("filtered async evidence: %v", err)
+	}
+	if len(filtered) != 0 {
+		t.Fatalf("filtered records = %#v", filtered)
+	}
+	exported, err := store.Export(ctx)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if len(exported.AsyncEvidence) != 1 {
+		t.Fatalf("export async evidence = %#v", exported.AsyncEvidence)
+	}
+	audit, err := store.Audit(ctx)
+	if err != nil {
+		t.Fatalf("audit: %v", err)
+	}
+	if audit.Counts["async_evidence"] != 1 {
+		t.Fatalf("audit counts = %#v", audit.Counts)
+	}
+	_ = store.Close()
+}
+
 func TestForceUnlockRequiresExactHolderAndPrunesExpiredLocks(t *testing.T) {
 	ctx := context.Background()
 	path := filepath.Join(t.TempDir(), "state.db")

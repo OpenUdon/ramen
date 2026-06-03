@@ -1224,6 +1224,8 @@ func runStateCommand(ctx context.Context, args []string) {
 		os.Exit(2)
 	}
 	switch args[0] {
+	case "async-evidence":
+		runStateAsyncEvidenceCommand(ctx, args[1:])
 	case "audit":
 		runStateAuditCommand(ctx, args[1:])
 	case "backup":
@@ -1252,9 +1254,10 @@ func runStateCommand(ctx context.Context, args []string) {
 }
 
 func stateUsage(out *os.File) {
-	fmt.Fprintf(out, "Usage: ramen state <audit|backup|export|list|restore|show|history|runs|vacuum> [args]\n\n")
+	fmt.Fprintf(out, "Usage: ramen state <async-evidence|audit|backup|export|list|restore|show|history|runs|vacuum> [args]\n\n")
 	fmt.Fprintf(out, "Local SQLite state inspection and maintenance. No backend access, provider execution, or Terraform/OpenTofu state compatibility is performed.\n\n")
 	fmt.Fprintf(out, "Subcommands:\n")
+	fmt.Fprintf(out, "  async-evidence    list neutral async execution evidence records\n")
 	fmt.Fprintf(out, "  audit             export tamper-evident audit summary\n")
 	fmt.Fprintf(out, "  backup            write a consistent SQLite backup snapshot\n")
 	fmt.Fprintf(out, "  export            export redacted state metadata as JSON\n")
@@ -1264,6 +1267,54 @@ func stateUsage(out *os.File) {
 	fmt.Fprintf(out, "  history [ADDRESS] show revision history\n")
 	fmt.Fprintf(out, "  runs              show command run history\n")
 	fmt.Fprintf(out, "  vacuum            compact local SQLite state\n")
+}
+
+func runStateAsyncEvidenceCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("state async-evidence", flag.ExitOnError)
+	statePath := fs.String("state", state.DefaultPath("."), "SQLite state path")
+	jsonOut := fs.Bool("json", false, "Emit JSON")
+	runID := fs.Int64("run", 0, "Optional run ID filter")
+	address := fs.String("address", "", "Optional resource address filter")
+	kind := fs.String("kind", "", "Optional record kind filter")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen state async-evidence [--state PATH] [--run ID] [--address ADDRESS] [--kind KIND] [--json]\n")
+		fmt.Fprintf(fs.Output(), "\nLists durable neutral async evidence records attached to local runs. These records are execution observations only; accepted executor responses do not imply convergence or state success.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if fs.NArg() != 0 {
+		fs.Usage()
+		os.Exit(2)
+	}
+	store, err := openStateReadOnly(ctx, *statePath)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if store == nil {
+		if *jsonOut {
+			writeJSONOutput([]state.AsyncEvidenceRecord{})
+		} else {
+			fmt.Println("ramen: state async-evidence=0")
+		}
+		return
+	}
+	defer func() { _ = store.Close() }()
+	records, err := store.ListAsyncEvidence(ctx, state.AsyncEvidenceFilter{RunID: *runID, ResourceAddress: *address, RecordKind: *kind})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if *jsonOut {
+		writeJSONOutput(records)
+		return
+	}
+	fmt.Printf("ramen: state async-evidence=%d\n", len(records))
+	for _, record := range records {
+		fmt.Printf("  #%d run=%d %s %s kind=%s phase=%s evidence=%s\n", record.ID, record.RunID, record.ResourceAddress, record.Action, record.RecordKind, record.Phase, record.EvidenceID)
+	}
 }
 
 func runStateAuditCommand(ctx context.Context, args []string) {
@@ -1297,7 +1348,7 @@ func runStateAuditCommand(ctx context.Context, args []string) {
 		writeJSONOutput(doc)
 		return
 	}
-	fmt.Printf("ramen: state audit version=%s digest=%s resources=%d revisions=%d runs=%d events=%d locks=%d\n", doc.Version, doc.Digest, doc.Counts["resources"], doc.Counts["revisions"], doc.Counts["runs"], doc.Counts["run_events"], doc.Counts["locks"])
+	fmt.Printf("ramen: state audit version=%s digest=%s resources=%d revisions=%d runs=%d events=%d async_evidence=%d locks=%d\n", doc.Version, doc.Digest, doc.Counts["resources"], doc.Counts["revisions"], doc.Counts["runs"], doc.Counts["run_events"], doc.Counts["async_evidence"], doc.Counts["locks"])
 }
 
 func runStateBackupCommand(ctx context.Context, args []string) {
@@ -1367,7 +1418,7 @@ func runStateExportCommand(ctx context.Context, args []string) {
 		writeJSONOutput(doc)
 		return
 	}
-	fmt.Printf("ramen: state export version=%s resources=%d revisions=%d runs=%d locks=%d\n", doc.Version, len(doc.Resources), len(doc.Revisions), len(doc.Runs), len(doc.Locks))
+	fmt.Printf("ramen: state export version=%s resources=%d revisions=%d runs=%d async_evidence=%d locks=%d\n", doc.Version, len(doc.Resources), len(doc.Revisions), len(doc.Runs), len(doc.AsyncEvidence), len(doc.Locks))
 }
 
 func runStateRestoreCommand(ctx context.Context, args []string) {
