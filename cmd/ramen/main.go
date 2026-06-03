@@ -2151,7 +2151,12 @@ func runApplyCommand(ctx context.Context, args []string) {
 		os.Exit(2)
 	}
 	path := *statePath
-	if strings.TrimSpace(path) == "" && strings.TrimSpace(*planPath) == "" {
+	if strings.TrimSpace(*planPath) != "" {
+		// Keep plan artifacts self-contained: when replaying an approved plan, let
+		// it supply the state path so this command remains valid from alternate
+		// working directories.
+		path = ""
+	} else if strings.TrimSpace(path) == "" {
 		path = statePathOrDefault(*statePath, *projectPath, *configDir, *workspace)
 	}
 	configDirValue := *configDir

@@ -415,6 +415,70 @@ func TestCLIIcotReadOnlyValidateGraphPlan(t *testing.T) {
 	}
 }
 
+func TestCLIIcotReadOnlyValidateGraphPlanWithAzureFixture(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "azure", "resources.json")
+	mustWriteCLIFile(t, sourcePath, []byte(`openapi: 3.0.0
+info:
+  title: Azure resources list
+  version: v1
+paths:
+  /resources:
+    get:
+      operationId: Resources_List
+      responses:
+        "200":
+          description: ok
+`))
+
+	outDir := filepath.Join(root, "read")
+	answersPath := filepath.Join(root, "answers.txt")
+	mustWriteCLIFile(t, answersPath, []byte("Resources_List\n"))
+	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "List Azure resources in the selected subscription", "--api-source", "openapi:azure-resources="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("read-only azure fixture icot with plan failed: %v\nstdout:\n%s\nstderr:\n%s", err, output, stderr.String())
+	}
+	var result authorCLIResult
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("icot JSON is not parseable: %v\n%s", err, output)
+	}
+	if result.Report.Status != sharedreport.StatusComplete {
+		t.Fatalf("icot azure read-only result = %#v\n%s", result, output)
+	}
+	if result.Validation == nil || !result.Validation.Valid || result.Graph == nil || result.Plan == nil || result.Plan.Plan.Summary.Read != 1 {
+		t.Fatalf("read-only gates missing: validation=%#v graph=%#v plan=%#v\n%s", result.Validation, result.Graph, result.Plan, output)
+	}
+	projectPath := filepath.Join(outDir, project.DefaultFile)
+	if _, err := os.Stat(projectPath); os.IsNotExist(err) {
+		projectPath = filepath.Join(outDir, "project.uws.hcl")
+	}
+	projectText, err := os.ReadFile(projectPath)
+	if err != nil {
+		t.Fatalf("read-only azure project read failed: %v", err)
+	}
+	if !strings.Contains(string(projectText), "../azure/resources.json") || strings.Contains(string(projectText), sourcePath) {
+		t.Fatalf("project did not preserve ../ source path semantics: %s", projectText)
+	}
+	doc, err := project.Load(projectPath)
+	if err != nil {
+		t.Fatalf("read-only azure project does not load: %v", err)
+	}
+	resource := doc.Profile.Resources[0]
+	if len(resource.RequiredOperations) != 1 || resource.RequiredOperations[0] != "read" {
+		t.Fatalf("read-only required operations = %#v", resource.RequiredOperations)
+	}
+	role, ok := resource.Operations["read"]
+	if !ok {
+		t.Fatalf("read operation role missing: %#v", resource.Operations)
+	}
+	if role.Method != "GET" || role.OperationID != "Resources_List" {
+		t.Fatalf("read operation role = %#v", role)
+	}
+}
+
 func TestCLIIcotDeleteOperationUsesDeleteRoleAndPlansDelete(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "api.yaml")
@@ -1072,6 +1136,55 @@ resource "aws_iam_role" "role" {
 	}
 	if !strings.Contains(string(output), "no-op=1") || !strings.Contains(string(output), "executed=0") {
 		t.Fatalf("second apply output missing no-op summary:\n%s", output)
+	}
+}
+
+func TestCLIApplyPlanReplayUsesArtifactStatePath(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	sourcePath := filepath.Join(root, "iam.json")
+	planPath := filepath.Join(root, "read-plan.json")
+	outDir := filepath.Join(root, "apply")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`
+resource "aws_iam_role" "role" {
+  name = "cli-apply-replay-role"
+  assume_role_policy = "{}"
+}
+`))
+	mustWriteCLIFile(t, sourcePath, []byte(`{
+  "smithy": "2.0",
+  "shapes": {
+    "com.amazonaws.iam#IAM": {
+      "type": "service",
+      "version": "2010-05-08",
+      "operations": [{"target": "com.amazonaws.iam#CreateRole"}],
+      "traits": {
+        "aws.api#service": {"sdkId": "IAM", "endpointPrefix": "iam"},
+        "aws.auth#sigv4": {"name": "iam"},
+        "aws.protocols#awsQuery": {}
+      }
+    },
+    "com.amazonaws.iam#CreateRole": {"type": "operation", "input": {"target": "com.amazonaws.iam#CreateRoleRequest"}, "output": {"target": "com.amazonaws.iam#CreateRoleResponse"}},
+    "com.amazonaws.iam#CreateRoleRequest": {"type": "structure", "members": {"RoleName": {"target": "com.amazonaws.iam#roleNameType"}, "AssumeRolePolicyDocument": {"target": "com.amazonaws.iam#policyDocumentType"}}, "traits": {"aws.api#input": {}}},
+    "com.amazonaws.iam#CreateRoleResponse": {"type": "structure", "members": {}},
+    "com.amazonaws.iam#roleNameType": {"type": "string"},
+    "com.amazonaws.iam#policyDocumentType": {"type": "string"}
+  }
+}`))
+	cmd := helperCommand("plan", "--config-dir", configDir, "--state", filepath.Join(root, "plan-state.db"), "--api-source", "aws-smithy:iam="+sourcePath, "--out", planPath)
+	if output, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("plan for replay test failed: %v\n%s", err, output)
+	}
+	cmd = helperCommand("apply", "--plan", planPath, "--auto-approve", "--mock", "--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("apply plan replay failed: %v\n%s", err, output)
+	}
+	if strings.Contains(string(output), "apply.approval_mismatch") {
+		t.Fatalf("apply plan replay used wrong default state path:\n%s", output)
+	}
+	if !strings.Contains(string(output), "executed=1") {
+		t.Fatalf("apply output missing execution summary:\n%s", output)
 	}
 }
 

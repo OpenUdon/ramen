@@ -127,7 +127,7 @@ project:
 ```bash
 go run ./cmd/ramen icot \
   --goal "List Azure resources in the selected subscription" \
-  --api-source openapi:azure-resources=../azure-rest-api-specs/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json \
+  --api-source openapi:azure-resources=../<azure-resources>/resources.json \
   --out ./.ramen/azure-read \
   --no-transcript \
   --validate \
@@ -141,23 +141,35 @@ without embedding credentials in the project:
 go run ./cmd/ramen plan \
   --project ./.ramen/azure-read \
   --action read \
-  --var azure_subscription_id="$AZURE_SUBSCRIPTION_ID" \
+  --var azure_subscription_id="<subscription-id>" \
   --out ./.ramen/azure-read/read-plan.json
 ```
 
-Default public execution can stay mock-backed:
+Mock execution path:
 
 ```bash
 go run ./cmd/ramen apply \
   --plan ./.ramen/azure-read/read-plan.json \
-  --var azure_subscription_id="$AZURE_SUBSCRIPTION_ID" \
+  --var azure_subscription_id="<subscription-id>" \
   --auto-approve \
   --mock \
   --out ./.ramen/azure-read/mock-apply
 ```
 
-Live Azure reads require an explicit trusted executor and a short-lived access
-token supplied through the operator environment:
+Trusted executor flow:
+
+```bash
+go run -tags udon ./cmd/ramen apply \
+  --plan ./.ramen/azure-read/read-plan.json \
+  --var azure_subscription_id="<subscription-id>" \
+  --auto-approve \
+  --executor udon \
+  --udon-output ./.ramen/azure-read/udon \
+  --out ./.ramen/azure-read/apply
+```
+
+Live Azure reads require a short-lived access token supplied through the
+operator environment:
 
 ```bash
 UDON_CREDENTIAL_AZURE_AUTH="$(az account get-access-token \
@@ -166,12 +178,16 @@ UDON_CREDENTIAL_AZURE_AUTH="$(az account get-access-token \
   -o tsv)" \
 go run -tags udon ./cmd/ramen apply \
   --plan ./.ramen/azure-read/read-plan.json \
-  --var azure_subscription_id="$AZURE_SUBSCRIPTION_ID" \
+  --var azure_subscription_id="<subscription-id>" \
   --auto-approve \
   --executor udon \
   --udon-output ./.ramen/azure-read/udon \
   --out ./.ramen/azure-read/apply
 ```
+
+Example placeholders only: `<subscription-id>`, `<resource-group>`, `<server>`, `<database>`.
+
+do not copy real IDs/tokens into tracked artifacts.
 
 Do not commit `.ramen/` state, live response payloads, subscription IDs,
 tenant IDs, client IDs, secrets, or access tokens. Mutating Azure examples
