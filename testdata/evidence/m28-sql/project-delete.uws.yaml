@@ -4,6 +4,10 @@ info:
   version: 1.0.0
 uws: 1.4.0
 operations:
+  - description: Read the Azure SQL database for delete confirmation.
+    operationId: m28_sql_database_read
+    sourceDescription: azure-sql
+    sourceOperationId: Databases_Get
   - description: Delete the Azure SQL database.
     operationId: m28_sql_database_delete
     sourceDescription: azure-sql
@@ -53,6 +57,13 @@ x-ramen-desired-state:
         provider: azure
       name: m28_sql_database
       operations:
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: azure-sql
+          source_path: ../../api-sources/azure-sql-database-openapi.json
+          operation_id: Databases_Get
         delete:
           purpose: delete
           method: DELETE
@@ -67,6 +78,37 @@ x-ramen-desired-state:
           until: missing
           max_attempts: 2
       request_bindings:
+        - operation_id: Databases_Get
+          operation_role: read
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: serverName
+          request_path: serverName
+          location: path
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: databaseName
+          request_path: databaseName
+          location: path
+          required: true
+          identity: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
         - operation_id: Databases_Delete
           operation_role: delete
           path: subscriptionId
@@ -100,6 +142,7 @@ x-ramen-desired-state:
           required: true
       redaction: {}
       required_operations:
+        - read
         - delete
       schema: []
       type: azure_sql_database

@@ -215,6 +215,17 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			continue
 		}
 		readMapping := readMappings[resource.Address]
+		if resource.Action == "delete" && readMapping == nil {
+			runStatus = "failed"
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			msg := fmt.Sprintf("apply.delete_confirmation_missing: delete confirmation requires a read role for %s", resource.Address)
+			result.Errors = append(result.Errors, msg)
+			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
+				return result, err
+			}
+			continue
+		}
 		if readMapping != nil {
 			baseline, err := executeReadCheck(ctx, opts.Executor, store, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "baseline")
 			result.Feedback = append(result.Feedback, baseline.Feedback...)
@@ -308,17 +319,6 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			result.Summary.Failed++
 			failed[resource.Address] = true
 			msg := fmt.Sprintf("apply.executor_unsuccessful: executor reported unsuccessful %s for %s", resource.Action, resource.Address)
-			result.Errors = append(result.Errors, msg)
-			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
-				return result, err
-			}
-			continue
-		}
-		if resource.Action == "delete" && readMapping == nil && !hasDeleteConfirmationMetadata(resource) {
-			runStatus = "failed"
-			result.Summary.Failed++
-			failed[resource.Address] = true
-			msg := fmt.Sprintf("apply.delete_confirmation_missing: delete confirmation requires read role or explicit missing waiter for %s", resource.Address)
 			result.Errors = append(result.Errors, msg)
 			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
 				return result, err
@@ -1247,14 +1247,6 @@ func readResultDiffersFromState(ctx context.Context, store *state.Store, address
 		}
 	}
 	return false, nil
-}
-
-func hasDeleteConfirmationMetadata(resource tfplan.ResourcePlan) bool {
-	if resource.RuntimeHints == nil || len(resource.RuntimeHints.Waiter) == 0 {
-		return false
-	}
-	until := waiterPredicate(resource.RuntimeHints.Waiter)
-	return until == "missing"
 }
 
 func currentIdentity(ctx context.Context, store *state.Store, address string) (map[string]any, error) {

@@ -409,6 +409,17 @@ info:
   version: v1
 paths:
   /widgets/{name}:
+    get:
+      operationId: getWidget
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
     delete:
       operationId: deleteWidget
       parameters:
@@ -432,11 +443,15 @@ paths:
 			Provider:   "openapi",
 			Attributes: map[string]any{"name": "ramen"},
 			Operations: map[string]project.OperationRole{
+				"read":   {Purpose: "read", Method: "GET", SourceKind: "openapi", SourceID: "api", SourcePath: "api.yaml", OperationID: "getWidget"},
 				"delete": {Purpose: "delete", Method: "DELETE", SourceKind: "openapi", SourceID: "api", SourcePath: "api.yaml", OperationID: "deleteWidget"},
 			},
 			IdentityAttributes: []project.IdentityAttribute{{Name: "name", Path: "name", Required: true}},
 			Schema:             []project.SchemaPath{{Path: "name", Type: "string", Required: true, Identity: true}},
-			RequestBindings:    []project.RequestBinding{{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true}},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "read", OperationID: "getWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
+				{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
+			},
 			RuntimeHints:       &project.RuntimeHints{Waiter: map[string]any{"until": "missing"}},
 			RequiredOperations: []string{"delete"},
 		}},
@@ -444,16 +459,32 @@ paths:
 	var actions []string
 	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
 		actions = append(actions, req.Action.Action)
-		if req.Action.Mapping.Method != "DELETE" {
-			t.Fatalf("executor mapping method = %q", req.Action.Mapping.Method)
+		switch strings.Join(actions, ",") {
+		case "read":
+			if req.Action.Mapping.OperationID != "getWidget" {
+				t.Fatalf("baseline mapping operation = %q", req.Action.Mapping.OperationID)
+			}
+			return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+		case "read,delete":
+			if req.Action.Mapping.Method != "DELETE" {
+				t.Fatalf("executor mapping method = %q", req.Action.Mapping.Method)
+			}
+			return executor.Result{Success: true}, nil
+		case "read,delete,read":
+			if req.Action.Mapping.OperationID != "getWidget" || req.Runtime.Waiter["until"] != "missing" {
+				t.Fatalf("confirmation request = action=%#v runtime=%#v", req.Action, req.Runtime)
+			}
+			return executor.Result{Success: true, Missing: true}, nil
+		default:
+			t.Fatalf("unexpected actions %v", actions)
+			return executor.Result{}, nil
 		}
-		return executor.Result{Success: true}, nil
 	}}
 	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
 	if err != nil {
 		t.Fatalf("Apply returned error: %v", err)
 	}
-	if result.Summary.Delete != 1 || strings.Join(actions, ",") != "delete" {
+	if result.Summary.Delete != 1 || strings.Join(actions, ",") != "read,delete,read" {
 		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
 	}
 }
@@ -756,6 +787,7 @@ paths:
 			RequestBindings: []project.RequestBinding{
 				{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
 			},
+			RuntimeHints:       &project.RuntimeHints{Waiter: map[string]any{"until": "missing"}},
 			RequiredOperations: []string{"delete"},
 		}},
 	})
@@ -769,7 +801,7 @@ paths:
 	if err == nil || !strings.Contains(err.Error(), "apply.failed") {
 		t.Fatalf("expected apply failure, got %v", err)
 	}
-	if result.Summary.Failed != 1 || result.Summary.Delete != 0 || mock.RequestCount() != 1 {
+	if result.Summary.Failed != 1 || result.Summary.Delete != 0 || mock.RequestCount() != 0 {
 		t.Fatalf("summary=%#v requests=%d", result.Summary, mock.RequestCount())
 	}
 	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0], "apply.delete_confirmation_missing") {

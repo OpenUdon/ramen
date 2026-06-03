@@ -156,18 +156,6 @@ go run ./cmd/ramen apply \
   --out ./.ramen/azure-read/mock-apply
 ```
 
-Trusted executor flow:
-
-```bash
-go run -tags udon ./cmd/ramen apply \
-  --plan ./.ramen/azure-read/read-plan.json \
-  --var azure_subscription_id="<subscription-id>" \
-  --auto-approve \
-  --executor udon \
-  --udon-output ./.ramen/azure-read/udon \
-  --out ./.ramen/azure-read/apply
-```
-
 Live Azure reads require a short-lived access token supplied through the
 operator environment:
 
@@ -187,7 +175,7 @@ go run -tags udon ./cmd/ramen apply \
 
 Example placeholders only: `<subscription-id>`, `<resource-group>`, `<server>`, `<database>`.
 
-do not copy real IDs/tokens into tracked artifacts.
+Do not copy real IDs/tokens into tracked artifacts.
 
 Do not commit `.ramen/` state, live response payloads, subscription IDs,
 tenant IDs, client IDs, secrets, or access tokens. Mutating Azure examples
