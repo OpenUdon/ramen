@@ -153,7 +153,6 @@ type DesiredHashInput struct {
 	Provider        string
 	Attributes      map[string]string
 	Lifecycle       map[string]any
-	RuntimeHints    *project.RuntimeHints
 	Mapping         *MappingHashInput
 	APISourceDigest string
 	InputsDigest    string
@@ -1233,7 +1232,6 @@ func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapp
 		Provider:        resource.Provider,
 		Attributes:      attrs,
 		Lifecycle:       lifecycle.Hash,
-		RuntimeHints:    cloneRuntimeHints(resource.RuntimeHints),
 		Mapping:         mappingHash,
 		APISourceDigest: selectedDigest,
 		InputsDigest:    inputsDigest,
@@ -1395,9 +1393,6 @@ func DesiredHash(input DesiredHashInput) string {
 		"mapping":           input.Mapping,
 		"api_source_digest": input.APISourceDigest,
 		"inputs_digest":     input.InputsDigest,
-	}
-	if input.RuntimeHints != nil && (len(input.RuntimeHints.Retry) > 0 || len(input.RuntimeHints.Waiter) > 0) {
-		payload["runtime_hints"] = input.RuntimeHints
 	}
 	data, _ := json.Marshal(payload)
 	return digest.SHA256String(data)

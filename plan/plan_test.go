@@ -377,10 +377,11 @@ func TestBuildNativeProjectCarriesMappingMetadataIntoPlanHash(t *testing.T) {
 	}
 }
 
-func TestBuildNativeProjectBindsRuntimeHintsIntoPlanHash(t *testing.T) {
+func TestBuildNativeProjectCarriesRuntimeHintsWithoutChangingDesiredHash(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")
 	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(root, "state.db")
 	writePlanTestFile(t, sourcePath, minimalIAMSmithyForPlanTest())
 	resource := nativeIAMRoleResourceForPlanControl("aws_iam_role.role", nil)
 	resource.RuntimeHints = &project.RuntimeHints{
@@ -399,7 +400,7 @@ func TestBuildNativeProjectBindsRuntimeHintsIntoPlanHash(t *testing.T) {
 		Resources:  []project.Resource{resource},
 	}
 	projectPath := writeNativeProjectForPlanTest(t, projectDir, profile)
-	result, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: filepath.Join(projectDir, ".ramen", "state.db")})
+	result, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath})
 	if err != nil {
 		t.Fatalf("Build returned error: %v", err)
 	}
@@ -407,17 +408,30 @@ func TestBuildNativeProjectBindsRuntimeHintsIntoPlanHash(t *testing.T) {
 	if planned.RuntimeHints == nil || planned.RuntimeHints.Retry["backoff"] != "exponential" || planned.RuntimeHints.Waiter["until"] != "exists" {
 		t.Fatalf("runtime hints not carried into plan: %#v", planned.RuntimeHints)
 	}
+	store, err := state.Open(context.Background(), statePath)
+	if err != nil {
+		t.Fatalf("open state: %v", err)
+	}
+	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{Address: planned.Address, Type: planned.Type, Provider: planned.Provider, DesiredHash: planned.DesiredHash, Status: "managed"}); err != nil {
+		t.Fatalf("record state: %v", err)
+	}
+	if err := store.Close(); err != nil {
+		t.Fatalf("close state: %v", err)
+	}
 
 	modifiedDir := filepath.Join(root, "project-modified")
 	writePlanTestFile(t, filepath.Join(modifiedDir, "aws-smithy", "iam.json"), minimalIAMSmithyForPlanTest())
 	profile.Resources[0].RuntimeHints.Retry["max_attempts"] = 5
 	modifiedPath := writeNativeProjectForPlanTest(t, modifiedDir, profile)
-	modified, err := Build(context.Background(), Options{ProjectPath: modifiedPath, StatePath: filepath.Join(modifiedDir, ".ramen", "state.db")})
+	modified, err := Build(context.Background(), Options{ProjectPath: modifiedPath, StatePath: statePath})
 	if err != nil {
 		t.Fatalf("Build modified returned error: %v", err)
 	}
-	if planned.DesiredHash == modified.Plan.Resources[0].DesiredHash {
-		t.Fatalf("desired hash did not change after runtime hints changed: %s", planned.DesiredHash)
+	if planned.DesiredHash != modified.Plan.Resources[0].DesiredHash {
+		t.Fatalf("runtime hints changed desired hash: %s -> %s", planned.DesiredHash, modified.Plan.Resources[0].DesiredHash)
+	}
+	if modified.Plan.Resources[0].Action != "no-op" {
+		t.Fatalf("runtime-only hint change planned action %q", modified.Plan.Resources[0].Action)
 	}
 }
 

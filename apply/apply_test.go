@@ -13,6 +13,7 @@ import (
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	"github.com/OpenUdon/ramen/tfmapping"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -284,14 +285,74 @@ func TestApplyNativeRuntimeHintsReachExecutorRequests(t *testing.T) {
 		t.Fatalf("summary=%#v requests=%d", result.Summary, len(requests))
 	}
 	for i, req := range requests {
-		if req.Runtime.Retry["backoff"] != "exponential" || req.Runtime.Waiter["until"] != "exists" {
+		if req.Runtime.Retry["backoff"] != "exponential" {
 			t.Fatalf("request %d runtime hints = %#v", i, req.Runtime)
 		}
-		for _, feature := range []string{executor.FeatureRetry, executor.FeatureWaiter} {
-			if !containsApplyTest(req.Capabilities.Features, feature) {
-				t.Fatalf("request %d capabilities %v missing %s", i, req.Capabilities.Features, feature)
-			}
+		if !containsApplyTest(req.Capabilities.Features, executor.FeatureRetry) {
+			t.Fatalf("request %d capabilities %v missing retry", i, req.Capabilities.Features)
 		}
+		wantWaiter := i >= 2
+		if gotWaiter := req.Runtime.Waiter["until"] == "exists"; gotWaiter != wantWaiter {
+			t.Fatalf("request %d waiter active=%t, want %t: %#v", i, gotWaiter, wantWaiter, req.Runtime)
+		}
+		if gotFeature := containsApplyTest(req.Capabilities.Features, executor.FeatureWaiter); gotFeature != wantWaiter {
+			t.Fatalf("request %d waiter capability=%t, want %t: %#v", i, gotFeature, wantWaiter, req.Capabilities)
+		}
+	}
+}
+
+func TestApplyNativeWaiterCapabilityOnlyRequiredForWaiterReads(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "aws-smithy", "iam.json")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, minimalIAMSmithyForApplyTest())
+	resource := applyProjectRole("aws_iam_role.role", "apply-waiter-scope-role")
+	resource.RuntimeHints = &project.RuntimeHints{
+		Retry: map[string]any{
+			"max_attempts": 2,
+		},
+		Waiter: map[string]any{
+			"until":        "exists",
+			"max_attempts": 2,
+		},
+	}
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "aws-smithy", ID: "iam", Path: "aws-smithy/iam.json"}},
+		Resources:  []project.Resource{resource},
+	})
+	limited := &limitedApplyExecutor{executeFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		switch req.Action.Action {
+		case "read":
+			return executor.Result{Success: true, Missing: true}, nil
+		case "create":
+			return executor.Result{Success: true, Identity: map[string]any{"role_name": "apply-waiter-scope-role"}}, nil
+		default:
+			t.Fatalf("unexpected action %q", req.Action.Action)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: limited})
+	if err == nil || !strings.Contains(err.Error(), "apply.failed") {
+		t.Fatalf("Apply error = %v, want failed convergence when waiter capability is required", err)
+	}
+	if result.Summary.Failed != 1 || len(limited.requests) != 2 {
+		t.Fatalf("summary=%#v requests=%d", result.Summary, len(limited.requests))
+	}
+	if strings.Join([]string{limited.requests[0].Action.Action, limited.requests[1].Action.Action}, ",") != "read,create" {
+		t.Fatalf("actions = %#v", limited.requests)
+	}
+	for i, req := range limited.requests {
+		if len(req.Runtime.Waiter) != 0 || containsApplyTest(req.Capabilities.Features, executor.FeatureWaiter) {
+			t.Fatalf("request %d should not require waiter: runtime=%#v capabilities=%#v", i, req.Runtime, req.Capabilities)
+		}
+		if !containsApplyTest(req.Capabilities.Features, executor.FeatureRetry) {
+			t.Fatalf("request %d should still require retry: %#v", i, req.Capabilities)
+		}
+	}
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0], "unsupported feature \"waiter\"") {
+		t.Fatalf("errors = %#v", result.Errors)
 	}
 }
 
@@ -376,6 +437,7 @@ paths:
 			IdentityAttributes: []project.IdentityAttribute{{Name: "name", Path: "name", Required: true}},
 			Schema:             []project.SchemaPath{{Path: "name", Type: "string", Required: true, Identity: true}},
 			RequestBindings:    []project.RequestBinding{{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true}},
+			RuntimeHints:       &project.RuntimeHints{Waiter: map[string]any{"until": "missing"}},
 			RequiredOperations: []string{"delete"},
 		}},
 	})
@@ -475,6 +537,243 @@ func TestApplyNativeAzureSQLPutUsesBodyBindings(t *testing.T) {
 	}
 	if result.Summary.Put != 1 || mock.RequestCount() != 1 {
 		t.Fatalf("summary=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+}
+
+func TestBuildActionDocumentNativeBindingsDoNotDuplicateOpenAPIPathValuesInBody(t *testing.T) {
+	resource := tfplan.ResourcePlan{
+		Address:  "azurerm_cosmosdb_account.test",
+		Kind:     "resource",
+		Type:     "azurerm_cosmosdb_account",
+		Provider: "provider.azurerm",
+		Action:   "read",
+		Mapping: &tfplan.MappingPlan{
+			Purpose:     "read",
+			SourceKind:  "openapi",
+			SourceID:    "azure-cosmos-db-resource-manager-openapi",
+			SourcePath:  "openapi/azure_cosmos_db_resource_manager_openapi.json",
+			OperationID: "DatabaseAccounts_Get",
+			IdentityAttributes: []tfmapping.IdentityAttribute{
+				{Name: "account_name", TerraformPath: "accountName", RequestKeys: []string{"accountName"}, Required: true},
+				{Name: "resource_group_name", TerraformPath: "resourceGroupName", RequestKeys: []string{"resourceGroupName"}, Required: true},
+			},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "read", OperationID: "DatabaseAccounts_Get", Path: "subscriptionId", RequestPath: "subscriptionId", Location: "path", Required: true},
+				{OperationRole: "read", OperationID: "DatabaseAccounts_Get", Path: "resourceGroupName", RequestPath: "resourceGroupName", Location: "path", Required: true},
+				{OperationRole: "read", OperationID: "DatabaseAccounts_Get", Path: "accountName", RequestPath: "accountName", Location: "path", Required: true, Identity: true},
+				{OperationRole: "read", OperationID: "DatabaseAccounts_Get", Path: "api-version", RequestPath: "api-version", Location: "query", Required: true},
+			},
+		},
+	}
+	attrs := map[string]any{
+		"subscriptionId":    "00000000-0000-0000-0000-000000000000",
+		"resourceGroupName": "SQL",
+		"accountName":       "ramen-cosmos-live-1780474014",
+		"api-version":       "2024-11-15",
+	}
+	identity := map[string]any{
+		"account_name":        "ramen-cosmos-live-1780474014",
+		"resource_group_name": "SQL",
+	}
+
+	doc, err := BuildActionDocumentWithBindings(resource, nil, attrs, identity)
+	if err != nil {
+		t.Fatalf("BuildActionDocumentWithBindings returned error: %v", err)
+	}
+	request := doc.Operations[0].Request
+	path, ok := request["path"].(map[string]any)
+	if !ok || path["accountName"] != "ramen-cosmos-live-1780474014" || path["resourceGroupName"] != "SQL" {
+		t.Fatalf("path request = %#v", request["path"])
+	}
+	if body, ok := request["body"].(map[string]any); ok {
+		if _, exists := body["accountName"]; exists {
+			t.Fatalf("accountName duplicated into body: %#v", body)
+		}
+		if _, exists := body["resourceGroupName"]; exists {
+			t.Fatalf("resourceGroupName duplicated into body: %#v", body)
+		}
+	}
+}
+
+func TestApplyNativePutWithAlternateResponseShapeAndConvergenceWaiter(t *testing.T) {
+	tests := []struct {
+		name     string
+		mutation executor.Result
+		reads    []executor.Result
+	}{
+		{
+			name: "Put response does not match base schema but waits until read convergence",
+			mutation: executor.Result{Success: true, Computed: map[string]any{
+				"operation": "create",
+				"status":    "Accepted",
+				"id":        "op-1",
+			}},
+			reads: []executor.Result{
+				{Success: true, Missing: true},
+				{Success: true, Missing: false, Computed: map[string]any{
+					"name":    "ramen-m28",
+					"status":  "Online",
+					"id":      "db-1",
+					"ignored": "payload",
+				}},
+			},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			projectDir := filepath.Join(root, "project")
+			statePath := filepath.Join(projectDir, "state.db")
+			sourcePath, err := filepath.Abs(filepath.Join("..", "testdata", "api-sources", "azure-sql-database-openapi.json"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+				Version:    project.Version,
+				APISources: []project.APISource{{Kind: "openapi", ID: "azure-sql", Path: sourcePath}},
+				Resources: []project.Resource{{
+					Address:  "resource.sql_database_ramen_m28",
+					Kind:     "resource",
+					Type:     "azure_sql_database",
+					Name:     "ramen-m28",
+					Provider: "openapi",
+					Attributes: map[string]any{
+						"api-version":       "2023-08-01",
+						"databaseName":      "ramen-m28",
+						"location":          "eastus",
+						"resourceGroupName": "SQL",
+						"serverName":        "greetingland-sql-server",
+						"sku":               map[string]any{"name": "Basic", "tier": "Basic"},
+						"subscriptionId":    "00000000-0000-0000-0000-000000000000",
+					},
+					Operations: map[string]project.OperationRole{
+						"put":  {Purpose: "put", Method: "PUT", SourceKind: "openapi", SourceID: "azure-sql", SourcePath: sourcePath, OperationID: "Databases_CreateOrUpdate"},
+						"read": {Purpose: "read", Method: "GET", SourceKind: "openapi", SourceID: "azure-sql", SourcePath: sourcePath, OperationID: "Databases_Get"},
+					},
+					IdentityAttributes: []project.IdentityAttribute{{Name: "databaseName", Path: "databaseName", RequestKeys: []string{"databaseName"}, Required: true}},
+					Schema: []project.SchemaPath{
+						{Path: "subscriptionId", Type: "string", Required: true},
+						{Path: "resourceGroupName", Type: "string", Required: true},
+						{Path: "serverName", Type: "string", Required: true},
+						{Path: "databaseName", Type: "string", Required: true, Identity: true},
+						{Path: "api-version", Type: "string", Required: true},
+						{Path: "location", Type: "string", Required: true},
+						{Path: "sku", Type: "object", Required: true},
+					},
+					RequestBindings: []project.RequestBinding{
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "subscriptionId", RequestPath: "subscriptionId", Location: "path", Required: true},
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "resourceGroupName", RequestPath: "resourceGroupName", Location: "path", Required: true},
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "serverName", RequestPath: "serverName", Location: "path", Required: true},
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "databaseName", RequestPath: "databaseName", Location: "path", Required: true, Identity: true},
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "api-version", RequestPath: "api-version", Location: "query", Required: true},
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "location", RequestPath: "location", Location: "body", Required: true},
+						{OperationRole: "put", OperationID: "Databases_CreateOrUpdate", Path: "sku", RequestPath: "sku", Location: "body", Required: true},
+						{OperationRole: "read", OperationID: "Databases_Get", Path: "subscriptionId", RequestPath: "subscriptionId", Location: "path", Required: true},
+						{OperationRole: "read", OperationID: "Databases_Get", Path: "resourceGroupName", RequestPath: "resourceGroupName", Location: "path", Required: true},
+						{OperationRole: "read", OperationID: "Databases_Get", Path: "serverName", RequestPath: "serverName", Location: "path", Required: true},
+						{OperationRole: "read", OperationID: "Databases_Get", Path: "databaseName", RequestPath: "databaseName", Location: "path", Required: true, Identity: true},
+						{OperationRole: "read", OperationID: "Databases_Get", Path: "api-version", RequestPath: "api-version", Location: "query", Required: true},
+					},
+					RequiredOperations: []string{"put", "read"},
+					ResponseBindings: []project.ResponseBinding{{
+						OperationRole: "read",
+						ResponsePath:  "databaseName",
+						StatePath:     "databaseName",
+						Identity:      true,
+						Computed:      true,
+					}},
+					RuntimeHints: &project.RuntimeHints{Waiter: map[string]any{"until": "exists", "max_attempts": 2}},
+				}},
+			})
+			var actions []string
+			readCount := 0
+			mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+				actions = append(actions, req.Action.Action)
+				switch req.Action.Action {
+				case "put":
+					return tc.mutation, nil
+				case "read":
+					if readCount >= len(tc.reads) {
+						return tc.reads[len(tc.reads)-1], nil
+					}
+					result := tc.reads[readCount]
+					readCount++
+					return result, nil
+				default:
+					t.Fatalf("unexpected action %q", req.Action.Action)
+					return executor.Result{}, nil
+				}
+			}}
+			result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+			if err != nil {
+				t.Fatalf("Apply returned error: %v", err)
+			}
+			if result.Summary.Put != 1 || strings.Join(actions, ",") != "read,put,read" {
+				t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
+			}
+		})
+	}
+}
+
+func TestApplyNativeDeleteWithoutReadRoleShouldNotRecordSuccess(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "api.yaml")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyTestFile(t, sourcePath, `openapi: 3.0.0
+info:
+  title: Delete API
+  version: v1
+paths:
+  /widgets/{name}:
+    delete:
+      operationId: deleteWidget
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ok
+`)
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: "api.yaml"}},
+		Resources: []project.Resource{{
+			Address:    "resource.widget",
+			Kind:       "resource",
+			Type:       "widget",
+			Name:       "widget",
+			Provider:   "openapi",
+			Attributes: map[string]any{"name": "ramen"},
+			Operations: map[string]project.OperationRole{
+				"delete": {Purpose: "delete", Method: "DELETE", SourceKind: "openapi", SourceID: "api", SourcePath: "api.yaml", OperationID: "deleteWidget"},
+			},
+			IdentityAttributes: []project.IdentityAttribute{{Name: "name", Path: "name", RequestKeys: []string{"name"}, Required: true}},
+			Schema:             []project.SchemaPath{{Path: "name", Type: "string", Required: true, Identity: true}},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
+			},
+			RequiredOperations: []string{"delete"},
+		}},
+	})
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		if req.Action.Action != "delete" {
+			t.Fatalf("unexpected action %q", req.Action.Action)
+		}
+		return executor.Result{Success: true}, nil
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.failed") {
+		t.Fatalf("expected apply failure, got %v", err)
+	}
+	if result.Summary.Failed != 1 || result.Summary.Delete != 0 || mock.RequestCount() != 1 {
+		t.Fatalf("summary=%#v requests=%d", result.Summary, mock.RequestCount())
+	}
+	if len(result.Errors) == 0 || !strings.Contains(result.Errors[0], "apply.delete_confirmation_missing") {
+		t.Fatalf("errors=%#v", result.Errors)
 	}
 }
 
@@ -1019,6 +1318,34 @@ resource "aws_iam_role" "role" {
 	if mock.RequestCount() != 0 {
 		t.Fatalf("executor was called for errored artifact")
 	}
+}
+
+type limitedApplyExecutor struct {
+	requests  []executor.Request
+	executeFn func(context.Context, executor.Request) (executor.Result, error)
+}
+
+func (e *limitedApplyExecutor) Capabilities() executor.CapabilityDescriptor {
+	return executor.CapabilityDescriptor{
+		Protocols:   []string{"aws-smithy", "openapi", "google-discovery", "unknown"},
+		AuthSchemes: []string{"test"},
+		Features: []string{
+			executor.FeatureOutputIdentity,
+			executor.FeatureOutputComputed,
+			executor.FeatureMissingEvidence,
+			executor.FeatureProgressEvents,
+			executor.FeatureIdempotency,
+			executor.FeatureRetry,
+		},
+	}
+}
+
+func (e *limitedApplyExecutor) Execute(ctx context.Context, req executor.Request) (executor.Result, error) {
+	e.requests = append(e.requests, req)
+	if e.executeFn != nil {
+		return e.executeFn(ctx, req)
+	}
+	return executor.Result{Success: true}, nil
 }
 
 func writeApplyProjectForTest(t *testing.T, dir string, profile project.Profile) string {

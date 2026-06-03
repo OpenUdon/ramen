@@ -147,3 +147,53 @@ func TestEnsureUdonExecutionHintsAddsAzureAuthRequirement(t *testing.T) {
 		t.Fatalf("security config = %#v", got)
 	}
 }
+
+func TestEnsureUdonExecutionHintsAcceptsLongRunningResponseShapeForCreateOrUpdate(t *testing.T) {
+	doc := &uws1.Document{
+		Operations: []*uws1.Operation{{
+			OperationID:       "create_database",
+			SourceDescription: "azure",
+			SourceOperationID: "Databases_CreateOrUpdate",
+			Request: map[string]any{
+				"path": map[string]any{
+					"subscriptionId":    "sub",
+					"resourceGroupName": "SQL",
+					"serverName":        "greetingland-sql-server",
+					"databaseName":      "ramen",
+				},
+				"query": map[string]any{
+					"api-version": "2023-08-01",
+				},
+				"body": map[string]any{
+					"location": "eastus",
+					"sku": map[string]any{"name": "Basic", "tier": "Basic"},
+				},
+				"x-ramen-apply": map[string]any{
+					"action": "put",
+				},
+			},
+		}},
+	}
+
+	ensureUdonExecutionHints(doc, "")
+
+	cfg, ok, err := uwsprofile.ReadOperationConfigExtension(doc.Operations[0].Extensions)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !ok || cfg == nil {
+		t.Fatalf("x-udon-config was not written")
+	}
+	if cfg.PathPars == nil || cfg.PathPars.Properties["subscriptionId"] == nil || cfg.PathPars.Properties["databaseName"] == nil {
+		t.Fatalf("path schema missing: %#v", cfg.PathPars)
+	}
+	if cfg.QueryPars == nil || cfg.QueryPars.Properties["api-version"] == nil {
+		t.Fatalf("query schema missing: %#v", cfg.QueryPars)
+	}
+	if cfg.PayloadPars == nil {
+		t.Fatalf("payload schema missing: %#v", cfg.PayloadPars)
+	}
+	if cfg.ResponseBody == nil || cfg.ResponseBody.Type != "object" {
+		t.Fatalf("response body override missing: %#v", cfg.ResponseBody)
+	}
+}

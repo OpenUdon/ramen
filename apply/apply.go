@@ -270,7 +270,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		}
-		req.Runtime = executorRuntimeHints(resource.RuntimeHints)
+		req.Runtime = executorRuntimeHints(resource.RuntimeHints, false)
 		req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 		req.Idempotency = executor.IdempotencyForAction(action)
 		req.Events = ExecutorEventSink(store)
@@ -308,6 +308,17 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			result.Summary.Failed++
 			failed[resource.Address] = true
 			msg := fmt.Sprintf("apply.executor_unsuccessful: executor reported unsuccessful %s for %s", resource.Action, resource.Address)
+			result.Errors = append(result.Errors, msg)
+			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
+				return result, err
+			}
+			continue
+		}
+		if resource.Action == "delete" && readMapping == nil && !hasDeleteConfirmationMetadata(resource) {
+			runStatus = "failed"
+			result.Summary.Failed++
+			failed[resource.Address] = true
+			msg := fmt.Sprintf("apply.delete_confirmation_missing: delete confirmation requires read role or explicit missing waiter for %s", resource.Address)
 			result.Errors = append(result.Errors, msg)
 			if err := recordFailedMutation(ctx, store, runID, resource, "failed", msg); err != nil {
 				return result, err
@@ -456,15 +467,23 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 		operationID = "apply_action"
 	}
 	sourcePath := firstNonEmpty(sourcePaths[sourcePathKey(resource.Mapping.SourceKind, resource.Mapping.SourceID)], resource.Mapping.SourcePath, resource.Mapping.SourceID)
+	attrsForRegistry := attrs
+	identityForRegistry := identity
+	identitiesForRegistry := resource.Mapping.IdentityAttributes
+	if hasNativeRequestBindingsForAction(resource) {
+		attrsForRegistry = nil
+		identityForRegistry = nil
+		identitiesForRegistry = nil
+	}
 	request := requestbinding.Build(requestbinding.Options{
 		Object:      tfmapping.Object{Kind: resource.Kind, Type: resource.Type, Provider: resource.Provider},
 		SourceKind:  resource.Mapping.SourceKind,
 		SourceID:    resource.Mapping.SourceID,
 		SourcePath:  sourcePath,
 		OperationID: resource.Mapping.OperationID,
-		Attributes:  attrs,
-		Identity:    identity,
-		Identities:  resource.Mapping.IdentityAttributes,
+		Attributes:  attrsForRegistry,
+		Identity:    identityForRegistry,
+		Identities:  identitiesForRegistry,
 		Extension:   "x-ramen-apply",
 		Metadata: map[string]any{
 			"address":      resource.Address,
@@ -521,6 +540,18 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 		return nil, err
 	}
 	return doc, nil
+}
+
+func hasNativeRequestBindingsForAction(resource tfplan.ResourcePlan) bool {
+	if resource.Mapping == nil {
+		return false
+	}
+	for _, binding := range resource.Mapping.RequestBindings {
+		if requestBindingApplies(binding, resource.Action, resource.Mapping.OperationID) {
+			return true
+		}
+	}
+	return false
 }
 
 func applyNativeRequestBindings(request map[string]any, resource tfplan.ResourcePlan, attrs, identity map[string]any) {
@@ -929,7 +960,7 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 		WorkingDir: workingDir,
 		OutDir:     outDir,
 	}
-	req.Runtime = executorRuntimeHints(resource.RuntimeHints)
+	req.Runtime = executorRuntimeHints(resource.RuntimeHints, true)
 	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	req.Events = ExecutorEventSink(store)
@@ -969,7 +1000,7 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 		WorkingDir: workingDir,
 		OutDir:     outDir,
 	}
-	req.Runtime = executorRuntimeHints(resource.RuntimeHints)
+	req.Runtime = executorRuntimeHints(resource.RuntimeHints, phase != "baseline")
 	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	if phase != "" {
@@ -1218,6 +1249,14 @@ func readResultDiffersFromState(ctx context.Context, store *state.Store, address
 	return false, nil
 }
 
+func hasDeleteConfirmationMetadata(resource tfplan.ResourcePlan) bool {
+	if resource.RuntimeHints == nil || len(resource.RuntimeHints.Waiter) == 0 {
+		return false
+	}
+	until := waiterPredicate(resource.RuntimeHints.Waiter)
+	return until == "missing"
+}
+
 func currentIdentity(ctx context.Context, store *state.Store, address string) (map[string]any, error) {
 	current, err := store.CurrentResource(ctx, address)
 	if err != nil || current == nil || strings.TrimSpace(current.IdentityJSON) == "" {
@@ -1266,14 +1305,24 @@ func applyReadMappings(projectPath string) map[string]*tfplan.MappingPlan {
 	return out
 }
 
-func executorRuntimeHints(hints *project.RuntimeHints) executor.RuntimeHints {
+func executorRuntimeHints(hints *project.RuntimeHints, includeWaiter bool) executor.RuntimeHints {
 	if hints == nil {
 		return executor.RuntimeHints{}
 	}
-	return executor.RuntimeHints{
-		Retry:  cloneAnyMap(hints.Retry),
-		Waiter: cloneAnyMap(hints.Waiter),
+	out := executor.RuntimeHints{
+		Retry: cloneAnyMap(hints.Retry),
 	}
+	if includeWaiter && waiterPredicate(hints.Waiter) != "" {
+		out.Waiter = cloneAnyMap(hints.Waiter)
+	}
+	return out
+}
+
+func waiterPredicate(waiter map[string]any) string {
+	if len(waiter) == 0 {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(fmt.Sprint(waiter["until"])))
 }
 
 func cloneAnyMap(src map[string]any) map[string]any {
