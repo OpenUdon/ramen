@@ -30,6 +30,8 @@ live evidence so adopters can inspect what has actually been proven.
   project, semantic replay assertions, and sanitized live observations.
 - M34 uses the K07 recorded artifact as the evidence gate for advertising
   `kubernetes_role_binding_v1` in `tfmapping`.
+- M35 adds `testdata/corpus/kubernetes/rbac/role_binding_v1/basic` as
+  credential-free conversion evidence for the RoleBinding mapping.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 

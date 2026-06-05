@@ -1,0 +1,16 @@
+{
+  "path": "kubernetes/rbac/role_binding_v1/basic",
+  "provider": "kubernetes",
+  "service": "rbac",
+  "resource_types": [
+    "kubernetes_role_binding_v1"
+  ],
+  "api_sources": [
+    {
+      "kind": "openapi",
+      "id": "rbac",
+      "path": "testdata/parity/kubernetes/k07/openapi/rbac.json"
+    }
+  ],
+  "source_dir": "testdata/parity/kubernetes/k07/hcl/main.tf"
+}
