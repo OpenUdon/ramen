@@ -56,6 +56,7 @@ func TestDefaultRegistrySupportedTypes(t *testing.T) {
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_role_binding_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_secret_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_service_account_v1", Kinds: []string{"resource", "data_source"}},
@@ -97,6 +98,7 @@ func TestRegistrySupportedTypesHonorsProviderOverrides(t *testing.T) {
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_role_binding_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_secret_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_service_account_v1", Kinds: []string{"resource", "data_source"}},
@@ -292,6 +294,9 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "role read", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1NamespacedRole"},
 		{name: "role update", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "update", action: "update", operation: "replaceRbacAuthorizationV1NamespacedRole"},
 		{name: "role delete", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1NamespacedRole"},
+		{name: "rolebinding create", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1NamespacedRoleBinding"},
+		{name: "rolebinding read", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1NamespacedRoleBinding"},
+		{name: "rolebinding delete", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1NamespacedRoleBinding"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -431,6 +436,18 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1NamespacedRole", "metadata.namespace")
 	if len(keys) != 2 || keys[0] != "namespace" || keys[1] != "metadata.namespace" {
 		t.Fatalf("unexpected Kubernetes Role create namespace request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1NamespacedRoleBinding", "role_ref")
+	if len(keys) != 1 || keys[0] != "roleRef" {
+		t.Fatalf("unexpected Kubernetes RoleBinding roleRef request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1NamespacedRoleBinding", "subject")
+	if len(keys) != 1 || keys[0] != "subjects" {
+		t.Fatalf("unexpected Kubernetes RoleBinding subject request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "readRbacAuthorizationV1NamespacedRoleBinding", "metadata.namespace")
+	if len(keys) != 1 || keys[0] != "namespace" {
+		t.Fatalf("unexpected Kubernetes RoleBinding read namespace request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-create-bucket", "name")
 	if len(keys) != 1 || keys[0] != "name" {

@@ -28,6 +28,8 @@ live evidence so adopters can inspect what has actually been proven.
 - `testdata/parity/kubernetes/k07` records RoleBinding parity across OpenTofu,
   Terraform, and Ramen+udon with HCL, reduced RBAC OpenAPI, native Ramen
   project, semantic replay assertions, and sanitized live observations.
+- M34 uses the K07 recorded artifact as the evidence gate for advertising
+  `kubernetes_role_binding_v1` in `tfmapping`.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 
