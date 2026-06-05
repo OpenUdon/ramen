@@ -16,6 +16,7 @@ import (
 
 	tfplan "github.com/OpenUdon/ramen/plan"
 	ramenvalidate "github.com/OpenUdon/ramen/validate"
+	"github.com/OpenUdon/tfconfig"
 )
 
 const (
@@ -253,6 +254,7 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 				assertKubernetesK07PlanFixture(t)
 			}
 			if lane == "k08" {
+				assertKubernetesK08HCLFixture(t)
 				assertKubernetesK08PlannedProjectFixture(t)
 			}
 		})
@@ -2735,6 +2737,37 @@ func assertKubernetesK08PlannedProjectFixture(t *testing.T) {
 	}
 	if result.Summary.Diagnostics != 0 {
 		t.Fatalf("K08 planned Ramen project fixture diagnostics = %#v", result.Summary)
+	}
+}
+
+func assertKubernetesK08HCLFixture(t *testing.T) {
+	t.Helper()
+	doc, err := tfconfig.LoadDir(filepath.Join(kubernetesParityFixtureRoot, "k08", "hcl"))
+	if err != nil {
+		t.Fatalf("load K08 HCL fixture: %v", err)
+	}
+	if len(doc.Diagnostics) != 0 {
+		t.Fatalf("K08 HCL fixture diagnostics: %#v", doc.Diagnostics)
+	}
+	if len(doc.Modules) != 1 {
+		t.Fatalf("K08 HCL fixture module count = %d, want 1", len(doc.Modules))
+	}
+	module := doc.Modules[0]
+	if len(module.Resources) != 1 {
+		t.Fatalf("K08 HCL fixture resource count = %d, want 1", len(module.Resources))
+	}
+	resource := module.Resources[0]
+	if resource.Address != "kubernetes_cluster_role_v1.k08_cluster_role" || resource.Type != "kubernetes_cluster_role_v1" {
+		t.Fatalf("K08 HCL fixture resource = %#v", resource)
+	}
+	var foundProvider bool
+	for _, req := range module.RequiredProviders {
+		if req.LocalName == "kubernetes" && req.Source == "hashicorp/kubernetes" && slices.Contains(req.VersionConstraints, "3.1.0") {
+			foundProvider = true
+		}
+	}
+	if !foundProvider {
+		t.Fatalf("K08 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
 	}
 }
 
