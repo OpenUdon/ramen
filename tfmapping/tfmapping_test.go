@@ -53,6 +53,7 @@ func TestDefaultRegistrySupportedTypes(t *testing.T) {
 		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
 		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
@@ -95,6 +96,7 @@ func TestRegistrySupportedTypesHonorsProviderOverrides(t *testing.T) {
 		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
 		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace_v1", Kinds: []string{"resource", "data_source"}},
@@ -220,6 +222,15 @@ func TestDefaultRegistryIdentityAttributes(t *testing.T) {
 			Required:      true,
 		},
 	})
+
+	clusterRole := registry.MapObject(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, "create", "create")
+	assertIdentity(t, clusterRole.IdentityAttributes, IdentityAttribute{
+		Name:          "name",
+		TerraformPath: "metadata.name",
+		RequestKeys:   []string{"name"},
+		ResponsePaths: []string{"metadata.name"},
+		Required:      true,
+	})
 }
 
 func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
@@ -297,6 +308,9 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "rolebinding create", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1NamespacedRoleBinding"},
 		{name: "rolebinding read", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1NamespacedRoleBinding"},
 		{name: "rolebinding delete", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1NamespacedRoleBinding"},
+		{name: "clusterrole create", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1ClusterRole"},
+		{name: "clusterrole read", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1ClusterRole"},
+		{name: "clusterrole delete", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1ClusterRole"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -314,17 +328,24 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 func TestDefaultRegistryDiagnostics(t *testing.T) {
 	registry := DefaultRegistry()
 	tests := []struct {
-		name string
-		obj  Object
-		want DiagnosticCode
+		name    string
+		obj     Object
+		purpose string
+		action  string
+		want    DiagnosticCode
 	}{
 		{name: "provider", obj: Object{Kind: "resource", Type: "example_resource", Provider: "provider.example"}, want: DiagnosticCodeUnsupportedProvider},
 		{name: "type", obj: Object{Kind: "resource", Type: "aws_instance", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedType},
 		{name: "action", obj: Object{Kind: "resource", Type: "aws_iam_role", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedAction},
+		{name: "clusterrole update", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, purpose: "update", action: "update", want: DiagnosticCodeUnsupportedAction},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			mapping := registry.MapObject(tt.obj, "import", "import")
+			purpose, action := tt.purpose, tt.action
+			if purpose == "" {
+				purpose, action = "import", "import"
+			}
+			mapping := registry.MapObject(tt.obj, purpose, action)
 			if len(mapping.Diagnostics) != 1 {
 				t.Fatalf("diagnostics = %#v, want one", mapping.Diagnostics)
 			}
@@ -448,6 +469,18 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "readRbacAuthorizationV1NamespacedRoleBinding", "metadata.namespace")
 	if len(keys) != 1 || keys[0] != "namespace" {
 		t.Fatalf("unexpected Kubernetes RoleBinding read namespace request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1ClusterRole", "rule")
+	if len(keys) != 1 || keys[0] != "rules" {
+		t.Fatalf("unexpected Kubernetes ClusterRole rules request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1ClusterRole", "metadata.labels")
+	if len(keys) != 1 || keys[0] != "metadata.labels" {
+		t.Fatalf("unexpected Kubernetes ClusterRole labels request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "readRbacAuthorizationV1ClusterRole", "metadata.name")
+	if len(keys) != 1 || keys[0] != "name" {
+		t.Fatalf("unexpected Kubernetes ClusterRole read name request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-create-bucket", "name")
 	if len(keys) != 1 || keys[0] != "name" {

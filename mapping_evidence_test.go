@@ -66,22 +66,51 @@ func TestKubernetesRoleBindingMappingIsGatedByK07Evidence(t *testing.T) {
 	}
 }
 
-func TestKubernetesClusterRoleMappingWaitsForRecordedK08Evidence(t *testing.T) {
+func TestKubernetesClusterRoleMappingIsGatedByK08Evidence(t *testing.T) {
 	evidence := loadMappingEvidenceArtifact(t, filepath.Join("testdata", "parity", "kubernetes", "k08", "observations.json"))
-	if evidence.Lane != "K08" || evidence.Status != "planned" {
-		t.Fatalf("K08 evidence lane/status = %s/%s, want K08/planned until live observations exist", evidence.Lane, evidence.Status)
+	if evidence.Lane != "K08" || evidence.Status != "recorded" {
+		t.Fatalf("K08 evidence lane/status = %s/%s, want K08/recorded", evidence.Lane, evidence.Status)
 	}
-	if scenario := findMappingEvidenceScenario(evidence, "kubernetes_cluster_role_v1"); scenario == nil {
-		t.Fatal("K08 evidence does not declare kubernetes_cluster_role_v1 candidate")
+	scenario := findMappingEvidenceScenario(evidence, "kubernetes_cluster_role_v1")
+	if scenario == nil {
+		t.Fatal("K08 evidence does not record kubernetes_cluster_role_v1")
+	}
+	for _, transition := range []string{"create", "read", "no-op", "destroy"} {
+		if !slices.Contains(scenario.ExpectedTransitions, transition) {
+			t.Fatalf("K08 ClusterRole evidence missing %q transition: %#v", transition, scenario.ExpectedTransitions)
+		}
+	}
+	for _, artifact := range scenario.ObservationArtifacts {
+		if _, err := os.Stat(artifact); err != nil {
+			t.Fatalf("K08 ClusterRole observation artifact %s unavailable: %v", artifact, err)
+		}
 	}
 
 	registry := tfmapping.DefaultRegistry()
-	mapping := registry.MapObject(tfmapping.Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, "create", "create")
-	if len(mapping.Diagnostics) == 0 {
-		t.Fatalf("kubernetes_cluster_role_v1 mapping was advertised before recorded K08 evidence: %#v", mapping)
+	for _, tt := range []struct {
+		purpose string
+		action  string
+		want    string
+	}{
+		{purpose: "create", action: "create", want: "createRbacAuthorizationV1ClusterRole"},
+		{purpose: "read", action: "read", want: "readRbacAuthorizationV1ClusterRole"},
+		{purpose: "delete", action: "delete", want: "deleteRbacAuthorizationV1ClusterRole"},
+	} {
+		mapping := registry.MapObject(tfmapping.Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, tt.purpose, tt.action)
+		if len(mapping.Diagnostics) != 0 {
+			t.Fatalf("%s mapping diagnostics = %#v", tt.purpose, mapping.Diagnostics)
+		}
+		if len(mapping.Target.OperationIDs) == 0 || mapping.Target.OperationIDs[0] != tt.want {
+			t.Fatalf("%s operation IDs = %#v, want first %q", tt.purpose, mapping.Target.OperationIDs, tt.want)
+		}
 	}
-	if mapping.Diagnostics[0].Code != tfmapping.DiagnosticCodeUnsupportedType {
-		t.Fatalf("cluster role diagnostic = %q, want %q", mapping.Diagnostics[0].Code, tfmapping.DiagnosticCodeUnsupportedType)
+
+	mapping := registry.MapObject(tfmapping.Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, "update", "update")
+	if len(mapping.Diagnostics) != 1 {
+		t.Fatalf("cluster role update diagnostics = %#v, want one", mapping.Diagnostics)
+	}
+	if mapping.Diagnostics[0].Code != tfmapping.DiagnosticCodeUnsupportedAction {
+		t.Fatalf("cluster role update diagnostic = %q, want %q", mapping.Diagnostics[0].Code, tfmapping.DiagnosticCodeUnsupportedAction)
 	}
 }
 

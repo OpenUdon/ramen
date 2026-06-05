@@ -2647,6 +2647,22 @@
       "source_dir": "examples/resources/namespace_v1/example_1.tf"
     },
     {
+      "path": "kubernetes/rbac/cluster_role_v1/basic",
+      "provider": "kubernetes",
+      "service": "rbac",
+      "resource_types": [
+        "kubernetes_cluster_role_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "rbac",
+          "path": "testdata/parity/kubernetes/k08/openapi/rbac.json"
+        }
+      ],
+      "source_dir": "testdata/corpus/kubernetes/rbac/cluster_role_v1/basic/input"
+    },
+    {
       "path": "kubernetes/rbac/role_binding_v1/basic",
       "provider": "kubernetes",
       "service": "rbac",
