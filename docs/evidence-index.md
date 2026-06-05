@@ -32,9 +32,11 @@ live evidence so adopters can inspect what has actually been proven.
   `kubernetes_role_binding_v1` in `tfmapping`.
 - M35 adds `testdata/corpus/kubernetes/rbac/role_binding_v1/basic` as
   credential-free conversion evidence for the RoleBinding mapping.
-- `testdata/parity/kubernetes/k08` is planned ClusterRole fixture evidence
-  only. It does not yet advertise `kubernetes_cluster_role_v1` support because
-  no OpenTofu/Terraform/Ramen+udon observation artifact has been recorded.
+- `testdata/parity/kubernetes/k08` records ClusterRole parity across
+  OpenTofu, Terraform, and Ramen+udon with HCL, reduced RBAC OpenAPI, native
+  Ramen project, semantic replay assertions, and sanitized live observations.
+- M37 adds `testdata/corpus/kubernetes/rbac/cluster_role_v1/basic` as
+  credential-free conversion evidence for the ClusterRole mapping.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 
@@ -43,6 +45,10 @@ live evidence so adopters can inspect what has actually been proven.
 - M27 recorded Azure Resource Manager read evidence and a scoped Azure SQL
   create/read/delete lifecycle through approved `ramen apply --plan --executor
   udon` runs.
+- M38 revalidated the Azure SQL live lane using local Azure profile readiness
+  checks, credential-free static plan gates, and one disposable SQL database
+  create/read/delete run through Ramen/udon. Live artifacts remained under
+  ignored `.ramen` paths.
 - M27/M28 evidence records only operation IDs, action counts, public-safe
   resource names, and command summaries. It does not commit tenant IDs,
   subscription IDs, client IDs, access tokens, state databases, plan files, or
