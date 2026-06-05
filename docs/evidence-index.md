@@ -32,6 +32,9 @@ live evidence so adopters can inspect what has actually been proven.
   `kubernetes_role_binding_v1` in `tfmapping`.
 - M35 adds `testdata/corpus/kubernetes/rbac/role_binding_v1/basic` as
   credential-free conversion evidence for the RoleBinding mapping.
+- `testdata/parity/kubernetes/k08` is planned ClusterRole fixture evidence
+  only. It does not yet advertise `kubernetes_cluster_role_v1` support because
+  no OpenTofu/Terraform/Ramen+udon observation artifact has been recorded.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 

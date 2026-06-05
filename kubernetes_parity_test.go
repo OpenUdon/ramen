@@ -28,7 +28,7 @@ const (
 	kubernetesProviderVersion    = "3.1.0"
 )
 
-var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06", "k07"}
+var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08"}
 
 type kubernetesParityArtifact struct {
 	Version          string                     `json:"version"`
@@ -297,6 +297,13 @@ func TestKubernetesProviderParity(t *testing.T) {
 		compareOrUpdateKubernetesParityRecording(t, recording, filepath.Join(kubernetesParityFixtureRoot, liveRun.lane, "live.observations.json"))
 	}
 	if ran == 0 {
+		if selectedLane != "" {
+			artifact := loadKubernetesParityArtifact(t, filepath.Join(kubernetesParityFixtureRoot, selectedLane, "observations.json"))
+			assertKubernetesParityArtifact(t, selectedLane, artifact)
+			if artifact.Status == "planned" {
+				t.Skipf("%s=%s is planned and has no live runner yet", kubernetesParityLaneEnv, selectedLane)
+			}
+		}
 		t.Fatalf("no Kubernetes parity live lanes were selected")
 	}
 }

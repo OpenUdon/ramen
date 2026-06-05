@@ -66,6 +66,25 @@ func TestKubernetesRoleBindingMappingIsGatedByK07Evidence(t *testing.T) {
 	}
 }
 
+func TestKubernetesClusterRoleMappingWaitsForRecordedK08Evidence(t *testing.T) {
+	evidence := loadMappingEvidenceArtifact(t, filepath.Join("testdata", "parity", "kubernetes", "k08", "observations.json"))
+	if evidence.Lane != "K08" || evidence.Status != "planned" {
+		t.Fatalf("K08 evidence lane/status = %s/%s, want K08/planned until live observations exist", evidence.Lane, evidence.Status)
+	}
+	if scenario := findMappingEvidenceScenario(evidence, "kubernetes_cluster_role_v1"); scenario == nil {
+		t.Fatal("K08 evidence does not declare kubernetes_cluster_role_v1 candidate")
+	}
+
+	registry := tfmapping.DefaultRegistry()
+	mapping := registry.MapObject(tfmapping.Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, "create", "create")
+	if len(mapping.Diagnostics) == 0 {
+		t.Fatalf("kubernetes_cluster_role_v1 mapping was advertised before recorded K08 evidence: %#v", mapping)
+	}
+	if mapping.Diagnostics[0].Code != tfmapping.DiagnosticCodeUnsupportedType {
+		t.Fatalf("cluster role diagnostic = %q, want %q", mapping.Diagnostics[0].Code, tfmapping.DiagnosticCodeUnsupportedType)
+	}
+}
+
 func loadMappingEvidenceArtifact(t *testing.T, path string) mappingEvidenceArtifact {
 	t.Helper()
 	data, err := os.ReadFile(path)
