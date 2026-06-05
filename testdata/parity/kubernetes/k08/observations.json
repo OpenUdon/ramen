@@ -1,7 +1,7 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
   "lane": "K08",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
     "version": "3.1.0",
@@ -48,10 +48,15 @@
         "read",
         "no-op",
         "destroy"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k08/live.observations.json"
       ]
     }
   ],
+  "recorded_at": "2026-06-05T16:26:50Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k08 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform 1.9.8, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
-    "K08 is planned fixture evidence only. Do not advertise kubernetes_cluster_role_v1 mapping until recorded OpenTofu, Terraform, and Ramen+udon observations exist."
+    "K08 records ClusterRole create/read/no-op/destroy parity across OpenTofu, Terraform, and Ramen+udon. M37 may now advertise kubernetes_cluster_role_v1 using create/read/delete mapping only; update semantics remain out of scope."
   ]
 }

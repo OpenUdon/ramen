@@ -69,6 +69,33 @@ x-ramen-desired-state:
               required: true
               response_paths:
                 - metadata.name
+          request_bindings:
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRole
+              path: metadata
+              request_path: metadata
+              location: body
+              required: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRole
+              path: rule
+              request_path: rules
+              location: body
+              required: true
+            - operation_role: read
+              operation_id: readRbacAuthorizationV1ClusterRole
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: delete
+              operation_id: deleteRbacAuthorizationV1ClusterRole
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
           kind: resource
           lifecycle: {}
           metadata:
