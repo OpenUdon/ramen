@@ -259,6 +259,17 @@ func TestKubernetesProviderParity(t *testing.T) {
 	if os.Getenv(kubernetesParityEnv) != "1" {
 		t.Skipf("set %s=1 to run the opt-in Kubernetes provider parity harness", kubernetesParityEnv)
 	}
+	selectedLane := strings.ToLower(strings.TrimSpace(os.Getenv(kubernetesParityLaneEnv)))
+	if selectedLane != "" && !slices.Contains(kubernetesParityLanes, selectedLane) {
+		t.Fatalf("%s=%s is not a known Kubernetes parity lane", kubernetesParityLaneEnv, selectedLane)
+	}
+	if selectedLane != "" {
+		artifact := loadKubernetesParityArtifact(t, filepath.Join(kubernetesParityFixtureRoot, selectedLane, "observations.json"))
+		assertKubernetesParityArtifact(t, selectedLane, artifact)
+		if artifact.Status == "planned" {
+			t.Skipf("%s=%s is planned and has no live runner yet", kubernetesParityLaneEnv, selectedLane)
+		}
+	}
 	terraform := requireKubernetesParityTool(t, kubernetesParityTerraformEnv, "terraform")
 	tofu := requireKubernetesParityTool(t, kubernetesParityTofuEnv, "tofu")
 	kubectl := requireKubernetesParityTool(t, "", "kubectl")
@@ -281,10 +292,6 @@ func TestKubernetesProviderParity(t *testing.T) {
 		{lane: "k06", run: runKubernetesK06LiveParity},
 		{lane: "k07", run: runKubernetesK07LiveParity},
 	}
-	selectedLane := strings.ToLower(strings.TrimSpace(os.Getenv(kubernetesParityLaneEnv)))
-	if selectedLane != "" && !slices.Contains(kubernetesParityLanes, selectedLane) {
-		t.Fatalf("%s=%s is not a known Kubernetes parity lane", kubernetesParityLaneEnv, selectedLane)
-	}
 	var ran int
 	for _, liveRun := range liveRuns {
 		if selectedLane != "" && selectedLane != liveRun.lane {
@@ -297,13 +304,6 @@ func TestKubernetesProviderParity(t *testing.T) {
 		compareOrUpdateKubernetesParityRecording(t, recording, filepath.Join(kubernetesParityFixtureRoot, liveRun.lane, "live.observations.json"))
 	}
 	if ran == 0 {
-		if selectedLane != "" {
-			artifact := loadKubernetesParityArtifact(t, filepath.Join(kubernetesParityFixtureRoot, selectedLane, "observations.json"))
-			assertKubernetesParityArtifact(t, selectedLane, artifact)
-			if artifact.Status == "planned" {
-				t.Skipf("%s=%s is planned and has no live runner yet", kubernetesParityLaneEnv, selectedLane)
-			}
-		}
 		t.Fatalf("no Kubernetes parity live lanes were selected")
 	}
 }
