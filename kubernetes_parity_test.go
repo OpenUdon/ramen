@@ -15,6 +15,7 @@ import (
 	"time"
 
 	tfplan "github.com/OpenUdon/ramen/plan"
+	ramenvalidate "github.com/OpenUdon/ramen/validate"
 )
 
 const (
@@ -250,6 +251,9 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 			}
 			if lane == "k07" {
 				assertKubernetesK07PlanFixture(t)
+			}
+			if lane == "k08" {
+				assertKubernetesK08PlannedProjectFixture(t)
 			}
 		})
 	}
@@ -2716,6 +2720,22 @@ func assertKubernetesK06PlanFixture(t *testing.T) {
 func assertKubernetesK07PlanFixture(t *testing.T) {
 	t.Helper()
 	assertKubernetesRamenPlanFixture(t, "k07")
+}
+
+func assertKubernetesK08PlannedProjectFixture(t *testing.T) {
+	t.Helper()
+	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
+		ProjectPath: filepath.Join(kubernetesParityFixtureRoot, "k08", "ramen"),
+	})
+	if err != nil {
+		t.Fatalf("validate K08 planned Ramen project fixture: %v", err)
+	}
+	if !result.Valid {
+		t.Fatalf("K08 planned Ramen project fixture did not validate: %#v", result.Diagnostics)
+	}
+	if result.Summary.Diagnostics != 0 {
+		t.Fatalf("K08 planned Ramen project fixture diagnostics = %#v", result.Summary)
+	}
 }
 
 func assertKubernetesRamenPlanFixture(t *testing.T, lane string) {
