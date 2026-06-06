@@ -21,6 +21,7 @@ const (
 	azureParityEnv          = "RAMEN_AZURE_PARITY"
 	azureParityRecordEnv    = "RAMEN_AZURE_PARITY_RECORD_UPDATE"
 	azureParityLaneEnv      = "RAMEN_AZURE_PARITY_LANE"
+	azureParityBaselineEnv  = "RAMEN_AZURE_PARITY_BASELINE"
 	azureParityTerraformEnv = "RAMEN_AZURE_TERRAFORM"
 	azureParityTofuEnv      = "RAMEN_AZURE_TOFU"
 	azureParityArtifactV1   = "ramen.azure.provider-parity.v1"
@@ -87,15 +88,17 @@ type azureParityLiveRecording struct {
 	Lane         string                           `json:"lane"`
 	Scenario     string                           `json:"scenario"`
 	RecordedAt   string                           `json:"recorded_at"`
+	DurationMS   int64                            `json:"duration_ms,omitempty"`
 	Observations []azureParityRuntimeObservation  `json:"observations"`
 	Comparison   azureParityObservationComparison `json:"comparison"`
 	Failures     []azureParityRuntimeFailure      `json:"failures,omitempty"`
 }
 
 type azureParityRuntimeObservation struct {
-	Runtime  string         `json:"runtime"`
-	Resource string         `json:"resource"`
-	Fields   map[string]any `json:"fields,omitempty"`
+	Runtime    string         `json:"runtime"`
+	Resource   string         `json:"resource"`
+	DurationMS int64          `json:"duration_ms,omitempty"`
+	Fields     map[string]any `json:"fields,omitempty"`
 }
 
 type azureParityObservationComparison struct {
@@ -273,8 +276,8 @@ func assertAzureParityLiveRecording(t *testing.T, lane string, artifact azurePar
 	if len(recording.Failures) != 0 {
 		t.Fatalf("%s recording includes failures: %#v", wantLane, recording.Failures)
 	}
-	if len(recording.Observations) != len(artifact.Runtimes) {
-		t.Fatalf("%s recording observation count = %d, want %d", wantLane, len(recording.Observations), len(artifact.Runtimes))
+	if len(recording.Observations) == 0 {
+		t.Fatalf("%s recording must include observations", wantLane)
 	}
 	seen := map[string]bool{}
 	for _, observation := range recording.Observations {
@@ -285,6 +288,9 @@ func assertAzureParityLiveRecording(t *testing.T, lane string, artifact azurePar
 			t.Fatalf("%s recording repeats runtime %q", wantLane, observation.Runtime)
 		}
 		seen[observation.Runtime] = true
+		if observation.DurationMS < 0 {
+			t.Fatalf("%s recording runtime %q duration_ms = %d, want non-negative", wantLane, observation.Runtime, observation.DurationMS)
+		}
 		if !strings.HasPrefix(observation.Resource, artifact.Safety.ResourcePrefix) {
 			t.Fatalf("%s recording resource %q does not use prefix %q", wantLane, observation.Resource, artifact.Safety.ResourcePrefix)
 		}
@@ -295,6 +301,11 @@ func assertAzureParityLiveRecording(t *testing.T, lane string, artifact azurePar
 			if valueString, ok := value.(string); ok && strings.Contains(strings.ToLower(valueString), "/subscriptions/") {
 				t.Fatalf("%s recording field %s appears to contain a raw Azure resource id", wantLane, key)
 			}
+		}
+	}
+	for _, runtime := range []string{"opentofu", "ramen"} {
+		if !seen[runtime] {
+			t.Fatalf("%s recording missing required runtime %q", wantLane, runtime)
 		}
 	}
 	switch lane {
@@ -728,6 +739,10 @@ func normalizeAzureParityRecording(t *testing.T, data []byte) azureParityLiveRec
 		t.Fatalf("decode Azure parity recording: %v", err)
 	}
 	recording.RecordedAt = ""
+	recording.DurationMS = 0
+	for i := range recording.Observations {
+		recording.Observations[i].DurationMS = 0
+	}
 	return recording
 }
 

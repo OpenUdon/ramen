@@ -1,0 +1,128 @@
+info:
+  description: AWS IAM User static parity fixture for W01.
+  title: ramen_aws_w01_iam_user_parity
+  version: 1.0.0
+operations:
+  - description: Create the AWS IAM user.
+    operationId: aws_iam_user_test_create
+    request:
+      body:
+        UserName: ramen-parity-w01-static
+      x-ramen-credential-bindings:
+        - aws_hmac
+    sourceDescription: iam
+    sourceOperationId: CreateUser
+  - description: Read the AWS IAM user.
+    operationId: aws_iam_user_test_read
+    request:
+      body:
+        UserName: ramen-parity-w01-static
+      x-ramen-credential-bindings:
+        - aws_hmac
+    sourceDescription: iam
+    sourceOperationId: GetUser
+  - description: Delete the AWS IAM user.
+    operationId: aws_iam_user_test_delete
+    request:
+      body:
+        UserName: ramen-parity-w01-static
+      x-ramen-credential-bindings:
+        - aws_hmac
+    sourceDescription: iam
+    sourceOperationId: DeleteUser
+sourceDescriptions:
+  - name: iam
+    type: aws-smithy
+    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+uws: 1.4.0
+workflows:
+  - description: Review W01 IAM User mapped operations.
+    steps:
+      - body:
+          action: create
+          purpose: create
+          terraform_address: aws_iam_user.test
+          terraform_type: aws_iam_user
+        operationRef: aws_iam_user_test_create
+        stepId: aws_iam_user_test_create
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: iam
+      kind: aws-smithy
+      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+  metadata:
+    action: create
+    source: W01 AWS provider parity fixture
+  redaction: {}
+  resources:
+    - address: aws_iam_user.test
+      attributes:
+        name: ramen-parity-w01-static
+      credential_bindings:
+        - aws_hmac
+      identity_attributes:
+        - name: user_name
+          path: name
+          request_keys:
+            - UserName
+          required: true
+          response_paths:
+            - User.UserName
+            - User.Arn
+            - User.UserId
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: aws_iam_user
+        terraform_address: aws_iam_user.test
+      name: test
+      operations:
+        create:
+          credential_bindings:
+            - aws_hmac
+          operation_id: CreateUser
+          purpose: create
+          request_bindings:
+            - operation_id: CreateUser
+              operation_role: create
+              request_path: UserName
+              source_path: name
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+        read:
+          credential_bindings:
+            - aws_hmac
+          operation_id: GetUser
+          purpose: read
+          request_bindings:
+            - operation_id: GetUser
+              operation_role: read
+              request_path: UserName
+              source_path: name
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+        delete:
+          credential_bindings:
+            - aws_hmac
+          operation_id: DeleteUser
+          purpose: delete
+          request_bindings:
+            - operation_id: DeleteUser
+              operation_role: delete
+              request_path: UserName
+              source_path: name
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+      redaction: {}
+      response_bindings:
+        - operation_id: GetUser
+          operation_role: read
+          state_path: name
+          response_path: User.UserName
+      type: aws_iam_user
+  version: ramen.project.v1

@@ -9,6 +9,7 @@ import (
 	"os"
 	osexec "os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -21,19 +22,29 @@ import (
 
 func runAzureParityZ01Live(ctx context.Context, t *testing.T, artifact azureParityArtifact) azureParityLiveRecording {
 	t.Helper()
+	started := time.Now()
+	requireSupportedAzureParityBaseline(t)
 	runs := []struct {
 		runtime string
 		run     func(context.Context, *testing.T, string) azureParityRuntimeResult
 		tool    string
 	}{
 		{runtime: "opentofu", run: runAzureParityHCLRuntimeWithTool, tool: os.Getenv(azureParityTofuEnv)},
-		{runtime: "terraform", run: runAzureParityHCLRuntimeWithTool, tool: os.Getenv(azureParityTerraformEnv)},
 		{runtime: "ramen", run: runAzureParityRamenRuntime, tool: ""},
+	}
+	if azureParityLiveBaselineMode() == "both" {
+		runs = slices.Insert(runs, 1, struct {
+			runtime string
+			run     func(context.Context, *testing.T, string) azureParityRuntimeResult
+			tool    string
+		}{runtime: "terraform", run: runAzureParityHCLRuntimeWithTool, tool: os.Getenv(azureParityTerraformEnv)})
 	}
 	var observations []azureParityRuntimeObservation
 	var failures []azureParityRuntimeFailure
 	for _, run := range runs {
-		result := run.run(ctx, t, run.tool)
+		result := timedAzureParityRuntime(run.runtime, func() azureParityRuntimeResult {
+			return run.run(ctx, t, run.tool)
+		})
 		if result.Failure != nil {
 			failures = append(failures, *result.Failure)
 			continue
@@ -55,6 +66,7 @@ func runAzureParityZ01Live(ctx context.Context, t *testing.T, artifact azurePari
 		Lane:         "Z01",
 		Scenario:     artifact.Scenarios[0].Name,
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
 		Observations: observations,
 		Comparison:   comparison,
 	}
@@ -122,6 +134,8 @@ func TestAzureParityZ02Render(t *testing.T) {
 
 func runAzureParityZ02Live(ctx context.Context, t *testing.T, artifact azureParityArtifact) azureParityLiveRecording {
 	t.Helper()
+	started := time.Now()
+	requireSupportedAzureParityBaseline(t)
 	scope := azureParityZ02Scope{
 		ResourceGroup: "ramen-parity-z02-" + azureParityZ02RunSuffix(),
 		Location:      strings.TrimSpace(os.Getenv("RAMEN_AZURE_COSMOS_LOCATION")),
@@ -147,13 +161,20 @@ func runAzureParityZ02Live(ctx context.Context, t *testing.T, artifact azurePari
 		run     func(context.Context, *testing.T, azureParityZ02Scope) azureParityRuntimeResult
 	}{
 		{runtime: "opentofu", run: runAzureParityZ02OpenTofuRuntime},
-		{runtime: "terraform", run: runAzureParityZ02TerraformRuntime},
 		{runtime: "ramen", run: runAzureParityZ02RamenRuntime},
+	}
+	if azureParityLiveBaselineMode() == "both" {
+		runs = slices.Insert(runs, 1, struct {
+			runtime string
+			run     func(context.Context, *testing.T, azureParityZ02Scope) azureParityRuntimeResult
+		}{runtime: "terraform", run: runAzureParityZ02TerraformRuntime})
 	}
 	var observations []azureParityRuntimeObservation
 	var failures []azureParityRuntimeFailure
 	for _, run := range runs {
-		result := run.run(ctx, t, scope)
+		result := timedAzureParityRuntime(run.runtime, func() azureParityRuntimeResult {
+			return run.run(ctx, t, scope)
+		})
 		if result.Failure != nil {
 			failures = append(failures, *result.Failure)
 			continue
@@ -188,9 +209,19 @@ func runAzureParityZ02Live(ctx context.Context, t *testing.T, artifact azurePari
 		Lane:         "Z02",
 		Scenario:     artifact.Scenarios[0].Name,
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
 		Observations: observations,
 		Comparison:   comparison,
 	}
+}
+
+func timedAzureParityRuntime(runtime string, run func() azureParityRuntimeResult) azureParityRuntimeResult {
+	started := time.Now()
+	result := run()
+	if result.Failure == nil {
+		result.Observation.DurationMS = time.Since(started).Milliseconds()
+	}
+	return result
 }
 
 func runAzureParityHCLRuntimeWithTool(ctx context.Context, t *testing.T, tool string) azureParityRuntimeResult {

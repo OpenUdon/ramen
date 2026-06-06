@@ -54,10 +54,34 @@ func requireAzureParityLiveEnv(t *testing.T, artifact azureParityArtifact) {
 			t.Fatalf("%s is required for live Azure provider parity", envName)
 		}
 	}
-	for _, envName := range []string{artifact.Safety.CredentialEnv, azureParityTerraformEnv, azureParityTofuEnv} {
+	for _, envName := range []string{artifact.Safety.CredentialEnv, azureParityTofuEnv} {
 		if strings.TrimSpace(os.Getenv(envName)) == "" {
 			t.Fatalf("%s is required for live Azure provider parity", envName)
 		}
+	}
+	if azureParityLiveBaselineMode() == "both" && strings.TrimSpace(os.Getenv(azureParityTerraformEnv)) == "" {
+		t.Fatalf("%s is required for live Azure provider parity when %s=both", azureParityTerraformEnv, azureParityBaselineEnv)
+	}
+}
+
+func azureParityLiveBaselineMode() string {
+	mode := strings.ToLower(strings.TrimSpace(os.Getenv(azureParityBaselineEnv)))
+	switch mode {
+	case "", "opentofu":
+		return "opentofu"
+	case "both":
+		return "both"
+	default:
+		return mode
+	}
+}
+
+func requireSupportedAzureParityBaseline(t *testing.T) {
+	t.Helper()
+	switch azureParityLiveBaselineMode() {
+	case "opentofu", "both":
+	default:
+		t.Fatalf("%s=%q is unsupported; use opentofu or both", azureParityBaselineEnv, os.Getenv(azureParityBaselineEnv))
 	}
 }
 

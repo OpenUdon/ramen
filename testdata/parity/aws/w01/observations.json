@@ -1,0 +1,65 @@
+{
+  "version": "ramen.aws.provider-parity.v1",
+  "lane": "W01",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/aws",
+    "version_constraint": "~> 6.0"
+  },
+  "smithy": {
+    "source_path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json",
+    "fixture": "testdata/parity/aws/w01/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_AWS_PARITY",
+    "record_update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AWS_PARITY_LANE",
+    "credential_binding": "aws_hmac",
+    "resource_prefix": "ramen-parity-w01-",
+    "requires_explicit_lane": true,
+    "live_enabled": false,
+    "cost_guardrails": [
+      "static first",
+      "opentofu baseline only for future live runs",
+      "one disposable IAM user only if live-approved",
+      "delete IAM user before recording"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "iam_user_static_lifecycle",
+      "resource_type": "aws_iam_user",
+      "terraform_resource_type": "aws_iam_user",
+      "fixture_paths": [
+        "testdata/corpus/aws/iam/User/basic/project.uws.yaml",
+        "testdata/corpus/aws/iam/User/basic/plan.json",
+        "testdata/parity/aws/w01/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "CreateUser",
+        "GetUser",
+        "DeleteUser"
+      ],
+      "observed_fields": [
+        "User.UserName",
+        "User.Arn",
+        "User.UserId"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-delete-plan",
+        "future-opentofu-live-baseline"
+      ]
+    }
+  ],
+  "notes": [
+    "W01 is the first AWS parity lane and is static only.",
+    "The lane starts from existing IAM User corpus evidence and adds native Ramen create/read/delete metadata before any AWS mutation is enabled.",
+    "Future live work should compare OpenTofu and Ramen only, with explicit cleanup of the disposable ramen-parity-w01-* IAM user."
+  ]
+}

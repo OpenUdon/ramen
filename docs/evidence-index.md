@@ -27,6 +27,10 @@ live evidence so adopters can inspect what has actually been proven.
   explicit Z02 Cosmos DB re-recording through the general A04 settle path. It
   reuses the existing Z02 fixtures; the refreshed live evidence remains in the
   Z02 observation artifact.
+- `testdata/parity/aws/w01` starts the AWS parity lane with static IAM User
+  create/read/delete metadata over the local AWS IAM Smithy model, existing
+  corpus conversion evidence, and OpenTofu-plus-Ramen runtime scope for future
+  live work. It is credential-free and does not claim recorded AWS mutation.
 - `executor/evidence_test.go` validates Ramen executor request, response,
   status, and confirmation-read records through the shared
   `github.com/OpenUdon/evidence/async` validators.
@@ -82,12 +86,14 @@ live evidence so adopters can inspect what has actually been proven.
 - Azure live parity remains opt-in through `RAMEN_AZURE_PARITY=1` and explicit
   `RAMEN_AZURE_PARITY_LANE`, and the mutation test is excluded from regular
   suites behind the `azurelive` build tag plus specific `go test -run`
-  selection. Z01 was recorded from an operator-scoped Azure SQL mutation run;
-  Z02 was recorded from operator-approved Cosmos DB mutation runs using
-  isolated resource groups and verified teardown. The current Z02 recording was
+  selection. New Azure live runs default to OpenTofu plus Ramen; the historical
+  Terraform baseline is used only with explicit `RAMEN_AZURE_PARITY_BASELINE=both`.
+  Z01 was recorded from an operator-scoped Azure SQL mutation run; Z02 was
+  recorded from operator-approved Cosmos DB mutation runs using isolated
+  resource groups and verified teardown. The current Z02 recording was
   refreshed after the A04 general settle migration and exercises the general
-  `runtime_hints.settle` pre-delete barrier. Planned Azure live work must keep
-  mutation count and resource size minimal, avoid large/high-cost Azure
+  `runtime_hints.settle` pre-delete barrier. Planned Azure/AWS live work must
+  keep mutation count and resource size minimal, avoid large/high-cost cloud
   resources, and verify cleanup before any recording update.
 
 ## Validation Evidence

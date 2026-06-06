@@ -11,6 +11,9 @@ Live Azure parity requires:
   `go test -tags 'azurelive udon' . -run '^TestAzureProviderParityLive$'`
 - `RAMEN_AZURE_PARITY=1`
 - `RAMEN_AZURE_PARITY_LANE=<lane>`
+- optional `RAMEN_AZURE_PARITY_BASELINE=both` only when a legacy
+  OpenTofu+Terraform+Ramen comparison is explicitly needed; the default live
+  baseline is OpenTofu plus Ramen
 - `RAMEN_AZURE_PARITY_RECORD_UPDATE=1` only after reviewing sanitized output
 - `UDON_CREDENTIAL_AZURE_AUTH` minted at runtime from `az account get-access-token`;
   the Ramen+udon live harness refreshes the Azure bearer token before udon
@@ -23,6 +26,10 @@ Live Azure parity requires:
 
 Never commit `.ramen/`, Terraform state, plan files, raw response payloads,
 subscription IDs, tenant IDs, client IDs, secrets, or tokens.
+
+Future live recordings include elapsed `duration_ms` fields. Replay comparison
+normalizes those durations so timing can be inspected without making
+credential-free replay flaky.
 
 The live mutation test is not compiled into regular `go test ./...` runs. The
 `azurelive` build tag is required in addition to the environment gates above.
