@@ -1,0 +1,77 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y03",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/google",
+    "version_constraint": "~> 6.0"
+  },
+  "discovery": {
+    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "fixture": "testdata/parity/google/y03/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_GOOGLE_PARITY",
+    "record_update_env": "RAMEN_GOOGLE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GOOGLE_PARITY_LANE",
+    "opentofu_env": "RAMEN_GOOGLE_TOFU",
+    "credential_binding": "google_oauth2",
+    "resource_prefix": "ramen-parity-y03-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "gcloud storage rm --recursive gs://<ramen-parity-y03-*> --quiet, then gcloud storage buckets describe gs://<name> to verify absence",
+    "required_env": [
+      "RAMEN_GOOGLE_TOFU",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "RAMEN_GOOGLE_PROJECT"
+    ],
+    "cost_guardrails": [
+      "one disposable bucket at a time",
+      "empty bucket only",
+      "delete bucket before recording"
+    ],
+    "promotion": "live mutation lane enabled behind googlelive and explicit environment gates"
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_bucket_mutating_lifecycle",
+      "resource_type": "google_storage_bucket",
+      "terraform_resource_type": "google_storage_bucket",
+      "fixture_paths": [
+        "testdata/corpus/google/storage/go/resource_storage_bucket_test_001/project.uws.yaml",
+        "testdata/parity/google/y03/hcl/main.tf",
+        "testdata/parity/google/y03/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "storage.buckets.insert",
+        "storage.buckets.get",
+        "storage.buckets.patch",
+        "storage.buckets.delete"
+      ],
+      "observed_fields": [
+        "name",
+        "id",
+        "location",
+        "iamConfiguration.uniformBucketLevelAccess.enabled",
+        "labels.ramen_parity_phase"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-update-plan",
+        "static-delete-plan",
+        "opt-in-opentofu-live-baseline",
+        "opt-in-ramen-udon-live-run"
+      ]
+    }
+  ],
+  "notes": [
+    "Y03 is the first real mutating Google Cloud parity lane.",
+    "Live execution creates one globally unique empty bucket at a time and deletes it before recording.",
+    "No objects, IAM bindings, retention locks, requester-pays settings, or public ACLs are created."
+  ]
+}

@@ -645,6 +645,50 @@ func TestBuildActionDocumentNativeBindingsDoNotDuplicateOpenAPIPathValuesInBody(
 	}
 }
 
+func TestBuildActionDocumentNativeBindingsReadDottedAttributePaths(t *testing.T) {
+	resource := tfplan.ResourcePlan{
+		Address:  "google_storage_bucket.bucket",
+		Kind:     "resource",
+		Type:     "google_storage_bucket",
+		Provider: "google",
+		Action:   "update",
+		Mapping: &tfplan.MappingPlan{
+			Purpose:     "update",
+			SourceKind:  "google-discovery",
+			SourceID:    "storage",
+			SourcePath:  "google-cloud-storage-discovery-v1.json",
+			OperationID: "storage.buckets.patch",
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "update", OperationID: "storage.buckets.patch", Path: "name", RequestPath: "bucket", Location: "path", Required: true, Identity: true},
+				{OperationRole: "update", OperationID: "storage.buckets.patch", Path: "labels.ramen_parity_phase", RequestPath: "labels.ramen_parity_phase", Location: "body"},
+			},
+		},
+	}
+	attrs := map[string]any{
+		"name": "ramen-parity-y03-ramen-test",
+		"labels": map[string]any{
+			"ramen_parity_phase": "update",
+		},
+	}
+	doc, err := BuildActionDocumentWithBindings(resource, nil, attrs, nil)
+	if err != nil {
+		t.Fatalf("BuildActionDocumentWithBindings returned error: %v", err)
+	}
+	request := doc.Operations[0].Request
+	path, ok := request["path"].(map[string]any)
+	if !ok || path["bucket"] != "ramen-parity-y03-ramen-test" {
+		t.Fatalf("path request = %#v", request["path"])
+	}
+	body, ok := request["body"].(map[string]any)
+	if !ok {
+		t.Fatalf("body request missing: %#v", request)
+	}
+	labels, ok := body["labels"].(map[string]any)
+	if !ok || labels["ramen_parity_phase"] != "update" {
+		t.Fatalf("body labels = %#v", body["labels"])
+	}
+}
+
 func TestApplyNativePutWithAlternateResponseShapeAndConvergenceWaiter(t *testing.T) {
 	tests := []struct {
 		name     string

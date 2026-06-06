@@ -1,0 +1,245 @@
+info:
+  description: Google Cloud Storage Bucket mutating parity fixture for Y03.
+  title: ramen_google_y03_storage_bucket_mutation_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: google
+    serverUrl: https://storage.googleapis.com/storage/v1
+  security:
+    - binding: google_oauth2
+      name: google_oauth2
+      scheme:
+        flows:
+          authorizationCode:
+            scopes:
+              https://www.googleapis.com/auth/devstorage.full_control: Manage Google Cloud Storage data.
+        type: oauth2
+operations:
+  - description: Create the Google Cloud Storage bucket.
+    operationId: google_storage_bucket_bucket_create
+    request:
+      query:
+        project: ramen-parity-y03-fixture-project
+      body:
+        location: US
+        name: ramen-parity-y03-static
+        iamConfiguration:
+          uniformBucketLevelAccess:
+            enabled: true
+        labels:
+          ramen_parity_lane: y03
+          ramen_parity_phase: create
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.buckets.insert
+  - description: Read the Google Cloud Storage bucket.
+    operationId: google_storage_bucket_bucket_read
+    request:
+      path:
+        bucket: ramen-parity-y03-static
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.buckets.get
+  - description: Update mutable Google Cloud Storage bucket labels.
+    operationId: google_storage_bucket_bucket_update
+    request:
+      path:
+        bucket: ramen-parity-y03-static
+      body:
+        labels:
+          ramen_parity_lane: y03
+          ramen_parity_phase: update
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.buckets.patch
+  - description: Delete the Google Cloud Storage bucket.
+    operationId: google_storage_bucket_bucket_delete
+    request:
+      path:
+        bucket: ramen-parity-y03-static
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.buckets.delete
+sourceDescriptions:
+  - name: storage
+    type: google-discovery
+    url: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for Google Cloud Storage Bucket mutation replay.
+    steps:
+      - operationRef: google_storage_bucket_bucket_create
+        stepId: create
+      - operationRef: google_storage_bucket_bucket_read
+        stepId: read
+      - operationRef: google_storage_bucket_bucket_update
+        stepId: update
+      - operationRef: google_storage_bucket_bucket_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: storage
+      kind: google-discovery
+      path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+  metadata:
+    action: create
+    source: Y03 Google Cloud provider mutating parity fixture
+  redaction: {}
+  resources:
+    - address: google_storage_bucket.bucket
+      attributes:
+        project: ramen-parity-y03-fixture-project
+        location: US
+        name: ramen-parity-y03-static
+        uniform_bucket_level_access: true
+        labels:
+          ramen_parity_lane: y03
+          ramen_parity_phase: create
+      credential_bindings:
+        - google_oauth2
+      identity_attributes:
+        - name: bucket_name
+          path: name
+          request_keys:
+            - name
+            - bucket
+          required: true
+          response_paths:
+            - name
+            - id
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: google_storage_bucket
+        terraform_address: google_storage_bucket.bucket
+      name: bucket
+      operations:
+        create:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.buckets.insert
+          purpose: create
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        read:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.buckets.get
+          purpose: read
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        update:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.buckets.patch
+          purpose: update
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        delete:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.buckets.delete
+          purpose: delete
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+      redaction: {}
+      request_bindings:
+        - operation_id: storage.buckets.insert
+          operation_role: create
+          path: project
+          request_path: project
+          location: query
+          required: true
+        - operation_id: storage.buckets.insert
+          operation_role: create
+          path: name
+          request_path: name
+          location: body
+          required: true
+          identity: true
+        - operation_id: storage.buckets.insert
+          operation_role: create
+          path: location
+          request_path: location
+          location: body
+          required: true
+        - operation_id: storage.buckets.insert
+          operation_role: create
+          path: uniform_bucket_level_access
+          request_path: iamConfiguration.uniformBucketLevelAccess.enabled
+          location: body
+        - operation_id: storage.buckets.insert
+          operation_role: create
+          path: labels
+          request_path: labels
+          location: body
+        - operation_id: storage.buckets.get
+          operation_role: read
+          path: name
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.buckets.patch
+          operation_role: update
+          path: name
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.buckets.patch
+          operation_role: update
+          path: labels.ramen_parity_phase
+          request_path: labels.ramen_parity_phase
+          location: body
+        - operation_id: storage.buckets.delete
+          operation_role: delete
+          path: name
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: name
+          response_path: name
+          identity: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: id
+          response_path: id
+          computed: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: location
+          response_path: location
+          observed: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: uniform_bucket_level_access
+          response_path: iamConfiguration.uniformBucketLevelAccess.enabled
+          observed: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: parity_phase
+          response_path: labels.ramen_parity_phase
+          observed: true
+      type: google_storage_bucket
+  version: ramen.project.v1

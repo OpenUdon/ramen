@@ -637,14 +637,40 @@ func bindingValue(binding project.RequestBinding, attrs, identity map[string]any
 		if key == "" {
 			continue
 		}
-		if value, ok := attrs[key]; ok {
+		if value, ok := lookupBindingValue(attrs, key); ok {
 			return value, true
 		}
-		if value, ok := identity[key]; ok {
+		if value, ok := lookupBindingValue(identity, key); ok {
 			return value, true
 		}
 	}
 	return nil, false
+}
+
+func lookupBindingValue(values map[string]any, path string) (any, bool) {
+	if len(values) == 0 {
+		return nil, false
+	}
+	if value, ok := values[path]; ok {
+		return value, true
+	}
+	parts := strings.Split(path, ".")
+	var current any = values
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return nil, false
+		}
+		object, ok := current.(map[string]any)
+		if !ok {
+			return nil, false
+		}
+		current, ok = object[part]
+		if !ok {
+			return nil, false
+		}
+	}
+	return current, true
 }
 
 func setRequestBodyValue(target map[string]any, path string, value any) {

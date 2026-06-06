@@ -1,0 +1,112 @@
+info:
+  description: Google Cloud Storage Bucket read-only parity fixture for Y02.
+  title: ramen_google_y02_storage_bucket_read_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: google
+    serverUrl: https://storage.googleapis.com/storage/v1
+  security:
+    - binding: google_oauth2
+      name: google_oauth2
+      scheme:
+        flows:
+          authorizationCode:
+            scopes:
+              https://www.googleapis.com/auth/devstorage.read_only: Read Google Cloud Storage data.
+        type: oauth2
+operations:
+  - description: Read the Google Cloud Storage bucket.
+    operationId: google_storage_bucket_bucket_read
+    request:
+      path:
+        bucket: ramen-parity-y02-existing
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.buckets.get
+sourceDescriptions:
+  - name: storage
+    type: google-discovery
+    url: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for Google Cloud Storage Bucket read replay.
+    steps:
+      - operationRef: google_storage_bucket_bucket_read
+        stepId: read
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: storage
+      kind: google-discovery
+      path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+  metadata:
+    action: read
+    source: Y02 Google Cloud provider read-only parity fixture
+  redaction: {}
+  resources:
+    - address: google_storage_bucket.bucket
+      attributes:
+        name: ramen-parity-y02-existing
+      credential_bindings:
+        - google_oauth2
+      identity_attributes:
+        - name: bucket_name
+          path: name
+          request_keys:
+            - bucket
+          required: true
+          response_paths:
+            - name
+            - id
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: google_storage_bucket
+        terraform_address: data.google_storage_bucket.bucket
+      name: bucket
+      operations:
+        read:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.buckets.get
+          purpose: read
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+      redaction: {}
+      request_bindings:
+        - operation_id: storage.buckets.get
+          operation_role: read
+          path: name
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - read
+      response_bindings:
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: name
+          response_path: name
+          identity: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: id
+          response_path: id
+          computed: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: location
+          response_path: location
+          observed: true
+        - operation_id: storage.buckets.get
+          operation_role: read
+          state_path: uniform_bucket_level_access
+          response_path: iamConfiguration.uniformBucketLevelAccess.enabled
+          observed: true
+      type: google_storage_bucket
+  version: ramen.project.v1

@@ -1,0 +1,76 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y01",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/google",
+    "version_constraint": "~> 6.0"
+  },
+  "discovery": {
+    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "fixture": "testdata/parity/google/y01/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_GOOGLE_PARITY",
+    "record_update_env": "RAMEN_GOOGLE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GOOGLE_PARITY_LANE",
+    "opentofu_env": "RAMEN_GOOGLE_TOFU",
+    "credential_binding": "google_oauth2",
+    "resource_prefix": "ramen-parity-y01-",
+    "requires_explicit_lane": true,
+    "live_enabled": false,
+    "cleanup_fallback": "gcloud storage buckets describe gs://<bucket> --format=json; Y01 is static-only and performs no cleanup",
+    "required_env": [
+      "RAMEN_GOOGLE_TOFU",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "RAMEN_GOOGLE_PROJECT"
+    ],
+    "cost_guardrails": [
+      "static first",
+      "no live GCP mutation",
+      "global bucket cleanup review before recording"
+    ],
+    "promotion": "parked until GCP credentials project scope global bucket naming and cleanup are reviewed"
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_bucket_static_lifecycle",
+      "resource_type": "google_storage_bucket",
+      "terraform_resource_type": "google_storage_bucket",
+      "fixture_paths": [
+        "testdata/corpus/google/storage/go/resource_storage_bucket_test_001/project.uws.yaml",
+        "testdata/corpus/google/storage/go/resource_storage_bucket_test_001/plan.json",
+        "testdata/parity/google/y01/hcl/main.tf",
+        "testdata/parity/google/y01/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "storage.buckets.insert",
+        "storage.buckets.get",
+        "storage.buckets.patch",
+        "storage.buckets.delete"
+      ],
+      "observed_fields": [
+        "name",
+        "id",
+        "location",
+        "iamConfiguration.uniformBucketLevelAccess.enabled"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-update-plan",
+        "static-delete-plan",
+        "live-parked-global-bucket-cleanup"
+      ]
+    }
+  ],
+  "notes": [
+    "Y01 is the first Google Cloud parity lane and is static-only.",
+    "The lane starts from existing Google Cloud Storage corpus evidence and adds native Ramen create/read/update/delete metadata over Google Discovery.",
+    "Live promotion is parked because bucket names are global and GCP project credentials, billing, and cleanup need separate approval."
+  ]
+}

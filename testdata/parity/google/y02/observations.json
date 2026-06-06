@@ -1,0 +1,71 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y02",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/google",
+    "version_constraint": "~> 6.0"
+  },
+  "discovery": {
+    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "fixture": "testdata/parity/google/y02/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_GOOGLE_PARITY",
+    "record_update_env": "RAMEN_GOOGLE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GOOGLE_PARITY_LANE",
+    "opentofu_env": "RAMEN_GOOGLE_TOFU",
+    "credential_binding": "google_oauth2",
+    "resource_prefix": "ramen-parity-y02-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "gcloud storage buckets describe gs://<existing-bucket> --format=json; no cleanup because Y02 is read-only",
+    "required_env": [
+      "RAMEN_GOOGLE_TOFU",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "RAMEN_GOOGLE_PROJECT",
+      "RAMEN_GOOGLE_EXISTING_BUCKET"
+    ],
+    "cost_guardrails": [
+      "read-only live observation",
+      "no live GCP mutation",
+      "operator-provided existing bucket"
+    ],
+    "promotion": "live read-only lane enabled behind googlelive and explicit environment gates"
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_bucket_read_only_live",
+      "resource_type": "google_storage_bucket",
+      "terraform_resource_type": "google_storage_bucket",
+      "fixture_paths": [
+        "testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/project.uws.yaml",
+        "testdata/parity/google/y02/hcl/main.tf",
+        "testdata/parity/google/y02/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "storage.buckets.get"
+      ],
+      "observed_fields": [
+        "name",
+        "id",
+        "location",
+        "iamConfiguration.uniformBucketLevelAccess.enabled"
+      ],
+      "expected_transitions": [
+        "static-read-plan",
+        "opt-in-opentofu-read-only-live-baseline",
+        "opt-in-ramen-udon-read-only-live-run"
+      ]
+    }
+  ],
+  "notes": [
+    "Y02 is the first real non-mutating Google Cloud parity lane.",
+    "Live execution reads an operator-provided existing bucket only.",
+    "No bucket is created, updated, deleted, or cleaned up by Y02."
+  ]
+}
