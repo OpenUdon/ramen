@@ -388,7 +388,7 @@ func assertAzureParitySafetyContract(t *testing.T, lane string, safety azurePari
 		}
 	case "z06":
 		if safety.LiveEnabled {
-			t.Fatalf("Z06 must remain live-disabled until an explicit Z02 settle re-recording is approved")
+			t.Fatalf("Z06 must remain live-disabled because the opt-in settle re-recording runs through Z02")
 		}
 		for _, guardrail := range []string{"explicit Cosmos DB cost approval", "reuse existing Z02 disposable account shape", "resource-group cleanup verification"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {

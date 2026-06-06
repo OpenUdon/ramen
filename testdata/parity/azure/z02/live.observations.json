@@ -2,17 +2,17 @@
   "version": "ramen.azure.provider-parity.v1",
   "lane": "Z02",
   "scenario": "cosmos_account_lifecycle",
-  "recorded_at": "2026-06-06T01:43:10Z",
+  "recorded_at": "2026-06-06T05:08:52Z",
   "observations": [
     {
       "runtime": "opentofu",
-      "resource": "ramen-parity-z02-opentofu-18b65885",
+      "resource": "ramen-parity-z02-opentofu-18b663be",
       "fields": {
         "after_apply.exists": true,
         "after_apply.id_present": true,
         "after_apply.kind": "GlobalDocumentDB",
         "after_apply.location": "East US",
-        "after_apply.name": "ramen-parity-z02-opentofu-18b65885",
+        "after_apply.name": "ramen-parity-z02-opentofu-18b663be",
         "after_apply.offer_type": "Standard",
         "after_destroy.exists": false,
         "no_op": true,
@@ -21,13 +21,13 @@
     },
     {
       "runtime": "terraform",
-      "resource": "ramen-parity-z02-terraform-18b65885",
+      "resource": "ramen-parity-z02-terraform-18b663be",
       "fields": {
         "after_apply.exists": true,
         "after_apply.id_present": true,
         "after_apply.kind": "GlobalDocumentDB",
         "after_apply.location": "East US",
-        "after_apply.name": "ramen-parity-z02-terraform-18b65885",
+        "after_apply.name": "ramen-parity-z02-terraform-18b663be",
         "after_apply.offer_type": "Standard",
         "after_destroy.exists": false,
         "no_op": true,
@@ -36,13 +36,13 @@
     },
     {
       "runtime": "ramen",
-      "resource": "ramen-parity-z02-ramen-18b65885",
+      "resource": "ramen-parity-z02-ramen-18b663be",
       "fields": {
         "after_apply.exists": true,
         "after_apply.id_present": true,
         "after_apply.kind": "GlobalDocumentDB",
         "after_apply.location": "East US",
-        "after_apply.name": "ramen-parity-z02-ramen-18b65885",
+        "after_apply.name": "ramen-parity-z02-ramen-18b663be",
         "after_apply.offer_type": "Standard",
         "after_destroy.exists": false,
         "no_op": false,

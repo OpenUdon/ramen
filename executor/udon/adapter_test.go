@@ -3,11 +3,13 @@
 package udon
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/OpenUdon/uws/uws1"
+	"github.com/genelet/udon/pkg/credentials"
 	"github.com/genelet/udon/pkg/uwsprofile"
 )
 
@@ -47,6 +49,45 @@ func TestEnsureUdonRequestSectionSchemasAddsQueryAPIParameter(t *testing.T) {
 		if cfg.PathPars == nil || cfg.PathPars.Properties[key] == nil {
 			t.Fatalf("path %s schema missing: %#v", key, cfg.PathPars)
 		}
+	}
+}
+
+func TestExecutorCredentialResolverUsesBindingOverride(t *testing.T) {
+	calls := 0
+	exec := Executor{
+		CredentialResolvers: map[string]func(context.Context) (string, error){
+			"azure_auth": func(context.Context) (string, error) {
+				calls++
+				return "fresh-token", nil
+			},
+		},
+	}
+
+	got, err := exec.credentialResolver().ResolveCredential(context.Background(), credentials.Request{Binding: "azure_auth"})
+	if err != nil {
+		t.Fatalf("ResolveCredential error: %v", err)
+	}
+	if got != "fresh-token" || calls != 1 {
+		t.Fatalf("credential override got token=%q calls=%d", got, calls)
+	}
+}
+
+func TestExecutorCredentialResolverFallsBackToEnv(t *testing.T) {
+	t.Setenv("UDON_CREDENTIAL_OTHER_AUTH", "env-token")
+	exec := Executor{
+		CredentialResolvers: map[string]func(context.Context) (string, error){
+			"azure_auth": func(context.Context) (string, error) {
+				return "fresh-token", nil
+			},
+		},
+	}
+
+	got, err := exec.credentialResolver().ResolveCredential(context.Background(), credentials.Request{Binding: "other_auth"})
+	if err != nil {
+		t.Fatalf("ResolveCredential error: %v", err)
+	}
+	if got != "env-token" {
+		t.Fatalf("fallback credential = %q, want env-token", got)
 	}
 }
 

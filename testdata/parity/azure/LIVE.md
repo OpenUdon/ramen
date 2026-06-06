@@ -12,7 +12,9 @@ Live Azure parity requires:
 - `RAMEN_AZURE_PARITY=1`
 - `RAMEN_AZURE_PARITY_LANE=<lane>`
 - `RAMEN_AZURE_PARITY_RECORD_UPDATE=1` only after reviewing sanitized output
-- `UDON_CREDENTIAL_AZURE_AUTH` minted at runtime from `az account get-access-token`
+- `UDON_CREDENTIAL_AZURE_AUTH` minted at runtime from `az account get-access-token`;
+  the Ramen+udon live harness refreshes the Azure bearer token before udon
+  operations so long-running Cosmos waits do not outlive a static token
 - Terraform/OpenTofu AzureRM credentials mapped from:
   - `AZURE_SUBSCRIPTION_ID` to `ARM_SUBSCRIPTION_ID`
   - `AZURE_TENANT_ID` to `ARM_TENANT_ID`
@@ -69,9 +71,9 @@ DB cost exposure for the scoped run. The recorded fixture used:
 The Z02 native fixture declares `runtime_hints.settle` for the bounded
 pre-delete read barrier because Cosmos DB can hold an exclusive operation lock
 briefly after account creation. Default replay/static tests validate that
-metadata without live Azure access. The committed Z02 live recording predates
-the A04 general settle migration; re-recording Z02 through the general settle
-path remains explicit opt-in.
+metadata without live Azure access. The committed Z02 live recording was
+refreshed after the A04 general settle migration and exercises the general
+settle path; any future re-recording remains explicit opt-in.
 
 ## Planned Z03-Z06 Safety
 

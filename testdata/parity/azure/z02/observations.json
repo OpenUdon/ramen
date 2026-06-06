@@ -78,14 +78,14 @@
       ]
     }
   ],
-  "recorded_at": "2026-06-06T01:43:10Z",
-  "recordings_source": "RAMEN_AZURE_PARITY=1 RAMEN_AZURE_PARITY_RECORD_UPDATE=1 RAMEN_AZURE_PARITY_LANE=z02 with OpenTofu from ../opentofu, Terraform 1.9.8 Docker wrapper, Ramen+udon, isolated ramen-parity-z02-* resource group, and approved Cosmos DB cost exposure. The committed live recording predates the A04 general settle migration.",
+  "recorded_at": "2026-06-06T05:08:52Z",
+  "recordings_source": "RAMEN_AZURE_PARITY=1 RAMEN_AZURE_PARITY_RECORD_UPDATE=1 RAMEN_AZURE_PARITY_LANE=z02 with local OpenTofu and Terraform CLIs, Ramen+udon, isolated ramen-parity-z02-* resource group, approved Cosmos DB cost exposure, and the general A04 runtime_hints.settle pre-delete barrier.",
   "notes": [
     "Z02 live execution is opt-in and must use an isolated ramen-parity-z02-* resource group plus disposable ramen-parity-z02-* account names.",
     "The operator approved Cosmos DB cost exposure for the scoped Z02 parity run.",
     "The committed native Ramen fixture now declares runtime_hints.settle and live retry/waiter metadata for the bounded read-backed pre-delete barrier before Cosmos account deletion.",
     "Default replay/static tests validate the committed runtime_hints.settle metadata without live Azure access.",
-    "The committed live.observations.json recording was captured before the A04 settle migration; re-recording Z02 through the general settle path remains explicit opt-in.",
+    "The committed live.observations.json recording was refreshed after the A04 settle migration and exercised the general runtime_hints.settle path before Ramen deleted the Cosmos account.",
     "The committed recording matched API-visible create/read/delete behavior across OpenTofu, Terraform, and Ramen+udon, and verified isolated resource-group cleanup.",
     "The recording preserves no-op metadata, but the API-visible comparison intentionally excludes it because Ramen's create path is API-first while Terraform/OpenTofu report no-op through their plan engines."
   ]

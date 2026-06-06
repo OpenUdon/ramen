@@ -15,13 +15,15 @@ import (
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/uws/uws1"
 	"github.com/genelet/udon/generator"
+	"github.com/genelet/udon/pkg/credentials"
 	"github.com/genelet/udon/pkg/runner"
 	"github.com/genelet/udon/pkg/uwsprofile"
 )
 
 type Executor struct {
-	OutputDir       string
-	OutputProjector func(context.Context, executor.Request, string) (executor.Result, error)
+	OutputDir           string
+	OutputProjector     func(context.Context, executor.Request, string) (executor.Result, error)
+	CredentialResolvers map[string]func(context.Context) (string, error)
 }
 
 func (e Executor) Capabilities() executor.CapabilityDescriptor {
@@ -60,7 +62,8 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 		outputDir = filepath.Join(req.WorkingDir, ".ramen", "apply", "udon")
 	}
 	outputDir = filepath.Join(outputDir, safeOutputName(req.Action.Address))
-	if err := runner.ExecuteRuntimePlan(ctx, plan, outputDir); err != nil {
+	resolver := e.credentialResolver()
+	if err := runner.ExecuteRuntimePlanWithOptions(ctx, plan, outputDir, runner.RuntimeExecutionOptions{CredentialResolver: resolver}); err != nil {
 		if e.OutputProjector != nil && req.Action.Action == "read" && isProjectedMissingReadError(err) {
 			projected, projectErr := e.OutputProjector(ctx, req, outputDir)
 			if projectErr == nil && projected.Missing {
@@ -104,6 +107,19 @@ func (e Executor) Execute(ctx context.Context, req executor.Request) (executor.R
 	}
 	result.Events = append(result.Events, executor.Emit(req, "finished", "udon executor finished", nil))
 	return result, nil
+}
+
+func (e Executor) credentialResolver() credentials.Resolver {
+	envResolver := credentials.EnvResolver{}
+	if len(e.CredentialResolvers) == 0 {
+		return envResolver
+	}
+	return credentials.ResolverFunc(func(ctx context.Context, req credentials.Request) (string, error) {
+		if resolve, ok := e.CredentialResolvers[strings.TrimSpace(req.Binding)]; ok {
+			return resolve(ctx)
+		}
+		return envResolver.ResolveCredential(ctx, req)
+	})
 }
 
 func ensureUdonExecutionHints(doc *uws1.Document, workDir string) {

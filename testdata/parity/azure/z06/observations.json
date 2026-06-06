@@ -63,13 +63,13 @@
       ],
       "expected_transitions": [
         "static-settle-readiness",
-        "future-opt-in-rerecord"
+        "z02-opt-in-rerecord-complete"
       ]
     }
   ],
   "notes": [
-    "Z06 is a planned re-recording readiness lane for Z02; it does not add a new Azure resource.",
+    "Z06 is the static readiness and closure marker for the explicit Z02 re-recording; it does not add a new Azure resource.",
     "Default checks only validate the existing Z02 settle metadata and render path.",
-    "Any future live update must be explicitly approved and must clean up the one disposable Z02 Cosmos account and isolated resource group."
+    "The refreshed Z02 live observation artifact now exercises the general runtime_hints.settle path; any future live update must be explicitly approved and must clean up the one disposable Z02 Cosmos account and isolated resource group."
   ]
 }

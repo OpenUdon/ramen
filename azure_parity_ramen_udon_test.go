@@ -298,7 +298,8 @@ func runAzureParityRamenRuntime(ctx context.Context, t *testing.T, _ string) azu
 	}
 	statePath := filepath.Join(workDir, "state.db")
 	udonExecutor := udon.Executor{
-		OutputDir: filepath.Join(workDir, "udon"),
+		OutputDir:           filepath.Join(workDir, "udon"),
+		CredentialResolvers: azureParityUdonCredentialResolvers(),
 		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
 			result := executor.Result{
 				Address:   req.Action.Address,
@@ -389,7 +390,8 @@ func runAzureParityZ02RamenRuntime(ctx context.Context, t *testing.T, scope azur
 	}
 	statePath := filepath.Join(workDir, "state.db")
 	udonExecutor := udon.Executor{
-		OutputDir: filepath.Join(workDir, "udon"),
+		OutputDir:           filepath.Join(workDir, "udon"),
+		CredentialResolvers: azureParityUdonCredentialResolvers(),
 		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
 			result := executor.Result{
 				Address:   req.Action.Address,
@@ -448,17 +450,28 @@ func runAzureParityZ02RamenRuntime(ctx context.Context, t *testing.T, scope azur
 }
 
 func refreshAzureParityUdonToken(ctx context.Context) error {
+	_, err := refreshAzureParityUdonTokenValue(ctx)
+	return err
+}
+
+func azureParityUdonCredentialResolvers() map[string]func(context.Context) (string, error) {
+	return map[string]func(context.Context) (string, error){
+		"azure_auth": refreshAzureParityUdonTokenValue,
+	}
+}
+
+func refreshAzureParityUdonTokenValue(ctx context.Context) (string, error) {
 	cmd := osexec.CommandContext(ctx, "az", "account", "get-access-token", "--resource", "https://management.azure.com/", "--query", "accessToken", "-o", "tsv")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("refresh Azure token: %w: %s", err, sanitizeAzureParityCommandOutput(string(out)))
+		return "", fmt.Errorf("refresh Azure token: %w: %s", err, sanitizeAzureParityCommandOutput(string(out)))
 	}
 	token := strings.TrimSpace(string(out))
 	if token == "" {
-		return fmt.Errorf("refresh Azure token: empty token")
+		return "", fmt.Errorf("refresh Azure token: empty token")
 	}
 	os.Setenv("UDON_CREDENTIAL_AZURE_AUTH", token)
-	return nil
+	return token, nil
 }
 
 func buildAndApplyAzureParityPlan(ctx context.Context, projectPath, statePath, action, planPath string, udonExecutor udon.Executor) error {

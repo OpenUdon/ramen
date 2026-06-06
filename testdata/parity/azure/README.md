@@ -13,8 +13,8 @@ Z-lane parity compares Azure API-visible observations from:
 Default tests validate committed static metadata, HCL parsing, native project
 validation, operation IDs, request bindings, observation artifacts, and
 sanitized recorded replay artifacts. Z01 and Z02 have committed sanitized live
-recordings. Z03-Z05 are planned/static fixture lanes only, and Z06 is planned
-static readiness for a future Z02 settle-path re-recording. Live Azure parity
+recordings. Z03-Z05 are planned/static fixture lanes only, and Z06 records the
+static readiness/closure of the Z02 settle-path re-recording. Live Azure parity
 recording is opt-in through `RAMEN_AZURE_PARITY=1` and requires an explicit
 `RAMEN_AZURE_PARITY_LANE=<lane>` selection. Recording updates are guarded by
 `RAMEN_AZURE_PARITY_RECORD_UPDATE=1`.

@@ -23,9 +23,10 @@ live evidence so adopters can inspect what has actually been proven.
   fixtures for Resource Group read/import, Storage Account create/read/delete,
   and Azure SQL update/read/delete metadata. These are credential-free static
   checks only and do not claim recorded live parity.
-- `testdata/parity/azure/z06` records static readiness for a future explicit
-  Z02 Cosmos DB re-recording through the general A04 settle path. It reuses
-  the existing Z02 fixtures and does not update live observations.
+- `testdata/parity/azure/z06` records static readiness and closure for the
+  explicit Z02 Cosmos DB re-recording through the general A04 settle path. It
+  reuses the existing Z02 fixtures; the refreshed live evidence remains in the
+  Z02 observation artifact.
 - `executor/evidence_test.go` validates Ramen executor request, response,
   status, and confirmation-read records through the shared
   `github.com/OpenUdon/evidence/async` validators.
@@ -82,12 +83,12 @@ live evidence so adopters can inspect what has actually been proven.
   `RAMEN_AZURE_PARITY_LANE`, and the mutation test is excluded from regular
   suites behind the `azurelive` build tag plus specific `go test -run`
   selection. Z01 was recorded from an operator-scoped Azure SQL mutation run;
-  Z02 was recorded from an operator-approved Cosmos DB mutation run using
-  isolated resource groups and verified teardown before the A04 general settle
-  migration. Re-recording Z02 through the general settle path remains explicit
-  opt-in. Planned Z03-Z06 live work must keep mutation count and resource size
-  minimal, avoid large/high-cost Azure resources, and verify cleanup before any
-  recording update.
+  Z02 was recorded from operator-approved Cosmos DB mutation runs using
+  isolated resource groups and verified teardown. The current Z02 recording was
+  refreshed after the A04 general settle migration and exercises the general
+  `runtime_hints.settle` pre-delete barrier. Planned Azure live work must keep
+  mutation count and resource size minimal, avoid large/high-cost Azure
+  resources, and verify cleanup before any recording update.
 
 ## Validation Evidence
 
