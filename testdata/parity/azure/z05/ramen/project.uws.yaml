@@ -1,0 +1,218 @@
+info:
+  description: Azure SQL database update/drift static parity fixture for Z05.
+  title: ramen_z05_azure_sql_database_update_parity
+  version: 1.0.0
+uws: 1.4.0
+operations:
+  - description: Create or update the Azure SQL database.
+    operationId: z05_sql_database_put
+    sourceDescription: azure-sql
+    sourceOperationId: Databases_CreateOrUpdate
+  - description: Read the Azure SQL database.
+    operationId: z05_sql_database_read
+    sourceDescription: azure-sql
+    sourceOperationId: Databases_Get
+  - description: Delete the Azure SQL database.
+    operationId: z05_sql_database_delete
+    sourceDescription: azure-sql
+    sourceOperationId: Databases_Delete
+sourceDescriptions:
+  - name: azure-sql
+    type: openapi
+    url: ../openapi/sql.json
+workflows:
+  - description: Static workflow for SQL update/read/delete replay.
+    steps:
+      - operationRef: z05_sql_database_put
+        stepId: update
+      - operationRef: z05_sql_database_read
+        stepId: read
+      - operationRef: z05_sql_database_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - kind: openapi
+      id: azure-sql
+      path: ../openapi/sql.json
+  metadata:
+    source: z05-azure-sql-update-parity
+    scope: planned-static-fixture
+  redaction: {}
+  resources:
+    - address: azurerm_mssql_database.z05_sql_database
+      attributes:
+        api-version: "2023-08-01"
+        databaseName: ramen-parity-z05-static
+        location: eastus
+        resourceGroupName: placeholder-resource-group
+        serverName: placeholder-server
+        sku:
+          name: Basic
+          tier: Basic
+        subscriptionId: subscription-placeholder
+      identity_attributes:
+        - name: database_name
+          path: databaseName
+          request_keys:
+            - databaseName
+          response_paths:
+            - name
+            - id
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        evidence: z05
+        provider: azure
+      name: z05_sql_database
+      operations:
+        put:
+          purpose: put
+          method: PUT
+          source_kind: openapi
+          source_id: azure-sql
+          source_path: ../openapi/sql.json
+          operation_id: Databases_CreateOrUpdate
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: azure-sql
+          source_path: ../openapi/sql.json
+          operation_id: Databases_Get
+        delete:
+          purpose: delete
+          method: DELETE
+          source_kind: openapi
+          source_id: azure-sql
+          source_path: ../openapi/sql.json
+          operation_id: Databases_Delete
+      runtime_hints:
+        retry:
+          max_attempts: 6
+          interval: 5s
+        settle:
+          before: delete
+          duration: 2m
+          interval: 10s
+          read_expect: exists
+        waiter:
+          until: exists
+          max_attempts: 12
+          interval: 5s
+      request_bindings:
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: serverName
+          request_path: serverName
+          location: path
+          required: true
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: databaseName
+          request_path: databaseName
+          location: path
+          required: true
+          identity: true
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: location
+          request_path: location
+          location: body
+          required: true
+        - operation_id: Databases_CreateOrUpdate
+          operation_role: put
+          path: sku
+          request_path: sku
+          location: body
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: serverName
+          request_path: serverName
+          location: path
+          required: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: databaseName
+          request_path: databaseName
+          location: path
+          required: true
+          identity: true
+        - operation_id: Databases_Get
+          operation_role: read
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: Databases_Delete
+          operation_role: delete
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: Databases_Delete
+          operation_role: delete
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: Databases_Delete
+          operation_role: delete
+          path: serverName
+          request_path: serverName
+          location: path
+          required: true
+        - operation_id: Databases_Delete
+          operation_role: delete
+          path: databaseName
+          request_path: databaseName
+          location: path
+          required: true
+          identity: true
+        - operation_id: Databases_Delete
+          operation_role: delete
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+      redaction: {}
+      required_operations:
+        - put
+        - read
+        - delete
+      schema: []
+      type: azurerm_mssql_database
+  version: ramen.project.v1

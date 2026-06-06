@@ -1,0 +1,76 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z04",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/azurerm",
+    "version_constraint": "~> 4.0"
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-storage-resource-manager-openapi.json",
+    "fixture": "testdata/parity/azure/z04/openapi/storage.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_AZURE_PARITY",
+    "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AZURE_PARITY_LANE",
+    "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
+    "resource_prefix": "ramen-parity-z04-",
+    "requires_explicit_lane": true,
+    "required_env": [
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_CLIENT_ID",
+      "AZURE_CLIENT_SECRET"
+    ],
+    "terraform_env_map": {
+      "AZURE_SUBSCRIPTION_ID": "ARM_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID": "ARM_TENANT_ID",
+      "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
+      "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
+    },
+    "cost_guardrails": [
+      "static first",
+      "one minimal storage account only if live-approved",
+      "delete storage account and resource group before recording"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_account_static_lifecycle",
+      "resource_type": "azurerm_storage_account",
+      "terraform_resource_type": "azurerm_storage_account",
+      "fixture_paths": [
+        "testdata/parity/azure/z04/hcl/main.tf",
+        "testdata/parity/azure/z04/openapi/storage.json",
+        "testdata/parity/azure/z04/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "StorageAccounts_Create",
+        "StorageAccounts_GetProperties",
+        "StorageAccounts_Delete"
+      ],
+      "observed_fields": [
+        "exists",
+        "name",
+        "location",
+        "kind",
+        "sku.name"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-delete-plan"
+      ]
+    }
+  ],
+  "notes": [
+    "Z04 is planned as static parity first; live mutation remains parked.",
+    "Any future live run is limited to one minimal storage account with no child data resources, followed by delete and absence verification."
+  ]
+}

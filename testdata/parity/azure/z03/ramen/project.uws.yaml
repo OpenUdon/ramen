@@ -1,0 +1,86 @@
+info:
+  description: Azure Resource Group read/import parity fixture for Z03.
+  title: ramen_z03_azure_resource_group_read_parity
+  version: 1.0.0
+uws: 1.4.0
+operations:
+  - description: Read the Azure Resource Group.
+    operationId: z03_resource_group_read
+    sourceDescription: resources
+    sourceOperationId: ResourceGroups_Get
+sourceDescriptions:
+  - name: resources
+    type: openapi
+    url: ../openapi/resources.json
+workflows:
+  - description: Static workflow for Resource Group read replay.
+    steps:
+      - operationRef: z03_resource_group_read
+        stepId: read
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - kind: openapi
+      id: resources
+      path: ../openapi/resources.json
+  metadata:
+    source: z03-azure-resource-group-parity
+    scope: planned-read-import-fixture
+  redaction: {}
+  resources:
+    - address: azurerm_resource_group.z03_group
+      attributes:
+        api-version: "2024-03-01"
+        location: eastus
+        resourceGroupName: ramen-parity-z03-static
+        subscriptionId: subscription-placeholder
+      identity_attributes:
+        - name: resource_group_name
+          path: resourceGroupName
+          request_keys:
+            - resourceGroupName
+          response_paths:
+            - name
+            - id
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        evidence: z03
+        provider: azure
+      name: z03_group
+      operations:
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: resources
+          source_path: ../openapi/resources.json
+          operation_id: ResourceGroups_Get
+      request_bindings:
+        - operation_id: ResourceGroups_Get
+          operation_role: read
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: ResourceGroups_Get
+          operation_role: read
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+          identity: true
+        - operation_id: ResourceGroups_Get
+          operation_role: read
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+      redaction: {}
+      required_operations:
+        - read
+      schema: []
+      type: azurerm_resource_group
+  version: ramen.project.v1

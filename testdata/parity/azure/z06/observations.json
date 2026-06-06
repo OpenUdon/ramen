@@ -1,0 +1,75 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z06",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/azurerm",
+    "version_constraint": "~> 4.0"
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json",
+    "fixture": "testdata/parity/azure/z02/openapi/cosmos.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_AZURE_PARITY",
+    "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AZURE_PARITY_LANE",
+    "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
+    "resource_prefix": "ramen-parity-z02-",
+    "requires_explicit_lane": true,
+    "required_env": [
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_CLIENT_ID",
+      "AZURE_CLIENT_SECRET"
+    ],
+    "terraform_env_map": {
+      "AZURE_SUBSCRIPTION_ID": "ARM_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID": "ARM_TENANT_ID",
+      "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
+      "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
+    },
+    "cost_guardrails": [
+      "explicit Cosmos DB cost approval",
+      "reuse existing Z02 disposable account shape",
+      "resource-group cleanup verification"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "cosmos_account_settle_rerecording",
+      "resource_type": "azurerm_cosmosdb_account",
+      "terraform_resource_type": "azurerm_cosmosdb_account",
+      "fixture_paths": [
+        "testdata/parity/azure/z02/hcl/main.tf",
+        "testdata/parity/azure/z02/openapi/cosmos.json",
+        "testdata/parity/azure/z02/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "DatabaseAccounts_CreateOrUpdate",
+        "DatabaseAccounts_Get",
+        "DatabaseAccounts_Delete"
+      ],
+      "observed_fields": [
+        "after_apply.exists",
+        "after_apply.id_present",
+        "after_destroy.exists",
+        "resource_group_after_cleanup.exists"
+      ],
+      "expected_transitions": [
+        "static-settle-readiness",
+        "future-opt-in-rerecord"
+      ]
+    }
+  ],
+  "notes": [
+    "Z06 is a planned re-recording readiness lane for Z02; it does not add a new Azure resource.",
+    "Default checks only validate the existing Z02 settle metadata and render path.",
+    "Any future live update must be explicitly approved and must clean up the one disposable Z02 Cosmos account and isolated resource group."
+  ]
+}

@@ -72,3 +72,12 @@ briefly after account creation. Default replay/static tests validate that
 metadata without live Azure access. The committed Z02 live recording predates
 the A04 general settle migration; re-recording Z02 through the general settle
 path remains explicit opt-in.
+
+## Planned Z03-Z06 Safety
+
+Z03-Z06 default checks are static or read-only. Any future live mutation must
+use the minimum number of smallest practical disposable resources, avoid large
+or high-cost Azure resources, and destroy or clean up every resource it creates
+before any sanitized recording update is accepted. Mutation-capable native
+fixtures should carry retry/waiter metadata and use `runtime_hints.settle`
+where a bounded pre-delete read barrier is needed for reliable cleanup.

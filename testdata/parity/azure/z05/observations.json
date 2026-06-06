@@ -1,0 +1,76 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z05",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/azurerm",
+    "version_constraint": "~> 4.0"
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-sql-database-openapi.json",
+    "fixture": "testdata/parity/azure/z05/openapi/sql.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_AZURE_PARITY",
+    "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AZURE_PARITY_LANE",
+    "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
+    "resource_prefix": "ramen-parity-z05-",
+    "requires_explicit_lane": true,
+    "required_env": [
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_CLIENT_ID",
+      "AZURE_CLIENT_SECRET"
+    ],
+    "terraform_env_map": {
+      "AZURE_SUBSCRIPTION_ID": "ARM_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID": "ARM_TENANT_ID",
+      "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
+      "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
+    },
+    "cost_guardrails": [
+      "static update first",
+      "one disposable database only if live-approved",
+      "delete database before recording"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "sql_database_update_drift_static",
+      "resource_type": "azurerm_mssql_database",
+      "terraform_resource_type": "azurerm_mssql_database",
+      "fixture_paths": [
+        "testdata/parity/azure/z05/hcl/main.tf",
+        "testdata/parity/azure/z05/openapi/sql.json",
+        "testdata/parity/azure/z05/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "Databases_CreateOrUpdate",
+        "Databases_Get",
+        "Databases_Delete"
+      ],
+      "observed_fields": [
+        "exists",
+        "name",
+        "location",
+        "sku.name",
+        "sku.tier"
+      ],
+      "expected_transitions": [
+        "static-update-plan",
+        "static-read-plan",
+        "static-delete-plan"
+      ]
+    }
+  ],
+  "notes": [
+    "Z05 is planned as a static update/drift follow-on to Z01 before any live SQL mutation.",
+    "Any future live run is limited to one disposable low-cost database, one bounded update field, delete, and post-delete absence verification."
+  ]
+}

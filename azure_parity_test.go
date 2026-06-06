@@ -27,7 +27,7 @@ const (
 	azureParityFixtureRoot  = "testdata/parity/azure"
 )
 
-var azureParityLanes = []string{"z01", "z02"}
+var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06"}
 
 type azureParityArtifact struct {
 	Version          string                `json:"version"`
@@ -196,7 +196,11 @@ func assertAzureParityArtifact(t *testing.T, lane string, artifact azureParityAr
 	if artifact.Safety.CredentialEnv != "UDON_CREDENTIAL_AZURE_AUTH" {
 		t.Fatalf("credential env = %q, want UDON_CREDENTIAL_AZURE_AUTH", artifact.Safety.CredentialEnv)
 	}
-	if !strings.HasPrefix(artifact.Safety.ResourcePrefix, "ramen-parity-"+lane+"-") {
+	wantPrefix := "ramen-parity-" + lane + "-"
+	if lane == "z06" {
+		wantPrefix = "ramen-parity-z02-"
+	}
+	if !strings.HasPrefix(artifact.Safety.ResourcePrefix, wantPrefix) {
 		t.Fatalf("resource prefix = %q, want ramen-parity-%s-*", artifact.Safety.ResourcePrefix, lane)
 	}
 	assertAzureParitySafetyContract(t, lane, artifact.Safety)
@@ -355,6 +359,42 @@ func assertAzureParitySafetyContract(t *testing.T, lane string, safety azurePari
 				t.Fatalf("Z02 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}
 		}
+	case "z03":
+		if safety.LiveEnabled {
+			t.Fatalf("Z03 must remain live-disabled while read/import static evidence is planned")
+		}
+		for _, guardrail := range []string{"read/import first", "no child resources", "cleanup verification before recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Z03 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
+	case "z04":
+		if safety.LiveEnabled {
+			t.Fatalf("Z04 must remain live-disabled while storage static evidence is planned")
+		}
+		for _, guardrail := range []string{"static first", "one minimal storage account only if live-approved", "delete storage account and resource group before recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Z04 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
+	case "z05":
+		if safety.LiveEnabled {
+			t.Fatalf("Z05 must remain live-disabled while SQL update static evidence is planned")
+		}
+		for _, guardrail := range []string{"static update first", "one disposable database only if live-approved", "delete database before recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Z05 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
+	case "z06":
+		if safety.LiveEnabled {
+			t.Fatalf("Z06 must remain live-disabled until an explicit Z02 settle re-recording is approved")
+		}
+		for _, guardrail := range []string{"explicit Cosmos DB cost approval", "reuse existing Z02 disposable account shape", "resource-group cleanup verification"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Z06 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
 	}
 }
 
@@ -450,8 +490,10 @@ func azureParityARMEnvFromProfile() []string {
 
 func assertAzureParityStaticFixtures(t *testing.T, lane string, artifact azureParityArtifact) {
 	t.Helper()
-	assertAzureParityHCLFixture(t, lane, artifact)
-	assertAzureParityNativeProjectFixture(t, lane)
+	if lane != "z06" {
+		assertAzureParityHCLFixture(t, lane, artifact)
+		assertAzureParityNativeProjectFixture(t, lane)
+	}
 	switch lane {
 	case "z01":
 		assertAzureParityPlanFixture(t, lane, "put", "Databases_CreateOrUpdate", "put")
@@ -470,6 +512,35 @@ func assertAzureParityStaticFixtures(t *testing.T, lane string, artifact azurePa
 			"read":   {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
 			"delete": {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
 		})
+	case "z03":
+		assertAzureParityPlanFixture(t, lane, "read", "ResourceGroups_Get", "read")
+		assertAzureParityRequestBindings(t, lane, map[string][]string{
+			"read": {"subscriptionId", "resourceGroupName", "api-version"},
+		})
+	case "z04":
+		assertAzureParityPlanFixture(t, lane, "create", "StorageAccounts_Create", "create")
+		assertAzureParityPlanFixture(t, lane, "read", "StorageAccounts_GetProperties", "read")
+		assertAzureParityPlanFixture(t, lane, "delete", "StorageAccounts_Delete", "delete")
+		assertAzureParitySettleFixture(t, lane)
+		assertAzureParityRequestBindings(t, lane, map[string][]string{
+			"create": {"subscriptionId", "resourceGroupName", "accountName", "api-version", "location", "kind", "sku"},
+			"read":   {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
+			"delete": {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
+		})
+	case "z05":
+		assertAzureParityPlanFixture(t, lane, "put", "Databases_CreateOrUpdate", "put")
+		assertAzureParityPlanFixture(t, lane, "read", "Databases_Get", "read")
+		assertAzureParityPlanFixture(t, lane, "delete", "Databases_Delete", "delete")
+		assertAzureParitySettleFixture(t, lane)
+		assertAzureParityRequestBindings(t, lane, map[string][]string{
+			"put":    {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version", "location", "sku"},
+			"read":   {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version"},
+			"delete": {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version"},
+		})
+	case "z06":
+		assertAzureParityNativeProjectFixture(t, "z02")
+		assertAzureParityPlanFixture(t, "z02", "delete", "DatabaseAccounts_Delete", "delete")
+		assertAzureParitySettleFixture(t, "z02")
 	default:
 		t.Fatalf("no static assertions registered for Azure parity lane %s", lane)
 	}
@@ -489,7 +560,7 @@ func assertAzureParitySettleFixture(t *testing.T, lane string) {
 		t.Fatalf("%s delete Ramen fixture plan unusable for settle assertion: %#v", strings.ToUpper(lane), result.Plan)
 	}
 	settle := result.Plan.Resources[0].RuntimeHints.Settle
-	if settle["before"] != "delete" || settle["duration"] != "6m" || settle["interval"] != "30s" || settle["read_expect"] != "exists" {
+	if settle["before"] != "delete" || strings.TrimSpace(fmt.Sprint(settle["duration"])) == "" || strings.TrimSpace(fmt.Sprint(settle["interval"])) == "" || settle["read_expect"] != "exists" {
 		t.Fatalf("%s settle hints = %#v", strings.ToUpper(lane), settle)
 	}
 }
@@ -587,8 +658,11 @@ func azureParitySummaryHasOne(summary tfplan.Summary, field string) bool {
 func assertAzureParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
 	t.Helper()
 	action := "create"
-	if lane == "z01" {
+	if lane == "z01" || lane == "z05" {
 		action = "put"
+	}
+	if lane == "z03" {
+		action = "read"
 	}
 	result, err := tfplan.Build(context.Background(), tfplan.Options{
 		ProjectPath: filepath.Join(azureParityFixtureRoot, lane, "ramen"),

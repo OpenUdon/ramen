@@ -1,0 +1,210 @@
+info:
+  description: Azure Storage Account static parity fixture for Z04.
+  title: ramen_z04_azure_storage_account_static_parity
+  version: 1.0.0
+uws: 1.4.0
+operations:
+  - description: Create or update the Azure Storage Account.
+    operationId: z04_storage_account_create
+    sourceDescription: storage
+    sourceOperationId: StorageAccounts_Create
+  - description: Read the Azure Storage Account.
+    operationId: z04_storage_account_read
+    sourceDescription: storage
+    sourceOperationId: StorageAccounts_GetProperties
+  - description: Delete the Azure Storage Account.
+    operationId: z04_storage_account_delete
+    sourceDescription: storage
+    sourceOperationId: StorageAccounts_Delete
+sourceDescriptions:
+  - name: storage
+    type: openapi
+    url: ../openapi/storage.json
+workflows:
+  - description: Static workflow for Storage Account mapping replay.
+    steps:
+      - operationRef: z04_storage_account_create
+        stepId: create
+      - operationRef: z04_storage_account_read
+        stepId: read
+      - operationRef: z04_storage_account_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - kind: openapi
+      id: storage
+      path: ../openapi/storage.json
+  metadata:
+    source: z04-azure-storage-account-parity
+    scope: planned-static-fixture
+  redaction: {}
+  resources:
+    - address: azurerm_storage_account.z04_account
+      attributes:
+        accountName: ramenparityz04static
+        api-version: "2023-05-01"
+        kind: StorageV2
+        location: eastus
+        resourceGroupName: ramen-parity-z04
+        sku:
+          name: Standard_LRS
+        subscriptionId: subscription-placeholder
+      identity_attributes:
+        - name: account_name
+          path: accountName
+          request_keys:
+            - accountName
+          response_paths:
+            - name
+            - id
+          required: true
+        - name: resource_group_name
+          path: resourceGroupName
+          request_keys:
+            - resourceGroupName
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        evidence: z04
+        provider: azure
+      name: z04_account
+      operations:
+        create:
+          purpose: create
+          method: PUT
+          source_kind: openapi
+          source_id: storage
+          source_path: ../openapi/storage.json
+          operation_id: StorageAccounts_Create
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: storage
+          source_path: ../openapi/storage.json
+          operation_id: StorageAccounts_GetProperties
+        delete:
+          purpose: delete
+          method: DELETE
+          source_kind: openapi
+          source_id: storage
+          source_path: ../openapi/storage.json
+          operation_id: StorageAccounts_Delete
+      request_bindings:
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: accountName
+          request_path: accountName
+          location: path
+          required: true
+          identity: true
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: location
+          request_path: location
+          location: body
+          required: true
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: kind
+          request_path: kind
+          location: body
+          required: true
+        - operation_id: StorageAccounts_Create
+          operation_role: create
+          path: sku
+          request_path: sku
+          location: body
+          required: true
+        - operation_id: StorageAccounts_GetProperties
+          operation_role: read
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: StorageAccounts_GetProperties
+          operation_role: read
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: StorageAccounts_GetProperties
+          operation_role: read
+          path: accountName
+          request_path: accountName
+          location: path
+          required: true
+          identity: true
+        - operation_id: StorageAccounts_GetProperties
+          operation_role: read
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: StorageAccounts_Delete
+          operation_role: delete
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: StorageAccounts_Delete
+          operation_role: delete
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: StorageAccounts_Delete
+          operation_role: delete
+          path: accountName
+          request_path: accountName
+          location: path
+          required: true
+          identity: true
+        - operation_id: StorageAccounts_Delete
+          operation_role: delete
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+      redaction: {}
+      required_operations:
+        - create
+        - read
+        - delete
+      runtime_hints:
+        retry:
+          max_attempts: 6
+          interval: 5s
+        settle:
+          before: delete
+          duration: 2m
+          interval: 10s
+          read_expect: exists
+        waiter:
+          until: exists
+          max_attempts: 12
+          interval: 5s
+      schema: []
+      type: azurerm_storage_account
+  version: ramen.project.v1

@@ -1,0 +1,71 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z03",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/azurerm",
+    "version_constraint": "~> 4.0"
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-resources-resource-manager-openapi.json",
+    "fixture": "testdata/parity/azure/z03/openapi/resources.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_AZURE_PARITY",
+    "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AZURE_PARITY_LANE",
+    "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
+    "resource_prefix": "ramen-parity-z03-",
+    "requires_explicit_lane": true,
+    "required_env": [
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_CLIENT_ID",
+      "AZURE_CLIENT_SECRET"
+    ],
+    "terraform_env_map": {
+      "AZURE_SUBSCRIPTION_ID": "ARM_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID": "ARM_TENANT_ID",
+      "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
+      "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
+    },
+    "cost_guardrails": [
+      "read/import first",
+      "no child resources",
+      "cleanup verification before recording"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "resource_group_read_import",
+      "resource_type": "azurerm_resource_group",
+      "terraform_resource_type": "azurerm_resource_group",
+      "fixture_paths": [
+        "testdata/parity/azure/z03/hcl/main.tf",
+        "testdata/parity/azure/z03/openapi/resources.json",
+        "testdata/parity/azure/z03/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "ResourceGroups_Get"
+      ],
+      "observed_fields": [
+        "exists",
+        "name",
+        "location"
+      ],
+      "expected_transitions": [
+        "read",
+        "import-ready"
+      ]
+    }
+  ],
+  "notes": [
+    "Z03 is planned as non-mutating read/import parity first.",
+    "Any future mutation must create at most one empty ramen-parity-z03-* resource group, delete it, and verify absence before recording."
+  ]
+}
