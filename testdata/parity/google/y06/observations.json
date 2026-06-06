@@ -1,0 +1,73 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y06",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/google",
+    "version_constraint": "~> 6.0"
+  },
+  "discovery": {
+    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "fixture": "testdata/parity/google/y06/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_GOOGLE_PARITY",
+    "record_update_env": "RAMEN_GOOGLE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GOOGLE_PARITY_LANE",
+    "opentofu_env": "RAMEN_GOOGLE_TOFU",
+    "credential_binding": "google_oauth2",
+    "resource_prefix": "ramen-parity-y06-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "gcloud storage managed-folders delete gs://<bucket>/managed/y06/; gcloud storage rm --recursive gs://<ramen-parity-y06-*> --quiet",
+    "required_env": [
+      "RAMEN_GOOGLE_TOFU",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "RAMEN_GOOGLE_PROJECT"
+    ],
+    "cost_guardrails": [
+      "one disposable HNS bucket per runtime",
+      "no IAM mutation",
+      "delete managed folder and bucket before recording"
+    ],
+    "promotion": "live managed folder lane enabled behind googlelive and explicit environment gates"
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_managed_folder_static",
+      "resource_type": "google_storage_managed_folder",
+      "terraform_resource_type": "google_storage_managed_folder",
+      "fixture_paths": [
+        "testdata/parity/google/y06/hcl/main.tf",
+        "testdata/parity/google/y06/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "storage.managedFolders.insert",
+        "storage.managedFolders.get",
+        "storage.managedFolders.delete"
+      ],
+      "observed_fields": [
+        "name",
+        "bucket",
+        "id",
+        "metageneration"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-delete-plan",
+        "opt-in-opentofu-live-baseline",
+        "opt-in-ramen-udon-live-run"
+      ]
+    }
+  ],
+  "notes": [
+    "Y06 adds Google Cloud Storage managed folder metadata coverage.",
+    "The lane avoids managed folder IAM and requires no live GCP access in default tests.",
+    "Live execution creates disposable support buckets with uniform bucket-level access and hierarchical namespace enabled."
+  ]
+}

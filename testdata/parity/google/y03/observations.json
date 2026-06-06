@@ -1,7 +1,7 @@
 {
   "version": "ramen.google.provider-parity.v1",
   "lane": "Y03",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/google",
     "version_constraint": "~> 6.0"
@@ -66,12 +66,18 @@
         "static-delete-plan",
         "opt-in-opentofu-live-baseline",
         "opt-in-ramen-udon-live-run"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/google/y03/live.observations.json"
       ]
     }
   ],
+  "recorded_at": "2026-06-06T17:30:00Z",
+  "recordings_source": "RAMEN_GOOGLE_PARITY=1 RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1 RAMEN_GOOGLE_PARITY_LANE=y03 with OpenTofu from ../opentofu, Ramen+udon, scoped GCP project credentials, and disposable empty ramen-parity-y03-* buckets verified absent after cleanup.",
   "notes": [
     "Y03 is the first real mutating Google Cloud parity lane.",
     "Live execution creates one globally unique empty bucket at a time and deletes it before recording.",
-    "No objects, IAM bindings, retention locks, requester-pays settings, or public ACLs are created."
+    "No objects, IAM bindings, retention locks, requester-pays settings, or public ACLs are created.",
+    "Default replay validates the committed sanitized live.observations.json without live GCP access."
   ]
 }

@@ -27,10 +27,35 @@ live evidence so adopters can inspect what has actually been proven.
   explicit Z02 Cosmos DB re-recording through the general A04 settle path. It
   reuses the existing Z02 fixtures; the refreshed live evidence remains in the
   Z02 observation artifact.
-- `testdata/parity/aws/w01` starts the AWS parity lane with static IAM User
-  create/read/delete metadata over the local AWS IAM Smithy model, existing
-  corpus conversion evidence, and OpenTofu-plus-Ramen runtime scope for future
-  live work. It is credential-free and does not claim recorded AWS mutation.
+- `testdata/parity/aws/w01` starts the AWS parity lane with default
+  credential-free IAM User create/read/delete metadata over the local AWS IAM
+  Smithy model, existing corpus conversion evidence, an OpenTofu HCL baseline,
+  native SigV4/runtime metadata, and an opt-in `awslive`
+  OpenTofu-plus-Ramen harness. W01 signing flows through udon/soliton AWS
+  Signature Version 4 using workflow provider appendices plus standard AWS
+  environment credentials; symbolic `aws_hmac` remains fixture metadata. No
+  W01 live recording is committed by default, and default tests do not run AWS
+  APIs, OpenTofu, provider plugins, or udon.
+- `testdata/parity/aws/w02` through `w04` add static-only AWS parity fixtures
+  for IAM Role create/read/update/delete, S3 Public Access Block
+  create/read/put/delete, and S3 Bucket Versioning create/read/put. These lanes
+  validate HCL/native/Smithy metadata, including SigV4 provider appendices, and
+  do not claim live AWS mutation.
+- `testdata/parity/google/y01` starts the Google Cloud parity lane with
+  static-only Google Cloud Storage Bucket create/read/update/delete metadata
+  over Google Discovery. It reuses existing Google Storage corpus evidence and
+  validates OpenTofu HCL/native/Discovery metadata.
+- `testdata/parity/google/y02` and `y03` add opt-in real GCP lanes with
+  credential-free default checks. Y02 is read-only over an operator-provided
+  existing bucket. Y03 is a disposable empty-bucket mutation lane for
+  create/read/update/delete. Y02 has been live-smoked against public bucket
+  `gcp-public-data-landsat` without recording promotion. Y03 has a committed
+  sanitized live recording that default replay validates without GCP access.
+- `testdata/parity/google/y04` and `y06` add opt-in GCS mutation lanes for
+  bucket read-missing and managed folder metadata, with credential-free static
+  checks and no committed live recordings. `y05` adds opt-in object metadata
+  mutation through the GCS multipart upload endpoint, with metadata-only
+  observations and no committed live recording.
 - `executor/evidence_test.go` validates Ramen executor request, response,
   status, and confirmation-read records through the shared
   `github.com/OpenUdon/evidence/async` validators.
@@ -64,6 +89,10 @@ live evidence so adopters can inspect what has actually been proven.
   The replay assertion compares create/read/delete visibility fields and
   isolated resource-group cleanup while keeping no-op metadata outside the
   API-visible match.
+- `testdata/parity/google/y03/live.observations.json` records sanitized Google
+  Cloud Storage bucket mutation parity across OpenTofu and Ramen+udon. The
+  replay assertion compares create/read/update/delete visibility fields and
+  verifies generated empty buckets were deleted before recording promotion.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 
@@ -92,9 +121,29 @@ live evidence so adopters can inspect what has actually been proven.
   recorded from operator-approved Cosmos DB mutation runs using isolated
   resource groups and verified teardown. The current Z02 recording was
   refreshed after the A04 general settle migration and exercises the general
-  `runtime_hints.settle` pre-delete barrier. Planned Azure/AWS live work must
-  keep mutation count and resource size minimal, avoid large/high-cost cloud
-  resources, and verify cleanup before any recording update.
+  `runtime_hints.settle` pre-delete barrier.
+- AWS live parity remains opt-in through `RAMEN_AWS_PARITY=1` and explicit
+  `RAMEN_AWS_PARITY_LANE`. The current W01 live harness is excluded from
+  regular suites behind the `awslive` build tag plus specific `go test -run`
+  selection, requires `RAMEN_AWS_TOFU` and AWS environment credentials, creates
+  at most one disposable IAM user at a time, and verifies cleanup. Recording
+  updates require `RAMEN_AWS_PARITY_RECORD_UPDATE=1`; no AWS live observation
+  artifact is committed by default. W02 IAM Role is the next live AWS candidate
+  after W01 recording is settled. W03/W04 S3 live promotion remains parked
+  pending bucket naming and cleanup approval.
+- Planned Azure/AWS live work must keep mutation count and resource size
+  minimal, avoid large/high-cost cloud resources, and verify cleanup before any
+  recording update.
+- Google Cloud live parity remains opt-in through `RAMEN_GOOGLE_PARITY=1` and
+  explicit `RAMEN_GOOGLE_PARITY_LANE`. Y02 read-only live execution requires
+  `RAMEN_GOOGLE_EXISTING_BUCKET`; Y03 mutation creates only empty
+  `ramen-parity-y03-*` buckets, updates metadata, deletes them, and verifies
+  absence. Y04 creates empty buckets, deletes them out of band, and compares
+  read-missing evidence. Y06 creates disposable hierarchical-namespace support
+  buckets and managed folders without IAM mutation. Y05 creates one tiny object
+  in a disposable support bucket per runtime through the GCS multipart upload
+  endpoint and records metadata-only observations. Recording updates require
+  `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1`.
 
 ## Validation Evidence
 

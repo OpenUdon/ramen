@@ -1,0 +1,74 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y04",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/google",
+    "version_constraint": "~> 6.0"
+  },
+  "discovery": {
+    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "fixture": "testdata/parity/google/y04/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_GOOGLE_PARITY",
+    "record_update_env": "RAMEN_GOOGLE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GOOGLE_PARITY_LANE",
+    "opentofu_env": "RAMEN_GOOGLE_TOFU",
+    "credential_binding": "google_oauth2",
+    "resource_prefix": "ramen-parity-y04-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "gcloud storage rm --recursive gs://<ramen-parity-y04-*> --quiet, then gcloud storage buckets describe gs://<name> to verify absence",
+    "required_env": [
+      "RAMEN_GOOGLE_TOFU",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "RAMEN_GOOGLE_PROJECT"
+    ],
+    "cost_guardrails": [
+      "one disposable bucket at a time",
+      "empty bucket only",
+      "out-of-band delete before read-missing"
+    ],
+    "promotion": "live read-missing lane enabled behind googlelive and explicit environment gates"
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_bucket_read_missing_rehearsal",
+      "resource_type": "google_storage_bucket",
+      "terraform_resource_type": "google_storage_bucket",
+      "fixture_paths": [
+        "testdata/parity/google/y04/hcl/main.tf",
+        "testdata/parity/google/y04/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "storage.buckets.insert",
+        "storage.buckets.get",
+        "storage.buckets.delete"
+      ],
+      "observed_fields": [
+        "name",
+        "id",
+        "location",
+        "iamConfiguration.uniformBucketLevelAccess.enabled",
+        "missing_after_out_of_band_delete"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-delete-plan",
+        "opt-in-opentofu-live-baseline",
+        "opt-in-ramen-udon-live-run"
+      ]
+    }
+  ],
+  "notes": [
+    "Y04 is the bucket read-missing rehearsal lane.",
+    "Live execution creates one globally unique empty bucket at a time, deletes it out of band, and compares read-missing evidence.",
+    "No objects, IAM bindings, retention locks, requester-pays settings, or public ACLs are created."
+  ]
+}

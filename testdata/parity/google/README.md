@@ -11,9 +11,17 @@ provider plugins, `gcloud`, live GCP APIs, or udon.
 Y02 and Y03 add opt-in real GCP lanes behind the `googlelive` build tag and
 explicit environment gates. Y02 is read-only and observes an operator-provided
 existing bucket. Y03 creates one disposable empty bucket at a time, updates a
-label, reads it, deletes it, and verifies absence.
+label, reads it, deletes it, verifies absence, and has a committed sanitized
+`live.observations.json` recording.
 
-No Google live recording is committed by default. Recording updates require
-`RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1` after reviewing sanitized observations.
+Y04 and Y06 are opt-in GCS mutation lanes. Y04 compares bucket read-missing
+behavior after out-of-band deletion. Y06 creates and deletes managed folders in
+disposable hierarchical-namespace support buckets. Y05 creates and deletes one
+tiny object in a disposable support bucket per runtime and records metadata-only
+observations.
+
+New Google live recordings are committed only after explicit
+`RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1` promotion, cleanup verification, and
+sanitization review.
 
 See `LIVE.md` for the current live guardrail contract.

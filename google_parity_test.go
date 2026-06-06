@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -26,18 +27,20 @@ const (
 	googleParityFixtureRoot = "testdata/parity/google"
 )
 
-var googleParityLanes = []string{"y01", "y02", "y03"}
+var googleParityLanes = []string{"y01", "y02", "y03", "y04", "y05", "y06"}
 
 type googleParityArtifact struct {
-	Version   string                 `json:"version"`
-	Lane      string                 `json:"lane"`
-	Status    string                 `json:"status"`
-	Provider  googleParityProvider   `json:"provider"`
-	Discovery googleParityDiscovery  `json:"discovery"`
-	Safety    googleParitySafety     `json:"safety"`
-	Runtimes  []string               `json:"runtimes"`
-	Scenarios []googleParityScenario `json:"scenarios"`
-	Notes     []string               `json:"notes,omitempty"`
+	Version          string                 `json:"version"`
+	Lane             string                 `json:"lane"`
+	Status           string                 `json:"status"`
+	Provider         googleParityProvider   `json:"provider"`
+	Discovery        googleParityDiscovery  `json:"discovery"`
+	Safety           googleParitySafety     `json:"safety"`
+	Runtimes         []string               `json:"runtimes"`
+	Scenarios        []googleParityScenario `json:"scenarios"`
+	RecordedAt       string                 `json:"recorded_at,omitempty"`
+	RecordingsSource string                 `json:"recordings_source,omitempty"`
+	Notes            []string               `json:"notes,omitempty"`
 }
 
 type googleParityProvider struct {
@@ -73,6 +76,7 @@ type googleParityScenario struct {
 	OperationIDs          []string `json:"operation_ids"`
 	ObservedFields        []string `json:"observed_fields"`
 	ExpectedTransitions   []string `json:"expected_transitions"`
+	ObservationArtifacts  []string `json:"observation_artifacts,omitempty"`
 }
 
 type googleParityLiveRecording struct {
@@ -115,6 +119,7 @@ func TestGoogleProviderParityReplayArtifacts(t *testing.T) {
 		t.Run(strings.ToUpper(lane), func(t *testing.T) {
 			artifact := loadGoogleParityArtifact(t, filepath.Join(googleParityFixtureRoot, lane, "observations.json"))
 			assertGoogleParityArtifact(t, lane, artifact)
+			assertGoogleParityRecordingArtifacts(t, lane, artifact)
 			assertGoogleParityStaticFixtures(t, lane, artifact)
 		})
 	}
@@ -133,6 +138,19 @@ func loadGoogleParityArtifact(t *testing.T, path string) googleParityArtifact {
 	return artifact
 }
 
+func loadGoogleParityLiveRecording(t *testing.T, path string) googleParityLiveRecording {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read %s: %v", path, err)
+	}
+	var recording googleParityLiveRecording
+	if err := json.Unmarshal(data, &recording); err != nil {
+		t.Fatalf("decode %s: %v", path, err)
+	}
+	return recording
+}
+
 func assertGoogleParityArtifact(t *testing.T, lane string, artifact googleParityArtifact) {
 	t.Helper()
 	wantLane := strings.ToUpper(lane)
@@ -142,8 +160,16 @@ func assertGoogleParityArtifact(t *testing.T, lane string, artifact googleParity
 	if artifact.Lane != wantLane {
 		t.Fatalf("artifact lane = %q, want %q", artifact.Lane, wantLane)
 	}
-	if artifact.Status != "planned" {
-		t.Fatalf("artifact status = %q, want planned", artifact.Status)
+	if artifact.Status != "planned" && artifact.Status != "recorded" {
+		t.Fatalf("artifact status = %q, want planned or recorded", artifact.Status)
+	}
+	if artifact.Status == "recorded" {
+		if strings.TrimSpace(artifact.RecordedAt) == "" {
+			t.Fatalf("recorded artifact %s must include recorded_at", wantLane)
+		}
+		if strings.TrimSpace(artifact.RecordingsSource) == "" {
+			t.Fatalf("recorded artifact %s must include recordings_source", wantLane)
+		}
 	}
 	if artifact.Provider.Source != "hashicorp/google" {
 		t.Fatalf("provider source = %q, want hashicorp/google", artifact.Provider.Source)
@@ -182,6 +208,116 @@ func assertGoogleParityArtifact(t *testing.T, lane string, artifact googleParity
 		for _, path := range scenario.FixturePaths {
 			if _, err := os.Stat(path); err != nil {
 				t.Fatalf("scenario %s fixture %s is not readable: %v", scenario.Name, path, err)
+			}
+		}
+		if artifact.Status == "planned" && len(scenario.ObservationArtifacts) != 0 {
+			t.Fatalf("planned scenario %s must not claim observation_artifacts", scenario.Name)
+		}
+	}
+}
+
+func assertGoogleParityRecordingArtifacts(t *testing.T, lane string, artifact googleParityArtifact) {
+	t.Helper()
+	if artifact.Status != "recorded" {
+		return
+	}
+	for _, scenario := range artifact.Scenarios {
+		if len(scenario.ObservationArtifacts) == 0 {
+			t.Fatalf("recorded scenario %s must include observation_artifacts", scenario.Name)
+		}
+		for _, path := range scenario.ObservationArtifacts {
+			recording := loadGoogleParityLiveRecording(t, path)
+			assertGoogleParityLiveRecording(t, lane, artifact, scenario, recording)
+		}
+	}
+}
+
+func assertGoogleParityLiveRecording(t *testing.T, lane string, artifact googleParityArtifact, scenario googleParityScenario, recording googleParityLiveRecording) {
+	t.Helper()
+	wantLane := strings.ToUpper(lane)
+	if recording.Version != artifact.Version {
+		t.Fatalf("%s recording version = %q, want %q", wantLane, recording.Version, artifact.Version)
+	}
+	if recording.Lane != wantLane {
+		t.Fatalf("%s recording lane = %q, want %q", wantLane, recording.Lane, wantLane)
+	}
+	if recording.Scenario != scenario.Name {
+		t.Fatalf("%s recording scenario = %q, want %q", wantLane, recording.Scenario, scenario.Name)
+	}
+	if strings.TrimSpace(recording.RecordedAt) == "" {
+		t.Fatalf("%s recording must include recorded_at", wantLane)
+	}
+	if recording.DurationMS < 0 {
+		t.Fatalf("%s recording duration_ms = %d, want non-negative", wantLane, recording.DurationMS)
+	}
+	if len(recording.Failures) != 0 {
+		t.Fatalf("%s recording includes failures: %#v", wantLane, recording.Failures)
+	}
+	if len(recording.Observations) == 0 {
+		t.Fatalf("%s recording must include observations", wantLane)
+	}
+	seen := map[string]bool{}
+	for _, observation := range recording.Observations {
+		if !slices.Contains(artifact.Runtimes, observation.Runtime) {
+			t.Fatalf("%s recording runtime %q is not declared in artifact runtimes %#v", wantLane, observation.Runtime, artifact.Runtimes)
+		}
+		if seen[observation.Runtime] {
+			t.Fatalf("%s recording repeats runtime %q", wantLane, observation.Runtime)
+		}
+		seen[observation.Runtime] = true
+		if observation.DurationMS < 0 {
+			t.Fatalf("%s recording runtime %q duration_ms = %d, want non-negative", wantLane, observation.Runtime, observation.DurationMS)
+		}
+		if !strings.HasPrefix(observation.Resource, artifact.Safety.ResourcePrefix) {
+			t.Fatalf("%s recording resource %q does not use prefix %q", wantLane, observation.Resource, artifact.Safety.ResourcePrefix)
+		}
+		assertGoogleParityRecordingSanitized(t, wantLane, observation)
+	}
+	for _, runtime := range []string{"opentofu", "ramen"} {
+		if !seen[runtime] {
+			t.Fatalf("%s recording missing required runtime %q", wantLane, runtime)
+		}
+	}
+	switch lane {
+	case "y03":
+		want := compareGoogleParityObservations(recording.Observations, recording.Comparison.Fields)
+		if !reflect.DeepEqual(recording.Comparison, want) {
+			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)
+		}
+		if !recording.Comparison.Matched {
+			t.Fatalf("%s recording comparison did not match", wantLane)
+		}
+	default:
+		t.Fatalf("no recording assertions registered for Google parity lane %s", lane)
+	}
+}
+
+func assertGoogleParityRecordingSanitized(t *testing.T, lane string, observation googleParityRuntimeObservation) {
+	t.Helper()
+	forbidden := []string{
+		"access_token",
+		"application_default_credentials",
+		"authorization",
+		"client_secret",
+		"credential",
+		"google_application_credentials",
+		"oauth",
+		"private_key",
+		"raw_response",
+		"refresh_token",
+	}
+	values := []string{observation.Resource}
+	for key, value := range observation.Fields {
+		values = append(values, key)
+		if valueString, ok := value.(string); ok {
+			values = append(values, valueString)
+		}
+	}
+	for _, value := range values {
+		normalized := strings.ToLower(value)
+		for _, bad := range forbidden {
+			if strings.Contains(normalized, bad) {
+				t.Fatalf("%s recording contains forbidden material %q in %q", lane, bad, value)
 			}
 		}
 	}
@@ -231,6 +367,33 @@ func assertGoogleParitySafetyContract(t *testing.T, lane string, safety googlePa
 				t.Fatalf("Y03 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}
 		}
+	case "y04":
+		if !safety.LiveEnabled {
+			t.Fatalf("Y04 must be live-enabled for opt-in read-missing mutation")
+		}
+		for _, guardrail := range []string{"one disposable bucket at a time", "empty bucket only", "out-of-band delete before read-missing"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Y04 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
+	case "y05":
+		if !safety.LiveEnabled {
+			t.Fatalf("Y05 must be live-enabled for opt-in object metadata upload mutation")
+		}
+		for _, guardrail := range []string{"one disposable support bucket per runtime", "tiny non-secret object content", "no object content in observations"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Y05 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
+	case "y06":
+		if !safety.LiveEnabled {
+			t.Fatalf("Y06 must be live-enabled for opt-in managed folder mutation")
+		}
+		for _, guardrail := range []string{"one disposable HNS bucket per runtime", "no IAM mutation", "delete managed folder and bucket before recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Y06 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
 	default:
 		t.Fatalf("no safety assertions registered for Google parity lane %s", lane)
 	}
@@ -241,16 +404,24 @@ func assertGoogleParityStaticFixtures(t *testing.T, lane string, artifact google
 	assertGoogleParityHCLFixture(t, lane, artifact)
 	assertGoogleParityNativeProjectFixture(t, lane)
 	switch lane {
-	case "y01", "y03":
+	case "y01", "y03", "y04":
 		assertGoogleParityPlanFixture(t, lane, "create", "storage.buckets.insert", "create", false)
 		assertGoogleParityPlanFixture(t, lane, "read", "storage.buckets.get", "read", false)
-		assertGoogleParityPlanFixture(t, lane, "create", "storage.buckets.patch", "update", true)
+		if lane != "y04" {
+			assertGoogleParityPlanFixture(t, lane, "create", "storage.buckets.patch", "update", true)
+		}
 		assertGoogleParityPlanFixture(t, lane, "delete", "storage.buckets.delete", "delete", true)
 		if lane == "y03" {
 			assertGoogleParityRequestBindings(t, lane, map[string][]string{
-				"create": {"name", "location", "iamConfiguration.uniformBucketLevelAccess.enabled", "project"},
+				"create": {"name", "location", "iamConfiguration.uniformBucketLevelAccess.enabled", "project", "labels"},
 				"read":   {"bucket"},
 				"update": {"bucket", "labels.ramen_parity_phase"},
+				"delete": {"bucket"},
+			})
+		} else if lane == "y04" {
+			assertGoogleParityRequestBindings(t, lane, map[string][]string{
+				"create": {"name", "location", "iamConfiguration.uniformBucketLevelAccess.enabled", "project"},
+				"read":   {"bucket"},
 				"delete": {"bucket"},
 			})
 		} else {
@@ -268,6 +439,28 @@ func assertGoogleParityStaticFixtures(t *testing.T, lane string, artifact google
 			"read": {"bucket"},
 		})
 		assertGoogleParityResponseBindings(t, lane, []string{"name", "id", "location", "iamConfiguration.uniformBucketLevelAccess.enabled"})
+	case "y05":
+		assertGoogleParityPlanFixture(t, lane, "create", "storage.objects.insert", "create", false)
+		assertGoogleParityPlanFixture(t, lane, "read", "storage.objects.get", "read", false)
+		assertGoogleParityPlanFixture(t, lane, "create", "storage.objects.patch", "update", true)
+		assertGoogleParityPlanFixture(t, lane, "delete", "storage.objects.delete", "delete", true)
+		assertGoogleParityRequestBindings(t, lane, map[string][]string{
+			"create": {"bucket", "name", "uploadType", "metadata.contentType", "metadata.metadata", "content"},
+			"read":   {"bucket", "object"},
+			"update": {"bucket", "object", "metadata.ramen_parity_phase"},
+			"delete": {"bucket", "object"},
+		})
+		assertGoogleParityResponseBindings(t, lane, []string{"name", "bucket", "id", "generation", "size", "metadata.ramen_parity_phase"})
+	case "y06":
+		assertGoogleParityPlanFixture(t, lane, "create", "storage.managedFolders.insert", "create", false)
+		assertGoogleParityPlanFixture(t, lane, "read", "storage.managedFolders.get", "read", false)
+		assertGoogleParityPlanFixture(t, lane, "delete", "storage.managedFolders.delete", "delete", true)
+		assertGoogleParityRequestBindings(t, lane, map[string][]string{
+			"create": {"bucket", "name"},
+			"read":   {"bucket", "managedFolder"},
+			"delete": {"bucket", "managedFolder"},
+		})
+		assertGoogleParityResponseBindings(t, lane, []string{"name", "bucket", "id", "metageneration"})
 	default:
 		t.Fatalf("no static assertions registered for Google parity lane %s", lane)
 	}
@@ -355,29 +548,55 @@ func assertGoogleParityPlanFixture(t *testing.T, lane, action, operationID, summ
 
 func seedGoogleParityState(t *testing.T, lane, statePath string) {
 	t.Helper()
-	if lane != "y01" && lane != "y03" {
-		t.Fatalf("no seed state registered for Google parity lane %s", lane)
-	}
 	store, err := state.Open(context.Background(), statePath)
 	if err != nil {
 		t.Fatalf("open %s seed state: %v", strings.ToUpper(lane), err)
 	}
 	defer store.Close()
-	if err := store.RecordResource(context.Background(), state.ResourceSnapshot{
-		Address:        googleParityBucketAddress(lane),
-		Type:           "google_storage_bucket",
-		Provider:       "provider.google",
-		DesiredHash:    "sha256:previous",
-		IdentityJSON:   `{"bucket_name":"ramen-parity-` + lane + `-static"}`,
-		AttributesJSON: `{"name":"ramen-parity-` + lane + `-static","location":"EU","uniform_bucket_level_access":false}`,
-		Status:         "managed",
-	}); err != nil {
+	snapshot, err := googleParitySeedSnapshot(lane)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := store.RecordResource(context.Background(), snapshot); err != nil {
 		t.Fatalf("record %s seed state: %v", strings.ToUpper(lane), err)
 	}
 }
 
-func googleParityBucketAddress(lane string) string {
-	return "google_storage_bucket.bucket"
+func googleParitySeedSnapshot(lane string) (state.ResourceSnapshot, error) {
+	switch lane {
+	case "y01", "y03", "y04":
+		return state.ResourceSnapshot{
+			Address:        "google_storage_bucket.bucket",
+			Type:           "google_storage_bucket",
+			Provider:       "provider.google",
+			DesiredHash:    "sha256:previous",
+			IdentityJSON:   `{"bucket_name":"ramen-parity-` + lane + `-static"}`,
+			AttributesJSON: `{"name":"ramen-parity-` + lane + `-static","location":"EU","uniform_bucket_level_access":false}`,
+			Status:         "managed",
+		}, nil
+	case "y05":
+		return state.ResourceSnapshot{
+			Address:        "google_storage_bucket_object.object",
+			Type:           "google_storage_bucket_object",
+			Provider:       "provider.google",
+			DesiredHash:    "sha256:previous",
+			IdentityJSON:   `{"bucket_name":"ramen-parity-y05-static","object_name":"ramen-parity-y05-object.txt"}`,
+			AttributesJSON: `{"bucket":"ramen-parity-y05-static","name":"ramen-parity-y05-object.txt","upload_type":"multipart","content":"ramen-y05-static-fixture","content_type":"text/plain","metadata":{"ramen_parity_phase":"create"}}`,
+			Status:         "managed",
+		}, nil
+	case "y06":
+		return state.ResourceSnapshot{
+			Address:        "google_storage_managed_folder.folder",
+			Type:           "google_storage_managed_folder",
+			Provider:       "provider.google",
+			DesiredHash:    "sha256:previous",
+			IdentityJSON:   `{"bucket_name":"ramen-parity-y06-static","folder_name":"managed/y06/"}`,
+			AttributesJSON: `{"bucket":"ramen-parity-y06-static","name":"managed/y06/"}`,
+			Status:         "managed",
+		}, nil
+	default:
+		return state.ResourceSnapshot{}, fmt.Errorf("no seed state registered for Google parity lane %s", lane)
+	}
 }
 
 func googleParitySummaryHasOne(summary tfplan.Summary, field string) bool {
@@ -461,8 +680,40 @@ func normalizeGoogleParityRecording(t *testing.T, data []byte) googleParityLiveR
 	recording.DurationMS = 0
 	for i := range recording.Observations {
 		recording.Observations[i].DurationMS = 0
+		recording.Observations[i].Resource = normalizeGoogleParityGeneratedResource(recording.Lane, recording.Observations[i].Runtime, recording.Observations[i].Resource)
+		for key, value := range recording.Observations[i].Fields {
+			if valueString, ok := value.(string); ok {
+				recording.Observations[i].Fields[key] = normalizeGoogleParityGeneratedResource(recording.Lane, recording.Observations[i].Runtime, valueString)
+			}
+		}
 	}
 	return recording
+}
+
+func normalizeGoogleParityGeneratedResource(lane, runtime, value string) string {
+	lane = strings.ToLower(strings.TrimSpace(lane))
+	runtime = strings.ToLower(strings.TrimSpace(runtime))
+	if lane == "" || runtime == "" {
+		return value
+	}
+	prefix := "ramen-parity-" + lane + "-" + runtime + "-"
+	idx := strings.Index(value, prefix)
+	if idx < 0 {
+		return value
+	}
+	end := idx + len(prefix)
+	for end < len(value) {
+		c := value[end]
+		if (c >= 'a' && c <= 'z') || (c >= '0' && c <= '9') {
+			end++
+			continue
+		}
+		break
+	}
+	if end == idx+len(prefix) {
+		return value
+	}
+	return value[:idx] + prefix + "<run>" + value[end:]
 }
 
 func assertGoogleParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
@@ -518,8 +769,12 @@ func assertGoogleParityRequestBindingLocations(t *testing.T, lane string) {
 				t.Fatalf("%s bucket request binding for role %s location = %q, want path", strings.ToUpper(lane), binding.OperationRole, binding.Location)
 			}
 		case "project":
-			if lane == "y03" && binding.Location != "query" {
+			if (lane == "y03" || lane == "y04") && binding.Location != "query" {
 				t.Fatalf("%s project request binding location = %q, want query", strings.ToUpper(lane), binding.Location)
+			}
+		case "object", "managedFolder":
+			if binding.Location != "path" {
+				t.Fatalf("%s %s request binding for role %s location = %q, want path", strings.ToUpper(lane), binding.RequestPath, binding.OperationRole, binding.Location)
 			}
 		}
 	}

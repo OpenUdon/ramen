@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/uws/uws1"
+	"github.com/genelet/udon/generator"
 	"github.com/genelet/udon/pkg/credentials"
 	"github.com/genelet/udon/pkg/uwsprofile"
 )
@@ -142,6 +143,97 @@ func TestEnsureUdonRequestBodySchemaAddsPayloadParameters(t *testing.T) {
 	}
 	if cfg.ResponseBody == nil || cfg.ResponseBody.Type != "object" {
 		t.Fatalf("response body override missing: %#v", cfg.ResponseBody)
+	}
+}
+
+func TestEnsureUdonExecutionHintsAllowsDiscoveryUploadOptIn(t *testing.T) {
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "storage.discovery.json"), []byte(`{
+  "name": "storage",
+  "version": "v1",
+  "baseUrl": "https://storage.googleapis.com/storage/v1/",
+  "parameters": {
+    "uploadType": {"type": "string", "location": "query"}
+  },
+  "resources": {
+    "objects": {
+      "methods": {
+        "insert": {
+          "id": "storage.objects.insert",
+          "path": "b/{bucket}/o",
+          "httpMethod": "POST",
+          "parameters": {
+            "bucket": {"type": "string", "location": "path", "required": true},
+            "name": {"type": "string", "location": "query"}
+          },
+          "request": {"$ref": "Object"},
+          "response": {"$ref": "Object"},
+          "mediaUpload": {
+            "protocols": {
+              "simple": {"multipart": true, "path": "/upload/storage/v1/b/{bucket}/o"}
+            }
+          }
+        }
+      }
+    }
+  },
+  "schemas": {
+    "Object": {
+      "type": "object",
+      "properties": {
+        "name": {"type": "string"},
+        "contentType": {"type": "string"},
+        "metadata": {"type": "object"}
+      }
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	doc := &uws1.Document{
+		UWS:  "1.4.0",
+		Info: &uws1.Info{Title: "Storage Upload", Version: "1.0.0"},
+		SourceDescriptions: []*uws1.SourceDescription{{
+			Name: "storage",
+			Type: uws1.SourceDescriptionTypeGoogleDiscovery,
+			URL:  "storage.discovery.json",
+		}},
+		Operations: []*uws1.Operation{{
+			OperationID:       "create_object",
+			SourceDescription: "storage",
+			SourceOperationID: "storage.objects.insert",
+			Request: map[string]any{
+				"path":  map[string]any{"bucket": "example-bucket"},
+				"query": map[string]any{"name": "note.txt", "uploadType": "multipart"},
+				"body": map[string]any{
+					"metadata": map[string]any{"name": "note.txt", "contentType": "text/plain"},
+					"content":  "hello",
+				},
+			},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main",
+			Type:       uws1.WorkflowTypeSequence,
+			Steps:      []*uws1.Step{{StepID: "create_object", OperationRef: "create_object"}},
+		}},
+	}
+	ensureUdonExecutionHints(doc, dir)
+	plan, err := generator.NewRuntimePlanFromUWSDocument(doc, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plan.ExecCache().Operations) != 1 {
+		t.Fatalf("operations = %d, want 1", len(plan.ExecCache().Operations))
+	}
+	op := plan.ExecCache().Operations[0]
+	if op.Path != "/upload/storage/v1/b/{bucket}/o" {
+		t.Fatalf("path = %q, want upload path", op.Path)
+	}
+	if op.RequestMediaType != "multipart/related" {
+		t.Fatalf("request media type = %q, want multipart/related", op.RequestMediaType)
+	}
+	if op.Discovery == nil || !op.Discovery.UseUpload {
+		t.Fatalf("discovery config = %#v, want useUpload", op.Discovery)
 	}
 }
 

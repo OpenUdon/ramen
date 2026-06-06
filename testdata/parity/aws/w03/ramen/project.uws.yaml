@@ -1,0 +1,186 @@
+info:
+  description: AWS S3 Public Access Block static parity fixture for W03.
+  title: ramen_aws_w03_s3_public_access_block_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: aws
+    appendices:
+      aws_signing_name: s3
+      region: us-east-1
+      service: s3
+  security:
+    - binding: aws_hmac
+      name: awsSigV4
+      scheme:
+        scheme: sigv4
+        type: awsSigV4
+operations:
+  - description: Create the S3 Public Access Block configuration.
+    operationId: aws_s3_public_access_block_test_create
+    sourceDescription: s3
+    sourceOperationId: PutPublicAccessBlock
+  - description: Read the S3 Public Access Block configuration.
+    operationId: aws_s3_public_access_block_test_read
+    sourceDescription: s3
+    sourceOperationId: GetPublicAccessBlock
+  - description: Update the S3 Public Access Block configuration.
+    operationId: aws_s3_public_access_block_test_put
+    sourceDescription: s3
+    sourceOperationId: PutPublicAccessBlock
+  - description: Delete the S3 Public Access Block configuration.
+    operationId: aws_s3_public_access_block_test_delete
+    sourceDescription: s3
+    sourceOperationId: DeletePublicAccessBlock
+sourceDescriptions:
+  - name: s3
+    type: aws-smithy
+    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for S3 Public Access Block mapping replay.
+    steps:
+      - operationRef: aws_s3_public_access_block_test_create
+        stepId: create
+      - operationRef: aws_s3_public_access_block_test_read
+        stepId: read
+      - operationRef: aws_s3_public_access_block_test_put
+        stepId: put
+      - operationRef: aws_s3_public_access_block_test_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: s3
+      kind: aws-smithy
+      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+  metadata:
+    action: create
+    source: W03 AWS provider parity fixture
+  redaction: {}
+  resources:
+    - address: aws_s3_bucket_public_access_block.test
+      attributes:
+        bucket: ramen-parity-w03-fixture-bucket
+        public_access_block_configuration:
+          BlockPublicAcls: true
+          BlockPublicPolicy: true
+          IgnorePublicAcls: true
+          RestrictPublicBuckets: true
+      credential_bindings:
+        - aws_hmac
+      identity_attributes:
+        - name: bucket
+          path: bucket
+          request_keys:
+            - Bucket
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: aws_s3_bucket_public_access_block
+        support_bucket: fixture-only
+        terraform_address: aws_s3_bucket_public_access_block.test
+      name: test
+      operations:
+        create:
+          credential_bindings:
+            - aws_hmac
+          method: PUT
+          operation_id: PutPublicAccessBlock
+          purpose: create
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+        read:
+          credential_bindings:
+            - aws_hmac
+          method: GET
+          operation_id: GetPublicAccessBlock
+          purpose: read
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+        put:
+          credential_bindings:
+            - aws_hmac
+          method: PUT
+          operation_id: PutPublicAccessBlock
+          purpose: put
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+        delete:
+          credential_bindings:
+            - aws_hmac
+          method: DELETE
+          operation_id: DeletePublicAccessBlock
+          purpose: delete
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+      redaction: {}
+      request_bindings:
+        - operation_id: PutPublicAccessBlock
+          operation_role: create
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+        - operation_id: PutPublicAccessBlock
+          operation_role: create
+          path: public_access_block_configuration
+          request_path: PublicAccessBlockConfiguration
+          required: true
+        - operation_id: GetPublicAccessBlock
+          operation_role: read
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+        - operation_id: PutPublicAccessBlock
+          operation_role: put
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+        - operation_id: PutPublicAccessBlock
+          operation_role: put
+          path: public_access_block_configuration
+          request_path: PublicAccessBlockConfiguration
+          required: true
+        - operation_id: DeletePublicAccessBlock
+          operation_role: delete
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - put
+        - delete
+      response_bindings:
+        - operation_id: GetPublicAccessBlock
+          operation_role: read
+          state_path: block_public_acls
+          response_path: PublicAccessBlockConfiguration.BlockPublicAcls
+          observed: true
+        - operation_id: GetPublicAccessBlock
+          operation_role: read
+          state_path: block_public_policy
+          response_path: PublicAccessBlockConfiguration.BlockPublicPolicy
+          observed: true
+        - operation_id: GetPublicAccessBlock
+          operation_role: read
+          state_path: ignore_public_acls
+          response_path: PublicAccessBlockConfiguration.IgnorePublicAcls
+          observed: true
+        - operation_id: GetPublicAccessBlock
+          operation_role: read
+          state_path: restrict_public_buckets
+          response_path: PublicAccessBlockConfiguration.RestrictPublicBuckets
+          observed: true
+      type: aws_s3_bucket_public_access_block
+  version: ramen.project.v1

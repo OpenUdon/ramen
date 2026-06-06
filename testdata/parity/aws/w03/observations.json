@@ -1,0 +1,86 @@
+{
+  "version": "ramen.aws.provider-parity.v1",
+  "lane": "W03",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/aws",
+    "version_constraint": "~> 6.0"
+  },
+  "smithy": {
+    "source_path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json",
+    "fixture": "testdata/parity/aws/w03/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_AWS_PARITY",
+    "record_update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AWS_PARITY_LANE",
+    "opentofu_env": "RAMEN_AWS_TOFU",
+    "credential_binding": "aws_hmac",
+    "resource_prefix": "ramen-parity-w03-",
+    "requires_explicit_lane": true,
+    "live_enabled": false,
+    "cleanup_fallback": "aws s3api delete-public-access-block --bucket <ramen-parity-w03-*>, then verify with get-public-access-block",
+    "required_env": [
+      "RAMEN_AWS_TOFU",
+      "AWS_ACCESS_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY"
+    ],
+    "cost_guardrails": [
+      "static first",
+      "no live AWS mutation",
+      "cleanup verification before recording"
+    ]
+  },
+  "recording": {
+    "status": "static-only",
+    "artifact_path": "testdata/parity/aws/w03/live.observations.json",
+    "update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Keep W03 static-only until a separate S3 bucket naming and cleanup approval exists."
+  },
+  "promotion": {
+    "next": "park S3 Public Access Block live promotion",
+    "live_candidate": false,
+    "blockers": [
+      "global bucket names require collision-resistant allocation",
+      "support bucket creation and deletion cleanup need separate approval"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "s3_public_access_block_static_lifecycle",
+      "resource_type": "aws_s3_bucket_public_access_block",
+      "terraform_resource_type": "aws_s3_bucket_public_access_block",
+      "fixture_paths": [
+        "testdata/parity/aws/w03/hcl/main.tf",
+        "testdata/parity/aws/w03/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "PutPublicAccessBlock",
+        "GetPublicAccessBlock",
+        "DeletePublicAccessBlock"
+      ],
+      "observed_fields": [
+        "PublicAccessBlockConfiguration.BlockPublicAcls",
+        "PublicAccessBlockConfiguration.BlockPublicPolicy",
+        "PublicAccessBlockConfiguration.IgnorePublicAcls",
+        "PublicAccessBlockConfiguration.RestrictPublicBuckets"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-put-update-plan",
+        "static-delete-plan"
+      ]
+    }
+  ],
+  "notes": [
+    "W03 is static only because S3 bucket names are global and cleanup needs a separate live approval.",
+    "The support bucket name is fixture-only; this lane does not create or mutate a live bucket.",
+    "Live promotion remains parked until global bucket allocation and support-bucket cleanup are reviewed."
+  ]
+}

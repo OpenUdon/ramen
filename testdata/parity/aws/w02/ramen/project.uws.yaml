@@ -1,0 +1,200 @@
+info:
+  description: AWS IAM Role static parity fixture for W02.
+  title: ramen_aws_w02_iam_role_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: aws
+    appendices:
+      aws_signing_name: iam
+      region: us-east-1
+      service: iam
+  security:
+    - binding: aws_hmac
+      name: awsSigV4
+      scheme:
+        scheme: sigv4
+        type: awsSigV4
+operations:
+  - description: Create the AWS IAM role.
+    operationId: aws_iam_role_test_create
+    sourceDescription: iam
+    sourceOperationId: CreateRole
+  - description: Read the AWS IAM role.
+    operationId: aws_iam_role_test_read
+    sourceDescription: iam
+    sourceOperationId: GetRole
+  - description: Update mutable AWS IAM role fields.
+    operationId: aws_iam_role_test_update
+    sourceDescription: iam
+    sourceOperationId: UpdateRole
+  - description: Delete the AWS IAM role.
+    operationId: aws_iam_role_test_delete
+    sourceDescription: iam
+    sourceOperationId: DeleteRole
+sourceDescriptions:
+  - name: iam
+    type: aws-smithy
+    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for IAM Role mapping replay.
+    steps:
+      - operationRef: aws_iam_role_test_create
+        stepId: create
+      - operationRef: aws_iam_role_test_read
+        stepId: read
+      - operationRef: aws_iam_role_test_update
+        stepId: update
+      - operationRef: aws_iam_role_test_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: iam
+      kind: aws-smithy
+      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+  metadata:
+    action: create
+    source: W02 AWS provider parity fixture
+  redaction: {}
+  resources:
+    - address: aws_iam_role.test
+      attributes:
+        assume_role_policy: |
+          {"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}
+        description: Ramen W02 static parity role
+        max_session_duration: 3600
+        name: ramen-parity-w02-static
+      credential_bindings:
+        - aws_hmac
+      identity_attributes:
+        - name: role_name
+          path: name
+          request_keys:
+            - RoleName
+          required: true
+          response_paths:
+            - Role.RoleName
+            - Role.Arn
+            - Role.RoleId
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: aws_iam_role
+        terraform_address: aws_iam_role.test
+      name: test
+      operations:
+        create:
+          credential_bindings:
+            - aws_hmac
+          operation_id: CreateRole
+          purpose: create
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+        read:
+          credential_bindings:
+            - aws_hmac
+          operation_id: GetRole
+          purpose: read
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+        update:
+          credential_bindings:
+            - aws_hmac
+          operation_id: UpdateRole
+          purpose: update
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+        delete:
+          credential_bindings:
+            - aws_hmac
+          operation_id: DeleteRole
+          purpose: delete
+          source_id: iam
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+      redaction: {}
+      request_bindings:
+        - operation_id: CreateRole
+          operation_role: create
+          path: name
+          request_path: RoleName
+          required: true
+          identity: true
+        - operation_id: CreateRole
+          operation_role: create
+          path: assume_role_policy
+          request_path: AssumeRolePolicyDocument
+          required: true
+        - operation_id: CreateRole
+          operation_role: create
+          path: description
+          request_path: Description
+        - operation_id: CreateRole
+          operation_role: create
+          path: max_session_duration
+          request_path: MaxSessionDuration
+        - operation_id: GetRole
+          operation_role: read
+          path: name
+          request_path: RoleName
+          required: true
+          identity: true
+        - operation_id: UpdateRole
+          operation_role: update
+          path: name
+          request_path: RoleName
+          required: true
+          identity: true
+        - operation_id: UpdateRole
+          operation_role: update
+          path: description
+          request_path: Description
+        - operation_id: UpdateRole
+          operation_role: update
+          path: max_session_duration
+          request_path: MaxSessionDuration
+        - operation_id: DeleteRole
+          operation_role: delete
+          path: name
+          request_path: RoleName
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: GetRole
+          operation_role: read
+          state_path: name
+          response_path: Role.RoleName
+          identity: true
+        - operation_id: GetRole
+          operation_role: read
+          state_path: arn
+          response_path: Role.Arn
+          computed: true
+        - operation_id: GetRole
+          operation_role: read
+          state_path: role_id
+          response_path: Role.RoleId
+          computed: true
+        - operation_id: GetRole
+          operation_role: read
+          state_path: description
+          response_path: Role.Description
+          observed: true
+        - operation_id: GetRole
+          operation_role: read
+          state_path: max_session_duration
+          response_path: Role.MaxSessionDuration
+          observed: true
+      type: aws_iam_role
+  version: ramen.project.v1

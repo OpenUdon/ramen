@@ -181,6 +181,15 @@ func ensureUdonOperationHints(op *uws1.Operation, sources map[string]*uws1.Sourc
 			changed = true
 		}
 	}
+	if sourceIsGoogleDiscovery(sources[op.SourceDescription]) && requestHasUploadType(op.Request) {
+		if config.Discovery == nil {
+			config.Discovery = &uwsprofile.DiscoveryProtocolConfig{}
+		}
+		if !config.Discovery.UseUpload {
+			config.Discovery.UseUpload = true
+			changed = true
+		}
+	}
 	if config.ResponseBody == nil && isRamenMutationApplyRequest(op.Request) {
 		config.ResponseBody = &uws1.ParamSchema{Type: "object"}
 		changed = true
@@ -196,6 +205,22 @@ func ensureUdonOperationHints(op *uws1.Operation, sources map[string]*uws1.Sourc
 	if changed {
 		_ = uwsprofile.SetOperationConfigExtension(&op.Extensions, config)
 	}
+}
+
+func sourceIsGoogleDiscovery(source *uws1.SourceDescription) bool {
+	return source != nil && strings.EqualFold(string(source.Type), string(uws1.SourceDescriptionTypeGoogleDiscovery))
+}
+
+func requestHasUploadType(request map[string]any) bool {
+	query, ok := request["query"].(map[string]any)
+	if !ok {
+		return false
+	}
+	value, ok := query["uploadType"]
+	if !ok {
+		return false
+	}
+	return strings.TrimSpace(fmt.Sprint(value)) != ""
 }
 
 func requestSectionSchema(request map[string]any, section string) *uws1.ParamSchema {

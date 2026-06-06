@@ -14,15 +14,40 @@
     "live_env": "RAMEN_AWS_PARITY",
     "record_update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
     "lane_env": "RAMEN_AWS_PARITY_LANE",
+    "opentofu_env": "RAMEN_AWS_TOFU",
     "credential_binding": "aws_hmac",
     "resource_prefix": "ramen-parity-w01-",
     "requires_explicit_lane": true,
-    "live_enabled": false,
+    "live_enabled": true,
+    "cleanup_fallback": "aws iam delete-user --user-name <ramen-parity-w01-*>, then aws iam get-user --user-name <name> to verify absence",
+    "required_env": [
+      "RAMEN_AWS_TOFU",
+      "AWS_ACCESS_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY"
+    ],
     "cost_guardrails": [
-      "static first",
-      "opentofu baseline only for future live runs",
-      "one disposable IAM user only if live-approved",
+      "one disposable IAM user at a time",
+      "opentofu baseline only",
+      "no access keys policies groups or login profile",
       "delete IAM user before recording"
+    ]
+  },
+  "recording": {
+    "status": "deferred",
+    "artifact_path": "testdata/parity/aws/w01/live.observations.json",
+    "update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Do not commit W01 live observations until an explicit operator run reviews sanitized OpenTofu and Ramen results."
+  },
+  "promotion": {
+    "next": "record W01 live evidence",
+    "live_candidate": true,
+    "preconditions": [
+      "explicit operator recording run",
+      "RAMEN_AWS_PARITY=1",
+      "RAMEN_AWS_PARITY_LANE=w01",
+      "RAMEN_AWS_PARITY_RECORD_UPDATE=1",
+      "verified cleanup before commit"
     ]
   },
   "runtimes": [
@@ -37,6 +62,7 @@
       "fixture_paths": [
         "testdata/corpus/aws/iam/User/basic/project.uws.yaml",
         "testdata/corpus/aws/iam/User/basic/plan.json",
+        "testdata/parity/aws/w01/hcl/main.tf",
         "testdata/parity/aws/w01/ramen/project.uws.yaml"
       ],
       "operation_ids": [
@@ -53,13 +79,15 @@
         "static-create-plan",
         "static-read-plan",
         "static-delete-plan",
-        "future-opentofu-live-baseline"
+        "opt-in-opentofu-live-baseline",
+        "opt-in-ramen-udon-live-run"
       ]
     }
   ],
   "notes": [
-    "W01 is the first AWS parity lane and is static only.",
-    "The lane starts from existing IAM User corpus evidence and adds native Ramen create/read/delete metadata before any AWS mutation is enabled.",
-    "Future live work should compare OpenTofu and Ramen only, with explicit cleanup of the disposable ramen-parity-w01-* IAM user."
+    "W01 is the first AWS parity lane and has default credential-free static checks plus an opt-in live harness.",
+    "The live harness is gated by RAMEN_AWS_PARITY=1 and RAMEN_AWS_PARITY_LANE=w01, uses OpenTofu plus Ramen only, and never creates access keys, policies, groups, or a login profile.",
+    "Ramen+udon signing relies on udon/soliton AWS SigV4 provider appendices and standard AWS environment credentials; aws_hmac is symbolic fixture metadata.",
+    "No live.observations.json update is committed by default; recording updates require RAMEN_AWS_PARITY_RECORD_UPDATE=1."
   ]
 }

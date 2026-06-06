@@ -2,6 +2,19 @@ info:
   description: AWS IAM User static parity fixture for W01.
   title: ramen_aws_w01_iam_user_parity
   version: 1.0.0
+x-udon-config:
+  provider:
+    name: aws
+    appendices:
+      aws_signing_name: iam
+      region: us-east-1
+      service: iam
+  security:
+    - binding: aws_hmac
+      name: awsSigV4
+      scheme:
+        scheme: sigv4
+        type: awsSigV4
 operations:
   - description: Create the AWS IAM user.
     operationId: aws_iam_user_test_create
@@ -34,6 +47,10 @@ sourceDescriptions:
   - name: iam
     type: aws-smithy
     url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+    x-ramen-aws-source:
+      default_region: us-east-1
+      service: iam
+      sigv4: true
 uws: 1.4.0
 workflows:
   - description: Review W01 IAM User mapped operations.
@@ -119,10 +136,50 @@ x-ramen-desired-state:
           source_kind: aws-smithy
           source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
       redaction: {}
+      request_bindings:
+        - operation_id: CreateUser
+          operation_role: create
+          path: name
+          request_path: UserName
+          required: true
+          identity: true
+        - operation_id: GetUser
+          operation_role: read
+          path: name
+          request_path: UserName
+          required: true
+          identity: true
+        - operation_id: DeleteUser
+          operation_role: delete
+          path: name
+          request_path: UserName
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - delete
       response_bindings:
         - operation_id: GetUser
           operation_role: read
           state_path: name
           response_path: User.UserName
+          identity: true
+        - operation_id: GetUser
+          operation_role: read
+          state_path: arn
+          response_path: User.Arn
+          computed: true
+        - operation_id: GetUser
+          operation_role: read
+          state_path: user_id
+          response_path: User.UserId
+          computed: true
+      runtime_hints:
+        settle:
+          before: delete
+          duration: 45s
+          interval: 5s
+          read_expect: exists
       type: aws_iam_user
   version: ramen.project.v1

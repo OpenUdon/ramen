@@ -1,0 +1,291 @@
+info:
+  description: Google Cloud Storage object metadata static parity fixture for Y05.
+  title: ramen_google_y05_storage_object_metadata_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: google
+    serverUrl: https://storage.googleapis.com/storage/v1
+  security:
+    - binding: google_oauth2
+      name: google_oauth2
+      scheme:
+        flows:
+          authorizationCode:
+            scopes:
+              https://www.googleapis.com/auth/devstorage.full_control: Manage Google Cloud Storage data.
+        type: oauth2
+operations:
+  - description: Create Google Cloud Storage object metadata.
+    operationId: google_storage_bucket_object_object_create
+    request:
+      path:
+        bucket: ramen-parity-y05-static
+      query:
+        name: ramen-parity-y05-object.txt
+        uploadType: multipart
+      body:
+        metadata:
+          name: ramen-parity-y05-object.txt
+          contentType: text/plain
+          metadata:
+            ramen_parity_lane: y05
+            ramen_parity_phase: update
+        content: ramen-y05-static-fixture
+      x-ramen-credential-bindings:
+        - google_oauth2
+    x-udon-config:
+      discovery:
+        useUpload: true
+    sourceDescription: storage
+    sourceOperationId: storage.objects.insert
+  - description: Read Google Cloud Storage object metadata.
+    operationId: google_storage_bucket_object_object_read
+    request:
+      path:
+        bucket: ramen-parity-y05-static
+        object: ramen-parity-y05-object.txt
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.objects.get
+  - description: Update Google Cloud Storage object metadata.
+    operationId: google_storage_bucket_object_object_update
+    request:
+      path:
+        bucket: ramen-parity-y05-static
+        object: ramen-parity-y05-object.txt
+      body:
+        metadata:
+          ramen_parity_phase: update
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.objects.patch
+  - description: Delete the Google Cloud Storage object.
+    operationId: google_storage_bucket_object_object_delete
+    request:
+      path:
+        bucket: ramen-parity-y05-static
+        object: ramen-parity-y05-object.txt
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.objects.delete
+sourceDescriptions:
+  - name: storage
+    type: google-discovery
+    url: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for Google Cloud Storage object metadata mapping replay.
+    steps:
+      - operationRef: google_storage_bucket_object_object_create
+        stepId: create
+      - operationRef: google_storage_bucket_object_object_read
+        stepId: read
+      - operationRef: google_storage_bucket_object_object_update
+        stepId: update
+      - operationRef: google_storage_bucket_object_object_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: storage
+      kind: google-discovery
+      path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+  metadata:
+    action: create
+    source: Y05 Google Cloud provider object metadata parity fixture
+  redaction: {}
+  resources:
+    - address: google_storage_bucket_object.object
+      attributes:
+        bucket: ramen-parity-y05-static
+        name: ramen-parity-y05-object.txt
+        upload_type: multipart
+        content: ramen-y05-static-fixture
+        content_type: text/plain
+        metadata:
+          ramen_parity_lane: y05
+          ramen_parity_phase: update
+      credential_bindings:
+        - google_oauth2
+      identity_attributes:
+        - name: bucket_name
+          path: bucket
+          request_keys:
+            - bucket
+          required: true
+          response_paths:
+            - bucket
+        - name: object_name
+          path: name
+          request_keys:
+            - name
+            - object
+          required: true
+          response_paths:
+            - name
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: google_storage_bucket_object
+        terraform_address: google_storage_bucket_object.object
+        live_status: opt-in-media-upload
+      name: object
+      operations:
+        create:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.objects.insert
+          purpose: create
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        read:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.objects.get
+          purpose: read
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        update:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.objects.patch
+          purpose: update
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        delete:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.objects.delete
+          purpose: delete
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+      redaction: {}
+      request_bindings:
+        - operation_id: storage.objects.insert
+          operation_role: create
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.objects.insert
+          operation_role: create
+          path: name
+          request_path: name
+          location: query
+          required: true
+          identity: true
+        - operation_id: storage.objects.insert
+          operation_role: create
+          path: upload_type
+          request_path: uploadType
+          location: query
+        - operation_id: storage.objects.insert
+          operation_role: create
+          path: content_type
+          request_path: metadata.contentType
+          location: body
+        - operation_id: storage.objects.insert
+          operation_role: create
+          path: content
+          request_path: content
+          location: body
+        - operation_id: storage.objects.insert
+          operation_role: create
+          path: metadata
+          request_path: metadata.metadata
+          location: body
+        - operation_id: storage.objects.get
+          operation_role: read
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.objects.get
+          operation_role: read
+          path: name
+          request_path: object
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.objects.patch
+          operation_role: update
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.objects.patch
+          operation_role: update
+          path: name
+          request_path: object
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.objects.patch
+          operation_role: update
+          path: metadata.ramen_parity_phase
+          request_path: metadata.ramen_parity_phase
+          location: body
+        - operation_id: storage.objects.delete
+          operation_role: delete
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.objects.delete
+          operation_role: delete
+          path: name
+          request_path: object
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: storage.objects.get
+          operation_role: read
+          state_path: name
+          response_path: name
+          identity: true
+        - operation_id: storage.objects.get
+          operation_role: read
+          state_path: bucket
+          response_path: bucket
+          identity: true
+        - operation_id: storage.objects.get
+          operation_role: read
+          state_path: id
+          response_path: id
+          computed: true
+        - operation_id: storage.objects.get
+          operation_role: read
+          state_path: generation
+          response_path: generation
+          computed: true
+        - operation_id: storage.objects.get
+          operation_role: read
+          state_path: size
+          response_path: size
+          computed: true
+        - operation_id: storage.objects.get
+          operation_role: read
+          state_path: metadata.ramen_parity_phase
+          response_path: metadata.ramen_parity_phase
+          observed: true
+      type: google_storage_bucket_object
+  version: ramen.project.v1

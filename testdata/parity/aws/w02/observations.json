@@ -1,0 +1,91 @@
+{
+  "version": "ramen.aws.provider-parity.v1",
+  "lane": "W02",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/aws",
+    "version_constraint": "~> 6.0"
+  },
+  "smithy": {
+    "source_path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json",
+    "fixture": "testdata/parity/aws/w02/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_AWS_PARITY",
+    "record_update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AWS_PARITY_LANE",
+    "opentofu_env": "RAMEN_AWS_TOFU",
+    "credential_binding": "aws_hmac",
+    "resource_prefix": "ramen-parity-w02-",
+    "requires_explicit_lane": true,
+    "live_enabled": false,
+    "cleanup_fallback": "aws iam delete-role --role-name <ramen-parity-w02-*>, after removing attached items if a future live lane creates any",
+    "required_env": [
+      "RAMEN_AWS_TOFU",
+      "AWS_ACCESS_KEY_ID",
+      "AWS_SECRET_ACCESS_KEY"
+    ],
+    "cost_guardrails": [
+      "static first",
+      "no live AWS mutation",
+      "cleanup verification before recording"
+    ]
+  },
+  "recording": {
+    "status": "static-only",
+    "artifact_path": "testdata/parity/aws/w02/live.observations.json",
+    "update_env": "RAMEN_AWS_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Do not create IAM roles until W02 receives a dedicated live harness and cleanup review."
+  },
+  "promotion": {
+    "next": "promote W02 as the next AWS live candidate after W01 recording is settled",
+    "live_candidate": true,
+    "preconditions": [
+      "dedicated W02 live harness",
+      "one disposable IAM role at a time",
+      "minimal trust policy only",
+      "no attached policies instance profiles permissions boundaries or access keys",
+      "verified cleanup before recording"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "iam_role_static_lifecycle",
+      "resource_type": "aws_iam_role",
+      "terraform_resource_type": "aws_iam_role",
+      "fixture_paths": [
+        "testdata/parity/aws/w02/hcl/main.tf",
+        "testdata/parity/aws/w02/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "CreateRole",
+        "GetRole",
+        "UpdateRole",
+        "DeleteRole"
+      ],
+      "observed_fields": [
+        "Role.RoleName",
+        "Role.Arn",
+        "Role.RoleId",
+        "Role.Description",
+        "Role.MaxSessionDuration"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-update-plan",
+        "static-delete-plan"
+      ]
+    }
+  ],
+  "notes": [
+    "W02 is static only and does not create IAM roles in AWS.",
+    "The fixture keeps role scope minimal: trust policy, description, and max session duration only.",
+    "W02 is the next AWS live candidate after W01 live recording is settled."
+  ]
+}

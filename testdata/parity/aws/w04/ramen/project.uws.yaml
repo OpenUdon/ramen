@@ -1,0 +1,147 @@
+info:
+  description: AWS S3 Bucket Versioning static parity fixture for W04.
+  title: ramen_aws_w04_s3_bucket_versioning_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: aws
+    appendices:
+      aws_signing_name: s3
+      region: us-east-1
+      service: s3
+  security:
+    - binding: aws_hmac
+      name: awsSigV4
+      scheme:
+        scheme: sigv4
+        type: awsSigV4
+operations:
+  - description: Create the S3 Bucket Versioning configuration.
+    operationId: aws_s3_bucket_versioning_test_create
+    sourceDescription: s3
+    sourceOperationId: PutBucketVersioning
+  - description: Read the S3 Bucket Versioning configuration.
+    operationId: aws_s3_bucket_versioning_test_read
+    sourceDescription: s3
+    sourceOperationId: GetBucketVersioning
+  - description: Update the S3 Bucket Versioning configuration.
+    operationId: aws_s3_bucket_versioning_test_put
+    sourceDescription: s3
+    sourceOperationId: PutBucketVersioning
+sourceDescriptions:
+  - name: s3
+    type: aws-smithy
+    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for S3 Bucket Versioning mapping replay.
+    steps:
+      - operationRef: aws_s3_bucket_versioning_test_create
+        stepId: create
+      - operationRef: aws_s3_bucket_versioning_test_read
+        stepId: read
+      - operationRef: aws_s3_bucket_versioning_test_put
+        stepId: put
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: s3
+      kind: aws-smithy
+      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+  metadata:
+    delete_semantics: versioning suspend is parked for a later lane
+    source: W04 AWS provider parity fixture
+  redaction: {}
+  resources:
+    - address: aws_s3_bucket_versioning.test
+      attributes:
+        bucket: ramen-parity-w04-fixture-bucket
+        versioning_configuration:
+          Status: Enabled
+      credential_bindings:
+        - aws_hmac
+      identity_attributes:
+        - name: bucket
+          path: bucket
+          request_keys:
+            - Bucket
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        delete_semantics: parked-semantic-suspend
+        parity_target: aws_s3_bucket_versioning
+        support_bucket: fixture-only
+        terraform_address: aws_s3_bucket_versioning.test
+      name: test
+      operations:
+        create:
+          credential_bindings:
+            - aws_hmac
+          method: PUT
+          operation_id: PutBucketVersioning
+          purpose: create
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+        read:
+          credential_bindings:
+            - aws_hmac
+          method: GET
+          operation_id: GetBucketVersioning
+          purpose: read
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+        put:
+          credential_bindings:
+            - aws_hmac
+          method: PUT
+          operation_id: PutBucketVersioning
+          purpose: put
+          source_id: s3
+          source_kind: aws-smithy
+          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+      redaction: {}
+      request_bindings:
+        - operation_id: PutBucketVersioning
+          operation_role: create
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+        - operation_id: PutBucketVersioning
+          operation_role: create
+          path: versioning_configuration
+          request_path: VersioningConfiguration
+          required: true
+        - operation_id: GetBucketVersioning
+          operation_role: read
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+        - operation_id: PutBucketVersioning
+          operation_role: put
+          path: bucket
+          request_path: Bucket
+          required: true
+          identity: true
+        - operation_id: PutBucketVersioning
+          operation_role: put
+          path: versioning_configuration
+          request_path: VersioningConfiguration
+          required: true
+      required_operations:
+        - create
+        - read
+        - put
+      response_bindings:
+        - operation_id: GetBucketVersioning
+          operation_role: read
+          state_path: status
+          response_path: Status
+          observed: true
+      type: aws_s3_bucket_versioning
+  version: ramen.project.v1

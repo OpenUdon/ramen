@@ -1,0 +1,201 @@
+info:
+  description: Google Cloud Storage managed folder static parity fixture for Y06.
+  title: ramen_google_y06_storage_managed_folder_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: google
+    serverUrl: https://storage.googleapis.com/storage/v1
+  security:
+    - binding: google_oauth2
+      name: google_oauth2
+      scheme:
+        flows:
+          authorizationCode:
+            scopes:
+              https://www.googleapis.com/auth/devstorage.full_control: Manage Google Cloud Storage data.
+        type: oauth2
+operations:
+  - description: Create the Google Cloud Storage managed folder.
+    operationId: google_storage_managed_folder_folder_create
+    request:
+      path:
+        bucket: ramen-parity-y06-static
+      body:
+        name: managed/y06/
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.managedFolders.insert
+  - description: Read the Google Cloud Storage managed folder.
+    operationId: google_storage_managed_folder_folder_read
+    request:
+      path:
+        bucket: ramen-parity-y06-static
+        managedFolder: managed/y06/
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.managedFolders.get
+  - description: Delete the Google Cloud Storage managed folder.
+    operationId: google_storage_managed_folder_folder_delete
+    request:
+      path:
+        bucket: ramen-parity-y06-static
+        managedFolder: managed/y06/
+      x-ramen-credential-bindings:
+        - google_oauth2
+    sourceDescription: storage
+    sourceOperationId: storage.managedFolders.delete
+sourceDescriptions:
+  - name: storage
+    type: google-discovery
+    url: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for Google Cloud Storage managed folder mapping replay.
+    steps:
+      - operationRef: google_storage_managed_folder_folder_create
+        stepId: create
+      - operationRef: google_storage_managed_folder_folder_read
+        stepId: read
+      - operationRef: google_storage_managed_folder_folder_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: storage
+      kind: google-discovery
+      path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+  metadata:
+    action: create
+    source: Y06 Google Cloud provider managed folder parity fixture
+  redaction: {}
+  resources:
+    - address: google_storage_managed_folder.folder
+      attributes:
+        bucket: ramen-parity-y06-static
+        name: managed/y06/
+        force_destroy: false
+      credential_bindings:
+        - google_oauth2
+      identity_attributes:
+        - name: bucket_name
+          path: bucket
+          request_keys:
+            - bucket
+          required: true
+          response_paths:
+            - bucket
+        - name: folder_name
+          path: name
+          request_keys:
+            - name
+            - managedFolder
+          required: true
+          response_paths:
+            - name
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: google_storage_managed_folder
+        terraform_address: google_storage_managed_folder.folder
+        live_status: parked-managed-folder-setup
+      name: folder
+      operations:
+        create:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.managedFolders.insert
+          purpose: create
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        read:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.managedFolders.get
+          purpose: read
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+        delete:
+          credential_bindings:
+            - google_oauth2
+          operation_id: storage.managedFolders.delete
+          purpose: delete
+          source_id: storage
+          source_kind: google-discovery
+          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+      redaction: {}
+      request_bindings:
+        - operation_id: storage.managedFolders.insert
+          operation_role: create
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.managedFolders.insert
+          operation_role: create
+          path: name
+          request_path: name
+          location: body
+          required: true
+          identity: true
+        - operation_id: storage.managedFolders.get
+          operation_role: read
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.managedFolders.get
+          operation_role: read
+          path: name
+          request_path: managedFolder
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.managedFolders.delete
+          operation_role: delete
+          path: bucket
+          request_path: bucket
+          location: path
+          required: true
+          identity: true
+        - operation_id: storage.managedFolders.delete
+          operation_role: delete
+          path: name
+          request_path: managedFolder
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - delete
+      response_bindings:
+        - operation_id: storage.managedFolders.get
+          operation_role: read
+          state_path: name
+          response_path: name
+          identity: true
+        - operation_id: storage.managedFolders.get
+          operation_role: read
+          state_path: bucket
+          response_path: bucket
+          identity: true
+        - operation_id: storage.managedFolders.get
+          operation_role: read
+          state_path: id
+          response_path: id
+          computed: true
+        - operation_id: storage.managedFolders.get
+          operation_role: read
+          state_path: metageneration
+          response_path: metageneration
+          computed: true
+      type: google_storage_managed_folder
+  version: ramen.project.v1
