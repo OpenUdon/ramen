@@ -1,0 +1,85 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z01",
+  "status": "recorded",
+  "provider": {
+    "source": "hashicorp/azurerm",
+    "version_constraint": "~> 4.0"
+  },
+  "openapi": {
+    "source_path": "../azure-rest-api-specs/specification/sql/resource-manager/Microsoft.Sql/stable/2023-08-01/Databases.json",
+    "fixture": "testdata/parity/azure/z01/openapi/sql.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_AZURE_PARITY",
+    "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AZURE_PARITY_LANE",
+    "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
+    "resource_prefix": "ramen-parity-z01-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "live_waiter_min_attempts": 30,
+    "cleanup_fallback": "az sql db delete --resource-group <resource-group> --server <server> --name <database> --yes",
+    "required_env": [
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_CLIENT_ID",
+      "AZURE_CLIENT_SECRET",
+      "RAMEN_AZURE_SQL_RESOURCE_GROUP",
+      "RAMEN_AZURE_SQL_SERVER"
+    ],
+    "terraform_env_map": {
+      "AZURE_SUBSCRIPTION_ID": "ARM_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID": "ARM_TENANT_ID",
+      "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
+      "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
+    }
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "sql_database_lifecycle",
+      "resource_type": "azure_sql_database",
+      "terraform_resource_type": "azurerm_mssql_database",
+      "fixture_paths": [
+        "testdata/parity/azure/z01/hcl/main.tf",
+        "testdata/parity/azure/z01/openapi/sql.json",
+        "testdata/parity/azure/z01/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "Databases_CreateOrUpdate",
+        "Databases_Get",
+        "Databases_Delete"
+      ],
+      "observed_fields": [
+        "id",
+        "name",
+        "location",
+        "sku.name",
+        "sku.tier"
+      ],
+      "expected_transitions": [
+        "create",
+        "read",
+        "no-op",
+        "delete",
+        "post-delete-missing"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/azure/z01/live.observations.json"
+      ]
+    }
+  ],
+  "recorded_at": "2026-06-05T18:56:16Z",
+  "recordings_source": "RAMEN_AZURE_PARITY=1 RAMEN_AZURE_PARITY_RECORD_UPDATE=1 RAMEN_AZURE_PARITY_LANE=z01 with OpenTofu from ../opentofu, Terraform 1.9.8 Docker wrapper, Ramen+udon, and the approved Azure SQL resource group/server profile.",
+  "notes": [
+    "Z01 is the first Azure parity lane and starts from the M28/M38 Azure SQL create/read/delete path.",
+    "Live execution remains opt-in, must use a disposable ramen-parity-z01-* database name, must use at least a 30-attempt waiter, and must verify post-delete absence before any sanitized recording is committed.",
+    "The committed recording matched API-visible create/read/delete behavior across OpenTofu, Terraform, and Ramen+udon.",
+    "The recording preserves no-op metadata, but the API-visible comparison intentionally excludes it because Ramen's put path is API-first while Terraform/OpenTofu report no-op through their plan engines."
+  ]
+}

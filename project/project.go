@@ -99,6 +99,7 @@ type OperationRole struct {
 type RuntimeHints struct {
 	Retry  map[string]any `json:"retry,omitempty"`
 	Waiter map[string]any `json:"waiter,omitempty"`
+	Settle map[string]any `json:"settle,omitempty"`
 }
 
 type AIMetadata struct {

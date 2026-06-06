@@ -13,6 +13,12 @@ live evidence so adopters can inspect what has actually been proven.
 - `testdata/evidence/m28-sql` records Azure SQL native project fixtures for
   read, create/update, delete, runtime hints, and delete confirmation through
   mock execution.
+- `testdata/parity/azure/z01` and `z02` record Azure provider parity fixtures
+  for Azure SQL database and Cosmos DB account. Default tests validate HCL
+  parsing, native project validation, operation IDs, request bindings,
+  Z02 `runtime_hints.settle` metadata, Azure-to-ARM credential mapping, live
+  safety metadata, observation metadata, and committed Z01/Z02 replay metadata
+  without live Azure access.
 - `executor/evidence_test.go` validates Ramen executor request, response,
   status, and confirmation-read records through the shared
   `github.com/OpenUdon/evidence/async` validators.
@@ -37,6 +43,15 @@ live evidence so adopters can inspect what has actually been proven.
   Ramen project, semantic replay assertions, and sanitized live observations.
 - M37 adds `testdata/corpus/kubernetes/rbac/cluster_role_v1/basic` as
   credential-free conversion evidence for the ClusterRole mapping.
+- `testdata/parity/azure/z01/live.observations.json` records sanitized Azure
+  SQL database API-visible parity across OpenTofu, Terraform, and Ramen+udon.
+  The replay assertion compares create/read/delete visibility fields and keeps
+  no-op metadata recorded but outside the API-visible match.
+- `testdata/parity/azure/z02/live.observations.json` records sanitized Cosmos
+  DB account API-visible parity across OpenTofu, Terraform, and Ramen+udon.
+  The replay assertion compares create/read/delete visibility fields and
+  isolated resource-group cleanup while keeping no-op metadata outside the
+  API-visible match.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 
@@ -56,15 +71,23 @@ live evidence so adopters can inspect what has actually been proven.
 - Kubernetes live parity remains opt-in through `RAMEN_K8S_PARITY=1`, refuses
   non-`kind-*` contexts, and writes committed observations only when explicitly
   recording.
+- Azure live parity remains opt-in through `RAMEN_AZURE_PARITY=1` and explicit
+  `RAMEN_AZURE_PARITY_LANE`, and the mutation test is excluded from regular
+  suites behind the `azurelive` build tag plus specific `go test -run`
+  selection. Z01 was recorded from an operator-scoped Azure SQL mutation run;
+  Z02 was recorded from an operator-approved Cosmos DB mutation run using
+  isolated resource groups and verified teardown before the A04 general settle
+  migration. Re-recording Z02 through the general settle path remains explicit
+  opt-in.
 
 ## Validation Evidence
 
 - V03 covers provider-neutral schema and mapping metadata checks: required and
   unknown attributes, type and enum checks, sensitive redaction coverage,
   required operation roles, binding-to-operation consistency, binding
-  `operation_id` mismatches, retry/waiter hint shape, waiter read-role
-  requirements, updateable/replacement-only schema conflicts, unknown
-  normalizer rejection, and updateable identity-path warnings.
+  `operation_id` mismatches, retry/waiter/settle hint shape, waiter and
+  settle read-role requirements, updateable/replacement-only schema conflicts,
+  unknown normalizer rejection, and updateable identity-path warnings.
 - Validation remains static and credential-free. It does not call provider
   APIs or infer provider-specific behavior from private SDKs.
 

@@ -254,6 +254,35 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 				continue
 			}
 		}
+		if resource.Action == "delete" {
+			settle, err := parseSettleBeforeDelete(resource.RuntimeHints)
+			if err != nil {
+				runStatus = "failed"
+				result.Summary.Failed++
+				failed[resource.Address] = true
+				msg := fmt.Sprintf("apply.settle_failed: %v", err)
+				result.Errors = append(result.Errors, msg)
+				if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+					return result, recErr
+				}
+				continue
+			}
+			if settle.Active {
+				settled, err := executeSettleBeforeDelete(ctx, opts.Executor, store, asyncRecorder, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, settle)
+				result.Feedback = append(result.Feedback, settled.Feedback...)
+				if err != nil {
+					runStatus = "failed"
+					result.Summary.Failed++
+					failed[resource.Address] = true
+					msg := fmt.Sprintf("apply.settle_failed: %v", err)
+					result.Errors = append(result.Errors, msg)
+					if recErr := recordFailedMutation(ctx, store, runID, resource, "failed", msg); recErr != nil {
+						return result, recErr
+					}
+					continue
+				}
+			}
+		}
 		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address], nil)
 		if err != nil {
 			runStatus = "failed"
@@ -1005,7 +1034,7 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 		WorkingDir: workingDir,
 		OutDir:     outDir,
 	}
-	req.Runtime = executorRuntimeHints(resource.RuntimeHints, phase != "baseline")
+	req.Runtime = executorRuntimeHints(resource.RuntimeHints, phase != "baseline" && phase != "settle")
 	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	if phase != "" {
@@ -1029,6 +1058,33 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 		return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, fmt.Errorf("executor reported unsuccessful read for %s", resource.Address)
 	}
 	return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, nil
+}
+
+func executeSettleBeforeDelete(ctx context.Context, exec executor.Executor, store *state.Store, recorder *asyncrecord.Recorder, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir string, policy settlePolicy) (readCheckResult, error) {
+	deadline := time.Now().Add(policy.Duration)
+	var out readCheckResult
+	for {
+		checked, err := executeReadCheck(ctx, exec, store, recorder, runID, resource, readMapping, sourcePaths, attrs, workingDir, outDir, "settle")
+		out.Feedback = append(out.Feedback, checked.Feedback...)
+		out.Result = checked.Result
+		if err != nil {
+			return out, err
+		}
+		if checked.Result.Missing {
+			return out, fmt.Errorf("settle read reported %s missing", resource.Address)
+		}
+		remaining := time.Until(deadline)
+		if remaining <= 0 {
+			return out, nil
+		}
+		sleepFor := policy.Interval
+		if remaining < sleepFor {
+			sleepFor = remaining
+		}
+		if err := sleepRuntimeInterval(ctx, sleepFor); err != nil {
+			return out, err
+		}
+	}
 }
 
 func executeExecutorRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request) (executor.Result, string, error) {
@@ -1133,6 +1189,7 @@ func deleteConfirmationResource(resource tfplan.ResourcePlan) tfplan.ResourcePla
 	if resource.RuntimeHints != nil {
 		hints.Retry = cloneAnyMap(resource.RuntimeHints.Retry)
 		hints.Waiter = cloneAnyMap(resource.RuntimeHints.Waiter)
+		hints.Settle = cloneAnyMap(resource.RuntimeHints.Settle)
 	}
 	if hints.Waiter == nil {
 		hints.Waiter = map[string]any{}
@@ -1140,6 +1197,41 @@ func deleteConfirmationResource(resource tfplan.ResourcePlan) tfplan.ResourcePla
 	hints.Waiter["until"] = "missing"
 	out.RuntimeHints = &hints
 	return out
+}
+
+type settlePolicy struct {
+	Active   bool
+	Duration time.Duration
+	Interval time.Duration
+}
+
+func parseSettleBeforeDelete(hints *project.RuntimeHints) (settlePolicy, error) {
+	if hints == nil || len(hints.Settle) == 0 {
+		return settlePolicy{}, nil
+	}
+	before := strings.ToLower(strings.TrimSpace(fmt.Sprint(hints.Settle["before"])))
+	if before == "" {
+		before = "delete"
+	}
+	if before != "delete" {
+		return settlePolicy{}, fmt.Errorf("settle.before %q is not supported", before)
+	}
+	readExpect := strings.ToLower(strings.TrimSpace(fmt.Sprint(hints.Settle["read_expect"])))
+	if readExpect == "" {
+		readExpect = "exists"
+	}
+	if readExpect != "exists" {
+		return settlePolicy{}, fmt.Errorf("settle.read_expect %q is not supported", readExpect)
+	}
+	duration := hintDuration(hints.Settle, "duration")
+	if duration <= 0 {
+		return settlePolicy{}, fmt.Errorf("settle.duration must be a positive duration")
+	}
+	interval := hintInterval(hints.Settle)
+	if interval <= 0 {
+		return settlePolicy{}, fmt.Errorf("settle.interval must be a positive duration")
+	}
+	return settlePolicy{Active: true, Duration: duration, Interval: interval}, nil
 }
 
 func hintAttempts(hints map[string]any, key string, fallback int) int {
@@ -1179,6 +1271,41 @@ func hintInterval(hints map[string]any) time.Duration {
 		value = hints["delay"]
 	}
 	if value == nil {
+		return 0
+	}
+	switch typed := value.(type) {
+	case time.Duration:
+		if typed > 0 {
+			return typed
+		}
+	case int:
+		if typed > 0 {
+			return time.Duration(typed) * time.Millisecond
+		}
+	case int64:
+		if typed > 0 {
+			return time.Duration(typed) * time.Millisecond
+		}
+	case float64:
+		if typed > 0 {
+			return time.Duration(typed) * time.Millisecond
+		}
+	case json.Number:
+		if parsed, err := typed.Int64(); err == nil && parsed > 0 {
+			return time.Duration(parsed) * time.Millisecond
+		}
+	case string:
+		parsed, err := time.ParseDuration(strings.TrimSpace(typed))
+		if err == nil && parsed > 0 {
+			return parsed
+		}
+	}
+	return 0
+}
+
+func hintDuration(hints map[string]any, key string) time.Duration {
+	value, ok := hints[key]
+	if !ok || value == nil {
 		return 0
 	}
 	switch typed := value.(type) {

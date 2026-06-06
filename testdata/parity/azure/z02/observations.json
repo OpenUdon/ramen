@@ -1,0 +1,92 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z02",
+  "status": "recorded",
+  "provider": {
+    "source": "hashicorp/azurerm",
+    "version_constraint": "~> 4.0"
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json",
+    "fixture": "testdata/parity/azure/z02/openapi/cosmos.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_AZURE_PARITY",
+    "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_AZURE_PARITY_LANE",
+    "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
+    "resource_prefix": "ramen-parity-z02-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "az cosmosdb delete --resource-group <resource-group> --name <account> --yes; az group delete --name <resource-group> --yes",
+    "required_env": [
+      "AZURE_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID",
+      "AZURE_CLIENT_ID",
+      "AZURE_CLIENT_SECRET"
+    ],
+    "terraform_env_map": {
+      "AZURE_SUBSCRIPTION_ID": "ARM_SUBSCRIPTION_ID",
+      "AZURE_TENANT_ID": "ARM_TENANT_ID",
+      "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
+      "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
+    },
+    "cost_guardrails": [
+      "isolated resource group",
+      "approved Cosmos DB cost exposure",
+      "teardown verification",
+      "committed runtime_hints.settle pre-delete barrier metadata"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "cosmos_account_lifecycle",
+      "resource_type": "azurerm_cosmosdb_account",
+      "terraform_resource_type": "azurerm_cosmosdb_account",
+      "fixture_paths": [
+        "testdata/parity/azure/z02/hcl/main.tf",
+        "testdata/parity/azure/z02/openapi/cosmos.json",
+        "testdata/parity/azure/z02/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "DatabaseAccounts_CreateOrUpdate",
+        "DatabaseAccounts_Get",
+        "DatabaseAccounts_Delete"
+      ],
+      "observed_fields": [
+        "id",
+        "name",
+        "location",
+        "kind",
+        "properties.databaseAccountOfferType"
+      ],
+      "expected_transitions": [
+        "create",
+        "read",
+        "no-op",
+        "delete",
+        "post-delete-missing",
+        "resource-group-cleanup"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/azure/z02/live.observations.json"
+      ]
+    }
+  ],
+  "recorded_at": "2026-06-06T01:43:10Z",
+  "recordings_source": "RAMEN_AZURE_PARITY=1 RAMEN_AZURE_PARITY_RECORD_UPDATE=1 RAMEN_AZURE_PARITY_LANE=z02 with OpenTofu from ../opentofu, Terraform 1.9.8 Docker wrapper, Ramen+udon, isolated ramen-parity-z02-* resource group, and approved Cosmos DB cost exposure. The committed live recording predates the A04 general settle migration.",
+  "notes": [
+    "Z02 live execution is opt-in and must use an isolated ramen-parity-z02-* resource group plus disposable ramen-parity-z02-* account names.",
+    "The operator approved Cosmos DB cost exposure for the scoped Z02 parity run.",
+    "The committed native Ramen fixture now declares runtime_hints.settle and live retry/waiter metadata for the bounded read-backed pre-delete barrier before Cosmos account deletion.",
+    "Default replay/static tests validate the committed runtime_hints.settle metadata without live Azure access.",
+    "The committed live.observations.json recording was captured before the A04 settle migration; re-recording Z02 through the general settle path remains explicit opt-in.",
+    "The committed recording matched API-visible create/read/delete behavior across OpenTofu, Terraform, and Ramen+udon, and verified isolated resource-group cleanup.",
+    "The recording preserves no-op metadata, but the API-visible comparison intentionally excludes it because Ramen's create path is API-first while Terraform/OpenTofu report no-op through their plan engines."
+  ]
+}

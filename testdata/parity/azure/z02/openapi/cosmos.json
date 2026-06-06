@@ -1,0 +1,147 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Azure Cosmos DB Account Parity Fixture",
+    "version": "2024-05-15"
+  },
+  "servers": [
+    {
+      "url": "https://management.azure.com"
+    }
+  ],
+  "securityDefinitions": {
+    "azure_auth": {
+      "type": "oauth2",
+      "flow": "implicit",
+      "authorizationUrl": "https://login.microsoftonline.com/common/oauth2/authorize",
+      "scopes": {
+        "user_impersonation": "impersonate your user account"
+      }
+    }
+  },
+  "security": [
+    {
+      "azure_auth": []
+    }
+  ],
+  "paths": {
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.DocumentDB/databaseAccounts/{accountName}": {
+      "get": {
+        "operationId": "DatabaseAccounts_Get",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "accountName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Database account",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DatabaseAccount"}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "DatabaseAccounts_CreateOrUpdate",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "accountName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DatabaseAccountCreateUpdateParameters"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Database account",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/DatabaseAccount"}
+              }
+            }
+          },
+          "202": {"description": "Accepted"}
+        }
+      },
+      "patch": {
+        "operationId": "DatabaseAccounts_Update",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "accountName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/DatabaseAccountUpdateParameters"}
+            }
+          }
+        },
+        "responses": {
+          "200": {"description": "Database account"},
+          "202": {"description": "Accepted"}
+        }
+      },
+      "delete": {
+        "operationId": "DatabaseAccounts_Delete",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "accountName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "202": {"description": "Accepted"},
+          "204": {"description": "No Content"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "azure_auth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "DatabaseAccount": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "location": {"type": "string"},
+          "kind": {"type": "string"},
+          "properties": {"type": "object"}
+        }
+      },
+      "DatabaseAccountCreateUpdateParameters": {
+        "type": "object",
+        "properties": {
+          "location": {"type": "string"},
+          "kind": {"type": "string"},
+          "properties": {"type": "object"}
+        }
+      },
+      "DatabaseAccountUpdateParameters": {
+        "type": "object",
+        "properties": {
+          "location": {"type": "string"},
+          "kind": {"type": "string"}
+        }
+      }
+    }
+  }
+}

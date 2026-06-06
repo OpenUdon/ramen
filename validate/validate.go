@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/OpenUdon/apitools"
 	"github.com/OpenUdon/ramen/graph"
@@ -242,6 +243,7 @@ func validateRuntimeHints(resource project.Resource) []Diagnostic {
 	if attempts, ok := positiveIntHint(resource.RuntimeHints.Retry, "max_attempts"); ok && attempts < 1 {
 		diagnostics = append(diagnostics, Diagnostic{Code: "validate.retry_invalid", Severity: "error", Message: fmt.Sprintf("resource %s retry.max_attempts must be positive", resource.Address), Address: resource.Address})
 	}
+	diagnostics = append(diagnostics, validateSettleHint(resource)...)
 	untilValue, hasUntil := resource.RuntimeHints.Waiter["until"]
 	if !hasUntil {
 		return diagnostics
@@ -267,6 +269,38 @@ func validateRuntimeHints(resource project.Resource) []Diagnostic {
 	return diagnostics
 }
 
+func validateSettleHint(resource project.Resource) []Diagnostic {
+	var diagnostics []Diagnostic
+	if resource.RuntimeHints == nil || len(resource.RuntimeHints.Settle) == 0 {
+		return diagnostics
+	}
+	settle := resource.RuntimeHints.Settle
+	before := strings.ToLower(strings.TrimSpace(fmt.Sprint(settle["before"])))
+	if before == "" {
+		before = "delete"
+	}
+	if before != "delete" {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.settle_invalid", Severity: "error", Message: fmt.Sprintf("resource %s settle.before %q is not supported", resource.Address, before), Address: resource.Address})
+	}
+	readExpect := strings.ToLower(strings.TrimSpace(fmt.Sprint(settle["read_expect"])))
+	if readExpect == "" {
+		readExpect = "exists"
+	}
+	if readExpect != "exists" {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.settle_invalid", Severity: "error", Message: fmt.Sprintf("resource %s settle.read_expect %q is not supported", resource.Address, readExpect), Address: resource.Address})
+	}
+	if duration, ok := positiveDurationHint(settle, "duration"); !ok || duration <= 0 {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.settle_invalid", Severity: "error", Message: fmt.Sprintf("resource %s settle.duration must be a positive duration", resource.Address), Address: resource.Address})
+	}
+	if interval, ok := positiveDurationHint(settle, "interval"); !ok || interval <= 0 {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.settle_invalid", Severity: "error", Message: fmt.Sprintf("resource %s settle.interval must be a positive duration", resource.Address), Address: resource.Address})
+	}
+	if !resourceHasOperation(resource, "read") {
+		diagnostics = append(diagnostics, Diagnostic{Code: "validate.settle_read_role_missing", Severity: "error", Message: fmt.Sprintf("resource %s settle requires read operation metadata", resource.Address), Address: resource.Address})
+	}
+	return diagnostics
+}
+
 func positiveIntHint(values map[string]any, key string) (int64, bool) {
 	if len(values) == 0 {
 		return 0, false
@@ -284,6 +318,36 @@ func positiveIntHint(values map[string]any, key string) (int64, bool) {
 		return int64(typed), typed == float64(int64(typed))
 	case float32:
 		return int64(typed), typed == float32(int64(typed))
+	default:
+		return 0, true
+	}
+}
+
+func positiveDurationHint(values map[string]any, key string) (time.Duration, bool) {
+	if len(values) == 0 {
+		return 0, false
+	}
+	value, ok := values[key]
+	if !ok {
+		return 0, false
+	}
+	switch typed := value.(type) {
+	case time.Duration:
+		return typed, true
+	case int:
+		return time.Duration(typed) * time.Millisecond, true
+	case int64:
+		return time.Duration(typed) * time.Millisecond, true
+	case float64:
+		return time.Duration(typed) * time.Millisecond, typed == float64(int64(typed))
+	case float32:
+		return time.Duration(typed) * time.Millisecond, typed == float32(int64(typed))
+	case string:
+		parsed, err := time.ParseDuration(strings.TrimSpace(typed))
+		if err != nil {
+			return 0, true
+		}
+		return parsed, true
 	default:
 		return 0, true
 	}

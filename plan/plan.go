@@ -1078,12 +1078,13 @@ func cloneMappingLifecycle(lifecycle *project.MappingLifecycle) *project.Mapping
 }
 
 func cloneRuntimeHints(hints *project.RuntimeHints) *project.RuntimeHints {
-	if hints == nil || len(hints.Retry) == 0 && len(hints.Waiter) == 0 {
+	if hints == nil || len(hints.Retry) == 0 && len(hints.Waiter) == 0 && len(hints.Settle) == 0 {
 		return nil
 	}
 	return &project.RuntimeHints{
 		Retry:  cloneAnyMap(hints.Retry),
 		Waiter: cloneAnyMap(hints.Waiter),
+		Settle: cloneAnyMap(hints.Settle),
 	}
 }
 

@@ -1,0 +1,61 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z01",
+  "scenario": "sql_database_lifecycle",
+  "recorded_at": "2026-06-05T18:56:16Z",
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-z01-opentofu",
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramen-parity-z01-opentofu",
+        "after_apply.sku.name": "Basic",
+        "after_apply.sku.tier": "Basic",
+        "after_destroy.exists": false,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "terraform",
+      "resource": "ramen-parity-z01-terraform",
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramen-parity-z01-terraform",
+        "after_apply.sku.name": "Basic",
+        "after_apply.sku.tier": "Basic",
+        "after_destroy.exists": false,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-z01-ramen",
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramen-parity-z01-ramen",
+        "after_apply.sku.name": "Basic",
+        "after_apply.sku.tier": "Basic",
+        "after_destroy.exists": false,
+        "no_op": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_apply.exists",
+      "after_apply.id_present",
+      "after_apply.location",
+      "after_apply.sku.name",
+      "after_apply.sku.tier",
+      "after_destroy.exists"
+    ]
+  }
+}

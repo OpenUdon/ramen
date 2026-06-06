@@ -393,6 +393,12 @@ func TestBuildNativeProjectCarriesRuntimeHintsWithoutChangingDesiredHash(t *test
 			"until":   "exists",
 			"timeout": "2m",
 		},
+		Settle: map[string]any{
+			"before":      "delete",
+			"duration":    "6m",
+			"interval":    "30s",
+			"read_expect": "exists",
+		},
 	}
 	profile := project.Profile{
 		Version:    project.Version,
@@ -405,7 +411,7 @@ func TestBuildNativeProjectCarriesRuntimeHintsWithoutChangingDesiredHash(t *test
 		t.Fatalf("Build returned error: %v", err)
 	}
 	planned := result.Plan.Resources[0]
-	if planned.RuntimeHints == nil || planned.RuntimeHints.Retry["backoff"] != "exponential" || planned.RuntimeHints.Waiter["until"] != "exists" {
+	if planned.RuntimeHints == nil || planned.RuntimeHints.Retry["backoff"] != "exponential" || planned.RuntimeHints.Waiter["until"] != "exists" || planned.RuntimeHints.Settle["before"] != "delete" {
 		t.Fatalf("runtime hints not carried into plan: %#v", planned.RuntimeHints)
 	}
 	store, err := state.Open(context.Background(), statePath)
@@ -422,6 +428,7 @@ func TestBuildNativeProjectCarriesRuntimeHintsWithoutChangingDesiredHash(t *test
 	modifiedDir := filepath.Join(root, "project-modified")
 	writePlanTestFile(t, filepath.Join(modifiedDir, "aws-smithy", "iam.json"), minimalIAMSmithyForPlanTest())
 	profile.Resources[0].RuntimeHints.Retry["max_attempts"] = 5
+	profile.Resources[0].RuntimeHints.Settle["duration"] = "8m"
 	modifiedPath := writeNativeProjectForPlanTest(t, modifiedDir, profile)
 	modified, err := Build(context.Background(), Options{ProjectPath: modifiedPath, StatePath: statePath})
 	if err != nil {

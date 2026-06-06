@@ -1,0 +1,102 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Azure SQL Database Parity Fixture",
+    "version": "2023-08-01"
+  },
+  "paths": {
+    "/subscriptions/{subscriptionId}/resourceGroups/{resourceGroupName}/providers/Microsoft.Sql/servers/{serverName}/databases/{databaseName}": {
+      "get": {
+        "operationId": "Databases_Get",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "serverName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "databaseName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Database",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Database"}
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "Databases_CreateOrUpdate",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "serverName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "databaseName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/Database"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Database",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/Database"}
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted",
+            "content": {
+              "application/json": {
+                "schema": {"type": "object"}
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "Databases_Delete",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "serverName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "databaseName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Deleted"},
+          "202": {"description": "Accepted"},
+          "204": {"description": "No Content"}
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Database": {
+        "type": "object",
+        "required": ["location"],
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "location": {"type": "string"},
+          "sku": {
+            "type": "object",
+            "properties": {
+              "name": {"type": "string"},
+              "tier": {"type": "string"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

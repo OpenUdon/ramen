@@ -273,6 +273,7 @@ func TestRunValidatesCrossFieldMappingMetadata(t *testing.T) {
 			RuntimeHints: &project.RuntimeHints{
 				Retry:  map[string]any{"max_attempts": 0},
 				Waiter: map[string]any{"until": "missing", "max_attempts": 0},
+				Settle: map[string]any{"before": "update", "duration": "0s", "interval": "nope", "read_expect": "missing"},
 			},
 			Operations: map[string]project.OperationRole{
 				"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"},
@@ -291,6 +292,8 @@ func TestRunValidatesCrossFieldMappingMetadata(t *testing.T) {
 		"validate.normalizer_unknown",
 		"validate.retry_invalid",
 		"validate.schema_lifecycle_conflict",
+		"validate.settle_invalid",
+		"validate.settle_read_role_missing",
 		"validate.waiter_invalid",
 		"validate.waiter_read_role_missing",
 	} {
@@ -328,6 +331,7 @@ func TestRunAcceptsRuntimeHintsWithReadRole(t *testing.T) {
 			RuntimeHints: &project.RuntimeHints{
 				Retry:  map[string]any{"max_attempts": 2},
 				Waiter: map[string]any{"until": "exists", "max_attempts": 3},
+				Settle: map[string]any{"before": "delete", "duration": "10ms", "interval": "1ms", "read_expect": "exists"},
 			},
 			Operations: map[string]project.OperationRole{
 				"create": {SourceKind: "openapi", SourceID: "create-api", OperationID: "createExample"},

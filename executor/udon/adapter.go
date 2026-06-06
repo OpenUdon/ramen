@@ -287,11 +287,17 @@ func sourceHasAzureAuth(source *uws1.SourceDescription, workDir string) bool {
 	}
 	var doc struct {
 		SecurityDefinitions map[string]any `json:"securityDefinitions"`
+		Components          struct {
+			SecuritySchemes map[string]any `json:"securitySchemes"`
+		} `json:"components"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		return false
 	}
-	_, ok := doc.SecurityDefinitions["azure_auth"]
+	if _, ok := doc.SecurityDefinitions["azure_auth"]; ok {
+		return true
+	}
+	_, ok := doc.Components.SecuritySchemes["azure_auth"]
 	return ok
 }
 

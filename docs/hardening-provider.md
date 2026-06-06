@@ -65,9 +65,10 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
    `tfmapping.LifecycleSemantics` define the vocabulary; per-resource behavior
    still has to be populated by mapping metadata and tested before live use.
 
-6. **Retry and waiter policy**
+6. **Retry, waiter, and settle policy**
    Generic backoff, timeout, retryable error classes, post-write read polling,
-   and per-operation success predicates.
+   per-operation success predicates, and bounded read-backed settle barriers
+   before follow-on mutations.
 
 7. **State identity model**
    Stable identity fields and response-derived IDs stored in state so future
@@ -84,8 +85,8 @@ enforces the current rule:
 - no private udon imports unless the file is explicitly guarded by
   `//go:build udon`;
 - useful provider behavior must be represented as public mapping metadata,
-  bindings, normalizers, lifecycle roles, retry/waiter policy, or trusted
-  executor contracts.
+  bindings, normalizers, lifecycle roles, retry/waiter/settle policy, or
+  trusted executor contracts.
 
 The contract types added for M20 are intentionally metadata-only. Validation,
 planning, refresh, import, apply, and destroy consume them in the later command

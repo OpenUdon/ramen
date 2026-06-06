@@ -33,14 +33,15 @@ and redaction may become shareable later, but each has more product-specific
 coupling today.
 
 The current Ramen-side priority is to finish the evidence-gated API execution
-tracks first: M27 live Azure lifecycle evidence, A03 retry/waiter policy, and
-D02 internal delete confirmation. Ramen should contribute stable plan approval,
-executor handoff, run/audit, governance, and sanitized feedback contracts to
-the OpenUdon review, but OpenUdon should continue to lead package review,
-approval-template, package digest, and runner-handoff requirements.
-That Ramen-side contribution now includes concrete A03/D02 contracts:
-approval-bound runtime hints, provider-neutral executor retry/read-waiter
-behavior, and read-confirmed delete semantics for native resources with read
+tracks first: M27 live Azure lifecycle evidence, A03 retry/waiter policy, D02
+internal delete confirmation, and A04 settle barriers. Ramen should contribute
+stable plan approval, executor handoff, run/audit, governance, and sanitized
+feedback contracts to the OpenUdon review, but OpenUdon should continue to lead
+package review, approval-template, package digest, and runner-handoff
+requirements. That Ramen-side contribution now includes concrete A03/D02/A04
+contracts: approval-bound runtime hints, provider-neutral executor
+retry/read-waiter behavior, read-confirmed delete semantics, and
+Ramen-orchestrated pre-delete settle metadata for native resources with read
 roles.
 
 ## Next Moves

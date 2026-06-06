@@ -833,6 +833,180 @@ func TestApplyNativeDeleteConfirmsMissingWithReadRole(t *testing.T) {
 	projectDir := filepath.Join(root, "project")
 	sourcePath := filepath.Join(projectDir, "api.yaml")
 	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyDeleteWidgetSource(t, sourcePath)
+	projectPath := writeApplyDeleteWidgetProject(t, projectDir, &project.RuntimeHints{Waiter: map[string]any{"max_attempts": 2}})
+	var actions []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		switch strings.Join(actions, ",") {
+		case "read":
+			if req.Runtime.Waiter["until"] != nil {
+				t.Fatalf("baseline read should not force waiter: %#v", req.Runtime)
+			}
+			return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+		case "read,delete":
+			return executor.Result{Success: true}, nil
+		case "read,delete,read":
+			if req.Runtime.Waiter["until"] != "missing" {
+				t.Fatalf("delete confirmation waiter = %#v", req.Runtime.Waiter)
+			}
+			return executor.Result{Success: true, Missing: true}, nil
+		default:
+			t.Fatalf("unexpected actions %v", actions)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Delete != 1 || strings.Join(actions, ",") != "read,delete,read" {
+		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
+	}
+}
+
+func TestApplyNativeDeleteRunsSettleBeforeMutation(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "api.yaml")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyDeleteWidgetSource(t, sourcePath)
+	projectPath := writeApplyDeleteWidgetProject(t, projectDir, &project.RuntimeHints{
+		Retry:  map[string]any{"max_attempts": 2},
+		Waiter: map[string]any{"max_attempts": 2},
+		Settle: map[string]any{"before": "delete", "duration": "1ms", "interval": "1ms", "read_expect": "exists"},
+	})
+	var actions []string
+	var settleReads int
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		if req.Action.Action == "read" && strings.Contains(req.Idempotency.Key, "-settle") {
+			settleReads++
+			if req.Runtime.Waiter["until"] != nil || containsApplyTest(req.Capabilities.Features, executor.FeatureWaiter) {
+				t.Fatalf("settle read should not require waiter: runtime=%#v capabilities=%#v", req.Runtime, req.Capabilities)
+			}
+			if req.Runtime.Retry["max_attempts"] == nil || !containsApplyTest(req.Capabilities.Features, executor.FeatureRetry) {
+				t.Fatalf("settle read should retain retry hints: runtime=%#v capabilities=%#v", req.Runtime, req.Capabilities)
+			}
+			return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+		}
+		switch req.Action.Action {
+		case "read":
+			if len(actions) == 1 {
+				return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+			}
+			if req.Runtime.Waiter["until"] != "missing" {
+				t.Fatalf("delete confirmation waiter = %#v", req.Runtime.Waiter)
+			}
+			return executor.Result{Success: true, Missing: true}, nil
+		case "delete":
+			return executor.Result{Success: true}, nil
+		default:
+			t.Fatalf("unexpected action %q", req.Action.Action)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	joined := strings.Join(actions, ",")
+	if result.Summary.Delete != 1 || settleReads < 1 || !strings.HasPrefix(joined, "read,read") || !strings.HasSuffix(joined, "delete,read") {
+		t.Fatalf("summary=%#v actions=%v settleReads=%d", result.Summary, actions, settleReads)
+	}
+}
+
+func TestApplyNativeDeleteSettleMissingFailsBeforeDelete(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	sourcePath := filepath.Join(projectDir, "api.yaml")
+	statePath := filepath.Join(projectDir, "state.db")
+	writeApplyDeleteWidgetSource(t, sourcePath)
+	projectPath := writeApplyDeleteWidgetProject(t, projectDir, &project.RuntimeHints{
+		Settle: map[string]any{"before": "delete", "duration": "1ms", "interval": "1ms", "read_expect": "exists"},
+	})
+	var actions []string
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		if req.Action.Action != "read" {
+			t.Fatalf("delete should not run after failed settle: %#v", req.Action)
+		}
+		if strings.Contains(req.Idempotency.Key, "-settle") {
+			return executor.Result{Success: true, Missing: true}, nil
+		}
+		return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err == nil || !strings.Contains(err.Error(), "apply.failed") {
+		t.Fatalf("Apply error = %v, want failed apply", err)
+	}
+	if result.Summary.Failed != 1 || strings.Join(actions, ",") != "read,read" || len(result.Errors) == 0 || !strings.Contains(result.Errors[0], "apply.settle_failed") {
+		t.Fatalf("summary=%#v actions=%v errors=%v", result.Summary, actions, result.Errors)
+	}
+}
+
+func TestApplyNativeDeleteSettleMalformedFailsBeforeDelete(t *testing.T) {
+	cases := []struct {
+		name       string
+		settle     map[string]any
+		wantError  string
+		wantReads  int
+		wantAction string
+	}{
+		{
+			name:       "unsupported before",
+			settle:     map[string]any{"before": "create", "duration": "1ms", "interval": "1ms", "read_expect": "exists"},
+			wantError:  `settle.before "create" is not supported`,
+			wantReads:  1,
+			wantAction: "read",
+		},
+		{
+			name:       "invalid duration",
+			settle:     map[string]any{"before": "delete", "duration": "soon", "interval": "1ms", "read_expect": "exists"},
+			wantError:  "settle.duration must be a positive duration",
+			wantReads:  1,
+			wantAction: "read",
+		},
+		{
+			name:       "missing interval",
+			settle:     map[string]any{"before": "delete", "duration": "1ms", "read_expect": "exists"},
+			wantError:  "settle.interval must be a positive duration",
+			wantReads:  1,
+			wantAction: "read",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			projectDir := filepath.Join(root, "project")
+			sourcePath := filepath.Join(projectDir, "api.yaml")
+			statePath := filepath.Join(projectDir, "state.db")
+			writeApplyDeleteWidgetSource(t, sourcePath)
+			projectPath := writeApplyDeleteWidgetProject(t, projectDir, &project.RuntimeHints{Settle: tc.settle})
+			var actions []string
+			mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+				actions = append(actions, req.Action.Action)
+				if req.Action.Action != "read" {
+					t.Fatalf("delete should not run with malformed settle hints: %#v", req.Action)
+				}
+				return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
+			}}
+			result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+			if err == nil || !strings.Contains(err.Error(), "apply.failed") {
+				t.Fatalf("Apply error = %v, want failed apply", err)
+			}
+			if result.Summary.Failed != 1 || strings.Join(actions, ",") != tc.wantAction || len(result.Errors) == 0 || !strings.Contains(result.Errors[0], "apply.settle_failed") || !strings.Contains(result.Errors[0], tc.wantError) {
+				t.Fatalf("summary=%#v actions=%v errors=%v", result.Summary, actions, result.Errors)
+			}
+			if mock.RequestCount() != tc.wantReads {
+				t.Fatalf("requests=%d, want %d", mock.RequestCount(), tc.wantReads)
+			}
+		})
+	}
+}
+
+func writeApplyDeleteWidgetSource(t *testing.T, sourcePath string) {
+	t.Helper()
 	writeApplyTestFile(t, sourcePath, `openapi: 3.0.0
 info:
   title: Delete API
@@ -862,7 +1036,11 @@ paths:
         "200":
           description: ok
 `)
-	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+}
+
+func writeApplyDeleteWidgetProject(t *testing.T, projectDir string, runtimeHints *project.RuntimeHints) string {
+	t.Helper()
+	return writeApplyProjectForTest(t, projectDir, project.Profile{
 		Version:    project.Version,
 		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: "api.yaml"}},
 		Resources: []project.Resource{{
@@ -883,37 +1061,9 @@ paths:
 				{OperationRole: "delete", OperationID: "deleteWidget", Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
 			},
 			RequiredOperations: []string{"delete"},
-			RuntimeHints:       &project.RuntimeHints{Waiter: map[string]any{"max_attempts": 2}},
+			RuntimeHints:       runtimeHints,
 		}},
 	})
-	var actions []string
-	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
-		actions = append(actions, req.Action.Action)
-		switch strings.Join(actions, ",") {
-		case "read":
-			if req.Runtime.Waiter["until"] != nil {
-				t.Fatalf("baseline read should not force waiter: %#v", req.Runtime)
-			}
-			return executor.Result{Success: true, Identity: map[string]any{"name": "ramen"}}, nil
-		case "read,delete":
-			return executor.Result{Success: true}, nil
-		case "read,delete,read":
-			if req.Runtime.Waiter["until"] != "missing" {
-				t.Fatalf("delete confirmation waiter = %#v", req.Runtime.Waiter)
-			}
-			return executor.Result{Success: true, Missing: true}, nil
-		default:
-			t.Fatalf("unexpected actions %v", actions)
-			return executor.Result{}, nil
-		}
-	}}
-	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
-	if err != nil {
-		t.Fatalf("Apply returned error: %v", err)
-	}
-	if result.Summary.Delete != 1 || strings.Join(actions, ",") != "read,delete,read" {
-		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
-	}
 }
 
 func TestApplyNativeReadBeforeWriteRejectsExistingCreate(t *testing.T) {

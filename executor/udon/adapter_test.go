@@ -120,11 +120,35 @@ func TestEnsureUdonExecutionHintsAddsAzureAuthRequirement(t *testing.T) {
 }`), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	assertAzureAuthRequirementFromSource(t, dir, "azure.json")
+}
+
+func TestEnsureUdonExecutionHintsAddsAzureAuthRequirementFromOpenAPI3(t *testing.T) {
+	dir := t.TempDir()
+	sourcePath := filepath.Join(dir, "azure-oas3.json")
+	if err := os.WriteFile(sourcePath, []byte(`{
+  "openapi": "3.0.0",
+  "components": {
+    "securitySchemes": {
+      "azure_auth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	assertAzureAuthRequirementFromSource(t, dir, "azure-oas3.json")
+}
+
+func assertAzureAuthRequirementFromSource(t *testing.T, dir, sourceURL string) {
+	t.Helper()
 	doc := &uws1.Document{
 		SourceDescriptions: []*uws1.SourceDescription{{
 			Name: "azure",
 			Type: uws1.SourceDescriptionTypeOpenAPI,
-			URL:  "azure.json",
+			URL:  sourceURL,
 		}},
 		Operations: []*uws1.Operation{{
 			OperationID:       "delete_database",
@@ -166,7 +190,7 @@ func TestEnsureUdonExecutionHintsAcceptsLongRunningResponseShapeForCreateOrUpdat
 				},
 				"body": map[string]any{
 					"location": "eastus",
-					"sku": map[string]any{"name": "Basic", "tier": "Basic"},
+					"sku":      map[string]any{"name": "Basic", "tier": "Basic"},
 				},
 				"x-ramen-apply": map[string]any{
 					"action": "put",

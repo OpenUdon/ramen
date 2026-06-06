@@ -8,7 +8,7 @@ Ramen and OpenUdon should exchange portable execution evidence through stable, r
 
 - `execution_request`:
   - Operation identity, provider/project binding, principal intent, input arguments, and non-secret transport metadata.
-  - Runtime hints are included as mutable execution metadata, but are not part of desired-state comparison inputs.
+- Runtime hints are included as mutable execution metadata, but are not part of desired-state comparison inputs. Ramen-owned hints such as settle barriers may be recorded through confirmation-read evidence instead of executor request fields.
 - `execution_response`:
   - Mutation result (accepted, rejected, transient failure, fatal failure), raw status code/class, timing, transport correlation IDs, and digest references.
 - `execution_status_observation`:
@@ -32,12 +32,14 @@ Ramen owns desired-state semantics and convergence interpretation.
 - Mapping and planning:
   - desired resource graph, operation role resolution (`read`, `create`, `update`, `delete`), and per-resource execution intent.
 - Executor interaction:
-  - builds and sends execution request evidence, including runtime hints for retries/waiters.
+  - builds and sends execution request evidence, including executor-owned runtime hints for retries/waiters.
 - Convergence confirmation:
   - consumes `confirmation_read_observation` and package/runner execution results.
   - records durable success only when terminal confirmation criteria are met.
 - Delete confirmation policy:
   - confirmation requires a concrete read-backed flow (`read` role) before state removal and fail-closed behavior otherwise.
+- Settle policy:
+  - optional pre-delete settle barriers are Ramen-owned read-backed orchestration, not OpenUdon convergence semantics.
 - State/history:
   - state transitions, revision writes, and terminal state records (including failure/unknown) remain in Ramen.
 

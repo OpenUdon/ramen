@@ -1,0 +1,214 @@
+info:
+  description: Azure Cosmos DB account parity fixture for Z02.
+  title: ramen_z02_azure_cosmos_account_parity
+  version: 1.0.0
+uws: 1.4.0
+operations:
+  - description: Create or update the Azure Cosmos DB account.
+    operationId: z02_cosmos_account_create
+    sourceDescription: cosmos
+    sourceOperationId: DatabaseAccounts_CreateOrUpdate
+  - description: Read the Azure Cosmos DB account.
+    operationId: z02_cosmos_account_read
+    sourceDescription: cosmos
+    sourceOperationId: DatabaseAccounts_Get
+  - description: Delete the Azure Cosmos DB account.
+    operationId: z02_cosmos_account_delete
+    sourceDescription: cosmos
+    sourceOperationId: DatabaseAccounts_Delete
+sourceDescriptions:
+  - name: cosmos
+    type: openapi
+    url: ../openapi/cosmos.json
+workflows:
+  - description: Static workflow for Cosmos account mapping replay.
+    steps:
+      - operationRef: z02_cosmos_account_create
+        stepId: create
+      - operationRef: z02_cosmos_account_read
+        stepId: read
+      - operationRef: z02_cosmos_account_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - kind: openapi
+      id: cosmos
+      path: ../openapi/cosmos.json
+  metadata:
+    source: z02-azure-cosmos-parity
+    scope: recorded-parity-fixture
+  redaction: {}
+  resources:
+    - address: azurerm_cosmosdb_account.z02_account
+      attributes:
+        accountName: account-placeholder
+        api-version: "2024-05-15"
+        kind: GlobalDocumentDB
+        location: eastus
+        properties:
+          consistencyPolicy:
+            defaultConsistencyLevel: Session
+          databaseAccountOfferType: Standard
+          locations:
+            - failoverPriority: 0
+              locationName: eastus
+        resourceGroupName: resource-group-placeholder
+        subscriptionId: subscription-placeholder
+      identity_attributes:
+        - name: account_name
+          path: accountName
+          request_keys:
+            - accountName
+          response_paths:
+            - name
+            - id
+          required: true
+        - name: resource_group_name
+          path: resourceGroupName
+          request_keys:
+            - resourceGroupName
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        evidence: z02
+        provider: azure
+      name: z02_account
+      operations:
+        create:
+          purpose: create
+          method: PUT
+          source_kind: openapi
+          source_id: cosmos
+          source_path: ../openapi/cosmos.json
+          operation_id: DatabaseAccounts_CreateOrUpdate
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: cosmos
+          source_path: ../openapi/cosmos.json
+          operation_id: DatabaseAccounts_Get
+        delete:
+          purpose: delete
+          method: DELETE
+          source_kind: openapi
+          source_id: cosmos
+          source_path: ../openapi/cosmos.json
+          operation_id: DatabaseAccounts_Delete
+      request_bindings:
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: accountName
+          request_path: accountName
+          location: path
+          required: true
+          identity: true
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: location
+          request_path: location
+          location: body
+          required: true
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: kind
+          request_path: kind
+          location: body
+          required: true
+        - operation_id: DatabaseAccounts_CreateOrUpdate
+          operation_role: create
+          path: properties
+          request_path: properties
+          location: body
+          required: true
+        - operation_id: DatabaseAccounts_Get
+          operation_role: read
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: DatabaseAccounts_Get
+          operation_role: read
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: DatabaseAccounts_Get
+          operation_role: read
+          path: accountName
+          request_path: accountName
+          location: path
+          required: true
+          identity: true
+        - operation_id: DatabaseAccounts_Get
+          operation_role: read
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: DatabaseAccounts_Delete
+          operation_role: delete
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: DatabaseAccounts_Delete
+          operation_role: delete
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+        - operation_id: DatabaseAccounts_Delete
+          operation_role: delete
+          path: accountName
+          request_path: accountName
+          location: path
+          required: true
+          identity: true
+        - operation_id: DatabaseAccounts_Delete
+          operation_role: delete
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+      redaction: {}
+      required_operations:
+        - create
+        - read
+        - delete
+      runtime_hints:
+        retry:
+          max_attempts: 60
+        settle:
+          before: delete
+          duration: 6m
+          interval: 30s
+          read_expect: exists
+        waiter:
+          until: exists
+          max_attempts: 80
+          interval: 15s
+      schema: []
+      type: azurerm_cosmosdb_account
+  version: ramen.project.v1
