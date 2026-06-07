@@ -6,8 +6,8 @@ go 1.26.3
 replace github.com/OpenUdon/evidence => ../evidence
 
 require (
-	github.com/OpenUdon/apitools v0.0.0-20260528142821-7498ae0c388f
-	github.com/OpenUdon/authoring v0.0.0-20260530174326-80e913657723
+	github.com/OpenUdon/apitools v0.0.0-20260607192205-ae9d40a53ce6
+	github.com/OpenUdon/authoring v0.0.0-20260607172625-3aa69a0e0cdd
 	github.com/OpenUdon/evidence v0.0.0
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
 	github.com/OpenUdon/uws v0.0.0-20260530135301-b9c9a4efac74

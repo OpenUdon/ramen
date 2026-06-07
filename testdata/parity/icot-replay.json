@@ -1,0 +1,221 @@
+{
+  "version": "ramen.icot-replay.v1",
+  "entries": [
+    {
+      "row": "K01",
+      "project_name": "k01_namespace",
+      "goal": "Create a Ramen workflow over the Kubernetes API that creates a Namespace using `namespace_name` `${var.namespace_name}`, reads it to verify convergence, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "core", "path": "testdata/parity/kubernetes/k01/openapi/core.json"}],
+      "seed_operation": "createCoreV1Namespace",
+      "approved_fixture": "testdata/parity/kubernetes/k01/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K02",
+      "project_name": "k02_namespace",
+      "goal": "Create a Ramen workflow over the Kubernetes API that creates a Namespace using `namespace_name` `${var.namespace_name}`, reads it, and can classify it as missing after it is deleted outside the workflow.",
+      "api_sources": [{"kind": "openapi", "id": "core", "path": "testdata/parity/kubernetes/k02/openapi/core.json"}],
+      "seed_operation": "createCoreV1Namespace",
+      "approved_fixture": "testdata/parity/kubernetes/k02/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K03",
+      "project_name": "k03_config_map",
+      "goal": "Create a Ramen workflow over the Kubernetes API that creates and reads a ConfigMap using `namespace_name` `${var.namespace_name}` and `config_map_name` `${var.config_map_name}`, stores `mode`, owner `ramen`, and binary `payload`, supports update, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "core", "path": "testdata/parity/kubernetes/k03/openapi/core.json"}],
+      "seed_operation": "createCoreV1NamespacedConfigMap",
+      "approved_fixture": "testdata/parity/kubernetes/k03/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K04",
+      "project_name": "k04_service_account",
+      "goal": "Create a Ramen workflow over the Kubernetes API that creates and reads a ServiceAccount using `namespace_name` `${var.namespace_name}` and `service_account_name` `${var.service_account_name}`, enables automounting the service account token, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "core", "path": "testdata/parity/kubernetes/k04/openapi/core.json"}],
+      "seed_operation": "createCoreV1NamespacedServiceAccount",
+      "approved_fixture": "testdata/parity/kubernetes/k04/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K05",
+      "project_name": "k05_role",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a namespaced Role using `role_name` `${var.role_name}` and `namespace_name` `${var.namespace_name}`, grants `get`, `list`, and `watch` on ConfigMaps and Secrets, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k05/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1NamespacedRole",
+      "approved_fixture": "testdata/parity/kubernetes/k05/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K06",
+      "project_name": "k06_secret",
+      "goal": "Create a Ramen workflow over the Kubernetes API that creates and reads an Opaque Secret using `namespace_name` `${var.namespace_name}` and `secret_name` `${var.secret_name}`, stores non-sensitive sample data from `secret_value`, supports update, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "core", "path": "testdata/parity/kubernetes/k06/openapi/core.json"}],
+      "seed_operation": "createCoreV1NamespacedSecret",
+      "approved_fixture": "testdata/parity/kubernetes/k06/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K07",
+      "project_name": "k07_role_binding",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a RoleBinding using `role_binding_name` `${var.role_binding_name}` and `namespace_name` `${var.namespace_name}`, binds `role_name` `${var.role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}`, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k07/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1NamespacedRoleBinding",
+      "approved_fixture": "testdata/parity/kubernetes/k07/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K08",
+      "project_name": "k08_cluster_role",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a ClusterRole using `cluster_role_name` `${var.cluster_role_name}`, grants `get`, `list`, and `watch` on ConfigMaps and Secrets, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k08/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1ClusterRole",
+      "approved_fixture": "testdata/parity/kubernetes/k08/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Z01",
+      "project_name": "z01_sql_database",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes an Azure SQL database. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, `serverName` `${var.server_name}`, `databaseName` `${var.database_name}`, and SKU `Basic`.",
+      "api_sources": [{"kind": "openapi", "id": "azure-sql", "path": "testdata/parity/azure/z01/openapi/sql.json"}],
+      "seed_operation": "Databases_CreateOrUpdate",
+      "approved_fixture": "testdata/parity/azure/z01/ramen/project.uws.yaml",
+      "role_match": "divergent"
+    },
+    {
+      "row": "Z02",
+      "project_name": "z02_cosmos_account",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes a Cosmos DB account. Use `accountName` `${var.account_name}`, `resourceGroupName` `${var.resource_group_name}`, `location` `${var.location}`, `Standard` offer type, `GlobalDocumentDB`, Session consistency, and one geo location.",
+      "api_sources": [{"kind": "openapi", "id": "cosmos", "path": "testdata/parity/azure/z02/openapi/cosmos.json"}],
+      "seed_operation": "DatabaseAccounts_CreateOrUpdate",
+      "approved_fixture": "testdata/parity/azure/z02/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Z03",
+      "project_name": "z03_resource_group",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that reads a Resource Group. Use `subscriptionId` `${var.azure_subscription_id}` and `resourceGroupName` `${var.resource_group_name}`.",
+      "api_sources": [{"kind": "openapi", "id": "resources", "path": "testdata/parity/azure/z03/openapi/resources.json"}],
+      "seed_operation": "ResourceGroups_Get",
+      "approved_fixture": "testdata/parity/azure/z03/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Z04",
+      "project_name": "z04_storage_account",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes a Storage Account. Use `accountName` `${var.account_name}`, `resourceGroupName` `${var.resource_group_name}`, `location` `${var.location}`, Standard tier, and LRS replication.",
+      "api_sources": [{"kind": "openapi", "id": "storage", "path": "testdata/parity/azure/z04/openapi/storage.json"}],
+      "seed_operation": "StorageAccounts_Create",
+      "approved_fixture": "testdata/parity/azure/z04/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Z05",
+      "project_name": "z05_sql_database",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, updates, and deletes an Azure SQL database. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, `serverName` `${var.server_name}`, `databaseName` `${var.database_name}`, and SKU `Basic`.",
+      "api_sources": [{"kind": "openapi", "id": "azure-sql", "path": "testdata/parity/azure/z05/openapi/sql.json"}],
+      "seed_operation": "Databases_CreateOrUpdate",
+      "approved_fixture": "testdata/parity/azure/z05/ramen/project.uws.yaml",
+      "role_match": "divergent"
+    },
+    {
+      "row": "Y01",
+      "project_name": "y01_storage_bucket",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, updates, and deletes a Cloud Storage bucket in `US` with uniform bucket-level access enabled.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y01/discovery/storage.json"}],
+      "seed_operation": "storage.buckets.insert",
+      "approved_fixture": "testdata/parity/google/y01/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Y02",
+      "project_name": "y02_storage_bucket_read",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that reads an existing bucket. Use `bucket` `${var.bucket_name}` and record API-visible bucket metadata without mutating it.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y02/discovery/storage.json"}],
+      "seed_operation": "storage.buckets.get",
+      "approved_fixture": "testdata/parity/google/y02/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Y03",
+      "project_name": "y03_storage_bucket",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, updates, and deletes a bucket. Use `bucket` `${var.bucket_name}`, `project` `${var.project}`, `location` `US`, and uniform bucket-level access enabled.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y03/discovery/storage.json"}],
+      "seed_operation": "storage.buckets.insert",
+      "approved_fixture": "testdata/parity/google/y03/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Y04",
+      "project_name": "y04_storage_bucket_read_missing",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates and reads a bucket. Use `bucket` `${var.bucket_name}`, `project` `${var.project}`, `location` `US`, uniform bucket-level access enabled, and read-missing classification after the bucket is deleted outside the workflow.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y04/discovery/storage.json"}],
+      "seed_operation": "storage.buckets.insert",
+      "approved_fixture": "testdata/parity/google/y04/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Y05",
+      "project_name": "y05_storage_object",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, updates, and deletes an object. Use `bucket` `${var.bucket_name}`, object name `ramen-parity-y05-object.txt`, small text content, and `text/plain` content type.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y05/discovery/storage.json"}],
+      "seed_operation": "storage.objects.insert",
+      "approved_fixture": "testdata/parity/google/y05/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Y06",
+      "project_name": "y06_managed_folder",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, and deletes a managed folder. Use `bucket` `${var.bucket_name}`, managed folder name `managed/y06/`, and `force_destroy` false.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y06/discovery/storage.json"}],
+      "seed_operation": "storage.managedFolders.insert",
+      "approved_fixture": "testdata/parity/google/y06/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "C01",
+      "project_name": "c01_r2_bucket",
+      "goal": "Create a Ramen workflow over the Cloudflare R2 API that creates, reads, updates, and deletes an R2 bucket. Use `account_id` `${var.account_id}`, `bucket_name` `${var.bucket_name}`, location `ENAM`, and `storage_class` `${var.storage_class}` defaulting to `InfrequentAccess`.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"}],
+      "seed_operation": "r2-create-bucket",
+      "approved_fixture": "testdata/parity/cloudflare/c01/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "C02",
+      "project_name": "c02_r2_bucket_read_missing",
+      "goal": "Create a Ramen workflow over the Cloudflare R2 API that creates and reads a minimal R2 bucket. Use `account_id` `${var.account_id}` and `bucket_name` `${var.bucket_name}`, and classify it as missing after out-of-band deletion.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"}],
+      "seed_operation": "r2-create-bucket",
+      "approved_fixture": "testdata/parity/cloudflare/c02/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "C03",
+      "project_name": "c03_r2_bucket_metadata",
+      "goal": "Create a Ramen workflow over the Cloudflare R2 API that creates, reads, updates, and deletes an R2 bucket. Use `account_id` `${var.account_id}`, `bucket_name` `${var.bucket_name}`, location `ENAM`, storage class `InfrequentAccess`, and jurisdiction `default`.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"}],
+      "seed_operation": "r2-create-bucket",
+      "approved_fixture": "testdata/parity/cloudflare/c03/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "C04",
+      "project_name": "c04_d1_database",
+      "goal": "Create a Ramen workflow over the Cloudflare D1 API that creates and reads a D1 database. Use `account_id` `${var.account_id}` and `database_name` `${var.database_name}`, and capture the response-derived database UUID for state.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"}],
+      "seed_operation": "d1-create-database",
+      "approved_fixture": "testdata/parity/cloudflare/c04/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "C05",
+      "project_name": "c05_d1_database_uuid",
+      "goal": "Create a Ramen workflow over the Cloudflare D1 API that creates and reads a D1 database. Use `account_id` `${var.account_id}` and `database_name` `${var.database_name}`, and prepare the response-derived UUID needed for a future delete workflow.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"}],
+      "seed_operation": "d1-create-database",
+      "approved_fixture": "testdata/parity/cloudflare/c05/ramen/project.uws.yaml",
+      "role_match": "exact"
+    }
+  ]
+}
