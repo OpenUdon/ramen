@@ -21,7 +21,7 @@
     "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
     "resource_prefix": "ramen-parity-c03-",
     "requires_explicit_lane": true,
-    "live_enabled": false,
+    "live_enabled": true,
     "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/r2/buckets/{bucket_name}",
     "required_env": [
       "RAMEN_CLOUDFLARE_TOFU",
@@ -31,22 +31,26 @@
       "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN"
     ],
     "cost_guardrails": [
-      "static first",
-      "no live Cloudflare mutation",
-      "cleanup verification before recording"
+      "one disposable R2 bucket per runtime",
+      "no objects public access custom domains or workers",
+      "delete bucket before recording"
     ],
-    "promotion": "C03 remains static until C01 confirms exact API-visible R2 metadata fields."
+    "promotion": "C03 is available for opt-in live R2 metadata mutability smoke runs; committed recording remains deferred."
   },
   "recording": {
-    "status": "static-only",
+    "status": "deferred",
     "artifact_path": "testdata/parity/cloudflare/c03/live.observations.json",
-    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE"
+    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Run C03 live without writing live.observations.json unless RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 is explicitly approved."
   },
   "promotion": {
-    "next": "Promote after C01 proves R2 lifecycle and metadata mutability is reviewed.",
-    "live_candidate": false,
-    "blockers": [
-      "R2 metadata field casing and create-only/updateable behavior need live C01 evidence"
+    "next": "Promote a sanitized C03 live recording after opt-in metadata mutability results are reviewed.",
+    "live_candidate": true,
+    "preconditions": [
+      "scoped Cloudflare account token",
+      "OpenTofu and Terraform binaries",
+      "empty disposable R2 bucket prefix"
     ]
   },
   "runtimes": [
@@ -76,14 +80,14 @@
         "storage_class"
       ],
       "expected_transitions": [
-        "static-create",
-        "static-read",
-        "static-update",
-        "static-delete"
+        "live-create",
+        "live-read",
+        "live-update-storage-class",
+        "live-delete"
       ]
     }
   ],
   "notes": [
-    "C03 is intentionally static-first because Cloudflare R2 metadata semantics need live C01 review before broader claims."
+    "C03 reuses the C01 R2 harness and varies metadata fields before recording promotion."
   ]
 }

@@ -322,13 +322,13 @@ func assertCloudflareParitySafetyContract(t *testing.T, lane string, safety clou
 		t.Fatalf("%s cleanup fallback = %q, want Cloudflare API command", strings.ToUpper(lane), safety.CleanupFallback)
 	}
 	switch lane {
-	case "c01":
+	case "c01", "c03":
 		if !safety.LiveEnabled {
-			t.Fatalf("C01 must be marked live-enabled for opt-in R2 lifecycle parity")
+			t.Fatalf("%s must be marked live-enabled for opt-in R2 parity", strings.ToUpper(lane))
 		}
 		for _, guardrail := range []string{"one disposable R2 bucket per runtime", "no objects public access custom domains or workers", "delete bucket before recording"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {
-				t.Fatalf("C01 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+				t.Fatalf("%s cost guardrails = %#v, missing %q", strings.ToUpper(lane), safety.CostGuardrails, guardrail)
 			}
 		}
 	case "c02":
@@ -340,11 +340,11 @@ func assertCloudflareParitySafetyContract(t *testing.T, lane string, safety clou
 				t.Fatalf("C02 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}
 		}
-	case "c03", "c04", "c05":
-		if safety.LiveEnabled {
-			t.Fatalf("%s must remain live-disabled in the staged Cloudflare rollout", strings.ToUpper(lane))
+	case "c04", "c05":
+		if !safety.LiveEnabled {
+			t.Fatalf("%s must be marked live-enabled for opt-in D1 parity", strings.ToUpper(lane))
 		}
-		for _, guardrail := range []string{"static first", "no live Cloudflare mutation", "cleanup verification before recording"} {
+		for _, guardrail := range []string{"one disposable D1 database per runtime", "delete database before recording", "cleanup absence before recording"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {
 				t.Fatalf("%s cost guardrails = %#v, missing %q", strings.ToUpper(lane), safety.CostGuardrails, guardrail)
 			}
@@ -370,13 +370,9 @@ func assertCloudflareParityRecordingPolicy(t *testing.T, lane string, recording 
 		t.Fatalf("%s must not commit %s until an explicit recording update is approved", strings.ToUpper(lane), recording.ArtifactPath)
 	}
 	switch lane {
-	case "c01", "c02":
+	case "c01", "c02", "c03", "c04", "c05":
 		if recording.Status != "deferred" || !recording.CompareWithoutUpdate || strings.TrimSpace(recording.Decision) == "" {
 			t.Fatalf("%s recording policy = %#v, want deferred compare-without-update policy", strings.ToUpper(lane), recording)
-		}
-	case "c03", "c04", "c05":
-		if recording.Status != "static-only" {
-			t.Fatalf("%s recording status = %q, want static-only", strings.ToUpper(lane), recording.Status)
 		}
 	default:
 		t.Fatalf("no recording policy assertions registered for Cloudflare parity lane %s", lane)
@@ -389,13 +385,9 @@ func assertCloudflareParityPromotionPolicy(t *testing.T, lane string, promotion 
 		t.Fatalf("%s promotion next step is required", strings.ToUpper(lane))
 	}
 	switch lane {
-	case "c01", "c02":
+	case "c01", "c02", "c03", "c04", "c05":
 		if !promotion.LiveCandidate || !slices.Contains(promotion.Preconditions, "scoped Cloudflare account token") {
 			t.Fatalf("%s promotion policy = %#v, want live candidate with scoped account token", strings.ToUpper(lane), promotion)
-		}
-	case "c03", "c04", "c05":
-		if promotion.LiveCandidate || len(promotion.Blockers) == 0 {
-			t.Fatalf("%s promotion policy = %#v, want parked blockers", strings.ToUpper(lane), promotion)
 		}
 	default:
 		t.Fatalf("no promotion assertions registered for Cloudflare parity lane %s", lane)
@@ -429,12 +421,22 @@ func assertCloudflareParityStaticFixtures(t *testing.T, lane string, artifact cl
 			"delete": {"account_id", "bucket_name"},
 		})
 		assertCloudflareParityResponseBindings(t, lane, []string{"result.name"})
-	case "c04", "c05":
+	case "c04":
 		assertCloudflareParityPlanFixture(t, lane, "create", "d1-create-database", "create", false)
 		assertCloudflareParityPlanFixture(t, lane, "read", "d1-get-database", "read", false)
 		assertCloudflareParityRequestBindings(t, lane, map[string][]string{
 			"create": {"account_id", "name"},
 			"read":   {"account_id", "database_id"},
+		})
+		assertCloudflareParityResponseBindings(t, lane, []string{"result.name", "result.uuid"})
+	case "c05":
+		assertCloudflareParityPlanFixture(t, lane, "create", "d1-create-database", "create", false)
+		assertCloudflareParityPlanFixture(t, lane, "read", "d1-get-database", "read", false)
+		assertCloudflareParityPlanFixture(t, lane, "delete", "d1-delete-database", "delete", true)
+		assertCloudflareParityRequestBindings(t, lane, map[string][]string{
+			"create": {"account_id", "name"},
+			"read":   {"account_id", "database_id"},
+			"delete": {"account_id", "database_id"},
 		})
 		assertCloudflareParityResponseBindings(t, lane, []string{"result.name", "result.uuid"})
 	default:
@@ -541,8 +543,8 @@ func cloudflareParitySeedSnapshot(lane string) (state.ResourceSnapshot, error) {
 			Type:           "cloudflare_d1_database",
 			Provider:       "provider.cloudflare",
 			DesiredHash:    "sha256:previous",
-			IdentityJSON:   `{"account_id":"cloudflare-account-placeholder","database_name":"ramen-parity-` + lane + `-static"}`,
-			AttributesJSON: `{"account_id":"cloudflare-account-placeholder","name":"ramen-parity-` + lane + `-static"}`,
+			IdentityJSON:   `{"account_id":"cloudflare-account-placeholder","database_id":"00000000-0000-0000-0000-000000000000"}`,
+			AttributesJSON: `{"account_id":"cloudflare-account-placeholder","name":"ramen-parity-` + lane + `-static","database_id":"00000000-0000-0000-0000-000000000000"}`,
 			Status:         "managed",
 		}, nil
 	default:

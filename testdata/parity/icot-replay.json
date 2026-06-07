@@ -211,8 +211,8 @@
     {
       "row": "C05",
       "project_name": "c05_d1_database_uuid",
-      "goal": "Create a Ramen workflow over the Cloudflare D1 API that creates and reads a D1 database. Use `account_id` `${var.account_id}` and `database_name` `${var.database_name}`, and prepare the response-derived UUID needed for a future delete workflow.",
-      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"}],
+      "goal": "Create a Ramen workflow over the Cloudflare D1 API that creates, reads, and deletes a D1 database. Use `account_id` `${var.account_id}` and `database_name` `${var.database_name}`, and reuse response-derived `result.uuid` as `database_id` for read/delete.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json"}],
       "seed_operation": "d1-create-database",
       "approved_fixture": "testdata/parity/cloudflare/c05/ramen/project.uws.yaml",
       "role_match": "exact"

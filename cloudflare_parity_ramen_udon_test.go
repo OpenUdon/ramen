@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	osexec "os/exec"
 	"path/filepath"
@@ -62,6 +63,7 @@ func TestCloudflareParityC05Render(t *testing.T) {
 	assertRenderedCloudflareParityLane(t, "c05", []cloudflareParityRenderedPlanCase{
 		{action: "create", operationID: "d1-create-database", summary: "create"},
 		{action: "read", operationID: "d1-get-database", summary: "read"},
+		{action: "delete", operationID: "d1-delete-database", summary: "delete", seed: true},
 	})
 }
 
@@ -76,7 +78,7 @@ func assertRenderedCloudflareParityLane(t *testing.T, lane string, cases []cloud
 	t.Helper()
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	openAPIPath, err := filepath.Abs("testdata/api-sources/cloudflare-r2-d1-openapi.json")
+	openAPIPath, err := cloudflareParityOpenAPIPathForLane(lane)
 	if err != nil {
 		t.Fatalf("resolve Cloudflare OpenAPI path: %v", err)
 	}
@@ -132,11 +134,20 @@ func renderCloudflareParityProject(src, dst, accountID, resourceName, openAPIPat
 	out = strings.ReplaceAll(out, "ramen-parity-c05-static", resourceName)
 	if strings.TrimSpace(openAPIPath) != "" {
 		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-openapi.json", filepath.ToSlash(openAPIPath))
+		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-delete-openapi.json", filepath.ToSlash(openAPIPath))
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
 	return os.WriteFile(dst, []byte(out), 0o644)
+}
+
+func cloudflareParityOpenAPIPathForLane(lane string) (string, error) {
+	source := "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+	if strings.ToLower(strings.TrimSpace(lane)) == "c05" {
+		source = "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json"
+	}
+	return filepath.Abs(source)
 }
 
 func runCloudflareParityC01Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
@@ -225,6 +236,119 @@ func runCloudflareParityC02Live(ctx context.Context, t *testing.T, artifact clou
 	return cloudflareParityLiveRecording{
 		Version:      cloudflareParityArtifactV1,
 		Lane:         "C02",
+		Scenario:     artifact.Scenarios[0].Name,
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runCloudflareParityC03Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
+	t.Helper()
+	started := time.Now()
+	suffix := cloudflareParityRunSuffix()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, string) cloudflareParityRuntimeResult
+	}{
+		{runtime: "opentofu", run: runCloudflareParityC03OpenTofuRuntime},
+		{runtime: "terraform", run: runCloudflareParityC03TerraformRuntime},
+		{runtime: "ramen", run: runCloudflareParityC03RamenRuntime},
+	}
+	var observations []cloudflareParityRuntimeObservation
+	var failures []cloudflareParityRuntimeFailure
+	for _, run := range runs {
+		bucketName := cloudflareParityBucketName("c03", run.runtime, suffix)
+		result := timedCloudflareParityRuntime(run.runtime, func() cloudflareParityRuntimeResult {
+			return run.run(ctx, t, bucketName)
+		})
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s Cloudflare parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("C03 Cloudflare provider parity did not complete for all runtimes")
+	}
+	fields := []string{"after_create.exists", "after_create.location", "after_create.storage_class", "after_create.jurisdiction", "after_update.storage_class", "no_op", "after_delete.exists"}
+	comparison := compareCloudflareParityObservations(observations, fields)
+	if !comparison.Matched {
+		t.Fatalf("C03 Cloudflare provider parity observations did not match: %#v", observations)
+	}
+	return cloudflareParityLiveRecording{
+		Version:      cloudflareParityArtifactV1,
+		Lane:         "C03",
+		Scenario:     artifact.Scenarios[0].Name,
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runCloudflareParityC04Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
+	t.Helper()
+	return runCloudflareParityD1Live(ctx, t, artifact, "c04", false)
+}
+
+func runCloudflareParityC05Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
+	t.Helper()
+	return runCloudflareParityD1Live(ctx, t, artifact, "c05", true)
+}
+
+func runCloudflareParityD1Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact, lane string, exerciseRamenDelete bool) cloudflareParityLiveRecording {
+	t.Helper()
+	started := time.Now()
+	suffix := cloudflareParityRunSuffix()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, string) cloudflareParityRuntimeResult
+	}{
+		{runtime: "opentofu", run: func(ctx context.Context, t *testing.T, databaseName string) cloudflareParityRuntimeResult {
+			return runCloudflareParityD1HCLRuntime(ctx, t, lane, "opentofu", os.Getenv(cloudflareParityTofuEnv), databaseName)
+		}},
+		{runtime: "terraform", run: func(ctx context.Context, t *testing.T, databaseName string) cloudflareParityRuntimeResult {
+			return runCloudflareParityD1HCLRuntime(ctx, t, lane, "terraform", os.Getenv(cloudflareParityTerraformEnv), databaseName)
+		}},
+		{runtime: "ramen", run: func(ctx context.Context, t *testing.T, databaseName string) cloudflareParityRuntimeResult {
+			return runCloudflareParityD1RamenRuntime(ctx, t, lane, databaseName, exerciseRamenDelete)
+		}},
+	}
+	var observations []cloudflareParityRuntimeObservation
+	var failures []cloudflareParityRuntimeFailure
+	for _, run := range runs {
+		databaseName := cloudflareParityD1DatabaseName(lane, run.runtime, suffix)
+		result := timedCloudflareParityRuntime(run.runtime, func() cloudflareParityRuntimeResult {
+			return run.run(ctx, t, databaseName)
+		})
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s Cloudflare parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("%s Cloudflare provider parity did not complete for all runtimes", strings.ToUpper(lane))
+	}
+	fields := []string{"after_create.exists", "after_create.name", "after_create.uuid_present", "no_op", "after_cleanup.exists"}
+	if exerciseRamenDelete {
+		fields = append(fields, "delete_via_runtime")
+	}
+	comparison := compareCloudflareParityObservations(observations, fields)
+	if !comparison.Matched {
+		t.Fatalf("%s Cloudflare provider parity observations did not match: %#v", strings.ToUpper(lane), observations)
+	}
+	return cloudflareParityLiveRecording{
+		Version:      cloudflareParityArtifactV1,
+		Lane:         strings.ToUpper(lane),
 		Scenario:     artifact.Scenarios[0].Name,
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
 		DurationMS:   time.Since(started).Milliseconds(),
@@ -370,6 +494,76 @@ func runCloudflareParityC02HCLRuntime(ctx context.Context, t *testing.T, runtime
 	}}
 }
 
+func runCloudflareParityC03OpenTofuRuntime(ctx context.Context, t *testing.T, bucketName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	return runCloudflareParityC03HCLRuntime(ctx, t, "opentofu", os.Getenv(cloudflareParityTofuEnv), bucketName)
+}
+
+func runCloudflareParityC03TerraformRuntime(ctx context.Context, t *testing.T, bucketName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	return runCloudflareParityC03HCLRuntime(ctx, t, "terraform", os.Getenv(cloudflareParityTerraformEnv), bucketName)
+}
+
+func runCloudflareParityC03HCLRuntime(ctx context.Context, t *testing.T, runtimeName, tool, bucketName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	if err := validateCloudflareParityBucketName(bucketName, "c03"); err != nil {
+		return cloudflareParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteCloudflareParityR2BucketIfExists(ctx, bucketName, "c03"); err != nil {
+		return cloudflareParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteCloudflareParityR2BucketIfExists(context.Background(), bucketName, "c03"); err != nil {
+			t.Logf("cleanup Cloudflare R2 bucket %s: %v", bucketName, err)
+		}
+	})
+	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, bucketName)
+	mainPath := filepath.Join(workDir, "main.tf")
+	if err := renderCloudflareParityC03HCL(mainPath, "InfrequentAccess"); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := writeCloudflareParityTFVars(workDir, bucketName, ""); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	env := append(os.Environ(), cloudflareParityEnvForTools()...)
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "init", "-input=false", "-no-color"); err != nil {
+		return cloudflareParityFailure(runtimeName, "init", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "apply", err)
+	}
+	afterCreate, err := observeCloudflareParityR2Bucket(ctx, bucketName)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	planExit, _, err := runCloudflareParityPlan(ctx, workDir, env, tool)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "plan", err)
+	}
+	if err := renderCloudflareParityC03HCL(mainPath, "Standard"); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "update", err)
+	}
+	afterUpdate, err := observeCloudflareParityR2Bucket(ctx, bucketName)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "destroy", err)
+	}
+	afterDelete, err := waitCloudflareParityR2Bucket(ctx, bucketName, false)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	return cloudflareParityRuntimeResult{Observation: cloudflareParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: bucketName,
+		Fields:   cloudflareParityR2LifecycleFields(afterCreate, afterUpdate, afterDelete, planExit == 0),
+	}}
+}
+
 func runCloudflareParityC01RamenRuntime(ctx context.Context, t *testing.T, bucketName string) cloudflareParityRuntimeResult {
 	t.Helper()
 	runtimeName := "ramen"
@@ -387,7 +581,7 @@ func runCloudflareParityC01RamenRuntime(ctx context.Context, t *testing.T, bucke
 	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, bucketName)
 	createProjectPath := filepath.Join(workDir, "create", "project.uws.yaml")
 	updateProjectPath := filepath.Join(workDir, "update", "project.uws.yaml")
-	openAPIPath, err := filepath.Abs("testdata/api-sources/cloudflare-r2-d1-openapi.json")
+	openAPIPath, err := cloudflareParityOpenAPIPathForLane("c01")
 	if err != nil {
 		return cloudflareParityFailure(runtimeName, "fixture", err)
 	}
@@ -451,7 +645,7 @@ func runCloudflareParityC02RamenRuntime(ctx context.Context, t *testing.T, bucke
 	})
 	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, bucketName)
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	openAPIPath, err := filepath.Abs("testdata/api-sources/cloudflare-r2-d1-openapi.json")
+	openAPIPath, err := cloudflareParityOpenAPIPathForLane("c02")
 	if err != nil {
 		return cloudflareParityFailure(runtimeName, "fixture", err)
 	}
@@ -481,6 +675,180 @@ func runCloudflareParityC02RamenRuntime(ctx context.Context, t *testing.T, bucke
 		Runtime:  runtimeName,
 		Resource: bucketName,
 		Fields:   cloudflareParityR2ReadMissingFields(afterCreate, afterOutOfBandDelete, true),
+	}}
+}
+
+func runCloudflareParityC03RamenRuntime(ctx context.Context, t *testing.T, bucketName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	if err := validateCloudflareParityBucketName(bucketName, "c03"); err != nil {
+		return cloudflareParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteCloudflareParityR2BucketIfExists(ctx, bucketName, "c03"); err != nil {
+		return cloudflareParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteCloudflareParityR2BucketIfExists(context.Background(), bucketName, "c03"); err != nil {
+			t.Logf("cleanup Cloudflare R2 bucket %s: %v", bucketName, err)
+		}
+	})
+	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, bucketName)
+	createProjectPath := filepath.Join(workDir, "create", "project.uws.yaml")
+	updateProjectPath := filepath.Join(workDir, "update", "project.uws.yaml")
+	openAPIPath, err := cloudflareParityOpenAPIPathForLane("c03")
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderCloudflareParityR2Project(filepath.Join(cloudflareParityFixtureRoot, "c03", "ramen", "project.uws.yaml"), createProjectPath, cloudflareParityAccountID(), bucketName, "InfrequentAccess", openAPIPath); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderCloudflareParityR2Project(filepath.Join(cloudflareParityFixtureRoot, "c03", "ramen", "project.uws.yaml"), updateProjectPath, cloudflareParityAccountID(), bucketName, "Standard", openAPIPath); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := cloudflareParityUdonExecutor(workDir, bucketName)
+	if err := buildAndApplyCloudflareParityPlan(ctx, createProjectPath, statePath, "create", filepath.Join(workDir, "create-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "apply", err)
+	}
+	afterCreate, err := observeCloudflareParityR2Bucket(ctx, bucketName)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	planResult, err := buildCloudflareParityNoOpPlan(ctx, createProjectPath, statePath)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1
+	if err := buildAndApplyCloudflareParityPlan(ctx, createProjectPath, statePath, "read", filepath.Join(workDir, "read-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "read", err)
+	}
+	if err := buildAndApplyCloudflareParityPlan(ctx, updateProjectPath, statePath, "update", filepath.Join(workDir, "update-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "update", err)
+	}
+	afterUpdate, err := observeCloudflareParityR2Bucket(ctx, bucketName)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	if err := buildAndApplyCloudflareParityPlan(ctx, updateProjectPath, statePath, "delete", filepath.Join(workDir, "delete-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "delete", err)
+	}
+	afterDelete, err := waitCloudflareParityR2Bucket(ctx, bucketName, false)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	return cloudflareParityRuntimeResult{Observation: cloudflareParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: bucketName,
+		Fields:   cloudflareParityR2LifecycleFields(afterCreate, afterUpdate, afterDelete, noOp),
+	}}
+}
+
+func runCloudflareParityD1HCLRuntime(ctx context.Context, t *testing.T, lane, runtimeName, tool, databaseName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteCloudflareParityD1DatabasesByName(ctx, databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteCloudflareParityD1DatabasesByName(context.Background(), databaseName, lane); err != nil {
+			t.Logf("cleanup Cloudflare D1 database %s: %v", databaseName, err)
+		}
+	})
+	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, databaseName)
+	if err := copyCloudflareParityFixtureFile(filepath.Join(cloudflareParityFixtureRoot, lane, "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := writeCloudflareParityD1TFVars(workDir, databaseName); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	env := append(os.Environ(), cloudflareParityEnvForTools()...)
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "init", "-input=false", "-no-color"); err != nil {
+		return cloudflareParityFailure(runtimeName, "init", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "apply", err)
+	}
+	afterCreate, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, true)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	planExit, _, err := runCloudflareParityPlan(ctx, workDir, env, tool)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "plan", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "destroy", err)
+	}
+	afterCleanup, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, false)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	return cloudflareParityRuntimeResult{Observation: cloudflareParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: databaseName,
+		Fields:   cloudflareParityD1Fields(afterCreate, afterCleanup, planExit == 0, false),
+	}}
+}
+
+func runCloudflareParityD1RamenRuntime(ctx context.Context, t *testing.T, lane, databaseName string, exerciseDelete bool) cloudflareParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteCloudflareParityD1DatabasesByName(ctx, databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteCloudflareParityD1DatabasesByName(context.Background(), databaseName, lane); err != nil {
+			t.Logf("cleanup Cloudflare D1 database %s: %v", databaseName, err)
+		}
+	})
+	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, databaseName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath, err := cloudflareParityOpenAPIPathForLane(lane)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderCloudflareParityProject(filepath.Join(cloudflareParityFixtureRoot, lane, "ramen", "project.uws.yaml"), projectPath, cloudflareParityAccountID(), databaseName, openAPIPath); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := cloudflareParityD1UdonExecutor(workDir, databaseName, lane)
+	if err := buildAndApplyCloudflareParityPlan(ctx, projectPath, statePath, "create", filepath.Join(workDir, "create-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "apply", err)
+	}
+	afterCreate, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, true)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	planResult, err := buildCloudflareParityNoOpPlan(ctx, projectPath, statePath)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1
+	if err := buildAndApplyCloudflareParityPlan(ctx, projectPath, statePath, "read", filepath.Join(workDir, "read-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "read", err)
+	}
+	deleteViaRuntime := false
+	if exerciseDelete {
+		if err := buildAndApplyCloudflareParityPlan(ctx, projectPath, statePath, "delete", filepath.Join(workDir, "delete-plan.json"), udonExecutor); err != nil {
+			return cloudflareParityFailure(runtimeName, "delete", err)
+		}
+		deleteViaRuntime = true
+	} else if err := deleteCloudflareParityD1DatabaseByID(ctx, afterCreate.UUID, databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "cleanup", err)
+	}
+	afterCleanup, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, false)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	return cloudflareParityRuntimeResult{Observation: cloudflareParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: databaseName,
+		Fields:   cloudflareParityD1Fields(afterCreate, afterCleanup, noOp, deleteViaRuntime),
 	}}
 }
 
@@ -520,6 +888,49 @@ func cloudflareParityUdonExecutor(workDir, bucketName string) udon.Executor {
 				"location":      observed.Location,
 				"storage_class": observed.StorageClass,
 				"jurisdiction":  observed.Jurisdiction,
+			}
+			return result, nil
+		},
+	}
+}
+
+func cloudflareParityD1UdonExecutor(workDir, databaseName, lane string) udon.Executor {
+	return udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		CredentialResolvers: map[string]func(context.Context) (string, error){
+			"api_token": func(context.Context) (string, error) {
+				return strings.TrimSpace(os.Getenv("CLOUDFLARE_API_TOKEN")), nil
+			},
+			"cloudflare_api_token": func(context.Context) (string, error) {
+				return strings.TrimSpace(os.Getenv("CLOUDFLARE_API_TOKEN")), nil
+			},
+		},
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := waitCloudflareParityD1DatabaseByName(projectorCtx, databaseName, lane, true)
+			if err != nil {
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{
+				"account_id":  cloudflareParityAccountID(),
+				"database_id": observed.UUID,
+			}
+			result.Computed = map[string]any{
+				"result": map[string]any{
+					"name": observed.Name,
+					"uuid": observed.UUID,
+				},
 			}
 			return result, nil
 		},
@@ -567,12 +978,26 @@ func renderCloudflareParityR2Project(src, dst, accountID, bucketName, storageCla
 	out := strings.ReplaceAll(string(data), "cloudflare-account-placeholder", accountID)
 	out = strings.ReplaceAll(out, "ramen-parity-c01-static", bucketName)
 	out = strings.ReplaceAll(out, "ramen-parity-c02-static", bucketName)
+	out = strings.ReplaceAll(out, "ramen-parity-c03-static", bucketName)
 	if strings.TrimSpace(storageClass) != "" {
 		out = strings.ReplaceAll(out, "storage_class: InfrequentAccess", "storage_class: "+storageClass)
 	}
 	if strings.TrimSpace(openAPIPath) != "" {
 		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-openapi.json", filepath.ToSlash(openAPIPath))
+		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-delete-openapi.json", filepath.ToSlash(openAPIPath))
 	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, []byte(out), 0o644)
+}
+
+func renderCloudflareParityC03HCL(dst, storageClass string) error {
+	data, err := os.ReadFile(filepath.Join(cloudflareParityFixtureRoot, "c03", "hcl", "main.tf"))
+	if err != nil {
+		return err
+	}
+	out := strings.ReplaceAll(string(data), `storage_class = "InfrequentAccess"`, `storage_class = "`+storageClass+`"`)
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
 	}
@@ -821,6 +1246,19 @@ func writeCloudflareParityTFVars(dir, bucketName, storageClass string) error {
 	return os.WriteFile(filepath.Join(dir, "terraform.tfvars.json"), data, 0o644)
 }
 
+func writeCloudflareParityD1TFVars(dir, databaseName string) error {
+	vars := map[string]string{
+		"account_id":    cloudflareParityAccountID(),
+		"database_name": databaseName,
+	}
+	data, err := json.MarshalIndent(vars, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(filepath.Join(dir, "terraform.tfvars.json"), data, 0o644)
+}
+
 type cloudflareParityR2BucketObservation struct {
 	Exists       bool
 	Name         string
@@ -924,6 +1362,197 @@ func deleteCloudflareParityR2BucketIfExists(ctx context.Context, bucketName, lan
 	return err
 }
 
+type cloudflareParityD1DatabaseObservation struct {
+	Exists bool
+	Name   string
+	UUID   string
+}
+
+type cloudflareParityD1DatabaseListItem struct {
+	Name string `json:"name"`
+	UUID string `json:"uuid"`
+	ID   string `json:"id"`
+}
+
+func observeCloudflareParityD1DatabaseByName(ctx context.Context, databaseName, lane string) (cloudflareParityD1DatabaseObservation, error) {
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return cloudflareParityD1DatabaseObservation{}, err
+	}
+	values := url.Values{}
+	values.Set("per_page", "100")
+	values.Set("name", databaseName)
+	status, body, err := cloudflareParityAPIRequest(ctx, http.MethodGet, "/accounts/"+cloudflareParityAccountID()+"/d1/database?"+values.Encode())
+	if err != nil {
+		return cloudflareParityD1DatabaseObservation{}, err
+	}
+	if status < 200 || status > 299 {
+		return cloudflareParityD1DatabaseObservation{}, fmt.Errorf("Cloudflare D1 database list returned HTTP %d: %s", status, sanitizeCloudflareParityCommandOutput(string(body)))
+	}
+	databases, err := decodeCloudflareParityD1DatabaseList(body)
+	if err != nil {
+		return cloudflareParityD1DatabaseObservation{}, err
+	}
+	for _, database := range databases {
+		if database.Name == databaseName {
+			return database, nil
+		}
+	}
+	return cloudflareParityD1DatabaseObservation{Exists: false}, nil
+}
+
+func observeCloudflareParityD1DatabaseByID(ctx context.Context, databaseID, databaseName, lane string) (cloudflareParityD1DatabaseObservation, error) {
+	if strings.TrimSpace(databaseID) == "" {
+		return cloudflareParityD1DatabaseObservation{Exists: false}, nil
+	}
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return cloudflareParityD1DatabaseObservation{}, err
+	}
+	status, body, err := cloudflareParityAPIRequest(ctx, http.MethodGet, "/accounts/"+cloudflareParityAccountID()+"/d1/database/"+url.PathEscape(databaseID))
+	if err != nil {
+		return cloudflareParityD1DatabaseObservation{}, err
+	}
+	if status == http.StatusNotFound {
+		return cloudflareParityD1DatabaseObservation{Exists: false}, nil
+	}
+	if status < 200 || status > 299 {
+		return cloudflareParityD1DatabaseObservation{}, fmt.Errorf("Cloudflare D1 database get returned HTTP %d: %s", status, sanitizeCloudflareParityCommandOutput(string(body)))
+	}
+	database, err := decodeCloudflareParityD1DatabaseGet(body)
+	if err != nil {
+		return cloudflareParityD1DatabaseObservation{}, err
+	}
+	if database.Name != databaseName {
+		return cloudflareParityD1DatabaseObservation{}, fmt.Errorf("Cloudflare D1 database UUID %s resolved to unexpected name %q", databaseID, database.Name)
+	}
+	return database, nil
+}
+
+func waitCloudflareParityD1DatabaseByName(ctx context.Context, databaseName, lane string, wantExists bool) (cloudflareParityD1DatabaseObservation, error) {
+	var last cloudflareParityD1DatabaseObservation
+	var lastErr error
+	for attempt := 0; attempt < 30; attempt++ {
+		observed, err := observeCloudflareParityD1DatabaseByName(ctx, databaseName, lane)
+		if err == nil && observed.Exists == wantExists {
+			return observed, nil
+		}
+		last = observed
+		lastErr = err
+		select {
+		case <-ctx.Done():
+			return last, ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+	if lastErr != nil {
+		return last, lastErr
+	}
+	return last, fmt.Errorf("timed out waiting for Cloudflare D1 database %s exists=%t", databaseName, wantExists)
+}
+
+func deleteCloudflareParityD1DatabasesByName(ctx context.Context, databaseName, lane string) error {
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return err
+	}
+	for {
+		observed, err := observeCloudflareParityD1DatabaseByName(ctx, databaseName, lane)
+		if err != nil {
+			return err
+		}
+		if !observed.Exists {
+			return nil
+		}
+		if err := deleteCloudflareParityD1DatabaseByID(ctx, observed.UUID, databaseName, lane); err != nil {
+			return err
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(2 * time.Second):
+		}
+	}
+}
+
+func deleteCloudflareParityD1DatabaseByID(ctx context.Context, databaseID, databaseName, lane string) error {
+	if strings.TrimSpace(databaseID) == "" {
+		return nil
+	}
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return err
+	}
+	if _, err := observeCloudflareParityD1DatabaseByID(ctx, databaseID, databaseName, lane); err != nil {
+		return err
+	}
+	status, body, err := cloudflareParityAPIRequest(ctx, http.MethodDelete, "/accounts/"+cloudflareParityAccountID()+"/d1/database/"+url.PathEscape(databaseID))
+	if err != nil {
+		return err
+	}
+	if status == http.StatusNotFound {
+		return nil
+	}
+	if status < 200 || status > 299 {
+		return fmt.Errorf("Cloudflare D1 database delete returned HTTP %d: %s", status, sanitizeCloudflareParityCommandOutput(string(body)))
+	}
+	return nil
+}
+
+func decodeCloudflareParityD1DatabaseList(body []byte) ([]cloudflareParityD1DatabaseObservation, error) {
+	var doc struct {
+		Success bool            `json:"success"`
+		Result  json.RawMessage `json:"result"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return nil, fmt.Errorf("decode Cloudflare D1 database list: %w", err)
+	}
+	if !doc.Success {
+		return nil, fmt.Errorf("Cloudflare D1 database list was not successful")
+	}
+	var items []cloudflareParityD1DatabaseListItem
+	if err := json.Unmarshal(doc.Result, &items); err == nil {
+		return cloudflareParityD1ObservationsFromItems(items), nil
+	}
+	var wrapped struct {
+		Databases []cloudflareParityD1DatabaseListItem `json:"databases"`
+	}
+	if err := json.Unmarshal(doc.Result, &wrapped); err != nil {
+		return nil, fmt.Errorf("decode Cloudflare D1 database list result: %w", err)
+	}
+	return cloudflareParityD1ObservationsFromItems(wrapped.Databases), nil
+}
+
+func decodeCloudflareParityD1DatabaseGet(body []byte) (cloudflareParityD1DatabaseObservation, error) {
+	var doc struct {
+		Success bool `json:"success"`
+		Result  struct {
+			Name string `json:"name"`
+			UUID string `json:"uuid"`
+			ID   string `json:"id"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(body, &doc); err != nil {
+		return cloudflareParityD1DatabaseObservation{}, fmt.Errorf("decode Cloudflare D1 database get: %w", err)
+	}
+	if !doc.Success {
+		return cloudflareParityD1DatabaseObservation{}, fmt.Errorf("Cloudflare D1 database get was not successful")
+	}
+	return cloudflareParityD1DatabaseObservation{
+		Exists: true,
+		Name:   doc.Result.Name,
+		UUID:   firstNonEmptyCloudflareParityString(doc.Result.UUID, doc.Result.ID),
+	}, nil
+}
+
+func cloudflareParityD1ObservationsFromItems(items []cloudflareParityD1DatabaseListItem) []cloudflareParityD1DatabaseObservation {
+	out := make([]cloudflareParityD1DatabaseObservation, 0, len(items))
+	for _, item := range items {
+		out = append(out, cloudflareParityD1DatabaseObservation{
+			Exists: true,
+			Name:   item.Name,
+			UUID:   firstNonEmptyCloudflareParityString(item.UUID, item.ID),
+		})
+	}
+	return out
+}
+
 func cloudflareParityAPIRequest(ctx context.Context, method, path string) (int, []byte, error) {
 	req, err := http.NewRequestWithContext(ctx, method, "https://api.cloudflare.com/client/v4"+path, nil)
 	if err != nil {
@@ -952,10 +1581,22 @@ func cloudflareParityR2LifecycleFields(afterCreate, afterUpdate, afterDelete clo
 		"after_create.name":          afterCreate.Name,
 		"after_create.location":      normalizeCloudflareParityR2Location(afterCreate.Location),
 		"after_create.storage_class": normalizeCloudflareParityR2StorageClass(afterCreate.StorageClass),
+		"after_create.jurisdiction":  normalizeCloudflareParityR2Jurisdiction(afterCreate.Jurisdiction),
 		"after_update.exists":        afterUpdate.Exists,
 		"after_update.storage_class": normalizeCloudflareParityR2StorageClass(afterUpdate.StorageClass),
 		"no_op":                      noOp,
 		"after_delete.exists":        afterDelete.Exists,
+	}
+}
+
+func cloudflareParityD1Fields(afterCreate, afterCleanup cloudflareParityD1DatabaseObservation, noOp, deleteViaRuntime bool) map[string]any {
+	return map[string]any{
+		"after_create.exists":       afterCreate.Exists,
+		"after_create.name":         afterCreate.Name,
+		"after_create.uuid_present": strings.TrimSpace(afterCreate.UUID) != "",
+		"no_op":                     noOp,
+		"delete_via_runtime":        deleteViaRuntime,
+		"after_cleanup.exists":      afterCleanup.Exists,
 	}
 }
 
@@ -987,6 +1628,13 @@ func normalizeCloudflareParityR2StorageClass(value string) string {
 	}
 }
 
+func normalizeCloudflareParityR2Jurisdiction(value string) string {
+	if strings.TrimSpace(value) == "" {
+		return ""
+	}
+	return strings.ToLower(value)
+}
+
 func validateCloudflareParityBucketName(name, lane string) error {
 	prefix := "ramen-parity-" + lane + "-"
 	if !strings.HasPrefix(name, prefix) {
@@ -1004,11 +1652,32 @@ func validateCloudflareParityBucketName(name, lane string) error {
 	return nil
 }
 
+func validateCloudflareParityD1DatabaseName(name, lane string) error {
+	prefix := "ramen-parity-" + lane + "-"
+	if !strings.HasPrefix(name, prefix) {
+		return fmt.Errorf("Cloudflare D1 database name %q must use %s* prefix", name, prefix)
+	}
+	if len(name) > 63 {
+		return fmt.Errorf("Cloudflare D1 database name %q is too long", name)
+	}
+	for _, r := range name {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			continue
+		}
+		return fmt.Errorf("Cloudflare D1 database name %q contains unsupported character %q", name, r)
+	}
+	return nil
+}
+
 func cloudflareParityRunSuffix() string {
 	return fmt.Sprintf("%x", time.Now().UTC().UnixNano())[:8]
 }
 
 func cloudflareParityBucketName(lane, runtime, suffix string) string {
+	return "ramen-parity-" + lane + "-" + runtime + "-" + suffix
+}
+
+func cloudflareParityD1DatabaseName(lane, runtime, suffix string) string {
 	return "ramen-parity-" + lane + "-" + runtime + "-" + suffix
 }
 

@@ -7,7 +7,7 @@
     "version_constraint": "~> 5.0"
   },
   "openapi": {
-    "source_path": "testdata/api-sources/cloudflare-r2-d1-openapi.json",
+    "source_path": "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json",
     "fixture": "focused Cloudflare R2/D1 OpenAPI subset"
   },
   "safety": {
@@ -21,7 +21,7 @@
     "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
     "resource_prefix": "ramen-parity-c05-",
     "requires_explicit_lane": true,
-    "live_enabled": false,
+    "live_enabled": true,
     "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/d1/database/{database_id}",
     "required_env": [
       "RAMEN_CLOUDFLARE_TOFU",
@@ -31,24 +31,26 @@
       "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN"
     ],
     "cost_guardrails": [
-      "static first",
-      "no live Cloudflare mutation",
-      "cleanup verification before recording"
+      "one disposable D1 database per runtime",
+      "delete database before recording",
+      "cleanup absence before recording"
     ],
-    "promotion": "C05 is parked until response-derived D1 UUID request binding is implemented."
+    "promotion": "C05 is available for opt-in live D1 UUID/delete smoke runs; committed recording remains deferred."
   },
   "recording": {
-    "status": "static-only",
+    "status": "deferred",
     "artifact_path": "testdata/parity/cloudflare/c05/live.observations.json",
-    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE"
+    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Run C05 live without writing live.observations.json unless RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 is explicitly approved."
   },
   "promotion": {
-    "next": "Implement D1 UUID projection before adding delete/update operations.",
-    "live_candidate": false,
-    "blockers": [
-      "response-derived database UUID handling",
-      "D1 delete OpenAPI operation fixture",
-      "delete cleanup proof before live recording"
+    "next": "Promote a sanitized C05 live recording after opt-in D1 UUID/delete results are reviewed.",
+    "live_candidate": true,
+    "preconditions": [
+      "scoped Cloudflare account token",
+      "OpenTofu and Terraform binaries",
+      "empty disposable D1 database prefix"
     ]
   },
   "runtimes": [
@@ -64,25 +66,26 @@
       "fixture_paths": [
         "testdata/parity/cloudflare/c05/hcl/main.tf",
         "testdata/parity/cloudflare/c05/ramen/project.uws.yaml",
-        "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+        "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json"
       ],
       "operation_ids": [
         "d1-create-database",
-        "d1-get-database"
+        "d1-get-database",
+        "d1-delete-database"
       ],
       "observed_fields": [
         "name",
         "uuid_present",
-        "delete_blocked"
+        "delete_via_runtime"
       ],
       "expected_transitions": [
-        "static-create",
-        "static-read",
-        "delete-parked"
+        "live-create",
+        "live-read",
+        "live-delete"
       ]
     }
   ],
   "notes": [
-    "C05 records the implementation task for D1 response-derived UUID handling and does not claim live D1 delete parity."
+    "C05 unlocks D1 delete through response-derived UUID handling. D1 update remains unclaimed."
   ]
 }

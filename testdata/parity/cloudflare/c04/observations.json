@@ -21,7 +21,7 @@
     "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
     "resource_prefix": "ramen-parity-c04-",
     "requires_explicit_lane": true,
-    "live_enabled": false,
+    "live_enabled": true,
     "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/d1/database/{database_id}",
     "required_env": [
       "RAMEN_CLOUDFLARE_TOFU",
@@ -31,22 +31,26 @@
       "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN"
     ],
     "cost_guardrails": [
-      "static first",
-      "no live Cloudflare mutation",
-      "cleanup verification before recording"
+      "one disposable D1 database per runtime",
+      "delete database before recording",
+      "cleanup absence before recording"
     ],
-    "promotion": "C04 remains static until C01/C02 prove Cloudflare auth and Ramen+udon OpenAPI execution."
+    "promotion": "C04 is available for opt-in live D1 create/read smoke runs; committed recording remains deferred."
   },
   "recording": {
-    "status": "static-only",
+    "status": "deferred",
     "artifact_path": "testdata/parity/cloudflare/c04/live.observations.json",
-    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE"
+    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Run C04 live without writing live.observations.json unless RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 is explicitly approved."
   },
   "promotion": {
-    "next": "Live-smoke create/read only after R2 harness is proven.",
-    "live_candidate": false,
-    "blockers": [
-      "D1 delete cleanup depends on response-derived UUID handling"
+    "next": "Promote a sanitized C04 live recording after opt-in D1 create/read and cleanup results are reviewed.",
+    "live_candidate": true,
+    "preconditions": [
+      "scoped Cloudflare account token",
+      "OpenTofu and Terraform binaries",
+      "empty disposable D1 database prefix"
     ]
   },
   "runtimes": [
@@ -74,12 +78,13 @@
         "uuid_present"
       ],
       "expected_transitions": [
-        "static-create",
-        "static-read"
+        "live-create",
+        "live-read",
+        "cleanup-delete"
       ]
     }
   ],
   "notes": [
-    "C04 does not claim delete parity."
+    "C04 uses delete only as cleanup; C05 separately exercises native Ramen delete."
   ]
 }

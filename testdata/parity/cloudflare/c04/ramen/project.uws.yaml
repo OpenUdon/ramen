@@ -61,11 +61,15 @@ x-ramen-desired-state:
           path: name
           request_keys:
             - name
-            - database_id
           response_paths:
             - result.name
-            - result.uuid
           required: true
+        - name: database_id
+          path: database_id
+          request_keys:
+            - database_id
+          response_paths:
+            - result.uuid
       kind: resource
       lifecycle: {}
       metadata:
@@ -116,7 +120,7 @@ x-ramen-desired-state:
           identity: true
         - operation_id: d1-get-database
           operation_role: read
-          path: name
+          path: database_id
           request_path: database_id
           location: path
           required: true
@@ -129,11 +133,12 @@ x-ramen-desired-state:
           operation_role: read
           state_path: name
           response_path: result.name
-          identity: true
+          observed: true
         - operation_id: d1-get-database
           operation_role: read
-          state_path: uuid_present
+          state_path: database_id
           response_path: result.uuid
-          computed: true
+          identity: true
+          response_derived_identity: true
       type: cloudflare_d1_database
   version: ramen.project.v1
