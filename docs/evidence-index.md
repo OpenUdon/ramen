@@ -52,12 +52,12 @@ live evidence so adopters can inspect what has actually been proven.
   static-only Google Cloud Storage Bucket create/read/update/delete metadata
   over Google Discovery. It reuses existing Google Storage corpus evidence and
   validates OpenTofu HCL/native/Discovery metadata.
-- `testdata/parity/google/y02` and `y03` add opt-in real GCP lanes with
+- `testdata/parity/google/y02` and `y03` add real GCP lanes with
   credential-free default checks. Y02 is read-only over an operator-provided
-  existing bucket. Y03 is a disposable empty-bucket mutation lane for
-  create/read/update/delete. Y02 has been live-smoked against public bucket
-  `gcp-public-data-landsat` without recording promotion. Y03 has a committed
-  sanitized live recording that default replay validates without GCP access.
+  existing bucket and has a committed sanitized recording against public bucket
+  `gcp-public-data-landsat`. Y03 is a disposable empty-bucket mutation lane for
+  create/read/update/delete with a committed sanitized live recording. Default
+  replay validates both without GCP access.
 - `testdata/parity/google/y04` and `y06` add GCS mutation lanes for bucket
   read-missing and managed folder metadata, with committed sanitized OpenTofu
   and Ramen+udon live recordings. `y05` adds object metadata mutation through
@@ -100,6 +100,9 @@ live evidence so adopters can inspect what has actually been proven.
   Cloud Storage bucket mutation parity across OpenTofu and Ramen+udon. The
   replay assertion compares create/read/update/delete visibility fields and
   verifies generated empty buckets were deleted before recording promotion.
+- `testdata/parity/google/y02/live.observations.json` records sanitized Google
+  Cloud Storage read-only parity across OpenTofu and Ramen+udon against public
+  bucket `gcp-public-data-landsat`.
 - `testdata/parity/google/y04/live.observations.json` records sanitized Google
   Cloud Storage bucket read-missing parity across OpenTofu and Ramen+udon after
   out-of-band deletion and verified cleanup.
@@ -162,7 +165,7 @@ live evidence so adopters can inspect what has actually been proven.
   and verified cleanup. Future recording updates require
   `RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1` after sanitization review.
 - Google Cloud live parity remains opt-in through `RAMEN_GOOGLE_PARITY=1` and
-  explicit `RAMEN_GOOGLE_PARITY_LANE`. Y02 read-only live execution requires
+  explicit `RAMEN_GOOGLE_PARITY_LANE`. Y02 read-only recording updates require
   `RAMEN_GOOGLE_EXISTING_BUCKET`; Y03 mutation creates only empty
   `ramen-parity-y03-*` buckets, updates metadata, deletes them, and verifies
   absence. Y04 creates empty buckets, deletes them out of band, and compares

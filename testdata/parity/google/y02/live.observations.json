@@ -1,0 +1,47 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y02",
+  "scenario": "storage_bucket_read_only_live",
+  "recorded_at": "2026-06-07T21:54:32Z",
+  "duration_ms": 7902,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "gcp-public-data-landsat",
+      "duration_ms": 5434,
+      "fields": {
+        "exists": true,
+        "id_present": false,
+        "labels.ramen_parity_phase": "",
+        "labels.ramen_parity_phase_update_observable": false,
+        "location_present": true,
+        "name_matches": true,
+        "uniform_bucket_level_access_field_present": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "gcp-public-data-landsat",
+      "duration_ms": 2468,
+      "fields": {
+        "exists": true,
+        "id_present": false,
+        "labels.ramen_parity_phase": "",
+        "labels.ramen_parity_phase_update_observable": false,
+        "location_present": true,
+        "name_matches": true,
+        "uniform_bucket_level_access_field_present": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "exists",
+      "name_matches",
+      "id_present",
+      "location_present",
+      "uniform_bucket_level_access_field_present"
+    ]
+  }
+}

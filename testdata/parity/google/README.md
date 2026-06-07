@@ -8,10 +8,11 @@ Default tests are credential-free. Y01 is a static-only Google Cloud Storage
 Bucket parity lane over Google Discovery metadata and does not run OpenTofu,
 provider plugins, `gcloud`, live GCP APIs, or udon.
 
-Y02 and Y03 add opt-in real GCP lanes behind the `googlelive` build tag and
-explicit environment gates. Y02 is read-only and observes an operator-provided
-existing bucket. Y03 creates one disposable empty bucket at a time, updates a
-label, reads it, deletes it, verifies absence, and has a committed sanitized
+Y02 and Y03 add real GCP lanes behind the `googlelive` build tag and explicit
+environment gates for recording updates. Y02 is read-only, observes an
+operator-provided existing bucket, and has a committed sanitized recording.
+Y03 creates one disposable empty bucket at a time, updates a label, reads it,
+deletes it, verifies absence, and has a committed sanitized
 `live.observations.json` recording.
 
 Y04 and Y06 are GCS mutation lanes with committed sanitized recordings. Y04

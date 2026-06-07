@@ -1,7 +1,7 @@
 {
   "version": "ramen.google.provider-parity.v1",
   "lane": "Y02",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/google",
     "version_constraint": "~> 6.0"
@@ -60,12 +60,18 @@
         "static-read-plan",
         "opt-in-opentofu-read-only-live-baseline",
         "opt-in-ramen-udon-read-only-live-run"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/google/y02/live.observations.json"
       ]
     }
   ],
   "notes": [
     "Y02 is the first real non-mutating Google Cloud parity lane.",
     "Live execution reads an operator-provided existing bucket only.",
-    "No bucket is created, updated, deleted, or cleaned up by Y02."
-  ]
+    "No bucket is created, updated, deleted, or cleaned up by Y02.",
+    "Default replay validates the committed sanitized Y02 live.observations.json without live GCP access."
+  ],
+  "recorded_at": "2026-06-07T21:54:32Z",
+  "recordings_source": "RAMEN_GOOGLE_PARITY=1 RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1 RAMEN_GOOGLE_PARITY_LANE=y02 with OpenTofu from ../opentofu, Ramen+udon, ADC-backed scoped GCP project credentials, and read-only access to public bucket gcp-public-data-landsat."
 }
