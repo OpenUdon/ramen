@@ -41,6 +41,12 @@ live evidence so adopters can inspect what has actually been proven.
   create/read/put/delete, and S3 Bucket Versioning create/read/put. These lanes
   validate HCL/native/Smithy metadata, including SigV4 provider appendices, and
   do not claim live AWS mutation.
+- `testdata/parity/cloudflare/c01` through `c05` start the Cloudflare parity
+  lane over the focused R2/D1 OpenAPI subset. C01 and C02 have static fixtures
+  plus opt-in R2 live smoke coverage with no committed recording by default;
+  C03-C05 remain static-first for R2 metadata variants and D1
+  create/read/UUID-delete unlock planning. Default tests do not call
+  Cloudflare APIs or require credentials.
 - `testdata/parity/google/y01` starts the Google Cloud parity lane with
   static-only Google Cloud Storage Bucket create/read/update/delete metadata
   over Google Discovery. It reuses existing Google Storage corpus evidence and
@@ -134,6 +140,14 @@ live evidence so adopters can inspect what has actually been proven.
 - Planned Azure/AWS live work must keep mutation count and resource size
   minimal, avoid large/high-cost cloud resources, and verify cleanup before any
   recording update.
+- Cloudflare live parity remains opt-in through `RAMEN_CLOUDFLARE_PARITY=1`
+  and explicit `RAMEN_CLOUDFLARE_PARITY_LANE`. C01/C02 were live-smoked on
+  2026-06-07 across OpenTofu, Terraform, and Ramen+udon with disposable R2
+  buckets, require scoped account-level Cloudflare token environment, and do
+  not commit live observations unless
+  `RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1` is explicitly set after review.
+  C03-C05 are static-only until R2 metadata behavior and D1 response-derived
+  UUID handling are proven.
 - Google Cloud live parity remains opt-in through `RAMEN_GOOGLE_PARITY=1` and
   explicit `RAMEN_GOOGLE_PARITY_LANE`. Y02 read-only live execution requires
   `RAMEN_GOOGLE_EXISTING_BUCKET`; Y03 mutation creates only empty

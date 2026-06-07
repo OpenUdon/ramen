@@ -1,0 +1,98 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C01",
+  "status": "planned",
+  "provider": {
+    "source": "cloudflare/cloudflare",
+    "version_constraint": "~> 5.0"
+  },
+  "openapi": {
+    "source_path": "testdata/api-sources/cloudflare-r2-d1-openapi.json",
+    "fixture": "focused Cloudflare R2/D1 OpenAPI subset"
+  },
+  "safety": {
+    "live_env": "RAMEN_CLOUDFLARE_PARITY",
+    "record_update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_CLOUDFLARE_PARITY_LANE",
+    "opentofu_env": "RAMEN_CLOUDFLARE_TOFU",
+    "terraform_env": "RAMEN_CLOUDFLARE_TERRAFORM",
+    "account_env": "CLOUDFLARE_ACCOUNT_ID",
+    "credential_binding": "cloudflare_api_token",
+    "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
+    "resource_prefix": "ramen-parity-c01-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/r2/buckets/{bucket_name}",
+    "required_env": [
+      "RAMEN_CLOUDFLARE_TOFU",
+      "RAMEN_CLOUDFLARE_TERRAFORM",
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_TOKEN",
+      "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN"
+    ],
+    "cost_guardrails": [
+      "one disposable R2 bucket per runtime",
+      "no objects public access custom domains or workers",
+      "delete bucket before recording"
+    ],
+    "promotion": "C01 is the first Cloudflare live candidate; no recording is committed until a scoped token run is reviewed."
+  },
+  "recording": {
+    "status": "deferred",
+    "artifact_path": "testdata/parity/cloudflare/c01/live.observations.json",
+    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Run live first without recording promotion, review sanitized observations, then promote explicitly."
+  },
+  "promotion": {
+    "next": "Live-smoke C01 with scoped Cloudflare account token, then decide whether to promote recording.",
+    "live_candidate": true,
+    "preconditions": [
+      "scoped Cloudflare account token",
+      "empty disposable R2 bucket only",
+      "cleanup absence verified"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "r2 bucket lifecycle",
+      "resource_type": "cloudflare_r2_bucket",
+      "terraform_resource_type": "cloudflare_r2_bucket",
+      "fixture_paths": [
+        "testdata/parity/cloudflare/c01/hcl/main.tf",
+        "testdata/parity/cloudflare/c01/ramen/project.uws.yaml",
+        "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+      ],
+      "operation_ids": [
+        "r2-create-bucket",
+        "r2-get-bucket",
+        "r2-patch-bucket",
+        "r2-delete-bucket"
+      ],
+      "observed_fields": [
+        "after_create.exists",
+        "after_create.name",
+        "after_update.storage_class",
+        "no_op",
+        "after_delete.exists"
+      ],
+      "expected_transitions": [
+        "create",
+        "read",
+        "update",
+        "no-op",
+        "delete",
+        "absence"
+      ]
+    }
+  ],
+  "notes": [
+    "C01 uses the existing cloudflare_r2_bucket create/read/update/delete mapper coverage.",
+    "No objects, public access, custom domains, Workers, or bucket data are in scope."
+  ]
+}

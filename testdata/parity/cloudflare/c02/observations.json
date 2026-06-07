@@ -1,0 +1,93 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C02",
+  "status": "planned",
+  "provider": {
+    "source": "cloudflare/cloudflare",
+    "version_constraint": "~> 5.0"
+  },
+  "openapi": {
+    "source_path": "testdata/api-sources/cloudflare-r2-d1-openapi.json",
+    "fixture": "focused Cloudflare R2/D1 OpenAPI subset"
+  },
+  "safety": {
+    "live_env": "RAMEN_CLOUDFLARE_PARITY",
+    "record_update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_CLOUDFLARE_PARITY_LANE",
+    "opentofu_env": "RAMEN_CLOUDFLARE_TOFU",
+    "terraform_env": "RAMEN_CLOUDFLARE_TERRAFORM",
+    "account_env": "CLOUDFLARE_ACCOUNT_ID",
+    "credential_binding": "cloudflare_api_token",
+    "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
+    "resource_prefix": "ramen-parity-c02-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/r2/buckets/{bucket_name}",
+    "required_env": [
+      "RAMEN_CLOUDFLARE_TOFU",
+      "RAMEN_CLOUDFLARE_TERRAFORM",
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_TOKEN",
+      "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN"
+    ],
+    "cost_guardrails": [
+      "one disposable R2 bucket per runtime",
+      "out-of-band delete before read-missing",
+      "cleanup absence before recording"
+    ],
+    "promotion": "C02 follows C01 and records only read-missing/absence behavior after out-of-band deletion."
+  },
+  "recording": {
+    "status": "deferred",
+    "artifact_path": "testdata/parity/cloudflare/c02/live.observations.json",
+    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "Run live after C01 smoke succeeds; promote only after sanitized missing evidence is reviewed."
+  },
+  "promotion": {
+    "next": "Live-smoke C02 after C01 validates the R2 harness.",
+    "live_candidate": true,
+    "preconditions": [
+      "scoped Cloudflare account token",
+      "C01 live smoke completed",
+      "cleanup absence verified"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "r2 bucket read-missing",
+      "resource_type": "cloudflare_r2_bucket",
+      "terraform_resource_type": "cloudflare_r2_bucket",
+      "fixture_paths": [
+        "testdata/parity/cloudflare/c02/hcl/main.tf",
+        "testdata/parity/cloudflare/c02/ramen/project.uws.yaml",
+        "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+      ],
+      "operation_ids": [
+        "r2-create-bucket",
+        "r2-get-bucket",
+        "r2-delete-bucket"
+      ],
+      "observed_fields": [
+        "after_create.exists",
+        "after_out_of_band_delete.exists",
+        "read_missing.missing",
+        "after_cleanup.exists"
+      ],
+      "expected_transitions": [
+        "create",
+        "out-of-band-delete",
+        "read-missing",
+        "absence"
+      ]
+    }
+  ],
+  "notes": [
+    "C02 keeps the resource shape minimal to isolate missing classification."
+  ]
+}

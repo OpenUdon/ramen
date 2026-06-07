@@ -1,0 +1,85 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C04",
+  "status": "planned",
+  "provider": {
+    "source": "cloudflare/cloudflare",
+    "version_constraint": "~> 5.0"
+  },
+  "openapi": {
+    "source_path": "testdata/api-sources/cloudflare-r2-d1-openapi.json",
+    "fixture": "focused Cloudflare R2/D1 OpenAPI subset"
+  },
+  "safety": {
+    "live_env": "RAMEN_CLOUDFLARE_PARITY",
+    "record_update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_CLOUDFLARE_PARITY_LANE",
+    "opentofu_env": "RAMEN_CLOUDFLARE_TOFU",
+    "terraform_env": "RAMEN_CLOUDFLARE_TERRAFORM",
+    "account_env": "CLOUDFLARE_ACCOUNT_ID",
+    "credential_binding": "cloudflare_api_token",
+    "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
+    "resource_prefix": "ramen-parity-c04-",
+    "requires_explicit_lane": true,
+    "live_enabled": false,
+    "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/d1/database/{database_id}",
+    "required_env": [
+      "RAMEN_CLOUDFLARE_TOFU",
+      "RAMEN_CLOUDFLARE_TERRAFORM",
+      "CLOUDFLARE_ACCOUNT_ID",
+      "CLOUDFLARE_API_TOKEN",
+      "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN"
+    ],
+    "cost_guardrails": [
+      "static first",
+      "no live Cloudflare mutation",
+      "cleanup verification before recording"
+    ],
+    "promotion": "C04 remains static until C01/C02 prove Cloudflare auth and Ramen+udon OpenAPI execution."
+  },
+  "recording": {
+    "status": "static-only",
+    "artifact_path": "testdata/parity/cloudflare/c04/live.observations.json",
+    "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE"
+  },
+  "promotion": {
+    "next": "Live-smoke create/read only after R2 harness is proven.",
+    "live_candidate": false,
+    "blockers": [
+      "D1 delete cleanup depends on response-derived UUID handling"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "d1 database create-read",
+      "resource_type": "cloudflare_d1_database",
+      "terraform_resource_type": "cloudflare_d1_database",
+      "fixture_paths": [
+        "testdata/parity/cloudflare/c04/hcl/main.tf",
+        "testdata/parity/cloudflare/c04/ramen/project.uws.yaml",
+        "testdata/api-sources/cloudflare-r2-d1-openapi.json"
+      ],
+      "operation_ids": [
+        "d1-create-database",
+        "d1-get-database"
+      ],
+      "observed_fields": [
+        "exists",
+        "name",
+        "uuid_present"
+      ],
+      "expected_transitions": [
+        "static-create",
+        "static-read"
+      ]
+    }
+  ],
+  "notes": [
+    "C04 does not claim delete parity."
+  ]
+}

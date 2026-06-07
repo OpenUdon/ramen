@@ -74,11 +74,26 @@ func hasGoBuildTag(path, tag string) bool {
 				if err != nil {
 					return false
 				}
-				return expr.Eval(func(name string) bool { return name == tag })
+				return goBuildExprHasPositiveTag(expr, tag)
 			}
 			continue
 		}
 		return false
 	}
 	return false
+}
+
+func goBuildExprHasPositiveTag(expr constraint.Expr, tag string) bool {
+	switch expr := expr.(type) {
+	case *constraint.TagExpr:
+		return expr.Tag == tag
+	case *constraint.AndExpr:
+		return goBuildExprHasPositiveTag(expr.X, tag) || goBuildExprHasPositiveTag(expr.Y, tag)
+	case *constraint.OrExpr:
+		return goBuildExprHasPositiveTag(expr.X, tag) || goBuildExprHasPositiveTag(expr.Y, tag)
+	case *constraint.NotExpr:
+		return false
+	default:
+		return false
+	}
 }

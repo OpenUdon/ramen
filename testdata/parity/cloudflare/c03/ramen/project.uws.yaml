@@ -1,0 +1,232 @@
+info:
+  description: Cloudflare R2 bucket metadata variant parity fixture for C03.
+  title: ramen_cloudflare_c03_r2_bucket_metadata_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: cloudflare
+    serverUrl: https://api.cloudflare.com/client/v4
+  security:
+    - binding: cloudflare_api_token
+      name: api_token
+      scheme:
+        scheme: bearer
+        type: http
+operations:
+  - description: Create the Cloudflare R2 bucket with metadata variants.
+    operationId: c03_r2_bucket_create
+    sourceDescription: cloudflare
+    sourceOperationId: r2-create-bucket
+  - description: Read the Cloudflare R2 bucket.
+    operationId: c03_r2_bucket_read
+    sourceDescription: cloudflare
+    sourceOperationId: r2-get-bucket
+  - description: Update the Cloudflare R2 bucket storage class.
+    operationId: c03_r2_bucket_update
+    sourceDescription: cloudflare
+    sourceOperationId: r2-patch-bucket
+  - description: Delete the Cloudflare R2 bucket.
+    operationId: c03_r2_bucket_delete
+    sourceDescription: cloudflare
+    sourceOperationId: r2-delete-bucket
+sourceDescriptions:
+  - name: cloudflare
+    type: openapi
+    url: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for Cloudflare R2 metadata parity.
+    steps:
+      - operationRef: c03_r2_bucket_create
+        stepId: create
+      - operationRef: c03_r2_bucket_read
+        stepId: read
+      - operationRef: c03_r2_bucket_update
+        stepId: update
+      - operationRef: c03_r2_bucket_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: cloudflare
+      kind: openapi
+      path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+  metadata:
+    action: create
+    source: C03 Cloudflare provider parity fixture
+  redaction: {}
+  resources:
+    - address: cloudflare_r2_bucket.bucket
+      attributes:
+        account_id: cloudflare-account-placeholder
+        name: ramen-parity-c03-static
+        location: ENAM
+        storage_class: InfrequentAccess
+        jurisdiction: default
+      credential_bindings:
+        - cloudflare_api_token
+      identity_attributes:
+        - name: account_id
+          path: account_id
+          request_keys:
+            - account_id
+          required: true
+        - name: bucket_name
+          path: name
+          request_keys:
+            - name
+            - bucket_name
+          response_paths:
+            - result.name
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: cloudflare_r2_bucket
+        terraform_address: cloudflare_r2_bucket.bucket
+      name: bucket
+      operations:
+        create:
+          credential_bindings:
+            - cloudflare_api_token
+          method: POST
+          operation_id: r2-create-bucket
+          purpose: create
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+        read:
+          credential_bindings:
+            - cloudflare_api_token
+          method: GET
+          operation_id: r2-get-bucket
+          purpose: read
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+        update:
+          credential_bindings:
+            - cloudflare_api_token
+          method: PATCH
+          operation_id: r2-patch-bucket
+          purpose: update
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+        delete:
+          credential_bindings:
+            - cloudflare_api_token
+          method: DELETE
+          operation_id: r2-delete-bucket
+          purpose: delete
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+      redaction: {}
+      request_bindings:
+        - operation_id: r2-create-bucket
+          operation_role: create
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: r2-create-bucket
+          operation_role: create
+          path: jurisdiction
+          request_path: cf-r2-jurisdiction
+          location: header
+        - operation_id: r2-create-bucket
+          operation_role: create
+          path: name
+          request_path: name
+          location: body
+          required: true
+          identity: true
+        - operation_id: r2-create-bucket
+          operation_role: create
+          path: location
+          request_path: locationHint
+          location: body
+        - operation_id: r2-create-bucket
+          operation_role: create
+          path: storage_class
+          request_path: storageClass
+          location: body
+        - operation_id: r2-get-bucket
+          operation_role: read
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: r2-get-bucket
+          operation_role: read
+          path: name
+          request_path: bucket_name
+          location: path
+          required: true
+          identity: true
+        - operation_id: r2-patch-bucket
+          operation_role: update
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: r2-patch-bucket
+          operation_role: update
+          path: name
+          request_path: bucket_name
+          location: path
+          required: true
+          identity: true
+        - operation_id: r2-patch-bucket
+          operation_role: update
+          path: storage_class
+          request_path: cf-r2-storage-class
+          location: header
+          required: true
+        - operation_id: r2-delete-bucket
+          operation_role: delete
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: r2-delete-bucket
+          operation_role: delete
+          path: name
+          request_path: bucket_name
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: r2-get-bucket
+          operation_role: read
+          state_path: name
+          response_path: result.name
+          identity: true
+        - operation_id: r2-get-bucket
+          operation_role: read
+          state_path: location
+          response_path: result.location
+          observed: true
+        - operation_id: r2-get-bucket
+          operation_role: read
+          state_path: storage_class
+          response_path: result.storageClass
+          observed: true
+        - operation_id: r2-get-bucket
+          operation_role: read
+          state_path: jurisdiction
+          response_path: result.jurisdiction
+          observed: true
+      type: cloudflare_r2_bucket
+  version: ramen.project.v1

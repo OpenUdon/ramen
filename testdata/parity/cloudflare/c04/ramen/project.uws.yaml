@@ -1,0 +1,139 @@
+info:
+  description: Cloudflare D1 database create/read parity fixture for C04.
+  title: ramen_cloudflare_c04_d1_database_create_read_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: cloudflare
+    serverUrl: https://api.cloudflare.com/client/v4
+  security:
+    - binding: cloudflare_api_token
+      name: api_token
+      scheme:
+        scheme: bearer
+        type: http
+operations:
+  - description: Create the Cloudflare D1 database.
+    operationId: c04_d1_database_create
+    sourceDescription: cloudflare
+    sourceOperationId: d1-create-database
+  - description: Read the Cloudflare D1 database.
+    operationId: c04_d1_database_read
+    sourceDescription: cloudflare
+    sourceOperationId: d1-get-database
+sourceDescriptions:
+  - name: cloudflare
+    type: openapi
+    url: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for Cloudflare D1 create/read parity.
+    steps:
+      - operationRef: c04_d1_database_create
+        stepId: create
+      - operationRef: c04_d1_database_read
+        stepId: read
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - id: cloudflare
+      kind: openapi
+      path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+  metadata:
+    action: create
+    source: C04 Cloudflare provider parity fixture
+  redaction: {}
+  resources:
+    - address: cloudflare_d1_database.database
+      attributes:
+        account_id: cloudflare-account-placeholder
+        name: ramen-parity-c04-static
+      credential_bindings:
+        - cloudflare_api_token
+      identity_attributes:
+        - name: account_id
+          path: account_id
+          request_keys:
+            - account_id
+          required: true
+        - name: database_name
+          path: name
+          request_keys:
+            - name
+            - database_id
+          response_paths:
+            - result.name
+            - result.uuid
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: cloudflare_d1_database
+        terraform_address: cloudflare_d1_database.database
+      name: database
+      operations:
+        create:
+          credential_bindings:
+            - cloudflare_api_token
+          method: POST
+          operation_id: d1-create-database
+          purpose: create
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+        read:
+          credential_bindings:
+            - cloudflare_api_token
+          method: GET
+          operation_id: d1-get-database
+          purpose: read
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-openapi.json
+      redaction: {}
+      request_bindings:
+        - operation_id: d1-create-database
+          operation_role: create
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: d1-create-database
+          operation_role: create
+          path: name
+          request_path: name
+          location: body
+          required: true
+          identity: true
+        - operation_id: d1-get-database
+          operation_role: read
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: d1-get-database
+          operation_role: read
+          path: name
+          request_path: database_id
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+      response_bindings:
+        - operation_id: d1-get-database
+          operation_role: read
+          state_path: name
+          response_path: result.name
+          identity: true
+        - operation_id: d1-get-database
+          operation_role: read
+          state_path: uuid_present
+          response_path: result.uuid
+          computed: true
+      type: cloudflare_d1_database
+  version: ramen.project.v1
