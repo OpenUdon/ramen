@@ -445,6 +445,7 @@ func assertCloudflareParityStaticFixtures(t *testing.T, lane string, artifact cl
 			"read":   {"account_id", "database_id"},
 		})
 		assertCloudflareParityResponseBindings(t, lane, []string{"result.name", "result.uuid"})
+		assertCloudflareParityD1UpdateNotAdvertised(t, lane, artifact)
 	case "c05":
 		assertCloudflareParityPlanFixture(t, lane, "create", "d1-create-database", "create", false)
 		assertCloudflareParityPlanFixture(t, lane, "read", "d1-get-database", "read", false)
@@ -455,10 +456,38 @@ func assertCloudflareParityStaticFixtures(t *testing.T, lane string, artifact cl
 			"delete": {"account_id", "database_id"},
 		})
 		assertCloudflareParityResponseBindings(t, lane, []string{"result.name", "result.uuid"})
+		assertCloudflareParityD1UpdateNotAdvertised(t, lane, artifact)
 	default:
 		t.Fatalf("no static assertions registered for Cloudflare parity lane %s", lane)
 	}
 	assertCloudflareParityUdonMetadata(t, lane)
+}
+
+func assertCloudflareParityD1UpdateNotAdvertised(t *testing.T, lane string, artifact cloudflareParityArtifact) {
+	t.Helper()
+	data, err := os.ReadFile(artifact.OpenAPI.SourcePath)
+	if err != nil {
+		t.Fatalf("read %s OpenAPI source %s: %v", strings.ToUpper(lane), artifact.OpenAPI.SourcePath, err)
+	}
+	var doc struct {
+		Paths map[string]map[string]struct {
+			OperationID string `json:"operationId"`
+		} `json:"paths"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("decode %s OpenAPI source %s: %v", strings.ToUpper(lane), artifact.OpenAPI.SourcePath, err)
+	}
+	for path, methods := range doc.Paths {
+		if !strings.Contains(strings.ToLower(path), "/d1/database") {
+			continue
+		}
+		for method, operation := range methods {
+			method = strings.ToUpper(method)
+			if method == "PATCH" || method == "PUT" || strings.Contains(strings.ToLower(operation.OperationID), "update") {
+				t.Fatalf("%s D1 update remains unclaimed, but %s %s advertises operation %q", strings.ToUpper(lane), method, path, operation.OperationID)
+			}
+		}
+	}
 }
 
 func assertCloudflareParityHCLFixture(t *testing.T, lane string, artifact cloudflareParityArtifact) {

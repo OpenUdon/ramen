@@ -89,7 +89,7 @@
     }
   ],
   "notes": [
-    "C05 unlocks D1 delete through response-derived UUID handling. D1 update remains unclaimed.",
+    "C05 unlocks D1 delete through response-derived UUID handling. D1 update is intentionally unsupported until a D1 update operation appears in the focused API source.",
     "Default replay validates the committed sanitized C05 live.observations.json without Cloudflare access."
   ],
   "recorded_at": "2026-06-07T21:39:48Z",

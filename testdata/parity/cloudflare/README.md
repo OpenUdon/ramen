@@ -17,4 +17,5 @@ The initial staged scope is:
   and Ramen+udon observations plus direct D1 delete cleanup.
 - `C05`: D1 response-derived UUID/delete unlock with committed sanitized
   OpenTofu, Terraform, and Ramen+udon observations; Ramen delete is exercised
-  through the response-derived UUID. D1 update remains unclaimed.
+  through the response-derived UUID. D1 update is intentionally unsupported
+  until a D1 update operation appears in the focused API source.

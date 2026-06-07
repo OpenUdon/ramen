@@ -337,6 +337,7 @@ func TestDefaultRegistryDiagnostics(t *testing.T) {
 		{name: "provider", obj: Object{Kind: "resource", Type: "example_resource", Provider: "provider.example"}, want: DiagnosticCodeUnsupportedProvider},
 		{name: "type", obj: Object{Kind: "resource", Type: "aws_instance", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedType},
 		{name: "action", obj: Object{Kind: "resource", Type: "aws_iam_role", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedAction},
+		{name: "cloudflare d1 database update", obj: Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, purpose: "update", action: "update", want: DiagnosticCodeUnsupportedAction},
 		{name: "clusterrole update", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, purpose: "update", action: "update", want: DiagnosticCodeUnsupportedAction},
 	}
 	for _, tt := range tests {

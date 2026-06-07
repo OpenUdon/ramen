@@ -49,7 +49,7 @@ x-ramen-desired-state:
   metadata:
     action: create
     source: C05 Cloudflare provider parity fixture
-    limitation: D1 update remains parked; delete is unlocked through response-derived UUID request binding.
+    limitation: D1 update is intentionally unsupported because the focused API source exposes no D1 update operation; delete is unlocked through response-derived UUID request binding.
   redaction: {}
   resources:
     - address: cloudflare_d1_database.database

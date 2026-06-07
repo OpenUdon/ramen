@@ -116,7 +116,8 @@ live evidence so adopters can inspect what has actually been proven.
 - `testdata/parity/cloudflare/c01` through `c05` record sanitized Cloudflare
   R2/D1 parity observations across OpenTofu, Terraform, and Ramen+udon for R2
   lifecycle, R2 read-missing, R2 metadata mutability, D1 create/read, and D1
-  response-derived UUID delete.
+  response-derived UUID delete. D1 update remains intentionally unsupported
+  because the focused API source exposes no D1 update operation.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 
