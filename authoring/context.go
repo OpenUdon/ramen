@@ -112,9 +112,19 @@ func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APIS
 			requestSchemaID = "request:" + firstNonEmpty(op.OperationID, op.ID)
 			out.Schemas = append(out.Schemas, schemaHintFromRequestBody(requestSchemaID, op.RequestBody))
 		}
+		responseSchemaID := ""
+		if op.ResponseBody != nil {
+			responseSchemaID = "response:" + firstNonEmpty(op.OperationID, op.ID)
+			out.Schemas = append(out.Schemas, schemaHintFromResponseBody(responseSchemaID, op.ResponseBody))
+		}
 		metadata := map[string]string{
 			"source_kind": firstNonEmpty(input.Kind, "openapi"),
 			"source_path": firstNonEmpty(input.Path, op.DocumentPath, op.DocumentRelativePath),
+		}
+		for key, value := range op.Extensions {
+			if strings.TrimSpace(value) != "" {
+				metadata[key] = value
+			}
 		}
 		parameters := operationParametersMetadataForOperation(op, input.Path)
 		if len(parameters) > 0 {
@@ -131,7 +141,8 @@ func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APIS
 			Path:               op.Path,
 			Summary:            firstNonEmpty(op.Summary, op.Description),
 			RequestSchemaID:    requestSchemaID,
-			CredentialBindings: credentialBindings(op.Security),
+			ResponseSchemaID:   responseSchemaID,
+			CredentialBindings: credentialBindings(op.Security, input),
 			Tags:               append([]string(nil), op.Tags...),
 			Confidence:         confidenceForScore(op.Score),
 			SelectionRationale: selectionRationale(op.Score),
@@ -281,6 +292,9 @@ func schemaHintFromRequestBody(id string, body *apitools.RequestBodySummary) pro
 			Summary:  field.Description,
 		})
 	}
+	if body.Schema != nil {
+		schema.Fields = appendMissingPropertyFieldHints(schema.Fields, body.Schema.Properties, "name", "id")
+	}
 	if len(schema.Fields) == 0 && body.Schema != nil {
 		schema.Summary = firstNonEmpty(schema.Summary, body.Schema.Description)
 		schema.Required = append(schema.Required, body.Schema.Required...)
@@ -296,12 +310,71 @@ func schemaHintFromRequestBody(id string, body *apitools.RequestBodySummary) pro
 	return schema
 }
 
+func schemaHintFromResponseBody(id string, body *apitools.ResponseBodySummary) promptcontext.SchemaHint {
+	if body == nil {
+		return promptcontext.SchemaHint{}
+	}
+	schema := promptcontext.SchemaHint{
+		ID:        id,
+		Purpose:   "response",
+		Summary:   body.Description,
+		MediaType: first(body.ContentTypes),
+	}
+	for _, field := range body.Fields {
+		schema.Fields = append(schema.Fields, promptcontext.FieldHint{
+			Name:     field.Path,
+			Type:     firstNonEmpty(field.Type, field.Format, field.Ref, "string"),
+			Required: field.Required,
+			Summary:  field.Description,
+		})
+	}
+	if len(schema.Fields) == 0 && body.Schema != nil {
+		schema.Summary = firstNonEmpty(schema.Summary, body.Schema.Description)
+		schema.Required = append(schema.Required, body.Schema.Required...)
+		for _, prop := range body.Schema.Properties {
+			schema.Fields = append(schema.Fields, promptcontext.FieldHint{
+				Name:     prop.Name,
+				Type:     firstNonEmpty(prop.Type, prop.Format, prop.Ref, "string"),
+				Required: prop.Required || slices.Contains(body.Schema.Required, prop.Name),
+				Summary:  prop.Description,
+			})
+		}
+	}
+	return schema
+}
+
+func appendMissingPropertyFieldHints(fields []promptcontext.FieldHint, properties []apitools.PropertySummary, names ...string) []promptcontext.FieldHint {
+	seen := map[string]bool{}
+	for _, field := range fields {
+		seen[strings.TrimSpace(field.Name)] = true
+	}
+	for _, name := range names {
+		if seen[name] {
+			continue
+		}
+		for _, prop := range properties {
+			if prop.Name != name {
+				continue
+			}
+			fields = append(fields, promptcontext.FieldHint{
+				Name:     prop.Name,
+				Type:     firstNonEmpty(prop.Type, prop.Format, prop.Ref, "string"),
+				Required: prop.Required,
+				Summary:  prop.Description,
+			})
+			seen[name] = true
+			break
+		}
+	}
+	return fields
+}
+
 func credentialsForOperations(operations []apitools.OperationSummary) []promptcontext.CredentialBinding {
 	seen := map[string]bool{}
 	var out []promptcontext.CredentialBinding
 	for _, op := range operations {
 		for _, security := range op.Security {
-			name := strings.TrimSpace(security.Name)
+			name := normalizedCredentialName(security, APISourceInput{ID: op.DocumentName})
 			if name == "" || seen[name] {
 				continue
 			}
@@ -312,17 +385,20 @@ func credentialsForOperations(operations []apitools.OperationSummary) []promptco
 				Scope:    security.In,
 				Required: true,
 				Summary:  security.Description,
+				Metadata: map[string]string{
+					"scheme_name": strings.TrimSpace(security.Name),
+				},
 			})
 		}
 	}
 	return out
 }
 
-func credentialBindings(security []apitools.SecuritySummary) []string {
+func credentialBindings(security []apitools.SecuritySummary, source APISourceInput) []string {
 	seen := map[string]bool{}
 	var out []string
 	for _, item := range security {
-		name := strings.TrimSpace(item.Name)
+		name := normalizedCredentialName(item, source)
 		if name == "" || seen[name] {
 			continue
 		}
@@ -331,6 +407,32 @@ func credentialBindings(security []apitools.SecuritySummary) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+func normalizedCredentialName(security apitools.SecuritySummary, source APISourceInput) string {
+	name := strings.TrimSpace(security.Name)
+	if name == "" {
+		name = strings.TrimSpace(security.ParameterName)
+	}
+	if name == "" {
+		return ""
+	}
+	sourceKind := normalizeProjectSourceKind(firstNonEmpty(source.Kind, security.Extensions["x-uws-source-kind"]))
+	sourceID := slug(firstNonEmpty(source.ID, sourceKind))
+	lowerName := strings.ToLower(strings.ReplaceAll(name, "_", "-"))
+	if sourceKind == apitools.APISourceKindGoogleDiscovery || strings.Contains(lowerName, "google") && strings.Contains(lowerName, "oauth") {
+		return "google_oauth2"
+	}
+	if strings.Contains(sourceID, "cloudflare") && (strings.Contains(lowerName, "token") || strings.Contains(lowerName, "bearer") || strings.Contains(lowerName, "api")) {
+		return "cloudflare_api_token"
+	}
+	if strings.Contains(lowerName, "oauth") {
+		return slug(name)
+	}
+	if strings.Contains(lowerName, "api") && strings.Contains(lowerName, "token") && sourceID != "" && !strings.Contains(slug(name), sourceID) {
+		return sourceID + "_" + slug(name)
+	}
+	return slug(name)
 }
 
 func normalizeAPISourceKind(kind string) string {

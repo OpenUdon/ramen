@@ -478,10 +478,15 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 	roleName := operationRoleForVerb(operation.Verb)
 	method := strings.ToUpper(strings.TrimSpace(operation.Verb))
 	parameters := operationParameters(operation)
-	schema := schemaPathsForParameters(parameters)
+	var schema []project.SchemaPath
 	if strings.TrimSpace(operation.RequestSchemaID) != "" {
 		schema = append(schema, schemaPathsForOperation(ctx, operation)...)
 	}
+	responseSchema := schemaPathsForResponse(ctx, operation)
+	if roleName == "read" {
+		schema = mergeSchemaPaths(schema, responseSchema)
+	}
+	schema = mergeSchemaPaths(schema, schemaPathsForLifecycleParameters(parameters, schema))
 	if len(schema) == 0 {
 		schema = append(schema, project.SchemaPath{Path: "id", Type: "string", Computed: roleName == "read", Identity: true, ReadOnly: roleName == "read"})
 	} else if !schemaHasIdentity(schema) {
@@ -511,9 +516,13 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 			attributes[attr.Path] = resourceName
 		}
 	}
-	requestBindings := requestBindingsForParametersRole(parameters, sourceOperationID, roleName)
+	requestBindings := requestBindingsForParametersRoleSchema(parameters, sourceOperationID, roleName, schema)
 	if roleName != "read" {
 		requestBindings = append(requestBindings, requestBindingsForSchemaRole(schemaPathsExcludingParameters(schema, parameters), sourceOperationID, roleName)...)
+	}
+	responseBindings := []project.ResponseBinding(nil)
+	if roleName == "read" {
+		responseBindings = responseBindingsForSchema(responseSchema, sourceOperationID)
 	}
 	return project.Resource{
 		Address:    "resource." + resourceName,
@@ -536,7 +545,7 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 		IdentityAttributes: identity,
 		Schema:             schema,
 		RequestBindings:    requestBindings,
-		ResponseBindings:   responseBindingsForSchema(responseSchemaPaths(schema), sourceOperationID),
+		ResponseBindings:   responseBindings,
 		RequiredOperations: []string{roleName},
 		CredentialBindings: append([]string(nil), operation.CredentialBindings...),
 		Redaction:          redactionForSchema(schema),
@@ -569,7 +578,9 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 	var requestBindings []project.RequestBinding
 	var responseBindings []project.ResponseBinding
 	var credentials []string
+	var readResponseSchema []project.SchemaPath
 	readOperationID := ""
+	hasSourceLRO := false
 	for _, candidate := range expansion.Roles {
 		role := candidate.Role
 		op := candidate.Operation
@@ -589,11 +600,18 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 		}
 		required = append(required, role)
 		credentials = append(credentials, op.CredentialBindings...)
+		if sourceSupportedLongRunningOperation(op) {
+			hasSourceLRO = true
+		}
 		parameters := operationParameters(op)
 		if role != "read" && role != "delete" {
 			bodySchema := schemaPathsForOperation(ctx, op)
 			schema = mergeSchemaPaths(schema, bodySchema)
 			requestBindings = append(requestBindings, requestBindingsForSchemaRole(schemaPathsExcludingParameters(bodySchema, parameters), opID, role)...)
+		}
+		if role == "read" {
+			readResponseSchema = schemaPathsForResponse(ctx, op)
+			schema = mergeSchemaPaths(schema, readResponseSchema)
 		}
 		parameterSchema := schemaPathsForLifecycleParameters(parameters, schema)
 		schema = mergeSchemaPaths(schema, parameterSchema)
@@ -632,8 +650,9 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 		setAttributePath(attributes, path.Path, value)
 	}
 	if readOperationID != "" {
-		responseBindings = responseBindingsForSchema(responseSchemaPathsForRead(schema), readOperationID)
+		responseBindings = responseBindingsForSchema(readResponseSchema, readOperationID)
 	}
+	runtimeHints := runtimeHintsForSourceMetadata(hasSourceLRO, readOperationID != "")
 	return project.Resource{
 		Address:            "resource." + resourceName,
 		Kind:               "resource",
@@ -649,6 +668,7 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 		RequiredOperations: required,
 		CredentialBindings: uniqueStrings(credentials),
 		Redaction:          redactionForSchema(schema),
+		RuntimeHints:       runtimeHints,
 		Metadata: map[string]any{
 			"goal":                strings.TrimSpace(goal),
 			"operation_role":      primary.Role,
@@ -993,9 +1013,6 @@ func sourceForOperation(ctx promptcontext.Context, operation promptcontext.Opera
 func schemaPathsForOperation(ctx promptcontext.Context, operation promptcontext.OperationCandidate) []project.SchemaPath {
 	schema := schemaForID(ctx, operation.RequestSchemaID)
 	if schema.ID == "" {
-		schema = firstSchema(ctx)
-	}
-	if schema.ID == "" {
 		return nil
 	}
 	identity := identityField(schema.Fields)
@@ -1011,6 +1028,33 @@ func schemaPathsForOperation(ctx promptcontext.Context, operation promptcontext.
 			Required:  field.Required || contains(schema.Required, path),
 			Sensitive: field.Sensitive,
 			Identity:  path == identity,
+		})
+	}
+	return out
+}
+
+func schemaPathsForResponse(ctx promptcontext.Context, operation promptcontext.OperationCandidate) []project.SchemaPath {
+	schema := schemaForID(ctx, operation.ResponseSchemaID)
+	if schema.ID == "" {
+		return nil
+	}
+	identity := identityField(schema.Fields)
+	var out []project.SchemaPath
+	for _, field := range schema.Fields {
+		path := strings.TrimSpace(field.Name)
+		if path == "" {
+			continue
+		}
+		isIdentity := path == identity
+		out = append(out, project.SchemaPath{
+			Path:                    path,
+			Type:                    firstNonEmpty(field.Type, "string"),
+			Required:                field.Required || contains(schema.Required, path),
+			Sensitive:               field.Sensitive,
+			Identity:                isIdentity,
+			Computed:                !isIdentity,
+			ReadOnly:                true,
+			ResponseDerivedIdentity: isIdentity,
 		})
 	}
 	return out
@@ -1056,13 +1100,31 @@ func identityField(fields []promptcontext.FieldHint) string {
 	}
 	for _, field := range fields {
 		if field.Required {
-			return strings.TrimSpace(field.Name)
+			name := strings.TrimSpace(field.Name)
+			if !scopeLikeSchemaField(name) {
+				return name
+			}
+		}
+	}
+	for _, field := range fields {
+		name := strings.TrimSpace(field.Name)
+		if !scopeLikeSchemaField(name) {
+			return name
 		}
 	}
 	if len(fields) == 0 {
 		return ""
 	}
 	return strings.TrimSpace(fields[0].Name)
+}
+
+func scopeLikeSchemaField(name string) bool {
+	switch normalizedParameterName(name) {
+	case "subscriptionid", "apiversion", "kind", "location":
+		return true
+	default:
+		return false
+	}
 }
 
 func identityAttributesForSchema(schema []project.SchemaPath) []project.IdentityAttribute {
@@ -1140,13 +1202,15 @@ func schemaPathsForParameters(parameters []operationParameterMetadata) []project
 
 func schemaPathsForLifecycleParameters(parameters []operationParameterMetadata, schema []project.SchemaPath) []project.SchemaPath {
 	var out []project.SchemaPath
+	hasIdentity := schemaHasIdentity(schema)
 	for _, parameter := range parameters {
 		if !parameter.Required {
 			continue
 		}
 		bindingPath := parameterBindingPath(parameter, schema)
+		identity := parameterIdentity(parameter) && !(hasIdentity && parameterScopeOnly(parameter))
 		if schemaPathExists(schema, bindingPath) {
-			if parameterIdentity(parameter) {
+			if identity {
 				out = append(out, project.SchemaPath{
 					Path:     bindingPath,
 					Type:     firstNonEmpty(parameter.Type, "string"),
@@ -1160,7 +1224,7 @@ func schemaPathsForLifecycleParameters(parameters []operationParameterMetadata, 
 			Path:     bindingPath,
 			Type:     firstNonEmpty(parameter.Type, "string"),
 			Required: true,
-			Identity: parameterIdentity(parameter),
+			Identity: identity,
 		})
 	}
 	return out
@@ -1178,10 +1242,20 @@ func schemaPathExists(schema []project.SchemaPath, want string) bool {
 
 func parameterIdentity(parameter operationParameterMetadata) bool {
 	if strings.EqualFold(strings.TrimSpace(parameter.In), "path") {
-		return true
+		return !parameterScopeOnly(parameter)
 	}
 	name := strings.ToLower(strings.TrimSpace(parameter.Name))
 	return name == "id" || strings.HasSuffix(name, "id") || strings.Contains(name, "name")
+}
+
+func parameterScopeOnly(parameter operationParameterMetadata) bool {
+	name := normalizedParameterName(parameter.Name)
+	switch name {
+	case "subscriptionid", "apiversion", "kind", "location":
+		return true
+	default:
+		return false
+	}
 }
 
 func requestBindingsForParameters(parameters []operationParameterMetadata, operationID string) []project.RequestBinding {
@@ -1232,6 +1306,39 @@ func parameterBindingPath(parameter operationParameterMetadata, schema []project
 			}
 		}
 	}
+	if alias := canonicalIdentityAliasPath(name, schema); alias != "" {
+		return alias
+	}
+	return name
+}
+
+func canonicalIdentityAliasPath(name string, schema []project.SchemaPath) string {
+	alias := normalizedParameterName(name)
+	if alias == "" {
+		return ""
+	}
+	switch alias {
+	case "bucketname", "bucket", "databasename", "databaseid", "object", "objectname", "managedfolder", "managedfoldername":
+	default:
+		return ""
+	}
+	for _, candidate := range []string{"name", "metadata.name", "result.name"} {
+		if schemaPathExists(schema, candidate) {
+			return candidate
+		}
+	}
+	for _, path := range schema {
+		if path.Identity && strings.HasSuffix(strings.ToLower(path.Path), ".name") {
+			return path.Path
+		}
+	}
+	return ""
+}
+
+func normalizedParameterName(name string) string {
+	name = strings.ToLower(strings.TrimSpace(name))
+	name = strings.ReplaceAll(name, "_", "")
+	name = strings.ReplaceAll(name, "-", "")
 	return name
 }
 
@@ -1663,6 +1770,7 @@ func mergeSchemaPaths(base []project.SchemaPath, extra []project.SchemaPath) []p
 }
 
 func mergeSchemaPath(a, b project.SchemaPath) project.SchemaPath {
+	preserveWritable := !a.Computed && !a.ReadOnly && !a.ResponseDerivedIdentity && (b.Computed || b.ReadOnly || b.ResponseDerivedIdentity)
 	if a.Type == "" {
 		a.Type = b.Type
 	}
@@ -1678,6 +1786,16 @@ func mergeSchemaPath(a, b project.SchemaPath) project.SchemaPath {
 	a.ResponseDerivedIdentity = a.ResponseDerivedIdentity || b.ResponseDerivedIdentity
 	a.Optional = a.Optional || b.Optional
 	a.Ignored = a.Ignored || b.Ignored
+	if preserveWritable {
+		a.Computed = false
+		a.ReadOnly = false
+		a.ResponseDerivedIdentity = false
+	}
+	if b.Required && b.Identity && !b.ResponseDerivedIdentity {
+		a.Computed = false
+		a.ReadOnly = false
+		a.ResponseDerivedIdentity = false
+	}
 	return a
 }
 
@@ -1728,6 +1846,26 @@ func responseBindingsForSchema(schema []project.SchemaPath, operationID string) 
 		})
 	}
 	return out
+}
+
+func sourceSupportedLongRunningOperation(operation promptcontext.OperationCandidate) bool {
+	value := strings.ToLower(strings.TrimSpace(operation.Metadata["x-ms-long-running-operation"]))
+	return value == "true"
+}
+
+func runtimeHintsForSourceMetadata(hasSourceLRO, hasRead bool) *project.RuntimeHints {
+	if !hasSourceLRO || !hasRead {
+		return nil
+	}
+	return &project.RuntimeHints{
+		Retry: map[string]any{
+			"max_attempts": 3,
+		},
+		Waiter: map[string]any{
+			"until":        "exists",
+			"max_attempts": 3,
+		},
+	}
 }
 
 func redactionForSchema(schema []project.SchemaPath) project.Redaction {

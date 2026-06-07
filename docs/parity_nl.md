@@ -1,6 +1,108 @@
 # Parity Natural Language
 
-This table lists each provider parity entry, its original Terraform HCL
+Provider/runtime parity is Ramen's evidence track for comparing
+API-visible behavior across Terraform/OpenTofu and Ramen+udon without turning
+Ramen into a provider clone. Each lane has a small Terraform/OpenTofu HCL
+fixture, a native Ramen/UWS project fixture, a focused API source, and static,
+recorded, or opt-in live checks. The comparison target is the remote API-visible
+resource state and operation shape, not byte-for-byte Terraform state,
+provider internals, or provider plan-file compatibility.
+
+This file is the natural-language inventory for the parity set. It records
+the 25 prompt rows used by the M40/M41 iCoT replay audit:
+
+- 8 Kubernetes rows: K01-K08.
+- 6 Azure rows: Z01-Z06.
+- 6 Google Cloud rows: Y01-Y06.
+- 5 Cloudflare rows: C01-C05.
+
+Of those 25 rows, 24 are runnable authoring entries with HCL/native fixtures
+and API source inputs. Z06 is observations-only: it records the Z02 Cosmos DB
+settle/re-recording closure and intentionally has no standalone Terraform HCL,
+native Ramen project, API source, or iCoT prompt.
+
+## Command Roles
+
+`ramen convert` is the migration path from Terraform/OpenTofu-shaped HCL into
+native Ramen/UWS project artifacts. In this parity inventory, "convert
+coverage" means the lane has a committed HCL fixture plus a curated native
+Ramen fixture and default static/replay checks that validate parsing, operation
+selection, request/response binding shape, and plan/render metadata where the
+lane supports it. It does not mean every curated parity fixture is regenerated
+byte-for-byte from HCL without review; several fixtures contain hand-curated
+provider-equivalent metadata such as lifecycle roles, response bindings,
+runtime hints, waiters, normalizers, and redaction policy.
+
+`ramen icot` is the interactive/local-metadata authoring path from a natural
+language goal plus local API source metadata. The M40 audit showed the original
+iCoT path could run 24 entries but usually generated a single selected
+operation. M41 added shared lifecycle sibling inference and reran the same
+inventory with deterministic fixture-seed answers. The current recorded M41
+baseline is:
+
+- 24/24 runnable rows generated native projects that validate.
+- 22/24 runnable rows matched the approved fixture role and operation-ID sets.
+- Z01 and Z05 still differ in the primary Azure SQL role key:
+  generated `create` versus approved API-shaped `put`, while using the same
+  `Databases_CreateOrUpdate` source operation and workflow shape.
+- Z06 remains skipped because it has no standalone workflow to author.
+
+Recent authoring fixes also keep request and response schemas separate and
+preserve writable desired inputs when read responses echo the same field path.
+The full 24-row replay should be rerun before promoting a new iCoT baseline.
+
+## Current Coverage Summary
+
+| Entry | Resource Or Scenario | Parity Evidence | `ramen convert` / Fixture Status | `ramen icot` Status | Main Issues Left |
+|---|---|---|---|---|---|
+| K01 | Kubernetes Namespace lifecycle | Recorded OpenTofu, Terraform, and Ramen+udon observations. | HCL, focused OpenAPI, and native create/read/delete fixture are committed and replayed. | Validates; role and operation set matches. | Continue using opt-in kind live runs for refreshed evidence. |
+| K02 | Kubernetes Namespace read-missing | Recorded three-runtime read-missing observations. | HCL, focused OpenAPI, and native read-missing fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
+| K03 | Kubernetes ConfigMap lifecycle/update | Recorded create/read/update/no-op/destroy observations. | HCL, focused OpenAPI, native create fixture, and native update fixture are committed and replayed. | Validates; role and operation set matches. | Keep update-specific metadata covered by fixture review. |
+| K04 | Kubernetes ServiceAccount lifecycle/read-missing | Recorded create/no-op/destroy/read-missing observations. | HCL, focused OpenAPI, and native create/read/delete fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
+| K05 | Kubernetes RBAC Role lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
+| K06 | Kubernetes Opaque Secret lifecycle/update | Recorded non-sensitive Secret create/read/update/no-op/destroy observations. | HCL, focused OpenAPI, native create fixture, and native update fixture are committed and replayed. | Validates; role and operation set matches. | Keep real secret material out of fixtures and recordings. |
+| K07 | Kubernetes RoleBinding lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
+| K08 | Kubernetes ClusterRole lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | Update remains parked until specific evidence exists. |
+| Z01 | Azure SQL database create/read/delete | Recorded Azure SQL observations across OpenTofu, Terraform, and Ramen+udon. | HCL, focused Azure SQL OpenAPI, and native fixture are committed and replayed. | Validates; same source operation, but generated role key differs from approved `put` role. | Decide whether API-shaped `put` role naming or generic `create` is the expected iCoT output. |
+| Z02 | Azure Cosmos DB account lifecycle | Recorded Cosmos observations, refreshed through the settle path. | HCL, focused Cosmos OpenAPI, native fixture, runtime hints, and settle metadata are committed and replayed. | Validates; role and operation set matches. | Preserve desired `location` and similar inputs as writable, not response-derived identity. |
+| Z03 | Azure Resource Group read | Static/read fixture; no live mutation in scope. | HCL, focused Resources OpenAPI, and native read fixture are committed and replayed. | Validates; role and operation set matches. | It is read-only evidence, not create/update parity. |
+| Z04 | Azure Storage Account lifecycle | Planned/static fixture; live mutation parked. | HCL, focused Storage OpenAPI, native create/read/delete fixture, and static checks are committed. | Validates; role and operation set matches. | Live recording and mapping advertisement remain parked pending cost, cleanup, and review. |
+| Z05 | Azure SQL database PUT/update follow-on | Planned/static fixture; live update parked. | HCL, focused Azure SQL OpenAPI, native put/read/delete fixture, and static checks are committed. | Validates; same source operation, but generated role key differs from approved `put` role. | Static read/drift and live update/no-op evidence remain parked. |
+| Z06 | Cosmos settle re-recording closure | Observations-only closure for Z02 settle behavior. | No standalone HCL/native fixture; points back to Z02. | Not runnable. | None as an authoring row; future work belongs to Z02 recording refresh if needed. |
+| Y01 | Google Cloud Storage bucket lifecycle | Static-readiness evidence; live promotion moved to later Google rows. | HCL, Discovery source, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Live mutation remains parked for this row. |
+| Y02 | Google Cloud Storage bucket read-only | Opt-in live read-only run passed; no committed live recording. | HCL data-source fixture, Discovery source, and native read fixture are committed and replayed. | Validates; role and operation set matches. | No committed live recording; relies on static/default checks unless rerun live. |
+| Y03 | Google Cloud Storage bucket mutation | Recorded OpenTofu and Ramen+udon live observations. | HCL, Discovery source, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
+| Y04 | Google Cloud Storage read-missing | Live-smoked without recording promotion. | HCL, Discovery source, and native create/read/delete fixture are committed and replayed. | Validates; role and operation set matches. | Committed live recording remains deferred. |
+| Y05 | Google Cloud Storage object metadata | Live-smoked without recording promotion. | HCL, Discovery source, and native object create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Committed recording and payload-handling review remain deferred. |
+| Y06 | Google Cloud Storage managed folder | Live-smoked without recording promotion. | HCL, Discovery source, and native create/read/delete fixture are committed and replayed. | Validates; role and operation set matches. | Committed live recording remains deferred. |
+| C01 | Cloudflare R2 bucket lifecycle | Live-smoked across OpenTofu, Terraform, and Ramen+udon; recording deferred. | HCL, focused OpenAPI, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Promote a sanitized live recording only after explicit review. |
+| C02 | Cloudflare R2 bucket read-missing | Live-smoked across OpenTofu, Terraform, and Ramen+udon; recording deferred. | HCL, focused OpenAPI, and native create/read/delete fixture are committed and replayed. | Validates; role and operation set matches. | Promote read-missing recording after explicit review. |
+| C03 | Cloudflare R2 metadata variants | Static fixture first. | HCL, focused OpenAPI, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Broader live metadata mutability claims remain parked. |
+| C04 | Cloudflare D1 database create/read | Static fixture first. | HCL, focused OpenAPI, and native create/read fixture are committed and replayed. | Validates; role and operation set matches. | D1 live promotion, cleanup, and UUID handling remain parked. |
+| C05 | Cloudflare D1 UUID/delete unlock planning | Static create/read fixture with delete/update parked. | HCL, focused OpenAPI, and native create/read fixture are committed and replayed. | Validates; role and operation set matches. | Delete/update unlock still needs scoped D1 evidence. |
+
+## Remaining Cross-Cutting Gaps
+
+- Re-run and promote the full 24-entry iCoT replay after authoring changes;
+  the latest saved summary referenced by the memory bank is
+  `.ramen/icot-m41-rerun7/report.json`.
+- Decide how iCoT should represent API-first mutation roles for Azure SQL:
+  method-shaped `put` roles preserve API intent, while generic `create` roles
+  align with lifecycle inference.
+- Keep `ramen convert` expectations precise: conversion is a migration aid into
+  native artifacts, not a promise to recreate every reviewed parity fixture
+  without curated metadata.
+- Promote live recordings only when a lane has explicit credentials, cost
+  guardrails, cleanup verification, sanitized artifacts, and an approved
+  recording update path.
+- Continue separating request schemas from read response schemas so response
+  fields such as IDs and status values do not become mutation request inputs.
+- Preserve writable desired fields that are echoed by read responses, such as
+  Azure `location`, as desired inputs rather than computed/read-only fields.
+
+## Detailed Prompt Inventory
+
+The table below lists each provider parity entry, its original Terraform HCL
 fixture, the converted native Ramen/OpenUdon workflow fixture, a natural
 language request for generating the Terraform configuration, a natural language
 request suitable for `go run ./cmd/ramen icot`, the API source flag, and the
