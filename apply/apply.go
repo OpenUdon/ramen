@@ -228,7 +228,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			}
 			continue
 		}
-		if readMapping != nil {
+		if readMapping != nil && !skipCreateBaselineForUnavailableResponseIdentity(ctx, store, resource, readMapping, attrsByAddress[resource.Address]) {
 			baseline, err := executeReadCheck(ctx, opts.Executor, store, asyncRecorder, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "baseline")
 			result.Feedback = append(result.Feedback, baseline.Feedback...)
 			if err != nil {
@@ -283,7 +283,12 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 				}
 			}
 		}
-		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address], nil)
+		mutationIdentity, err := currentIdentity(ctx, store, resource.Address)
+		if err != nil {
+			runStatus = "failed"
+			return result, err
+		}
+		doc, err := buildActionDocument(resource, sourcePaths, attrsByAddress[resource.Address], mutationIdentity)
 		if err != nil {
 			runStatus = "failed"
 			result.Summary.Failed++
@@ -384,7 +389,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 					continue
 				}
 			} else {
-				converged, err := executeReadCheck(ctx, opts.Executor, store, asyncRecorder, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], workingDir, opts.OutDir, "convergence")
+				converged, err := executeReadCheckWithIdentity(ctx, opts.Executor, store, asyncRecorder, runID, resource, readMapping, sourcePaths, attrsByAddress[resource.Address], execResult.Identity, workingDir, opts.OutDir, "convergence")
 				result.Feedback = append(result.Feedback, converged.Feedback...)
 				if err != nil {
 					runStatus = "failed"
@@ -1041,6 +1046,10 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 }
 
 func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.Store, recorder *asyncrecord.Recorder, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir, phase string) (readCheckResult, error) {
+	return executeReadCheckWithIdentity(ctx, exec, store, recorder, runID, resource, readMapping, sourcePaths, attrs, nil, workingDir, outDir, phase)
+}
+
+func executeReadCheckWithIdentity(ctx context.Context, exec executor.Executor, store *state.Store, recorder *asyncrecord.Recorder, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs, identityOverride map[string]any, workingDir, outDir, phase string) (readCheckResult, error) {
 	readResource := resource
 	readResource.Action = "read"
 	readResource.Mapping = readMapping
@@ -1048,6 +1057,7 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 	if err != nil {
 		return readCheckResult{}, err
 	}
+	identity = mergeIdentityOverride(identity, identityOverride)
 	doc, err := buildActionDocument(readResource, sourcePaths, attrs, identity)
 	if err != nil {
 		return readCheckResult{}, err
@@ -1084,6 +1094,20 @@ func executeReadCheck(ctx context.Context, exec executor.Executor, store *state.
 		return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, fmt.Errorf("executor reported unsuccessful read for %s", resource.Address)
 	}
 	return readCheckResult{Result: execResult, Feedback: []executor.FeedbackRecord{feedback}}, nil
+}
+
+func mergeIdentityOverride(identity, override map[string]any) map[string]any {
+	if len(override) == 0 {
+		return identity
+	}
+	merged := map[string]any{}
+	for key, value := range identity {
+		merged[key] = value
+	}
+	for key, value := range override {
+		merged[key] = value
+	}
+	return merged
 }
 
 func executeSettleBeforeDelete(ctx context.Context, exec executor.Executor, store *state.Store, recorder *asyncrecord.Recorder, runID int64, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, sourcePaths map[string]string, attrs map[string]any, workingDir, outDir string, policy settlePolicy) (readCheckResult, error) {
@@ -1381,6 +1405,46 @@ func sleepRuntimeInterval(ctx context.Context, interval time.Duration) error {
 	case <-timer.C:
 		return nil
 	}
+}
+
+func skipCreateBaselineForUnavailableResponseIdentity(ctx context.Context, store *state.Store, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, attrs map[string]any) bool {
+	if resource.Action != "create" || readMapping == nil {
+		return false
+	}
+	identity, err := currentIdentity(ctx, store, resource.Address)
+	if err != nil {
+		return false
+	}
+	for _, binding := range readMapping.RequestBindings {
+		if !requestBindingApplies(binding, "read", readMapping.OperationID) || !binding.Required {
+			continue
+		}
+		if !mappingResponseDerivedStatePath(readMapping, binding.Path) {
+			continue
+		}
+		if _, ok := bindingValue(binding, attrs, identity); !ok {
+			return true
+		}
+	}
+	return false
+}
+
+func mappingResponseDerivedStatePath(mapping *tfplan.MappingPlan, path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" || mapping == nil {
+		return false
+	}
+	for _, binding := range mapping.ResponseBindings {
+		if binding.ResponseDerivedIdentity && strings.TrimSpace(binding.StatePath) == path {
+			return true
+		}
+	}
+	for _, schema := range mapping.Schema {
+		if schema.ResponseDerivedIdentity && strings.TrimSpace(schema.Path) == path {
+			return true
+		}
+	}
+	return false
 }
 
 func validateReadBeforeWrite(ctx context.Context, store *state.Store, resource tfplan.ResourcePlan, readMapping *tfplan.MappingPlan, execResult executor.Result) error {

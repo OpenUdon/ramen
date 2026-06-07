@@ -44,9 +44,9 @@ live evidence so adopters can inspect what has actually been proven.
 - `testdata/parity/cloudflare/c01` through `c05` start the Cloudflare parity
   lane over the focused R2/D1 OpenAPI subset. C01 and C02 have static fixtures
   plus opt-in R2 live smoke coverage with no committed recording by default;
-  C03-C05 remain static-first for R2 metadata variants and D1
-  create/read/UUID-delete unlock planning. Default tests do not call
-  Cloudflare APIs or require credentials.
+  C03 has opt-in R2 metadata live smoke coverage. C04 and C05 have opt-in D1
+  create/read and UUID-delete live smoke coverage with no committed recording
+  by default. Default tests do not call Cloudflare APIs or require credentials.
 - `testdata/parity/google/y01` starts the Google Cloud parity lane with
   static-only Google Cloud Storage Bucket create/read/update/delete metadata
   over Google Discovery. It reuses existing Google Storage corpus evidence and
@@ -146,8 +146,9 @@ live evidence so adopters can inspect what has actually been proven.
   buckets, require scoped account-level Cloudflare token environment, and do
   not commit live observations unless
   `RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1` is explicitly set after review.
-  C03-C05 are static-only until R2 metadata behavior and D1 response-derived
-  UUID handling are proven.
+  C03 was also live-smoked on 2026-06-07 with disposable R2 buckets and no
+  committed recording. C04/C05 were live-smoked with disposable D1 databases
+  and no committed recording; recording promotion remains deferred.
 - Google Cloud live parity remains opt-in through `RAMEN_GOOGLE_PARITY=1` and
   explicit `RAMEN_GOOGLE_PARITY_LANE`. Y02 read-only live execution requires
   `RAMEN_GOOGLE_EXISTING_BUCKET`; Y03 mutation creates only empty

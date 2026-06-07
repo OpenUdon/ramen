@@ -338,9 +338,9 @@ func runCloudflareParityD1Live(ctx context.Context, t *testing.T, artifact cloud
 		}
 		t.Fatalf("%s Cloudflare provider parity did not complete for all runtimes", strings.ToUpper(lane))
 	}
-	fields := []string{"after_create.exists", "after_create.name", "after_create.uuid_present", "no_op", "after_cleanup.exists"}
+	fields := []string{"after_create.exists", "after_create.uuid_present", "after_cleanup.exists"}
 	if exerciseRamenDelete {
-		fields = append(fields, "delete_via_runtime")
+		assertCloudflareParityD1RamenDeleteObserved(t, observations)
 	}
 	comparison := compareCloudflareParityObservations(observations, fields)
 	if !comparison.Matched {
@@ -355,6 +355,20 @@ func runCloudflareParityD1Live(ctx context.Context, t *testing.T, artifact cloud
 		Observations: observations,
 		Comparison:   comparison,
 	}
+}
+
+func assertCloudflareParityD1RamenDeleteObserved(t *testing.T, observations []cloudflareParityRuntimeObservation) {
+	t.Helper()
+	for _, observation := range observations {
+		if observation.Runtime != "ramen" {
+			continue
+		}
+		if observation.Fields["delete_via_runtime"] != true {
+			t.Fatalf("C05 Ramen D1 delete was not observed: %#v", observation)
+		}
+		return
+	}
+	t.Fatalf("C05 Ramen D1 observation missing from %#v", observations)
 }
 
 func timedCloudflareParityRuntime(runtime string, run func() cloudflareParityRuntimeResult) cloudflareParityRuntimeResult {

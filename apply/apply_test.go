@@ -809,6 +809,132 @@ func TestApplyNativePutWithAlternateResponseShapeAndConvergenceWaiter(t *testing
 	}
 }
 
+func TestApplyNativeCreateUsesMutationIdentityForResponseDerivedConvergenceRead(t *testing.T) {
+	root := t.TempDir()
+	projectDir := filepath.Join(root, "project")
+	statePath := filepath.Join(projectDir, "state.db")
+	sourcePath := filepath.Join(projectDir, "api.yaml")
+	writeApplyTestFile(t, sourcePath, `openapi: 3.0.0
+info:
+  title: D1 API
+  version: v1
+paths:
+  /databases:
+    post:
+      operationId: createDatabase
+      responses:
+        "200":
+          description: created
+  /databases/{database_id}:
+    get:
+      operationId: readDatabase
+      parameters:
+        - name: database_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: read
+    delete:
+      operationId: deleteDatabase
+      parameters:
+        - name: database_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: deleted
+`)
+	projectPath := writeApplyProjectForTest(t, projectDir, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "d1", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "cloudflare_d1_database.database",
+			Kind:       "resource",
+			Type:       "cloudflare_d1_database",
+			Provider:   "openapi",
+			Attributes: map[string]any{"account_id": "account", "name": "ramen-d1"},
+			Operations: map[string]project.OperationRole{
+				"create": {Purpose: "create", Method: "POST", SourceKind: "openapi", SourceID: "d1", SourcePath: sourcePath, OperationID: "createDatabase"},
+				"read":   {Purpose: "read", Method: "GET", SourceKind: "openapi", SourceID: "d1", SourcePath: sourcePath, OperationID: "readDatabase"},
+				"delete": {Purpose: "delete", Method: "DELETE", SourceKind: "openapi", SourceID: "d1", SourcePath: sourcePath, OperationID: "deleteDatabase"},
+			},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "create", OperationID: "createDatabase", Path: "name", RequestPath: "name", Location: "body", Required: true, Identity: true},
+				{OperationRole: "read", OperationID: "readDatabase", Path: "database_id", RequestPath: "database_id", Location: "path", Required: true, Identity: true},
+				{OperationRole: "delete", OperationID: "deleteDatabase", Path: "database_id", RequestPath: "database_id", Location: "path", Required: true, Identity: true},
+			},
+			ResponseBindings: []project.ResponseBinding{
+				{OperationRole: "read", OperationID: "readDatabase", ResponsePath: "result.name", StatePath: "name", Observed: true},
+				{OperationRole: "read", OperationID: "readDatabase", ResponsePath: "result.uuid", StatePath: "database_id", Identity: true, ResponseDerivedIdentity: true},
+			},
+			RequiredOperations: []string{"create", "read", "delete"},
+		}},
+	})
+
+	var actions []string
+	var readPathValues []any
+	var deletePathValues []any
+	deleted := false
+	mock := &executor.MockExecutor{ExecuteFn: func(_ context.Context, req executor.Request) (executor.Result, error) {
+		actions = append(actions, req.Action.Action)
+		switch req.Action.Action {
+		case "create":
+			return executor.Result{Success: true, Identity: map[string]any{"database_id": "db-123"}}, nil
+		case "read":
+			path, _ := req.Document.Operations[0].Request["path"].(map[string]any)
+			readPathValues = append(readPathValues, path["database_id"])
+			if deleted {
+				return executor.Result{Success: true, Missing: true}, nil
+			}
+			return executor.Result{Success: true, Computed: map[string]any{
+				"result": map[string]any{"name": "ramen-d1", "uuid": "db-123"},
+			}}, nil
+		case "delete":
+			path, _ := req.Document.Operations[0].Request["path"].(map[string]any)
+			deletePathValues = append(deletePathValues, path["database_id"])
+			deleted = true
+			return executor.Result{Success: true}, nil
+		default:
+			t.Fatalf("unexpected action %q", req.Action.Action)
+			return executor.Result{}, nil
+		}
+	}}
+	result, err := Apply(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("Apply returned error: %v", err)
+	}
+	if result.Summary.Create != 1 || strings.Join(actions, ",") != "create,read" {
+		t.Fatalf("summary=%#v actions=%v", result.Summary, actions)
+	}
+	if len(readPathValues) != 1 || readPathValues[0] != "db-123" {
+		t.Fatalf("read database_id values = %#v, want db-123", readPathValues)
+	}
+	deletePlanPath := filepath.Join(projectDir, "delete-plan.json")
+	if _, err := tfplan.Build(context.Background(), tfplan.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Action:      "delete",
+		OutPath:     deletePlanPath,
+	}); err != nil {
+		t.Fatalf("build delete plan: %v", err)
+	}
+	deleteResult, err := Apply(context.Background(), Options{PlanPath: deletePlanPath, StatePath: statePath, AutoApprove: true, Executor: mock})
+	if err != nil {
+		t.Fatalf("delete Apply returned error: %v", err)
+	}
+	if deleteResult.Summary.Delete != 1 || strings.Join(actions, ",") != "create,read,read,delete,read" {
+		t.Fatalf("delete summary=%#v actions=%v", deleteResult.Summary, actions)
+	}
+	if len(deletePathValues) != 1 || deletePathValues[0] != "db-123" {
+		t.Fatalf("delete database_id values = %#v, want db-123", deletePathValues)
+	}
+}
+
 func TestApplyNativeDeleteWithoutReadRoleShouldNotRecordSuccess(t *testing.T) {
 	root := t.TempDir()
 	projectDir := filepath.Join(root, "project")
