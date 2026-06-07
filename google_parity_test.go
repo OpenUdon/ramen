@@ -279,7 +279,7 @@ func assertGoogleParityLiveRecording(t *testing.T, lane string, artifact googleP
 		}
 	}
 	switch lane {
-	case "y03":
+	case "y03", "y04", "y05", "y06":
 		want := compareGoogleParityObservations(recording.Observations, recording.Comparison.Fields)
 		if !reflect.DeepEqual(recording.Comparison, want) {
 			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)

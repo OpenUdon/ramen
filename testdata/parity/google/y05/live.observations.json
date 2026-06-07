@@ -1,0 +1,58 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y05",
+  "scenario": "storage_object_metadata_static",
+  "recorded_at": "2026-06-07T21:44:44Z",
+  "duration_ms": 26269,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-y05-opentofu-18b6ea9b/ramen-parity-y05-object.txt",
+      "duration_ms": 13699,
+      "fields": {
+        "after_create.bucket_present": true,
+        "after_create.exists": true,
+        "after_create.name_present": true,
+        "after_destroy.exists": false,
+        "exists": true,
+        "generation_present": true,
+        "id_present": false,
+        "metadata.ramen_parity_phase_update_observable": false,
+        "no_op": true,
+        "size_present": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-y05-ramen-18b6ea9b/ramen-parity-y05-object.txt",
+      "duration_ms": 12569,
+      "fields": {
+        "after_create.bucket_present": true,
+        "after_create.exists": true,
+        "after_create.name_present": true,
+        "after_destroy.exists": false,
+        "exists": true,
+        "generation_present": true,
+        "id_present": false,
+        "metadata.ramen_parity_phase_update_observable": false,
+        "no_op": true,
+        "size_present": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "exists",
+      "after_create.exists",
+      "after_create.name_present",
+      "after_create.bucket_present",
+      "id_present",
+      "generation_present",
+      "size_present",
+      "metadata.ramen_parity_phase_update_observable",
+      "no_op",
+      "after_destroy.exists"
+    ]
+  }
+}

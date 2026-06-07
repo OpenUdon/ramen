@@ -14,11 +14,11 @@ existing bucket. Y03 creates one disposable empty bucket at a time, updates a
 label, reads it, deletes it, verifies absence, and has a committed sanitized
 `live.observations.json` recording.
 
-Y04 and Y06 are opt-in GCS mutation lanes. Y04 compares bucket read-missing
-behavior after out-of-band deletion. Y06 creates and deletes managed folders in
-disposable hierarchical-namespace support buckets. Y05 creates and deletes one
-tiny object in a disposable support bucket per runtime and records metadata-only
-observations.
+Y04 and Y06 are GCS mutation lanes with committed sanitized recordings. Y04
+compares bucket read-missing behavior after out-of-band deletion. Y06 creates
+and deletes managed folders in disposable hierarchical-namespace support
+buckets. Y05 creates and deletes one tiny object in a disposable support bucket
+per runtime and records metadata-only observations.
 
 New Google live recordings are committed only after explicit
 `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1` promotion, cleanup verification, and

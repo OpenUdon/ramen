@@ -1,0 +1,43 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y04",
+  "scenario": "storage_bucket_read_missing_rehearsal",
+  "recorded_at": "2026-06-07T21:44:03Z",
+  "duration_ms": 30027,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-y04-opentofu-18b6ea91",
+      "duration_ms": 15967,
+      "fields": {
+        "after_create.exists": true,
+        "after_out_of_band_delete.exists": false,
+        "exists": true,
+        "no_op_before_out_of_band_delete": true,
+        "read_missing_after_out_of_band_delete": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-y04-ramen-18b6ea91",
+      "duration_ms": 14060,
+      "fields": {
+        "after_create.exists": true,
+        "after_out_of_band_delete.exists": false,
+        "exists": true,
+        "no_op_before_out_of_band_delete": true,
+        "read_missing_after_out_of_band_delete": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "exists",
+      "after_create.exists",
+      "after_out_of_band_delete.exists",
+      "no_op_before_out_of_band_delete",
+      "read_missing_after_out_of_band_delete"
+    ]
+  }
+}

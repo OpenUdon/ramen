@@ -1,7 +1,7 @@
 {
   "version": "ramen.google.provider-parity.v1",
   "lane": "Y06",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/google",
     "version_constraint": "~> 6.0"
@@ -62,12 +62,18 @@
         "static-delete-plan",
         "opt-in-opentofu-live-baseline",
         "opt-in-ramen-udon-live-run"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/google/y06/live.observations.json"
       ]
     }
   ],
   "notes": [
     "Y06 adds Google Cloud Storage managed folder metadata coverage.",
     "The lane avoids managed folder IAM and requires no live GCP access in default tests.",
-    "Live execution creates disposable support buckets with uniform bucket-level access and hierarchical namespace enabled."
-  ]
+    "Live execution creates disposable support buckets with uniform bucket-level access and hierarchical namespace enabled.",
+    "Default replay validates the committed sanitized Y06 live.observations.json without live GCP access."
+  ],
+  "recorded_at": "2026-06-07T21:45:33Z",
+  "recordings_source": "RAMEN_GOOGLE_PARITY=1 RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1 RAMEN_GOOGLE_PARITY_LANE=y06 with OpenTofu from ../opentofu, Ramen+udon, ADC-backed scoped GCP project credentials, disposable hierarchical-namespace ramen-parity-y06-* support buckets, managed folder deletion, and cleanup absence verified."
 }

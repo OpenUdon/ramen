@@ -42,11 +42,12 @@ live evidence so adopters can inspect what has actually been proven.
   validate HCL/native/Smithy metadata, including SigV4 provider appendices, and
   do not claim live AWS mutation.
 - `testdata/parity/cloudflare/c01` through `c05` start the Cloudflare parity
-  lane over the focused R2/D1 OpenAPI subset. C01 and C02 have static fixtures
-  plus opt-in R2 live smoke coverage with no committed recording by default;
-  C03 has opt-in R2 metadata live smoke coverage. C04 and C05 have opt-in D1
-  create/read and UUID-delete live smoke coverage with no committed recording
-  by default. Default tests do not call Cloudflare APIs or require credentials.
+  lane over the focused R2/D1 OpenAPI subset. C01-C03 have static R2 fixtures
+  plus committed sanitized OpenTofu, Terraform, and Ramen+udon live recordings
+  for lifecycle, read-missing, and metadata-mutability behavior. C04 and C05
+  have committed sanitized D1 create/read and UUID-delete live recordings.
+  Default tests replay those recordings without calling Cloudflare APIs or
+  requiring credentials.
 - `testdata/parity/google/y01` starts the Google Cloud parity lane with
   static-only Google Cloud Storage Bucket create/read/update/delete metadata
   over Google Discovery. It reuses existing Google Storage corpus evidence and
@@ -57,11 +58,11 @@ live evidence so adopters can inspect what has actually been proven.
   create/read/update/delete. Y02 has been live-smoked against public bucket
   `gcp-public-data-landsat` without recording promotion. Y03 has a committed
   sanitized live recording that default replay validates without GCP access.
-- `testdata/parity/google/y04` and `y06` add opt-in GCS mutation lanes for
-  bucket read-missing and managed folder metadata, with credential-free static
-  checks and no committed live recordings. `y05` adds opt-in object metadata
-  mutation through the GCS multipart upload endpoint, with metadata-only
-  observations and no committed live recording.
+- `testdata/parity/google/y04` and `y06` add GCS mutation lanes for bucket
+  read-missing and managed folder metadata, with committed sanitized OpenTofu
+  and Ramen+udon live recordings. `y05` adds object metadata mutation through
+  the GCS multipart upload endpoint, with a committed sanitized metadata-only
+  live recording and no object payload bytes in observations.
 - `executor/evidence_test.go` validates Ramen executor request, response,
   status, and confirmation-read records through the shared
   `github.com/OpenUdon/evidence/async` validators.
@@ -99,6 +100,20 @@ live evidence so adopters can inspect what has actually been proven.
   Cloud Storage bucket mutation parity across OpenTofu and Ramen+udon. The
   replay assertion compares create/read/update/delete visibility fields and
   verifies generated empty buckets were deleted before recording promotion.
+- `testdata/parity/google/y04/live.observations.json` records sanitized Google
+  Cloud Storage bucket read-missing parity across OpenTofu and Ramen+udon after
+  out-of-band deletion and verified cleanup.
+- `testdata/parity/google/y05/live.observations.json` records sanitized Google
+  Cloud Storage object metadata parity across OpenTofu and Ramen+udon. The
+  recording stores only metadata/presence fields and verifies object and
+  support-bucket cleanup.
+- `testdata/parity/google/y06/live.observations.json` records sanitized Google
+  Cloud Storage managed-folder parity across OpenTofu and Ramen+udon with
+  managed folder and support-bucket cleanup.
+- `testdata/parity/cloudflare/c01` through `c05` record sanitized Cloudflare
+  R2/D1 parity observations across OpenTofu, Terraform, and Ramen+udon for R2
+  lifecycle, R2 read-missing, R2 metadata mutability, D1 create/read, and D1
+  response-derived UUID delete.
 - Replay tests must not require `kubectl`, `kind`, kubeconfig, Terraform,
   OpenTofu, provider plugins, private credentials, or network access.
 
@@ -141,14 +156,11 @@ live evidence so adopters can inspect what has actually been proven.
   minimal, avoid large/high-cost cloud resources, and verify cleanup before any
   recording update.
 - Cloudflare live parity remains opt-in through `RAMEN_CLOUDFLARE_PARITY=1`
-  and explicit `RAMEN_CLOUDFLARE_PARITY_LANE`. C01/C02 were live-smoked on
+  and explicit `RAMEN_CLOUDFLARE_PARITY_LANE`. C01-C05 were recorded on
   2026-06-07 across OpenTofu, Terraform, and Ramen+udon with disposable R2
-  buckets, require scoped account-level Cloudflare token environment, and do
-  not commit live observations unless
-  `RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1` is explicitly set after review.
-  C03 was also live-smoked on 2026-06-07 with disposable R2 buckets and no
-  committed recording. C04/C05 were live-smoked with disposable D1 databases
-  and no committed recording; recording promotion remains deferred.
+  buckets or D1 databases, scoped account-level Cloudflare token environment,
+  and verified cleanup. Future recording updates require
+  `RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1` after sanitization review.
 - Google Cloud live parity remains opt-in through `RAMEN_GOOGLE_PARITY=1` and
   explicit `RAMEN_GOOGLE_PARITY_LANE`. Y02 read-only live execution requires
   `RAMEN_GOOGLE_EXISTING_BUCKET`; Y03 mutation creates only empty
@@ -157,8 +169,9 @@ live evidence so adopters can inspect what has actually been proven.
   read-missing evidence. Y06 creates disposable hierarchical-namespace support
   buckets and managed folders without IAM mutation. Y05 creates one tiny object
   in a disposable support bucket per runtime through the GCS multipart upload
-  endpoint and records metadata-only observations. Recording updates require
-  `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1`.
+  endpoint and records metadata-only observations. Y04-Y06 were recorded on
+  2026-06-07 across OpenTofu and Ramen+udon with verified cleanup. Recording
+  updates require `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1`.
 
 ## Validation Evidence
 

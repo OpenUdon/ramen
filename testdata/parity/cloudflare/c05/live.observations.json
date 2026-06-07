@@ -1,0 +1,56 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C05",
+  "scenario": "d1 uuid delete unlock",
+  "recorded_at": "2026-06-07T21:39:48Z",
+  "duration_ms": 79909,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-c05-opentofu-18b6ea4a",
+      "duration_ms": 7128,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c05-opentofu-18b6ea4a",
+        "after_create.uuid_present": true,
+        "delete_via_runtime": false,
+        "no_op": false
+      }
+    },
+    {
+      "runtime": "terraform",
+      "resource": "ramen-parity-c05-terraform-18b6ea4a",
+      "duration_ms": 7287,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c05-terraform-18b6ea4a",
+        "after_create.uuid_present": true,
+        "delete_via_runtime": false,
+        "no_op": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-c05-ramen-18b6ea4a",
+      "duration_ms": 65493,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c05-ramen-18b6ea4a",
+        "after_create.uuid_present": true,
+        "delete_via_runtime": true,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_create.uuid_present",
+      "after_cleanup.exists"
+    ]
+  }
+}

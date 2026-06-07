@@ -1,7 +1,7 @@
 {
   "version": "ramen.cloudflare.provider-parity.v1",
   "lane": "C05",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "cloudflare/cloudflare",
     "version_constraint": "~> 5.0"
@@ -35,17 +35,17 @@
       "delete database before recording",
       "cleanup absence before recording"
     ],
-    "promotion": "C05 is available for opt-in live D1 UUID/delete smoke runs; committed recording remains deferred."
+    "promotion": "C05 has a committed sanitized live recording from disposable D1 UUID/delete parity."
   },
   "recording": {
-    "status": "deferred",
+    "status": "recorded",
     "artifact_path": "testdata/parity/cloudflare/c05/live.observations.json",
     "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
-    "compare_without_update": true,
-    "decision": "Run C05 live without writing live.observations.json unless RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 is explicitly approved."
+    "compare_without_update": false,
+    "decision": "Promoted from the 2026-06-07T21:39:48Z opt-in live run after sanitized observations and cleanup absence were reviewed."
   },
   "promotion": {
-    "next": "Promote a sanitized C05 live recording after opt-in D1 UUID/delete results are reviewed.",
+    "next": "Recording promoted; future C05 updates require an explicit sanitized record-update run.",
     "live_candidate": true,
     "preconditions": [
       "scoped Cloudflare account token",
@@ -82,10 +82,16 @@
         "live-create",
         "live-read",
         "live-delete"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/cloudflare/c05/live.observations.json"
       ]
     }
   ],
   "notes": [
-    "C05 unlocks D1 delete through response-derived UUID handling. D1 update remains unclaimed."
-  ]
+    "C05 unlocks D1 delete through response-derived UUID handling. D1 update remains unclaimed.",
+    "Default replay validates the committed sanitized C05 live.observations.json without Cloudflare access."
+  ],
+  "recorded_at": "2026-06-07T21:39:48Z",
+  "recordings_source": "RAMEN_CLOUDFLARE_PARITY=1 RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 RAMEN_CLOUDFLARE_PARITY_LANE=c05 with local OpenTofu and Terraform CLIs, Ramen+udon, a scoped Cloudflare account token, disposable ramen-parity-c05-* D1 databases, response-derived UUID delete evidence, and cleanup absence verified."
 }

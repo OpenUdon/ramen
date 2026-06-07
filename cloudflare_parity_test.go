@@ -184,6 +184,14 @@ func assertCloudflareParityArtifact(t *testing.T, lane string, artifact cloudfla
 	if artifact.Status != "planned" && artifact.Status != "recorded" {
 		t.Fatalf("artifact status = %q, want planned or recorded", artifact.Status)
 	}
+	if artifact.Status == "recorded" {
+		if strings.TrimSpace(artifact.RecordedAt) == "" {
+			t.Fatalf("recorded artifact %s must include recorded_at", wantLane)
+		}
+		if strings.TrimSpace(artifact.RecordingsSource) == "" {
+			t.Fatalf("recorded artifact %s must include recordings_source", wantLane)
+		}
+	}
 	if artifact.Provider.Source != "cloudflare/cloudflare" {
 		t.Fatalf("provider source = %q, want cloudflare/cloudflare", artifact.Provider.Source)
 	}
@@ -366,11 +374,19 @@ func assertCloudflareParityRecordingPolicy(t *testing.T, lane string, recording 
 	if recording.ArtifactPath != wantPath {
 		t.Fatalf("%s recording artifact path = %q, want %q", strings.ToUpper(lane), recording.ArtifactPath, wantPath)
 	}
-	if _, err := os.Stat(recording.ArtifactPath); !os.IsNotExist(err) {
-		t.Fatalf("%s must not commit %s until an explicit recording update is approved", strings.ToUpper(lane), recording.ArtifactPath)
+	_, statErr := os.Stat(recording.ArtifactPath)
+	hasRecording := statErr == nil
+	if statErr != nil && !os.IsNotExist(statErr) {
+		t.Fatalf("%s recording artifact stat failed for %s: %v", strings.ToUpper(lane), recording.ArtifactPath, statErr)
 	}
 	switch lane {
 	case "c01", "c02", "c03", "c04", "c05":
+		if hasRecording {
+			if recording.Status != "recorded" || recording.CompareWithoutUpdate || strings.TrimSpace(recording.Decision) == "" {
+				t.Fatalf("%s recording policy = %#v, want recorded policy for committed live observations", strings.ToUpper(lane), recording)
+			}
+			return
+		}
 		if recording.Status != "deferred" || !recording.CompareWithoutUpdate || strings.TrimSpace(recording.Decision) == "" {
 			t.Fatalf("%s recording policy = %#v, want deferred compare-without-update policy", strings.ToUpper(lane), recording)
 		}

@@ -1,0 +1,69 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C03",
+  "scenario": "r2 bucket metadata variants",
+  "recorded_at": "2026-06-07T21:41:26Z",
+  "duration_ms": 30497,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-c03-opentofu-18b6ea6c",
+      "duration_ms": 10650,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.jurisdiction": "default",
+        "after_create.location": "ENAM",
+        "after_create.name": "ramen-parity-c03-opentofu-18b6ea6c",
+        "after_create.storage_class": "InfrequentAccess",
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.storage_class": "Standard",
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "terraform",
+      "resource": "ramen-parity-c03-terraform-18b6ea6c",
+      "duration_ms": 10103,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.jurisdiction": "default",
+        "after_create.location": "ENAM",
+        "after_create.name": "ramen-parity-c03-terraform-18b6ea6c",
+        "after_create.storage_class": "InfrequentAccess",
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.storage_class": "Standard",
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-c03-ramen-18b6ea6c",
+      "duration_ms": 9742,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.jurisdiction": "default",
+        "after_create.location": "ENAM",
+        "after_create.name": "ramen-parity-c03-ramen-18b6ea6c",
+        "after_create.storage_class": "InfrequentAccess",
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.storage_class": "Standard",
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_create.location",
+      "after_create.storage_class",
+      "after_create.jurisdiction",
+      "after_update.storage_class",
+      "no_op",
+      "after_delete.exists"
+    ]
+  }
+}

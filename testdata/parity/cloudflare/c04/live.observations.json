@@ -1,0 +1,56 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C04",
+  "scenario": "d1 database create-read",
+  "recorded_at": "2026-06-07T21:38:15Z",
+  "duration_ms": 17582,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-c04-opentofu-18b6ea43",
+      "duration_ms": 7616,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c04-opentofu-18b6ea43",
+        "after_create.uuid_present": true,
+        "delete_via_runtime": false,
+        "no_op": false
+      }
+    },
+    {
+      "runtime": "terraform",
+      "resource": "ramen-parity-c04-terraform-18b6ea43",
+      "duration_ms": 7352,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c04-terraform-18b6ea43",
+        "after_create.uuid_present": true,
+        "delete_via_runtime": false,
+        "no_op": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-c04-ramen-18b6ea43",
+      "duration_ms": 2613,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c04-ramen-18b6ea43",
+        "after_create.uuid_present": true,
+        "delete_via_runtime": false,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_create.uuid_present",
+      "after_cleanup.exists"
+    ]
+  }
+}

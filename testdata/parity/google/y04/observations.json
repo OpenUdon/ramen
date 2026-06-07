@@ -1,7 +1,7 @@
 {
   "version": "ramen.google.provider-parity.v1",
   "lane": "Y04",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/google",
     "version_constraint": "~> 6.0"
@@ -63,12 +63,18 @@
         "static-delete-plan",
         "opt-in-opentofu-live-baseline",
         "opt-in-ramen-udon-live-run"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/google/y04/live.observations.json"
       ]
     }
   ],
   "notes": [
     "Y04 is the bucket read-missing rehearsal lane.",
     "Live execution creates one globally unique empty bucket at a time, deletes it out of band, and compares read-missing evidence.",
-    "No objects, IAM bindings, retention locks, requester-pays settings, or public ACLs are created."
-  ]
+    "No objects, IAM bindings, retention locks, requester-pays settings, or public ACLs are created.",
+    "Default replay validates the committed sanitized Y04 live.observations.json without live GCP access."
+  ],
+  "recorded_at": "2026-06-07T21:44:03Z",
+  "recordings_source": "RAMEN_GOOGLE_PARITY=1 RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1 RAMEN_GOOGLE_PARITY_LANE=y04 with OpenTofu from ../opentofu, Ramen+udon, ADC-backed scoped GCP project credentials, disposable empty ramen-parity-y04-* buckets, out-of-band deletion, and cleanup absence verified."
 }

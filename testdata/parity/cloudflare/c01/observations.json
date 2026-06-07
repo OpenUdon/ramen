@@ -1,7 +1,7 @@
 {
   "version": "ramen.cloudflare.provider-parity.v1",
   "lane": "C01",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "cloudflare/cloudflare",
     "version_constraint": "~> 5.0"
@@ -35,17 +35,17 @@
       "no objects public access custom domains or workers",
       "delete bucket before recording"
     ],
-    "promotion": "C01 is the first Cloudflare live candidate; no recording is committed until a scoped token run is reviewed."
+    "promotion": "C01 has a committed sanitized live recording from disposable R2 bucket lifecycle parity."
   },
   "recording": {
-    "status": "deferred",
+    "status": "recorded",
     "artifact_path": "testdata/parity/cloudflare/c01/live.observations.json",
     "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
-    "compare_without_update": true,
-    "decision": "Run live first without recording promotion, review sanitized observations, then promote explicitly."
+    "compare_without_update": false,
+    "decision": "Promoted from the 2026-06-07T21:40:31Z opt-in live run after sanitized observations and cleanup absence were reviewed."
   },
   "promotion": {
-    "next": "Live-smoke C01 with scoped Cloudflare account token, then decide whether to promote recording.",
+    "next": "Recording promoted; future C01 updates require an explicit sanitized record-update run.",
     "live_candidate": true,
     "preconditions": [
       "scoped Cloudflare account token",
@@ -88,11 +88,17 @@
         "no-op",
         "delete",
         "absence"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/cloudflare/c01/live.observations.json"
       ]
     }
   ],
   "notes": [
     "C01 uses the existing cloudflare_r2_bucket create/read/update/delete mapper coverage.",
-    "No objects, public access, custom domains, Workers, or bucket data are in scope."
-  ]
+    "No objects, public access, custom domains, Workers, or bucket data are in scope.",
+    "Default replay validates the committed sanitized C01 live.observations.json without Cloudflare access."
+  ],
+  "recorded_at": "2026-06-07T21:40:31Z",
+  "recordings_source": "RAMEN_CLOUDFLARE_PARITY=1 RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 RAMEN_CLOUDFLARE_PARITY_LANE=c01 with local OpenTofu and Terraform CLIs, Ramen+udon, a scoped Cloudflare account token, disposable ramen-parity-c01-* R2 buckets, and cleanup absence verified."
 }

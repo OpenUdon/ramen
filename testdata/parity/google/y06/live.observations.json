@@ -1,0 +1,52 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y06",
+  "scenario": "storage_managed_folder_static",
+  "recorded_at": "2026-06-07T21:45:33Z",
+  "duration_ms": 29458,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-y06-opentofu-18b6eaa6/managed/y06/",
+      "duration_ms": 15485,
+      "fields": {
+        "after_create.bucket_present": true,
+        "after_create.exists": true,
+        "after_create.name_present": true,
+        "after_destroy.exists": false,
+        "exists": true,
+        "id_present": false,
+        "metageneration_present": true,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-y06-ramen-18b6eaa6/managed/y06/",
+      "duration_ms": 13972,
+      "fields": {
+        "after_create.bucket_present": true,
+        "after_create.exists": true,
+        "after_create.name_present": true,
+        "after_destroy.exists": false,
+        "exists": true,
+        "id_present": false,
+        "metageneration_present": true,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "exists",
+      "after_create.exists",
+      "after_create.name_present",
+      "after_create.bucket_present",
+      "id_present",
+      "metageneration_present",
+      "no_op",
+      "after_destroy.exists"
+    ]
+  }
+}

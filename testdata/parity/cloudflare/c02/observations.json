@@ -1,7 +1,7 @@
 {
   "version": "ramen.cloudflare.provider-parity.v1",
   "lane": "C02",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "cloudflare/cloudflare",
     "version_constraint": "~> 5.0"
@@ -35,17 +35,17 @@
       "out-of-band delete before read-missing",
       "cleanup absence before recording"
     ],
-    "promotion": "C02 follows C01 and records only read-missing/absence behavior after out-of-band deletion."
+    "promotion": "C02 has a committed sanitized live recording from disposable R2 read-missing parity."
   },
   "recording": {
-    "status": "deferred",
+    "status": "recorded",
     "artifact_path": "testdata/parity/cloudflare/c02/live.observations.json",
     "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
-    "compare_without_update": true,
-    "decision": "Run live after C01 smoke succeeds; promote only after sanitized missing evidence is reviewed."
+    "compare_without_update": false,
+    "decision": "Promoted from the 2026-06-07T21:40:53Z opt-in live run after sanitized observations and cleanup absence were reviewed."
   },
   "promotion": {
-    "next": "Live-smoke C02 after C01 validates the R2 harness.",
+    "next": "Recording promoted; future C02 updates require an explicit sanitized record-update run.",
     "live_candidate": true,
     "preconditions": [
       "scoped Cloudflare account token",
@@ -84,10 +84,16 @@
         "out-of-band-delete",
         "read-missing",
         "absence"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/cloudflare/c02/live.observations.json"
       ]
     }
   ],
   "notes": [
-    "C02 keeps the resource shape minimal to isolate missing classification."
-  ]
+    "C02 keeps the resource shape minimal to isolate missing classification.",
+    "Default replay validates the committed sanitized C02 live.observations.json without Cloudflare access."
+  ],
+  "recorded_at": "2026-06-07T21:40:53Z",
+  "recordings_source": "RAMEN_CLOUDFLARE_PARITY=1 RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 RAMEN_CLOUDFLARE_PARITY_LANE=c02 with local OpenTofu and Terraform CLIs, Ramen+udon, a scoped Cloudflare account token, disposable ramen-parity-c02-* R2 buckets, out-of-band deletion, and cleanup absence verified."
 }

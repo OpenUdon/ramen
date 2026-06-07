@@ -1,0 +1,66 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C01",
+  "scenario": "r2 bucket lifecycle",
+  "recorded_at": "2026-06-07T21:40:31Z",
+  "duration_ms": 32216,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-c01-opentofu-18b6ea5f",
+      "duration_ms": 11932,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.jurisdiction": "default",
+        "after_create.location": "ENAM",
+        "after_create.name": "ramen-parity-c01-opentofu-18b6ea5f",
+        "after_create.storage_class": "Standard",
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.storage_class": "InfrequentAccess",
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "terraform",
+      "resource": "ramen-parity-c01-terraform-18b6ea5f",
+      "duration_ms": 9838,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.jurisdiction": "default",
+        "after_create.location": "ENAM",
+        "after_create.name": "ramen-parity-c01-terraform-18b6ea5f",
+        "after_create.storage_class": "Standard",
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.storage_class": "InfrequentAccess",
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-c01-ramen-18b6ea5f",
+      "duration_ms": 10444,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.jurisdiction": "default",
+        "after_create.location": "ENAM",
+        "after_create.name": "ramen-parity-c01-ramen-18b6ea5f",
+        "after_create.storage_class": "Standard",
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.storage_class": "InfrequentAccess",
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_update.storage_class",
+      "no_op",
+      "after_delete.exists"
+    ]
+  }
+}

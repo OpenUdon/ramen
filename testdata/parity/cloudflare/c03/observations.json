@@ -1,7 +1,7 @@
 {
   "version": "ramen.cloudflare.provider-parity.v1",
   "lane": "C03",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "cloudflare/cloudflare",
     "version_constraint": "~> 5.0"
@@ -35,17 +35,17 @@
       "no objects public access custom domains or workers",
       "delete bucket before recording"
     ],
-    "promotion": "C03 is available for opt-in live R2 metadata mutability smoke runs; committed recording remains deferred."
+    "promotion": "C03 has a committed sanitized live recording from disposable R2 metadata mutability parity."
   },
   "recording": {
-    "status": "deferred",
+    "status": "recorded",
     "artifact_path": "testdata/parity/cloudflare/c03/live.observations.json",
     "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
-    "compare_without_update": true,
-    "decision": "Run C03 live without writing live.observations.json unless RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 is explicitly approved."
+    "compare_without_update": false,
+    "decision": "Promoted from the 2026-06-07T21:41:26Z opt-in live run after sanitized observations and cleanup absence were reviewed."
   },
   "promotion": {
-    "next": "Promote a sanitized C03 live recording after opt-in metadata mutability results are reviewed.",
+    "next": "Recording promoted; future C03 updates require an explicit sanitized record-update run.",
     "live_candidate": true,
     "preconditions": [
       "scoped Cloudflare account token",
@@ -84,10 +84,16 @@
         "live-read",
         "live-update-storage-class",
         "live-delete"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/cloudflare/c03/live.observations.json"
       ]
     }
   ],
   "notes": [
-    "C03 reuses the C01 R2 harness and varies metadata fields before recording promotion."
-  ]
+    "C03 reuses the C01 R2 harness and varies metadata fields before recording promotion.",
+    "Default replay validates the committed sanitized C03 live.observations.json without Cloudflare access."
+  ],
+  "recorded_at": "2026-06-07T21:41:26Z",
+  "recordings_source": "RAMEN_CLOUDFLARE_PARITY=1 RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 RAMEN_CLOUDFLARE_PARITY_LANE=c03 with local OpenTofu and Terraform CLIs, Ramen+udon, a scoped Cloudflare account token, disposable ramen-parity-c03-* R2 buckets, storage-class update evidence, and cleanup absence verified."
 }

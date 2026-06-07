@@ -1,7 +1,7 @@
 {
   "version": "ramen.google.provider-parity.v1",
   "lane": "Y05",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/google",
     "version_constraint": "~> 6.0"
@@ -66,6 +66,9 @@
         "static-delete-plan",
         "opentofu-live-create-delete-smoked",
         "opt-in-ramen-udon-live-run"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/google/y05/live.observations.json"
       ]
     }
   ],
@@ -73,6 +76,9 @@
     "Y05 adds Google Cloud Storage object metadata coverage.",
     "The HCL fixture uses a tiny non-secret literal only so tfconfig can parse a valid google_storage_bucket_object resource.",
     "Native and observation metadata intentionally exclude object payload bytes.",
-    "Live execution creates one tiny object in a disposable support bucket per runtime and deletes the object plus bucket before recording."
-  ]
+    "Live execution creates one tiny object in a disposable support bucket per runtime and deletes the object plus bucket before recording.",
+    "Default replay validates the committed sanitized Y05 live.observations.json without live GCP access or object payload bytes."
+  ],
+  "recorded_at": "2026-06-07T21:44:44Z",
+  "recordings_source": "RAMEN_GOOGLE_PARITY=1 RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1 RAMEN_GOOGLE_PARITY_LANE=y05 with OpenTofu from ../opentofu, Ramen+udon, ADC-backed scoped GCP project credentials, disposable ramen-parity-y05-* support buckets, one tiny non-secret object per runtime, and cleanup absence verified."
 }
