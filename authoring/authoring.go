@@ -14,6 +14,7 @@ import (
 	"github.com/OpenUdon/apitools"
 	sharedicot "github.com/OpenUdon/authoring/icot"
 	"github.com/OpenUdon/authoring/lifecycle"
+	"github.com/OpenUdon/authoring/operationlifecycle"
 	"github.com/OpenUdon/authoring/promptcontext"
 	sharedreadiness "github.com/OpenUdon/authoring/readiness"
 	sharedreport "github.com/OpenUdon/authoring/report"
@@ -314,28 +315,109 @@ func buildDocument(s state) *uws1.Document {
 			Title:   firstNonEmpty(s.ProjectName, "Ramen authored project"),
 			Version: "0.1.0",
 		},
-		SourceDescriptions: []*uws1.SourceDescription{{
-			Name: sourceID,
-			URL:  firstNonEmpty(source.URI, source.ID),
-			Type: uws1.SourceDescriptionType(sourceKind),
-		}},
-		Operations: []*uws1.Operation{{
-			OperationID:       localOperationID,
-			SourceDescription: sourceID,
-			SourceOperationID: sourceOperationID,
-			Description:       firstNonEmpty(operation.Summary, s.Goal),
-		}},
+		SourceDescriptions: sourceDescriptionsForAPISources(profile.APISources, sourceID, sourceKind, firstNonEmpty(source.URI, source.ID)),
+		Operations:         uwsOperationsForResources(resources, localOperationID, sourceID, sourceOperationID, operation, s.Goal),
 		Workflows: []*uws1.Workflow{{
 			WorkflowID:  "main",
 			Type:        uws1.WorkflowTypeSequence,
 			Description: s.Goal,
-			Steps: []*uws1.Step{{
-				StepID:       localOperationID,
-				OperationRef: localOperationID,
-			}},
+			Steps:       uwsStepsForResources(resources, localOperationID),
 		}},
 		Extensions: map[string]any{project.ExtensionKey: profile},
 	}
+}
+
+func sourceDescriptionsForAPISources(sources []project.APISource, fallbackID, fallbackKind, fallbackURL string) []*uws1.SourceDescription {
+	var out []*uws1.SourceDescription
+	for _, source := range sources {
+		if strings.TrimSpace(source.ID) == "" {
+			continue
+		}
+		out = append(out, &uws1.SourceDescription{
+			Name: source.ID,
+			URL:  firstNonEmpty(source.Path, fallbackURL, source.ID),
+			Type: uws1.SourceDescriptionType(normalizeProjectSourceKind(firstNonEmpty(source.Kind, fallbackKind, "openapi"))),
+		})
+	}
+	if len(out) == 0 {
+		out = append(out, &uws1.SourceDescription{
+			Name: firstNonEmpty(fallbackID, "api"),
+			URL:  firstNonEmpty(fallbackURL, fallbackID, "api"),
+			Type: uws1.SourceDescriptionType(normalizeProjectSourceKind(firstNonEmpty(fallbackKind, "openapi"))),
+		})
+	}
+	return out
+}
+
+func uwsOperationsForResources(resources []project.Resource, fallbackOperationID, fallbackSourceID, fallbackSourceOperationID string, fallback promptcontext.OperationCandidate, goal string) []*uws1.Operation {
+	var out []*uws1.Operation
+	seen := map[string]bool{}
+	for _, resource := range resources {
+		for _, role := range orderedResourceRoles(resource) {
+			opRole := resource.Operations[role]
+			localID := localUWSOperationID(role, resource)
+			if seen[localID] {
+				continue
+			}
+			seen[localID] = true
+			out = append(out, &uws1.Operation{
+				OperationID:       localID,
+				SourceDescription: firstNonEmpty(opRole.SourceID, fallbackSourceID),
+				SourceOperationID: firstNonEmpty(opRole.OperationID, fallbackSourceOperationID),
+				Description:       firstNonEmpty(fallback.Summary, goal),
+			})
+		}
+	}
+	if len(out) == 0 {
+		return []*uws1.Operation{{
+			OperationID:       fallbackOperationID,
+			SourceDescription: fallbackSourceID,
+			SourceOperationID: fallbackSourceOperationID,
+			Description:       firstNonEmpty(fallback.Summary, goal),
+		}}
+	}
+	return out
+}
+
+func uwsStepsForResources(resources []project.Resource, fallbackOperationID string) []*uws1.Step {
+	var out []*uws1.Step
+	seen := map[string]bool{}
+	for _, resource := range resources {
+		for _, role := range orderedResourceRoles(resource) {
+			localID := localUWSOperationID(role, resource)
+			if seen[localID] {
+				continue
+			}
+			seen[localID] = true
+			out = append(out, &uws1.Step{StepID: localID, OperationRef: localID})
+		}
+	}
+	if len(out) == 0 {
+		return []*uws1.Step{{StepID: fallbackOperationID, OperationRef: fallbackOperationID}}
+	}
+	return out
+}
+
+func orderedResourceRoles(resource project.Resource) []string {
+	var roles []string
+	for _, role := range resource.RequiredOperations {
+		if _, ok := resource.Operations[role]; ok {
+			roles = append(roles, role)
+		}
+	}
+	if len(roles) == len(resource.Operations) {
+		return roles
+	}
+	for role := range resource.Operations {
+		if !contains(roles, role) {
+			roles = append(roles, role)
+		}
+	}
+	return roles
+}
+
+func localUWSOperationID(role string, resource project.Resource) string {
+	return slug(role) + "_" + slug(firstNonEmpty(resource.Type, resource.Name, "resource"))
 }
 
 func defaultResource(s state, source promptcontext.SourceDocument, operation promptcontext.OperationCandidate, sourceID, sourceKind, sourceOperationID, resourceName string) project.Resource {
@@ -390,7 +472,7 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 	source := sourceForOperation(ctx, operation)
 	sourceOperationID := firstNonEmpty(operation.OperationID, operation.ID)
 	sourceID := firstNonEmpty(source.ID, operation.SourceID, "api")
-	sourceKind := firstNonEmpty(source.Kind, operation.Metadata["source_kind"], "openapi")
+	sourceKind := normalizeProjectSourceKind(firstNonEmpty(source.Kind, operation.Metadata["source_kind"], "openapi"))
 	sourcePath := firstNonEmpty(source.URI, operation.Metadata["source_path"], source.ID)
 	resourceName := slug(firstNonEmpty(projectName, goal, operation.Name, operation.OperationID, "api_operation"))
 	roleName := operationRoleForVerb(operation.Verb)
@@ -462,6 +544,117 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 			"goal":           strings.TrimSpace(goal),
 			"operation_role": roleName,
 			"api_method":     method,
+		},
+	}
+}
+
+// APILifecycleResource builds a desired-state resource by conservatively
+// expanding a selected API operation into same-source lifecycle roles.
+func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.OperationCandidate, goal, projectName string) project.Resource {
+	ctx = promptcontext.Normalize(ctx)
+	expansion := operationlifecycle.Expand(ctx, seed, operationlifecycle.Options{Goal: goal, DesiredState: true})
+	if len(expansion.Roles) == 0 {
+		return APIOperationResource(promptcontext.Context{Sources: ctx.Sources, Operations: []promptcontext.OperationCandidate{seed}, Schemas: ctx.Schemas, Credentials: ctx.Credentials, Metadata: ctx.Metadata}, goal, projectName)
+	}
+	primary := expansion.Roles[0]
+	operation := primary.Operation
+	source := sourceForOperation(ctx, operation)
+	sourceID := firstNonEmpty(source.ID, operation.SourceID, "api")
+	sourceKind := normalizeProjectSourceKind(firstNonEmpty(source.Kind, operation.Metadata["source_kind"], "openapi"))
+	sourcePath := firstNonEmpty(source.URI, operation.Metadata["source_path"], source.ID)
+	resourceName := slug(firstNonEmpty(projectName, goal, operation.Name, operation.OperationID, "api_operation"))
+	operations := map[string]project.OperationRole{}
+	var required []string
+	var schema []project.SchemaPath
+	var requestBindings []project.RequestBinding
+	var responseBindings []project.ResponseBinding
+	var credentials []string
+	readOperationID := ""
+	for _, candidate := range expansion.Roles {
+		role := candidate.Role
+		op := candidate.Operation
+		opSource := sourceForOperation(ctx, op)
+		opSourceID := firstNonEmpty(opSource.ID, op.SourceID, sourceID)
+		opSourceKind := normalizeProjectSourceKind(firstNonEmpty(opSource.Kind, op.Metadata["source_kind"], sourceKind))
+		opSourcePath := firstNonEmpty(opSource.URI, op.Metadata["source_path"], sourcePath)
+		opID := firstNonEmpty(op.OperationID, op.ID)
+		operations[role] = project.OperationRole{
+			Purpose:            role,
+			Method:             strings.ToUpper(strings.TrimSpace(op.Verb)),
+			SourceKind:         opSourceKind,
+			SourceID:           opSourceID,
+			SourcePath:         opSourcePath,
+			OperationID:        opID,
+			CredentialBindings: append([]string(nil), op.CredentialBindings...),
+		}
+		required = append(required, role)
+		credentials = append(credentials, op.CredentialBindings...)
+		parameters := operationParameters(op)
+		if role != "read" && role != "delete" {
+			bodySchema := schemaPathsForOperation(ctx, op)
+			schema = mergeSchemaPaths(schema, bodySchema)
+			requestBindings = append(requestBindings, requestBindingsForSchemaRole(schemaPathsExcludingParameters(bodySchema, parameters), opID, role)...)
+		}
+		parameterSchema := schemaPathsForLifecycleParameters(parameters, schema)
+		schema = mergeSchemaPaths(schema, parameterSchema)
+		requestBindings = append(requestBindings, requestBindingsForParametersRoleSchema(parameters, opID, role, schema)...)
+		if role == "read" {
+			readOperationID = opID
+		}
+	}
+	if len(schema) == 0 {
+		schema = []project.SchemaPath{{Path: "id", Type: "string", Required: true, Identity: true}}
+	} else if !schemaHasIdentity(schema) {
+		schema[0].Identity = true
+	}
+	identity := identityAttributesForSchema(schema)
+	attributes := map[string]any{}
+	for _, candidate := range expansion.Roles {
+		for _, parameter := range operationParameters(candidate.Operation) {
+			if !parameter.Required {
+				continue
+			}
+			path := parameterBindingPath(parameter, schema)
+			setAttributePath(attributes, path, parameterAttributeValueForGoal(parameter, sourcePath, goal, resourceName))
+		}
+	}
+	for _, path := range schema {
+		if !path.Required && !path.Identity {
+			continue
+		}
+		if _, ok := attributes[path.Path]; ok {
+			continue
+		}
+		value := schemaAttributeValueForGoal(path, goal, resourceName)
+		if path.Sensitive {
+			value = "${var." + slug(path.Path) + "}"
+		}
+		setAttributePath(attributes, path.Path, value)
+	}
+	if readOperationID != "" {
+		responseBindings = responseBindingsForSchema(responseSchemaPathsForRead(schema), readOperationID)
+	}
+	return project.Resource{
+		Address:            "resource." + resourceName,
+		Kind:               "resource",
+		Type:               resourceName,
+		Name:               resourceName,
+		Provider:           sourceKind,
+		Attributes:         attributes,
+		Operations:         operations,
+		IdentityAttributes: identity,
+		Schema:             mergeSchemaPaths(nil, schema),
+		RequestBindings:    dedupeRequestBindings(requestBindings),
+		ResponseBindings:   responseBindings,
+		RequiredOperations: required,
+		CredentialBindings: uniqueStrings(credentials),
+		Redaction:          redactionForSchema(schema),
+		Metadata: map[string]any{
+			"goal":                strings.TrimSpace(goal),
+			"operation_role":      primary.Role,
+			"api_method":          strings.ToUpper(strings.TrimSpace(operation.Verb)),
+			"lifecycle_family":    expansion.FamilyKey,
+			"lifecycle_expansion": "operationlifecycle",
 		},
 	}
 }
@@ -730,6 +923,7 @@ func apiSourcesForContext(ctx promptcontext.Context, fallback promptcontext.Sour
 	addProjectSource := func(kind, id, path string) {
 		id = strings.TrimSpace(id)
 		kind = strings.TrimSpace(kind)
+		kind = normalizeProjectSourceKind(kind)
 		path = strings.TrimSpace(path)
 		if id == "" || kind == "" || path == "" {
 			return
@@ -852,6 +1046,14 @@ func identityField(fields []promptcontext.FieldHint) string {
 			}
 		}
 	}
+	for _, suffix := range []string{".name", ".id"} {
+		for _, field := range fields {
+			name := strings.TrimSpace(field.Name)
+			if strings.HasSuffix(strings.ToLower(name), suffix) {
+				return name
+			}
+		}
+	}
 	for _, field := range fields {
 		if field.Required {
 			return strings.TrimSpace(field.Name)
@@ -936,26 +1138,111 @@ func schemaPathsForParameters(parameters []operationParameterMetadata) []project
 	return out
 }
 
+func schemaPathsForLifecycleParameters(parameters []operationParameterMetadata, schema []project.SchemaPath) []project.SchemaPath {
+	var out []project.SchemaPath
+	for _, parameter := range parameters {
+		if !parameter.Required {
+			continue
+		}
+		bindingPath := parameterBindingPath(parameter, schema)
+		if schemaPathExists(schema, bindingPath) {
+			if parameterIdentity(parameter) {
+				out = append(out, project.SchemaPath{
+					Path:     bindingPath,
+					Type:     firstNonEmpty(parameter.Type, "string"),
+					Required: true,
+					Identity: true,
+				})
+			}
+			continue
+		}
+		out = append(out, project.SchemaPath{
+			Path:     bindingPath,
+			Type:     firstNonEmpty(parameter.Type, "string"),
+			Required: true,
+			Identity: parameterIdentity(parameter),
+		})
+	}
+	return out
+}
+
+func schemaPathExists(schema []project.SchemaPath, want string) bool {
+	want = strings.TrimSpace(want)
+	for _, path := range schema {
+		if strings.TrimSpace(path.Path) == want {
+			return true
+		}
+	}
+	return false
+}
+
+func parameterIdentity(parameter operationParameterMetadata) bool {
+	if strings.EqualFold(strings.TrimSpace(parameter.In), "path") {
+		return true
+	}
+	name := strings.ToLower(strings.TrimSpace(parameter.Name))
+	return name == "id" || strings.HasSuffix(name, "id") || strings.Contains(name, "name")
+}
+
 func requestBindingsForParameters(parameters []operationParameterMetadata, operationID string) []project.RequestBinding {
 	return requestBindingsForParametersRole(parameters, operationID, "read")
 }
 
 func requestBindingsForParametersRole(parameters []operationParameterMetadata, operationID, role string) []project.RequestBinding {
+	return requestBindingsForParametersRoleSchema(parameters, operationID, role, nil)
+}
+
+func requestBindingsForParametersRoleSchema(parameters []operationParameterMetadata, operationID, role string, schema []project.SchemaPath) []project.RequestBinding {
 	var out []project.RequestBinding
 	for _, parameter := range parameters {
 		if !parameter.Required {
 			continue
 		}
+		bindingPath := parameterBindingPath(parameter, schema)
 		out = append(out, project.RequestBinding{
 			OperationRole: role,
 			OperationID:   operationID,
-			Path:          parameter.Name,
+			Path:          bindingPath,
 			RequestPath:   parameter.Name,
 			Location:      firstNonEmpty(parameter.In, "query"),
 			Required:      true,
+			Identity:      schemaPathIsIdentity(schema, bindingPath),
 		})
 	}
 	return out
+}
+
+func parameterBindingPath(parameter operationParameterMetadata, schema []project.SchemaPath) string {
+	name := strings.TrimSpace(parameter.Name)
+	if name == "" {
+		return ""
+	}
+	if schemaPathExists(schema, name) {
+		return name
+	}
+	for _, candidate := range []string{"metadata." + name, "metadata." + lowerCamelToSnake(name), "metadata." + strings.ToLower(name)} {
+		if schemaPathExists(schema, candidate) {
+			return candidate
+		}
+	}
+	if strings.EqualFold(name, "name") {
+		for _, path := range schema {
+			if path.Identity && strings.HasSuffix(strings.ToLower(path.Path), ".name") {
+				return path.Path
+			}
+		}
+	}
+	return name
+}
+
+func schemaPathIsIdentity(schema []project.SchemaPath, want string) bool {
+	want = strings.TrimSpace(want)
+	for _, path := range schema {
+		if path.Path == want {
+			return path.Identity
+		}
+	}
+	return false
 }
 
 func schemaPathsExcludingParameters(schema []project.SchemaPath, parameters []operationParameterMetadata) []project.SchemaPath {
@@ -978,6 +1265,9 @@ func parameterAttributeValue(parameter operationParameterMetadata, sourcePath st
 }
 
 func parameterAttributeValueForGoal(parameter operationParameterMetadata, sourcePath, goal, resourceName string) any {
+	if variable := variableForSchemaPath(goal, resourceName, parameter.Name); variable != "" {
+		return "${var." + variable + "}"
+	}
 	switch strings.ToLower(parameter.Name) {
 	case "subscriptionid", "subscription_id":
 		return "${var.azure_subscription_id}"
@@ -1019,6 +1309,105 @@ func parameterAttributeValueForGoal(parameter operationParameterMetadata, source
 		return resourceName
 	}
 	return "${var." + slug(parameter.Name) + "}"
+}
+
+func schemaAttributeValueForGoal(path project.SchemaPath, goal, resourceName string) any {
+	schemaPath := strings.TrimSpace(path.Path)
+	if strings.EqualFold(path.Type, "array") {
+		return []any{}
+	}
+	if strings.EqualFold(path.Type, "object") {
+		if strings.HasSuffix(strings.ToLower(schemaPath), ".labels") && strings.Contains(strings.ToLower(goal), "parity labels") {
+			lane := parityLaneFromText(goal)
+			labels := map[string]any{"app.kubernetes.io/managed-by": "ramen-parity"}
+			if lane != "" {
+				labels["ramen.openudon.dev/lane"] = lane
+			}
+			return labels
+		}
+		return map[string]any{}
+	}
+	if variable := variableForSchemaPath(goal, resourceName, schemaPath); variable != "" {
+		return "${var." + variable + "}"
+	}
+	if strings.TrimSpace(resourceName) != "" {
+		return resourceName
+	}
+	return "${var." + slug(schemaPath) + "}"
+}
+
+func variableForSchemaPath(goal, resourceName, schemaPath string) string {
+	variables := variableRefsInText(goal)
+	if len(variables) == 0 {
+		return ""
+	}
+	pathTokens := tokenSet(schemaPath)
+	resourceTokens := tokenSet(resourceName)
+	best := ""
+	bestScore := 0
+	for _, variable := range variables {
+		pathScore := 0
+		resourceScore := 0
+		varTokens := tokenSet(variable)
+		for token := range varTokens {
+			if pathTokens[token] {
+				pathScore += 4
+			}
+			if resourceTokens[token] {
+				resourceScore += 3
+			}
+		}
+		if pathScore == 0 {
+			continue
+		}
+		score := pathScore + resourceScore
+		if strings.HasSuffix(strings.ToLower(schemaPath), ".namespace") && varTokens["namespace"] {
+			score += 10
+		}
+		if strings.HasSuffix(strings.ToLower(schemaPath), ".name") && varTokens["name"] {
+			score += 4
+		}
+		if strings.HasSuffix(strings.ToLower(schemaPath), ".name") && varTokens["namespace"] && len(variables) > 1 {
+			score -= 6
+		}
+		if score > bestScore {
+			best = variable
+			bestScore = score
+		}
+	}
+	if bestScore <= 0 {
+		return ""
+	}
+	return best
+}
+
+func variableRefsInText(text string) []string {
+	return variableRefs(text)
+}
+
+func tokenSet(value string) map[string]bool {
+	out := map[string]bool{}
+	value = value + " " + lowerCamelToSnake(value)
+	for _, part := range strings.FieldsFunc(strings.ToLower(value), func(r rune) bool {
+		return r == '_' || r == '-' || r == '.' || r == '/' || r == ' ' || r == ':' || r == '{' || r == '}'
+	}) {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			out[part] = true
+		}
+	}
+	return out
+}
+
+func parityLaneFromText(text string) string {
+	lower := strings.ToLower(text)
+	for _, field := range strings.Fields(lower) {
+		field = strings.Trim(field, "`'\".,;:()[]{}")
+		if len(field) == 3 && field[0] >= 'a' && field[0] <= 'z' && field[1] >= '0' && field[1] <= '9' && field[2] >= '0' && field[2] <= '9' {
+			return field
+		}
+	}
+	return ""
 }
 
 func valueAfterPhrase(text, phrase string) string {
@@ -1102,6 +1491,19 @@ func responseSchemaPaths(schema []project.SchemaPath) []project.SchemaPath {
 	return out
 }
 
+func responseSchemaPathsForRead(schema []project.SchemaPath) []project.SchemaPath {
+	out := responseSchemaPaths(schema)
+	if len(out) > 0 {
+		return out
+	}
+	for _, path := range schema {
+		if path.Identity {
+			out = append(out, path)
+		}
+	}
+	return out
+}
+
 func variablesForResources(existing []project.Variable, resources []project.Resource) []project.Variable {
 	out := append([]project.Variable(nil), existing...)
 	seen := map[string]bool{}
@@ -1109,7 +1511,7 @@ func variablesForResources(existing []project.Variable, resources []project.Reso
 		seen[strings.TrimSpace(variable.Name)] = true
 	}
 	for _, resource := range resources {
-		for _, value := range resource.Attributes {
+		for _, value := range flattenedAttributeValues(resource.Attributes) {
 			for _, name := range variableRefs(value) {
 				if seen[name] {
 					continue
@@ -1118,6 +1520,50 @@ func variablesForResources(existing []project.Variable, resources []project.Reso
 				out = append(out, project.Variable{Name: name, Type: "string"})
 			}
 		}
+	}
+	return out
+}
+
+func setAttributePath(attributes map[string]any, path string, value any) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	parts := strings.Split(path, ".")
+	cur := attributes
+	for _, part := range parts[:len(parts)-1] {
+		next, _ := cur[part].(map[string]any)
+		if next == nil {
+			next = map[string]any{}
+			cur[part] = next
+		}
+		cur = next
+	}
+	leaf := parts[len(parts)-1]
+	if existing, ok := cur[leaf].(map[string]any); ok {
+		if incoming, ok := value.(map[string]any); ok {
+			for key, child := range incoming {
+				existing[key] = child
+			}
+			return
+		}
+	}
+	cur[leaf] = value
+}
+
+func flattenedAttributeValues(attrs map[string]any) []any {
+	var out []any
+	var visit func(any)
+	visit = func(value any) {
+		out = append(out, value)
+		if m, ok := value.(map[string]any); ok {
+			for _, child := range m {
+				visit(child)
+			}
+		}
+	}
+	for _, value := range attrs {
+		visit(value)
 	}
 	return out
 }
@@ -1164,6 +1610,87 @@ func requestBindingsForSchemaRole(schema []project.SchemaPath, operationID, role
 			Required:      path.Required,
 			Identity:      path.Identity,
 		})
+	}
+	return out
+}
+
+func normalizeProjectSourceKind(kind string) string {
+	switch strings.ToLower(strings.TrimSpace(kind)) {
+	case "google_discovery", "google-discovery", "discovery", "google":
+		return "google-discovery"
+	case "aws_smithy", "aws-smithy", "smithy", "smithy-json":
+		return "aws-smithy"
+	case "grpc_protobuf", "grpc-protobuf":
+		return "grpc-protobuf"
+	default:
+		return strings.TrimSpace(kind)
+	}
+}
+
+func lowerCamelToSnake(value string) string {
+	var b strings.Builder
+	for i, r := range value {
+		if i > 0 && r >= 'A' && r <= 'Z' {
+			b.WriteByte('_')
+		}
+		b.WriteRune(r)
+	}
+	return strings.ToLower(b.String())
+}
+
+func mergeSchemaPaths(base []project.SchemaPath, extra []project.SchemaPath) []project.SchemaPath {
+	out := append([]project.SchemaPath(nil), base...)
+	index := map[string]int{}
+	for i, path := range out {
+		key := strings.TrimSpace(path.Path)
+		if key != "" {
+			index[key] = i
+		}
+	}
+	for _, path := range extra {
+		path.Path = strings.TrimSpace(path.Path)
+		if path.Path == "" {
+			continue
+		}
+		if i, ok := index[path.Path]; ok {
+			out[i] = mergeSchemaPath(out[i], path)
+			continue
+		}
+		index[path.Path] = len(out)
+		out = append(out, path)
+	}
+	return out
+}
+
+func mergeSchemaPath(a, b project.SchemaPath) project.SchemaPath {
+	if a.Type == "" {
+		a.Type = b.Type
+	}
+	a.Required = a.Required || b.Required
+	a.Identity = a.Identity || b.Identity
+	a.Sensitive = a.Sensitive || b.Sensitive
+	a.Computed = a.Computed || b.Computed
+	a.ReadOnly = a.ReadOnly || b.ReadOnly
+	a.Immutable = a.Immutable || b.Immutable
+	a.CreateOnly = a.CreateOnly || b.CreateOnly
+	a.Updateable = a.Updateable || b.Updateable
+	a.ReplaceOnChange = a.ReplaceOnChange || b.ReplaceOnChange
+	a.ResponseDerivedIdentity = a.ResponseDerivedIdentity || b.ResponseDerivedIdentity
+	a.Optional = a.Optional || b.Optional
+	a.Ignored = a.Ignored || b.Ignored
+	return a
+}
+
+func dedupeRequestBindings(bindings []project.RequestBinding) []project.RequestBinding {
+	seen := map[string]bool{}
+	var out []project.RequestBinding
+	for _, binding := range bindings {
+		key := strings.Join([]string{binding.OperationRole, binding.OperationID, binding.Path, binding.RequestPath, binding.Location}, "\x00")
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		out = append(out, binding)
 	}
 	return out
 }

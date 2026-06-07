@@ -158,9 +158,13 @@ func operationParametersMetadata(parameters []apitools.ParameterSummary) []opera
 		if name == "" {
 			continue
 		}
+		location := strings.ToLower(strings.TrimSpace(parameter.In))
+		if location == "body" {
+			continue
+		}
 		out = append(out, operationParameterMetadata{
 			Name:     name,
-			In:       strings.TrimSpace(parameter.In),
+			In:       location,
 			Type:     firstNonEmpty(parameter.Type, parameter.Format, "string"),
 			Required: parameter.Required,
 		})
@@ -335,7 +339,7 @@ func normalizeAPISourceKind(kind string) string {
 		return apitools.APISourceKindOpenAPI
 	case apitools.APISourceKindAWSSmithy, "smithy", "smithy-json":
 		return apitools.APISourceKindAWSSmithy
-	case apitools.APISourceKindGoogleDiscovery, "discovery", "google":
+	case apitools.APISourceKindGoogleDiscovery, "google_discovery", "discovery", "google":
 		return apitools.APISourceKindGoogleDiscovery
 	default:
 		return ""

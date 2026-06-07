@@ -84,6 +84,50 @@ func TestDraftProjectWritesAndValidatesSkeleton(t *testing.T) {
 	}
 }
 
+func TestAPILifecycleResourceMarksMappedPathParameterRequired(t *testing.T) {
+	ctx := promptcontext.Context{
+		Sources: []promptcontext.SourceDocument{{
+			ID:   "widgets",
+			Kind: "openapi",
+			URI:  "api.yaml",
+		}},
+		Operations: []promptcontext.OperationCandidate{{
+			ID:              "widgets#createWidget",
+			SourceID:        "widgets",
+			OperationID:     "createWidget",
+			Verb:            "POST",
+			Path:            "/widgets",
+			RequestSchemaID: "createWidgetRequest",
+		}, {
+			ID:          "widgets#getWidget",
+			SourceID:    "widgets",
+			OperationID: "getWidget",
+			Verb:        "GET",
+			Path:        "/widgets/{name}",
+			Metadata: map[string]string{
+				"parameters": `[{"name":"name","in":"path","type":"string","required":true}]`,
+			},
+		}},
+		Schemas: []promptcontext.SchemaHint{{
+			ID: "createWidgetRequest",
+			Fields: []promptcontext.FieldHint{
+				{Name: "metadata", Type: "object"},
+				{Name: "metadata.name", Type: "string"},
+			},
+		}},
+	}
+	resource := APILifecycleResource(ctx, ctx.Operations[0], "Create and read a widget using name `${var.widget_name}`.", "widget")
+	for _, path := range resource.Schema {
+		if path.Path == "metadata.name" {
+			if !path.Required || !path.Identity {
+				t.Fatalf("metadata.name schema path = %#v", path)
+			}
+			return
+		}
+	}
+	t.Fatalf("metadata.name missing from schema: %#v", resource.Schema)
+}
+
 func TestDraftProjectDownloadsRemoteAPISourceBesideProject(t *testing.T) {
 	allowUnsafeAPIToolsHosts(t)
 	root := t.TempDir()

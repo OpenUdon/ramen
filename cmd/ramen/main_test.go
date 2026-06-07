@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -373,6 +374,38 @@ func TestCLIIcotAgentAmbiguousOperationNeedsInput(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
 		t.Fatalf("ambiguous icot wrote project: %v", err)
+	}
+}
+
+func TestCLIIcotAgentExpandsLifecycleOperations(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := filepath.Join(root, "api.yaml")
+	writeLifecycleICOTOpenAPIForCLITest(t, sourcePath)
+	outDir := filepath.Join(root, "lifecycle")
+	answersPath := filepath.Join(root, "answers.txt")
+	mustWriteCLIFile(t, answersPath, []byte("createWidget\n"))
+	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "Create, read, update, and delete a widget named ramen", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate")
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	output, err := cmd.Output()
+	if err != nil {
+		t.Fatalf("lifecycle icot failed: %v\nstdout:\n%s\nstderr:\n%s", err, output, stderr.String())
+	}
+	doc, err := project.Load(filepath.Join(outDir, project.DefaultFile))
+	if err != nil {
+		t.Fatalf("lifecycle project does not load: %v", err)
+	}
+	resource := doc.Profile.Resources[0]
+	if got := resource.RequiredOperations; !slices.Equal(got, []string{"create", "delete", "read", "update"}) {
+		t.Fatalf("required operations = %#v", got)
+	}
+	for role, operationID := range map[string]string{"create": "createWidget", "read": "getWidget", "update": "patchWidget", "delete": "deleteWidget"} {
+		if resource.Operations[role].OperationID != operationID {
+			t.Fatalf("%s role = %#v", role, resource.Operations[role])
+		}
+	}
+	if len(doc.UWS.Operations) != 4 || len(doc.UWS.Workflows[0].Steps) != 4 {
+		t.Fatalf("generated UWS operations/steps = %#v %#v", doc.UWS.Operations, doc.UWS.Workflows[0].Steps)
 	}
 }
 
@@ -1718,6 +1751,72 @@ paths:
       responses:
         "200":
           description: ok
+`))
+}
+
+func writeLifecycleICOTOpenAPIForCLITest(t *testing.T, path string) {
+	t.Helper()
+	mustWriteCLIFile(t, path, []byte(`openapi: 3.0.0
+info:
+  title: iCoT Lifecycle CLI Test
+  version: v1
+paths:
+  /widgets:
+    post:
+      operationId: createWidget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: ok
+  /widgets/{id}:
+    get:
+      operationId: getWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "200":
+          description: ok
+    patch:
+      operationId: patchWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+      responses:
+        "200":
+          description: ok
+    delete:
+      operationId: deleteWidget
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string}
+      responses:
+        "204":
+          description: deleted
 `))
 }
 

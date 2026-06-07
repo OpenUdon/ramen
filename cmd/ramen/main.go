@@ -406,8 +406,7 @@ func runICOTDraft(ctx context.Context, goal, projectName, outDir, statePath stri
 		})
 	}
 	operation := selection.Operation
-	promptContext.Operations = []sharedpromptcontext.OperationCandidate{operation}
-	resources := []project.Resource{ramenauthoring.APIOperationResource(promptContext, goal, projectName)}
+	resources := []project.Resource{ramenauthoring.APILifecycleResource(promptContext, operation, goal, projectName)}
 	result, err := ramenauthoring.DraftProject(ctx, ramenauthoring.Options{
 		Goal:        goal,
 		ProjectName: projectName,
