@@ -207,7 +207,7 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 		} else if strings.TrimSpace(binding.OperationID) != "" && !operationIDMatchesRole(resource, binding.OperationRole, binding.OperationID) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_operation_mismatch", Severity: "error", Message: fmt.Sprintf("resource %s request binding operation_id %s does not match %s operation metadata", resource.Address, binding.OperationID, binding.OperationRole), Address: resource.Address, OperationID: binding.OperationID})
 		}
-		if binding.Required && !hasAttributePath(resource.Attributes, binding.Path) {
+		if binding.Required && !hasAttributePath(resource.Attributes, binding.Path) && !responseDerivedStatePath(resource, binding.Path) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires request-bound attribute %s", resource.Address, binding.Path), Address: resource.Address})
 		}
 	}
@@ -233,6 +233,24 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 		}
 	}
 	return diagnostics
+}
+
+func responseDerivedStatePath(resource project.Resource, path string) bool {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return false
+	}
+	for _, binding := range resource.ResponseBindings {
+		if binding.ResponseDerivedIdentity && strings.TrimSpace(binding.StatePath) == path {
+			return true
+		}
+	}
+	for _, schema := range resource.Schema {
+		if schema.ResponseDerivedIdentity && strings.TrimSpace(schema.Path) == path {
+			return true
+		}
+	}
+	return false
 }
 
 func validateRuntimeHints(resource project.Resource) []Diagnostic {

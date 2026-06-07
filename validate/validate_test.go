@@ -233,6 +233,49 @@ func TestRunAcceptsValidMappingSchemaMetadata(t *testing.T) {
 	}
 }
 
+func TestRunAcceptsRequiredRequestBindingFromResponseDerivedIdentity(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	readPath := writeValidateOpenAPI(t, root, "read.yaml", "readExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version: project.Version,
+		APISources: []project.APISource{
+			{Kind: "openapi", ID: "api", Path: sourcePath},
+			{Kind: "openapi", ID: "read", Path: readPath},
+		},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Attributes: map[string]any{"name": "example"},
+			RequestBindings: []project.RequestBinding{
+				{OperationRole: "create", Path: "name", RequestPath: "name", Required: true},
+				{OperationRole: "read", Path: "id", RequestPath: "id", Required: true, Identity: true},
+			},
+			ResponseBindings: []project.ResponseBinding{{
+				OperationRole:           "read",
+				ResponsePath:            "result.id",
+				StatePath:               "id",
+				Identity:                true,
+				ResponseDerivedIdentity: true,
+			}},
+			RequiredOperations: []string{"create", "read"},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"},
+				"read":   {SourceKind: "openapi", SourceID: "read", OperationID: "readExample"},
+			},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !result.Valid || result.Summary.Diagnostics != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestRunValidatesCrossFieldMappingMetadata(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
