@@ -1,7 +1,7 @@
 {
   "version": "ramen.azure.provider-parity.v1",
   "lane": "Z04",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/azurerm",
     "version_constraint": "~> 4.0"
@@ -15,8 +15,11 @@
     "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
     "lane_env": "RAMEN_AZURE_PARITY_LANE",
     "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
-    "resource_prefix": "ramen-parity-z04-",
+    "resource_prefix": "ramenparityz04",
     "requires_explicit_lane": true,
+    "live_enabled": true,
+    "live_waiter_min_attempts": 40,
+    "cleanup_fallback": "az storage account delete --resource-group <resource-group> --name <account-name> --yes; az group delete --name <resource-group> --yes",
     "required_env": [
       "AZURE_SUBSCRIPTION_ID",
       "AZURE_TENANT_ID",
@@ -40,6 +43,8 @@
     "terraform",
     "ramen"
   ],
+  "recorded_at": "2026-06-07T22:36:47Z",
+  "recordings_source": "RAMEN_AZURE_PARITY=1 RAMEN_AZURE_PARITY_RECORD_UPDATE=1 RAMEN_AZURE_PARITY_LANE=z04 with local OpenTofu, Ramen+udon, an isolated ramen-parity-z04-* resource group, minimal Standard_LRS StorageV2 accounts, and post-delete resource-group cleanup verification.",
   "scenarios": [
     {
       "name": "storage_account_static_lifecycle",
@@ -63,14 +68,20 @@
         "sku.name"
       ],
       "expected_transitions": [
-        "static-create-plan",
-        "static-read-plan",
-        "static-delete-plan"
+        "create",
+        "read",
+        "no-op",
+        "delete",
+        "post-delete-missing",
+        "resource-group-cleanup"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/azure/z04/live.observations.json"
       ]
     }
   ],
   "notes": [
-    "Z04 is planned as static parity first; live mutation remains parked.",
+    "Z04 live mutation is approved for one minimal storage account per runtime inside an isolated disposable resource group.",
     "Any future live run is limited to one minimal storage account with no child data resources, followed by delete and absence verification."
   ]
 }

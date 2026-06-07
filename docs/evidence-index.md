@@ -13,16 +13,15 @@ live evidence so adopters can inspect what has actually been proven.
 - `testdata/evidence/m28-sql` records Azure SQL native project fixtures for
   read, create/update, delete, runtime hints, and delete confirmation through
   mock execution.
-- `testdata/parity/azure/z01` and `z02` record Azure provider parity fixtures
-  for Azure SQL database and Cosmos DB account. Default tests validate HCL
-  parsing, native project validation, operation IDs, request bindings,
-  Z02 `runtime_hints.settle` metadata, Azure-to-ARM credential mapping, live
-  safety metadata, observation metadata, and committed Z01/Z02 replay metadata
-  without live Azure access.
-- `testdata/parity/azure/z03` through `z05` add planned/static Azure parity
-  fixtures for Resource Group read/import, Storage Account create/read/delete,
-  and Azure SQL update/read/delete metadata. These are credential-free static
-  checks only and do not claim recorded live parity.
+- `testdata/parity/azure/z01`, `z02`, `z04`, and `z05` record Azure provider
+  parity fixtures for Azure SQL database, Cosmos DB account, Storage Account,
+  and the Azure SQL follow-on lane. Default tests validate HCL parsing, native
+  project validation, operation IDs, request bindings, Z02/Z04/Z05
+  `runtime_hints.settle` metadata, Azure-to-ARM credential mapping, live safety
+  metadata, observation metadata, and committed replay metadata without live
+  Azure access.
+- `testdata/parity/azure/z03` remains a credential-free Resource Group
+  read/import fixture. It does not claim recorded live mutation.
 - `testdata/parity/azure/z06` records static readiness and closure for the
   explicit Z02 Cosmos DB re-recording through the general A04 settle path. It
   reuses the existing Z02 fixtures; the refreshed live evidence remains in the
@@ -144,7 +143,10 @@ live evidence so adopters can inspect what has actually been proven.
   Terraform baseline is used only with explicit `RAMEN_AZURE_PARITY_BASELINE=both`.
   Z01 was recorded from an operator-scoped Azure SQL mutation run; Z02 was
   recorded from operator-approved Cosmos DB mutation runs using isolated
-  resource groups and verified teardown. The current Z02 recording was
+  resource groups and verified teardown. Z04 was recorded with isolated
+  minimal Storage Account runs and verified resource-group cleanup. Z05 was
+  recorded with disposable Basic Azure SQL databases on the approved SQL server
+  profile and verified post-delete absence. The current Z02 recording was
   refreshed after the A04 general settle migration and exercises the general
   `runtime_hints.settle` pre-delete barrier.
 - AWS live parity remains opt-in through `RAMEN_AWS_PARITY=1` and explicit

@@ -1,0 +1,53 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z04",
+  "scenario": "storage_account_static_lifecycle",
+  "recorded_at": "2026-06-07T22:36:47Z",
+  "duration_ms": 293672,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramenparityz04ot18b6ed34",
+      "duration_ms": 128142,
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.kind": "StorageV2",
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramenparityz04ot18b6ed34",
+        "after_apply.sku.name": "Standard_LRS",
+        "after_destroy.exists": false,
+        "no_op": true,
+        "resource_group_after_cleanup.exists": false
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramenparityz04rm18b6ed34",
+      "duration_ms": 143669,
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.kind": "StorageV2",
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramenparityz04rm18b6ed34",
+        "after_apply.sku.name": "Standard_LRS",
+        "after_destroy.exists": false,
+        "no_op": false,
+        "resource_group_after_cleanup.exists": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_apply.exists",
+      "after_apply.id_present",
+      "after_apply.location",
+      "after_apply.kind",
+      "after_apply.sku.name",
+      "after_destroy.exists",
+      "resource_group_after_cleanup.exists"
+    ]
+  }
+}

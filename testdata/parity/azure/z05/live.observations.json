@@ -1,0 +1,50 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z05",
+  "scenario": "sql_database_update_drift_static",
+  "recorded_at": "2026-06-07T22:52:27Z",
+  "duration_ms": 391333,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-z05-opentofu",
+      "duration_ms": 215815,
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramen-parity-z05-opentofu",
+        "after_apply.sku.name": "Basic",
+        "after_apply.sku.tier": "Basic",
+        "after_destroy.exists": false,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-z05-ramen",
+      "duration_ms": 175517,
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_apply.name": "ramen-parity-z05-ramen",
+        "after_apply.sku.name": "Basic",
+        "after_apply.sku.tier": "Basic",
+        "after_destroy.exists": false,
+        "no_op": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_apply.exists",
+      "after_apply.id_present",
+      "after_apply.location",
+      "after_apply.sku.name",
+      "after_apply.sku.tier",
+      "after_destroy.exists"
+    ]
+  }
+}

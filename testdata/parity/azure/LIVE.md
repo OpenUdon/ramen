@@ -82,11 +82,33 @@ metadata without live Azure access. The committed Z02 live recording was
 refreshed after the A04 general settle migration and exercises the general
 settle path; any future re-recording remains explicit opt-in.
 
-## Planned Z03-Z06 Safety
+## Z04 Storage Account
 
-Z03-Z06 default checks are static or read-only. Any future live mutation must
-use the minimum number of smallest practical disposable resources, avoid large
-or high-cost Azure resources, and destroy or clean up every resource it creates
-before any sanitized recording update is accepted. Mutation-capable native
-fixtures should carry retry/waiter metadata and use `runtime_hints.settle`
-where a bounded pre-delete read barrier is needed for reliable cleanup.
+Z04 may use live execution after the operator explicitly approves Storage
+Account cost and global naming scope. The recorded fixture used:
+
+- one isolated `ramen-parity-z04-*` resource group;
+- one minimal `Standard_LRS` `StorageV2` account per runtime, with legal
+  `ramenparityz04*` storage-account names;
+- no containers, blobs, queues, tables, file shares, keys, SAS tokens, or
+  endpoint recordings;
+- post-delete storage-account absence verification;
+- isolated resource-group deletion and absence verification.
+
+## Z05 Azure SQL Follow-On
+
+Z05 may use live execution against the approved existing Azure SQL server
+profile. The recorded fixture used one disposable Basic SQL database per
+runtime, verified post-delete absence, and did not create SQL servers, elastic
+pools, private endpoints, backups beyond service defaults, or other recurring
+resources.
+
+## Planned Z03/Z06 Safety
+
+Z03 and Z06 default checks are static or read-only. Any future live mutation
+must use the minimum number of smallest practical disposable resources, avoid
+large or high-cost Azure resources, and destroy or clean up every resource it
+creates before any sanitized recording update is accepted. Mutation-capable
+native fixtures should carry retry/waiter metadata and use
+`runtime_hints.settle` where a bounded pre-delete read barrier is needed for
+reliable cleanup.

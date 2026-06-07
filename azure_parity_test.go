@@ -29,7 +29,7 @@ const (
 )
 
 var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06"}
-var azureParityLiveRunnerLanes = []string{"z01", "z02"}
+var azureParityLiveRunnerLanes = []string{"z01", "z02", "z04", "z05"}
 
 type azureParityArtifact struct {
 	Version          string                `json:"version"`
@@ -201,6 +201,9 @@ func assertAzureParityArtifact(t *testing.T, lane string, artifact azureParityAr
 		t.Fatalf("credential env = %q, want UDON_CREDENTIAL_AZURE_AUTH", artifact.Safety.CredentialEnv)
 	}
 	wantPrefix := "ramen-parity-" + lane + "-"
+	if lane == "z04" {
+		wantPrefix = "ramenparityz04"
+	}
 	if lane == "z06" {
 		wantPrefix = "ramen-parity-z02-"
 	}
@@ -329,6 +332,22 @@ func assertAzureParityLiveRecording(t *testing.T, lane string, artifact azurePar
 		if !recording.Comparison.Matched {
 			t.Fatalf("%s recording comparison did not match", wantLane)
 		}
+	case "z04":
+		want := compareAzureParityZ04Observations(recording.Observations)
+		if !reflect.DeepEqual(recording.Comparison, want) {
+			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)
+		}
+		if !recording.Comparison.Matched {
+			t.Fatalf("%s recording comparison did not match", wantLane)
+		}
+	case "z05":
+		want := compareAzureParityZ05Observations(recording.Observations)
+		if !reflect.DeepEqual(recording.Comparison, want) {
+			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)
+		}
+		if !recording.Comparison.Matched {
+			t.Fatalf("%s recording comparison did not match", wantLane)
+		}
 	default:
 		t.Fatalf("no recording assertions registered for Azure parity lane %s", lane)
 	}
@@ -384,8 +403,11 @@ func assertAzureParitySafetyContract(t *testing.T, lane string, safety azurePari
 			}
 		}
 	case "z04":
-		if safety.LiveEnabled {
-			t.Fatalf("Z04 must remain live-disabled while storage static evidence is planned")
+		if !safety.LiveEnabled {
+			t.Fatalf("Z04 must be marked live-enabled after storage cost/naming/cleanup guardrails are approved")
+		}
+		if !strings.Contains(safety.CleanupFallback, "az storage account delete") || !strings.Contains(safety.CleanupFallback, "az group delete") {
+			t.Fatalf("Z04 cleanup fallback = %q, want az storage account delete and az group delete", safety.CleanupFallback)
 		}
 		for _, guardrail := range []string{"static first", "one minimal storage account only if live-approved", "delete storage account and resource group before recording"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {
@@ -393,8 +415,11 @@ func assertAzureParitySafetyContract(t *testing.T, lane string, safety azurePari
 			}
 		}
 	case "z05":
-		if safety.LiveEnabled {
-			t.Fatalf("Z05 must remain live-disabled while SQL update static evidence is planned")
+		if !safety.LiveEnabled {
+			t.Fatalf("Z05 must be marked live-enabled after SQL update cost/rollback/cleanup guardrails are approved")
+		}
+		if !strings.Contains(safety.CleanupFallback, "az sql db delete") {
+			t.Fatalf("Z05 cleanup fallback = %q, want az sql db delete", safety.CleanupFallback)
 		}
 		for _, guardrail := range []string{"static update first", "one disposable database only if live-approved", "delete database before recording"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {
@@ -463,6 +488,39 @@ func compareAzureParityZ02Observations(observations []azureParityRuntimeObservat
 		}
 		if observation.Fields["after_apply.exists"] != true || observation.Fields["after_apply.id_present"] != true || observation.Fields["after_destroy.exists"] != false {
 			matched = false
+		}
+	}
+	return azureParityObservationComparison{Matched: matched, Fields: fields}
+}
+
+func compareAzureParityZ04Observations(observations []azureParityRuntimeObservation) azureParityObservationComparison {
+	fields := []string{
+		"after_apply.exists",
+		"after_apply.id_present",
+		"after_apply.location",
+		"after_apply.kind",
+		"after_apply.sku.name",
+		"after_destroy.exists",
+		"resource_group_after_cleanup.exists",
+	}
+	return compareAzureParityObservationFields(observations, fields)
+}
+
+func compareAzureParityZ05Observations(observations []azureParityRuntimeObservation) azureParityObservationComparison {
+	return compareAzureParityZ01Observations(observations)
+}
+
+func compareAzureParityObservationFields(observations []azureParityRuntimeObservation, fields []string) azureParityObservationComparison {
+	if len(observations) == 0 {
+		return azureParityObservationComparison{Matched: false, Fields: fields}
+	}
+	matched := true
+	first := observations[0].Fields
+	for _, observation := range observations {
+		for _, field := range fields {
+			if !reflect.DeepEqual(observation.Fields[field], first[field]) {
+				matched = false
+			}
 		}
 	}
 	return azureParityObservationComparison{Matched: matched, Fields: fields}

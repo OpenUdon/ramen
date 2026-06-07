@@ -44,6 +44,10 @@ func TestAzureProviderParityLive(t *testing.T) {
 		recording = runAzureParityZ01Live(ctx, t, artifact)
 	case "z02":
 		recording = runAzureParityZ02Live(ctx, t, artifact)
+	case "z04":
+		recording = runAzureParityZ04Live(ctx, t, artifact)
+	case "z05":
+		recording = runAzureParityZ05Live(ctx, t, artifact)
 	default:
 		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", azureParityLaneEnv, selectedLane)
 	}
@@ -57,7 +61,7 @@ func requireAzureParityLiveEnv(t *testing.T, artifact azureParityArtifact) {
 			t.Fatalf("%s is required for live Azure provider parity", envName)
 		}
 	}
-	for _, envName := range []string{artifact.Safety.CredentialEnv, azureParityTofuEnv} {
+	for _, envName := range []string{azureParityTofuEnv} {
 		if strings.TrimSpace(os.Getenv(envName)) == "" {
 			t.Fatalf("%s is required for live Azure provider parity", envName)
 		}
@@ -191,7 +195,7 @@ type azureParitySQLDatabaseObservation struct {
 }
 
 func observeAzureParitySQLDatabase(ctx context.Context, resourceGroup, serverName, databaseName string) (azureParitySQLDatabaseObservation, error) {
-	if err := validateAzureParityZ01DatabaseName(databaseName); err != nil {
+	if err := validateAzureParitySQLDatabaseName(databaseName); err != nil {
 		return azureParitySQLDatabaseObservation{}, err
 	}
 	args := []string{
@@ -258,9 +262,20 @@ func azureParityZ01DatabaseName(runtime string) string {
 	return "ramen-parity-z01-" + runtime
 }
 
+func azureParityZ05DatabaseName(runtime string) string {
+	return "ramen-parity-z05-" + runtime
+}
+
 func validateAzureParityZ01DatabaseName(name string) error {
 	if !strings.HasPrefix(name, "ramen-parity-z01-") {
 		return fmt.Errorf("database name %q must use ramen-parity-z01-* prefix", name)
+	}
+	return validateAzureParitySQLDatabaseName(name)
+}
+
+func validateAzureParitySQLDatabaseName(name string) error {
+	if !strings.HasPrefix(name, "ramen-parity-z01-") && !strings.HasPrefix(name, "ramen-parity-z05-") {
+		return fmt.Errorf("database name %q must use an approved Azure SQL parity prefix", name)
 	}
 	if len(name) > 63 {
 		return fmt.Errorf("database name %q is too long", name)

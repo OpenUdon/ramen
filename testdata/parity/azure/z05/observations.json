@@ -1,7 +1,7 @@
 {
   "version": "ramen.azure.provider-parity.v1",
   "lane": "Z05",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/azurerm",
     "version_constraint": "~> 4.0"
@@ -17,6 +17,9 @@
     "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
     "resource_prefix": "ramen-parity-z05-",
     "requires_explicit_lane": true,
+    "live_enabled": true,
+    "live_waiter_min_attempts": 30,
+    "cleanup_fallback": "az sql db delete --resource-group <resource-group> --server <server-name> --name <database-name> --yes",
     "required_env": [
       "AZURE_SUBSCRIPTION_ID",
       "AZURE_TENANT_ID",
@@ -40,6 +43,8 @@
     "terraform",
     "ramen"
   ],
+  "recorded_at": "2026-06-07T22:52:27Z",
+  "recordings_source": "RAMEN_AZURE_PARITY=1 RAMEN_AZURE_PARITY_RECORD_UPDATE=1 RAMEN_AZURE_PARITY_LANE=z05 with local OpenTofu, Ramen+udon, the approved Azure SQL resource group/server profile, disposable Basic databases, and post-delete absence verification.",
   "scenarios": [
     {
       "name": "sql_database_update_drift_static",
@@ -63,14 +68,19 @@
         "sku.tier"
       ],
       "expected_transitions": [
-        "static-update-plan",
-        "static-read-plan",
-        "static-delete-plan"
+        "create",
+        "read",
+        "no-op",
+        "delete",
+        "post-delete-missing"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/azure/z05/live.observations.json"
       ]
     }
   ],
   "notes": [
-    "Z05 is planned as a static update/drift follow-on to Z01 before any live SQL mutation.",
+    "Z05 live mutation is approved for one disposable low-cost SQL database per runtime in the approved SQL server profile.",
     "Any future live run is limited to one disposable low-cost database, one bounded update field, delete, and post-delete absence verification."
   ]
 }
