@@ -80,7 +80,7 @@
       "api_sources": [{"kind": "openapi", "id": "azure-sql", "path": "testdata/parity/azure/z01/openapi/sql.json"}],
       "seed_operation": "Databases_CreateOrUpdate",
       "approved_fixture": "testdata/parity/azure/z01/ramen/project.uws.yaml",
-      "role_match": "divergent"
+      "role_match": "exact"
     },
     {
       "row": "Z02",
@@ -116,7 +116,7 @@
       "api_sources": [{"kind": "openapi", "id": "azure-sql", "path": "testdata/parity/azure/z05/openapi/sql.json"}],
       "seed_operation": "Databases_CreateOrUpdate",
       "approved_fixture": "testdata/parity/azure/z05/ramen/project.uws.yaml",
-      "role_match": "divergent"
+      "role_match": "exact"
     },
     {
       "row": "Y01",

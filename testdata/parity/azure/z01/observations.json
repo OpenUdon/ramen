@@ -80,6 +80,6 @@
     "Z01 is the first Azure parity lane and starts from the M28/M38 Azure SQL create/read/delete path.",
     "Live execution remains opt-in, must use a disposable ramen-parity-z01-* database name, must use at least a 30-attempt waiter, and must verify post-delete absence before any sanitized recording is committed.",
     "The committed recording matched API-visible create/read/delete behavior across OpenTofu, Terraform, and Ramen+udon.",
-    "The recording preserves no-op metadata, but the API-visible comparison intentionally excludes it because Ramen's put path is API-first while Terraform/OpenTofu report no-op through their plan engines."
+    "The recording preserves no-op metadata, but the API-visible comparison intentionally excludes it because Ramen's lifecycle create path executes the Azure SQL PUT operation while Terraform/OpenTofu report no-op through their plan engines."
   ]
 }

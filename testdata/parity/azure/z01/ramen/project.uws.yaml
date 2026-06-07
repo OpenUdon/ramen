@@ -5,7 +5,7 @@ info:
 uws: 1.4.0
 operations:
   - description: Create or update the Azure SQL database.
-    operationId: z01_sql_database_put
+    operationId: z01_sql_database_create
     sourceDescription: azure-sql
     sourceOperationId: Databases_CreateOrUpdate
   - description: Read the Azure SQL database.
@@ -23,7 +23,7 @@ sourceDescriptions:
 workflows:
   - description: Planned parity workflow for create/read/delete replay.
     steps:
-      - operationRef: z01_sql_database_put
+      - operationRef: z01_sql_database_create
         stepId: create
       - operationRef: z01_sql_database_read
         stepId: read
@@ -65,8 +65,8 @@ x-ramen-desired-state:
         provider: azure
       name: z01_sql_database
       operations:
-        put:
-          purpose: put
+        create:
+          purpose: create
           method: PUT
           source_kind: openapi
           source_id: azure-sql
@@ -94,44 +94,44 @@ x-ramen-desired-state:
           max_attempts: 2
       request_bindings:
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: subscriptionId
           request_path: subscriptionId
           location: path
           required: true
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: resourceGroupName
           request_path: resourceGroupName
           location: path
           required: true
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: serverName
           request_path: serverName
           location: path
           required: true
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: databaseName
           request_path: databaseName
           location: path
           required: true
           identity: true
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: api-version
           request_path: api-version
           location: query
           required: true
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: location
           request_path: location
           location: body
           required: true
         - operation_id: Databases_CreateOrUpdate
-          operation_role: put
+          operation_role: create
           path: sku
           request_path: sku
           location: body
@@ -200,7 +200,7 @@ x-ramen-desired-state:
           required: true
       redaction: {}
       required_operations:
-        - put
+        - create
         - read
         - delete
       schema: []

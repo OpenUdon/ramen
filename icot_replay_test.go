@@ -61,28 +61,22 @@ func TestICoTReplayProjectsValidate(t *testing.T) {
 func TestICoTReplayRoleSetsMatchApproved(t *testing.T) {
 	entries := loadICoTReplayInventory(t)
 	exactMatches := 0
-	divergentMatches := 0
 	for _, entry := range entries {
 		t.Run(entry.Row, func(t *testing.T) {
 			result, _ := draftICoTReplayProject(t, entry)
 			generated := operationRoleSet(t, result.ProjectPath)
 			approved := operationRoleSet(t, entry.ApprovedFixture)
-			switch entry.RoleMatch {
-			case "exact":
-				if !reflect.DeepEqual(generated, approved) {
-					t.Fatalf("generated role set = %#v, want approved %#v", generated, approved)
-				}
-				exactMatches++
-			case "divergent":
-				assertPinnedAzureSQLDivergence(t, entry.Row, generated, approved)
-				divergentMatches++
-			default:
+			if entry.RoleMatch != "exact" {
 				t.Fatalf("unknown role_match %q", entry.RoleMatch)
 			}
+			if !reflect.DeepEqual(generated, approved) {
+				t.Fatalf("generated role set = %#v, want approved %#v", generated, approved)
+			}
+			exactMatches++
 		})
 	}
-	if exactMatches != 22 || divergentMatches != 2 {
-		t.Fatalf("role match counts exact=%d divergent=%d, want exact=22 divergent=2", exactMatches, divergentMatches)
+	if exactMatches != 24 {
+		t.Fatalf("role match count exact=%d, want exact=24", exactMatches)
 	}
 }
 
@@ -112,6 +106,34 @@ func TestICoTReplayInventoryCoversParityFixtures(t *testing.T) {
 	}
 	if rows["Z06"] {
 		t.Fatalf("Z06 is observations-only and must not be a runnable replay row")
+	}
+}
+
+func TestICoTReplayInventoryMatchesParityDoc(t *testing.T) {
+	entries := loadICoTReplayInventory(t)
+	doc, err := os.ReadFile(filepath.Join("docs", "parity_nl.md"))
+	if err != nil {
+		t.Fatalf("read parity natural-language doc: %v", err)
+	}
+	text := string(doc)
+	for _, entry := range entries {
+		if !strings.Contains(text, "| "+entry.Row+" |") {
+			t.Fatalf("docs/parity_nl.md missing row %s", entry.Row)
+		}
+		if !strings.Contains(text, entry.ProjectName) {
+			t.Fatalf("docs/parity_nl.md missing project name %s for row %s", entry.ProjectName, entry.Row)
+		}
+		if !strings.Contains(text, "../"+entry.ApprovedFixture) {
+			t.Fatalf("docs/parity_nl.md missing approved fixture %s for row %s", entry.ApprovedFixture, entry.Row)
+		}
+		for _, source := range entry.APISources {
+			if !strings.Contains(text, source.Kind+":"+source.ID+"="+source.Path) {
+				t.Fatalf("docs/parity_nl.md missing API source %s:%s=%s for row %s", source.Kind, source.ID, source.Path, entry.Row)
+			}
+		}
+	}
+	if !strings.Contains(text, "| Z06 |") {
+		t.Fatalf("docs/parity_nl.md must keep observations-only Z06 visible")
 	}
 }
 
@@ -196,33 +218,6 @@ func operationRoleSet(t *testing.T, path string) map[string]string {
 		out[purpose] = role.OperationID
 	}
 	return out
-}
-
-func assertPinnedAzureSQLDivergence(t *testing.T, row string, generated, approved map[string]string) {
-	t.Helper()
-	if row != "Z01" && row != "Z05" {
-		t.Fatalf("only Z01/Z05 may be divergent, got %s", row)
-	}
-	if reflect.DeepEqual(generated, approved) {
-		t.Fatalf("%s unexpectedly became exact; update the inventory and docs intentionally", row)
-	}
-	if generated["create"] != "Databases_CreateOrUpdate" || approved["put"] != "Databases_CreateOrUpdate" {
-		t.Fatalf("%s create/put divergence = generated %#v approved %#v", row, generated, approved)
-	}
-	if _, ok := generated["put"]; ok {
-		t.Fatalf("%s generated role set now includes put: %#v", row, generated)
-	}
-	if _, ok := approved["create"]; ok {
-		t.Fatalf("%s approved role set unexpectedly includes create: %#v", row, approved)
-	}
-	for _, role := range []string{"read", "delete"} {
-		if generated[role] != approved[role] {
-			t.Fatalf("%s role %s operation = %q, want approved %q", row, role, generated[role], approved[role])
-		}
-	}
-	if len(generated) != len(approved) {
-		t.Fatalf("%s generated role count = %d, want approved count %d", row, len(generated), len(approved))
-	}
 }
 
 func firstNonEmptyForTest(values ...string) string {

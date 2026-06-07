@@ -359,7 +359,7 @@ func runAzureParityRamenRuntime(ctx context.Context, t *testing.T, _ string) azu
 			return result, nil
 		},
 	}
-	if err := buildAndApplyAzureParityPlan(ctx, projectPath, statePath, "put", filepath.Join(workDir, "put-plan.json"), udonExecutor); err != nil {
+	if err := buildAndApplyAzureParityPlan(ctx, projectPath, statePath, "create", filepath.Join(workDir, "create-plan.json"), udonExecutor); err != nil {
 		return azureParityFailure(runtimeName, "apply", err)
 	}
 	afterApply, err := observeAzureParitySQLDatabase(ctx, resourceGroup, serverName, databaseName)

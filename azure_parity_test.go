@@ -507,11 +507,11 @@ func assertAzureParityStaticFixtures(t *testing.T, lane string, artifact azurePa
 	}
 	switch lane {
 	case "z01":
-		assertAzureParityPlanFixture(t, lane, "put", "Databases_CreateOrUpdate", "put")
+		assertAzureParityPlanFixture(t, lane, "create", "Databases_CreateOrUpdate", "create")
 		assertAzureParityPlanFixture(t, lane, "read", "Databases_Get", "read")
 		assertAzureParityPlanFixture(t, lane, "delete", "Databases_Delete", "delete")
 		assertAzureParityRequestBindings(t, lane, map[string][]string{
-			"put":    {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version", "location", "sku"},
+			"create": {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version", "location", "sku"},
 			"read":   {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version"},
 			"delete": {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version"},
 		})
@@ -539,12 +539,12 @@ func assertAzureParityStaticFixtures(t *testing.T, lane string, artifact azurePa
 			"delete": {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
 		})
 	case "z05":
-		assertAzureParityPlanFixture(t, lane, "put", "Databases_CreateOrUpdate", "put")
+		assertAzureParityPlanFixture(t, lane, "create", "Databases_CreateOrUpdate", "create")
 		assertAzureParityPlanFixture(t, lane, "read", "Databases_Get", "read")
 		assertAzureParityPlanFixture(t, lane, "delete", "Databases_Delete", "delete")
 		assertAzureParitySettleFixture(t, lane)
 		assertAzureParityRequestBindings(t, lane, map[string][]string{
-			"put":    {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version", "location", "sku"},
+			"create": {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version", "location", "sku"},
 			"read":   {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version"},
 			"delete": {"subscriptionId", "resourceGroupName", "serverName", "databaseName", "api-version"},
 		})
@@ -669,9 +669,6 @@ func azureParitySummaryHasOne(summary tfplan.Summary, field string) bool {
 func assertAzureParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
 	t.Helper()
 	action := "create"
-	if lane == "z01" || lane == "z05" {
-		action = "put"
-	}
 	if lane == "z03" {
 		action = "read"
 	}

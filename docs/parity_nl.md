@@ -41,10 +41,10 @@ inventory with deterministic fixture-seed answers. The current recorded M41
 baseline is:
 
 - 24/24 runnable rows generated native projects that validate.
-- 22/24 runnable rows matched the approved fixture role and operation-ID sets.
-- Z01 and Z05 still differ in the primary Azure SQL role key:
-  generated `create` versus approved API-shaped `put`, while using the same
-  `Databases_CreateOrUpdate` source operation and workflow shape.
+- 24/24 runnable rows match the approved fixture role and operation-ID sets.
+- Z01 and Z05 treat idempotent Azure SQL `Databases_CreateOrUpdate` as a
+  lifecycle `create` role while preserving the underlying `PUT` method and
+  source operation.
 - Z06 remains skipped because it has no standalone workflow to author.
 
 Recent authoring fixes also keep request and response schemas separate and
@@ -64,11 +64,11 @@ committed `testdata/parity/icot-replay.json` inventory.
 | K06 | Kubernetes Opaque Secret lifecycle/update | Recorded non-sensitive Secret create/read/update/no-op/destroy observations. | HCL, focused OpenAPI, native create fixture, and native update fixture are committed and replayed. | Validates; role and operation set matches. | Keep real secret material out of fixtures and recordings. |
 | K07 | Kubernetes RoleBinding lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
 | K08 | Kubernetes ClusterRole lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | Update remains parked until specific evidence exists. |
-| Z01 | Azure SQL database create/read/delete | Recorded Azure SQL observations across OpenTofu, Terraform, and Ramen+udon. | HCL, focused Azure SQL OpenAPI, and native fixture are committed and replayed. | Validates; same source operation, but generated role key differs from approved `put` role. | Decide whether API-shaped `put` role naming or generic `create` is the expected iCoT output. |
+| Z01 | Azure SQL database create/read/delete | Recorded Azure SQL observations across OpenTofu, Terraform, and Ramen+udon. | HCL, focused Azure SQL OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | Keep lifecycle `create` role aligned with the idempotent `Databases_CreateOrUpdate` source operation. |
 | Z02 | Azure Cosmos DB account lifecycle | Recorded Cosmos observations, refreshed through the settle path. | HCL, focused Cosmos OpenAPI, native fixture, runtime hints, and settle metadata are committed and replayed. | Validates; role and operation set matches. | Preserve desired `location` and similar inputs as writable, not response-derived identity. |
 | Z03 | Azure Resource Group read | Static/read fixture; no live mutation in scope. | HCL, focused Resources OpenAPI, and native read fixture are committed and replayed. | Validates; role and operation set matches. | It is read-only evidence, not create/update parity. |
 | Z04 | Azure Storage Account lifecycle | Planned/static fixture; live mutation parked. | HCL, focused Storage OpenAPI, native create/read/delete fixture, and static checks are committed. | Validates; role and operation set matches. | Live recording and mapping advertisement remain parked pending cost, cleanup, and review. |
-| Z05 | Azure SQL database PUT/update follow-on | Planned/static fixture; live update parked. | HCL, focused Azure SQL OpenAPI, native put/read/delete fixture, and static checks are committed. | Validates; same source operation, but generated role key differs from approved `put` role. | Static read/drift and live update/no-op evidence remain parked. |
+| Z05 | Azure SQL database create-or-update follow-on | Planned/static fixture; live update parked. | HCL, focused Azure SQL OpenAPI, native create/read/delete fixture, and static checks are committed. | Validates; role and operation set matches. | Static read/drift and live update/no-op evidence remain parked. |
 | Z06 | Cosmos settle re-recording closure | Observations-only closure for Z02 settle behavior. | No standalone HCL/native fixture; points back to Z02. | Not runnable. | None as an authoring row; future work belongs to Z02 recording refresh if needed. |
 | Y01 | Google Cloud Storage bucket lifecycle | Static-readiness evidence; live promotion moved to later Google rows. | HCL, Discovery source, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Live mutation remains parked for this row. |
 | Y02 | Google Cloud Storage bucket read-only | Opt-in live read-only run passed; no committed live recording. | HCL data-source fixture, Discovery source, and native read fixture are committed and replayed. | Validates; role and operation set matches. | No committed live recording; relies on static/default checks unless rerun live. |
@@ -84,12 +84,12 @@ committed `testdata/parity/icot-replay.json` inventory.
 
 ## Remaining Cross-Cutting Gaps
 
-- Keep `icot_replay_test.go` and `testdata/parity/icot-replay.json` in sync
-  with this table whenever a parity row, seed operation, or accepted
-  role-operation divergence changes.
-- Decide how iCoT should represent API-first mutation roles for Azure SQL:
-  method-shaped `put` roles preserve API intent, while generic `create` roles
-  align with lifecycle inference.
+- Keep `icot_replay_test.go`, `testdata/parity/icot-replay.json`, and this
+  table in sync; the replay gate now checks row, project, fixture, and API
+  source coverage.
+- Preserve the Azure SQL convention: lifecycle-authored create-or-update
+  operations use `create` roles while retaining their underlying API method and
+  source operation identity.
 - Keep `ramen convert` expectations precise: conversion is a migration aid into
   native artifacts, not a promise to recreate every reviewed parity fixture
   without curated metadata.
