@@ -28,6 +28,7 @@ const (
 )
 
 var googleParityLanes = []string{"y01", "y02", "y03", "y04", "y05", "y06"}
+var googleParityLiveRunnerLanes = []string{"y02", "y03", "y04", "y05", "y06"}
 
 type googleParityArtifact struct {
 	Version          string                 `json:"version"`
@@ -201,6 +202,9 @@ func assertGoogleParityArtifact(t *testing.T, lane string, artifact googleParity
 		}
 	}
 	assertGoogleParitySafetyContract(t, lane, artifact.Safety)
+	if artifact.Safety.LiveEnabled && !slices.Contains(googleParityLiveRunnerLanes, lane) {
+		t.Fatalf("%s is marked live-enabled but has no registered Google live runner", wantLane)
+	}
 	for _, scenario := range artifact.Scenarios {
 		if len(scenario.OperationIDs) == 0 || len(scenario.ObservedFields) == 0 || len(scenario.ExpectedTransitions) == 0 {
 			t.Fatalf("scenario %s is incomplete: %#v", scenario.Name, scenario)

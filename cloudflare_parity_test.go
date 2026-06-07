@@ -29,6 +29,7 @@ const (
 )
 
 var cloudflareParityLanes = []string{"c01", "c02", "c03", "c04", "c05"}
+var cloudflareParityLiveRunnerLanes = []string{"c01", "c02", "c03", "c04", "c05"}
 
 type cloudflareParityArtifact struct {
 	Version          string                     `json:"version"`
@@ -231,6 +232,9 @@ func assertCloudflareParityArtifact(t *testing.T, lane string, artifact cloudfla
 		}
 	}
 	assertCloudflareParitySafetyContract(t, lane, artifact.Safety)
+	if artifact.Safety.LiveEnabled && !slices.Contains(cloudflareParityLiveRunnerLanes, lane) {
+		t.Fatalf("%s is marked live-enabled but has no registered Cloudflare live runner", wantLane)
+	}
 	assertCloudflareParityRecordingPolicy(t, lane, artifact.Recording)
 	assertCloudflareParityPromotionPolicy(t, lane, artifact.Promotion)
 	for _, scenario := range artifact.Scenarios {

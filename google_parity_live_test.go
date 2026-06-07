@@ -33,6 +33,9 @@ func TestGoogleProviderParityLive(t *testing.T) {
 		t.Skipf("%s=%s is live-disabled by artifact metadata", googleParityLaneEnv, selectedLane)
 	}
 	requireGoogleParityLiveEnv(t, artifact)
+	if !slices.Contains(googleParityLiveRunnerLanes, selectedLane) {
+		t.Fatalf("%s=%s is marked live-enabled but has no registered Google live runner", googleParityLaneEnv, selectedLane)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Minute)
 	defer cancel()
 	var recording googleParityLiveRecording
@@ -48,7 +51,7 @@ func TestGoogleProviderParityLive(t *testing.T) {
 	case "y06":
 		recording = runGoogleParityY06Live(ctx, t, artifact)
 	default:
-		t.Skipf("%s=%s is not live-enabled in this implementation", googleParityLaneEnv, selectedLane)
+		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", googleParityLaneEnv, selectedLane)
 	}
 	compareOrUpdateGoogleParityRecording(t, recording, filepath.Join(googleParityFixtureRoot, selectedLane, "live.observations.json"))
 }

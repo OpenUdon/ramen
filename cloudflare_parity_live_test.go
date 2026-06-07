@@ -29,6 +29,9 @@ func TestCloudflareProviderParityLive(t *testing.T) {
 		t.Skipf("%s=%s is live-disabled by artifact metadata", cloudflareParityLaneEnv, selectedLane)
 	}
 	requireCloudflareParityLiveEnv(t, artifact)
+	if !slices.Contains(cloudflareParityLiveRunnerLanes, selectedLane) {
+		t.Fatalf("%s=%s is marked live-enabled but has no registered Cloudflare live runner", cloudflareParityLaneEnv, selectedLane)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
 	defer cancel()
 	var recording cloudflareParityLiveRecording
@@ -44,7 +47,7 @@ func TestCloudflareProviderParityLive(t *testing.T) {
 	case "c05":
 		recording = runCloudflareParityC05Live(ctx, t, artifact)
 	default:
-		t.Skipf("%s=%s is not live-enabled in this implementation", cloudflareParityLaneEnv, selectedLane)
+		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", cloudflareParityLaneEnv, selectedLane)
 	}
 	compareOrUpdateCloudflareParityRecording(t, recording, filepath.Join(cloudflareParityFixtureRoot, selectedLane, "live.observations.json"))
 }

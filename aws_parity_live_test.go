@@ -33,6 +33,9 @@ func TestAWSProviderParityLive(t *testing.T) {
 		t.Skipf("%s=%s is live-disabled by artifact metadata", awsParityLaneEnv, selectedLane)
 	}
 	requireAWSParityLiveEnv(t, artifact)
+	if !slices.Contains(awsParityLiveRunnerLanes, selectedLane) {
+		t.Fatalf("%s=%s is marked live-enabled but has no registered AWS live runner", awsParityLaneEnv, selectedLane)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Minute)
 	defer cancel()
 	var recording awsParityLiveRecording
@@ -40,7 +43,7 @@ func TestAWSProviderParityLive(t *testing.T) {
 	case "w01":
 		recording = runAWSParityW01Live(ctx, t, artifact)
 	default:
-		t.Skipf("%s=%s is not live-enabled in this implementation", awsParityLaneEnv, selectedLane)
+		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", awsParityLaneEnv, selectedLane)
 	}
 	compareOrUpdateAWSParityRecording(t, recording, filepath.Join(awsParityFixtureRoot, selectedLane, "live.observations.json"))
 }

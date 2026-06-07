@@ -28,6 +28,7 @@ const (
 )
 
 var awsParityLanes = []string{"w01", "w02", "w03", "w04"}
+var awsParityLiveRunnerLanes = []string{"w01"}
 
 type awsParityArtifact struct {
 	Version   string              `json:"version"`
@@ -193,6 +194,9 @@ func assertAWSParityArtifact(t *testing.T, lane string, artifact awsParityArtifa
 		}
 	}
 	assertAWSParitySafetyContract(t, lane, artifact.Safety)
+	if artifact.Safety.LiveEnabled && !slices.Contains(awsParityLiveRunnerLanes, lane) {
+		t.Fatalf("%s is marked live-enabled but has no registered AWS live runner", wantLane)
+	}
 	assertAWSParityRecordingPolicy(t, lane, artifact.Recording)
 	assertAWSParityPromotionPolicy(t, lane, artifact.Promotion)
 	for _, scenario := range artifact.Scenarios {
