@@ -29,6 +29,7 @@ const (
 )
 
 var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06"}
+var azureParityLiveRunnerLanes = []string{"z01", "z02"}
 
 type azureParityArtifact struct {
 	Version          string                `json:"version"`
@@ -207,6 +208,9 @@ func assertAzureParityArtifact(t *testing.T, lane string, artifact azureParityAr
 		t.Fatalf("resource prefix = %q, want ramen-parity-%s-*", artifact.Safety.ResourcePrefix, lane)
 	}
 	assertAzureParitySafetyContract(t, lane, artifact.Safety)
+	if artifact.Safety.LiveEnabled && !slices.Contains(azureParityLiveRunnerLanes, lane) {
+		t.Fatalf("%s is marked live-enabled but has no registered Azure live runner", wantLane)
+	}
 	for _, runtime := range []string{"opentofu", "terraform", "ramen"} {
 		if !slices.Contains(artifact.Runtimes, runtime) {
 			t.Fatalf("artifact runtimes %v missing %s", artifact.Runtimes, runtime)

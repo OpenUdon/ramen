@@ -33,6 +33,9 @@ func TestAzureProviderParityLive(t *testing.T) {
 		t.Skipf("%s=%s is live-disabled by artifact metadata", azureParityLaneEnv, selectedLane)
 	}
 	requireAzureParityLiveEnv(t, artifact)
+	if !slices.Contains(azureParityLiveRunnerLanes, selectedLane) {
+		t.Fatalf("%s=%s is marked live-enabled but has no registered Azure live runner", azureParityLaneEnv, selectedLane)
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Minute)
 	defer cancel()
 	var recording azureParityLiveRecording
@@ -42,7 +45,7 @@ func TestAzureProviderParityLive(t *testing.T) {
 	case "z02":
 		recording = runAzureParityZ02Live(ctx, t, artifact)
 	default:
-		t.Skipf("%s=%s is not live-enabled in this implementation", azureParityLaneEnv, selectedLane)
+		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", azureParityLaneEnv, selectedLane)
 	}
 	compareOrUpdateAzureParityRecording(t, recording, filepath.Join(azureParityFixtureRoot, selectedLane, "live.observations.json"))
 }
