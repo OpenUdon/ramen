@@ -18,6 +18,13 @@ import (
 	"github.com/OpenUdon/uws/uws1"
 )
 
+func TestEncodeBindingValueBase64(t *testing.T) {
+	got := encodeBindingValue(project.RequestBinding{Encoding: "base64"}, "ramen h03 create")
+	if got != "cmFtZW4gaDAzIGNyZWF0ZQ==" {
+		t.Fatalf("encoded binding value = %#v", got)
+	}
+}
+
 func TestApplyAWSIAMRoleCreateThenNoOpWithMockExecutor(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")

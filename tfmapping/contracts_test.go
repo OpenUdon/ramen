@@ -20,6 +20,7 @@ func TestMappingHardeningContractsMarshal(t *testing.T) {
 			OperationRole: OperationRoleCreate,
 			Path:          "name",
 			RequestPath:   "QueueName",
+			Encoding:      "base64",
 			Required:      true,
 		}},
 		ResponseBindings: []ResponseBinding{{
@@ -49,6 +50,7 @@ func TestMappingHardeningContractsMarshal(t *testing.T) {
 	for _, want := range []string{
 		`"response_derived_identity":true`,
 		`"request_path":"QueueName"`,
+		`"encoding":"base64"`,
 		`"response_path":"QueueUrl"`,
 		`"kind":"json_semantic"`,
 		`"remove_config"`,

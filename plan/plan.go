@@ -1009,6 +1009,7 @@ func requestBindingsFromMapping(bindings []tfmapping.RequestBinding) []project.R
 			Path:          binding.Path,
 			RequestPath:   binding.RequestPath,
 			Location:      binding.Location,
+			Encoding:      binding.Encoding,
 			Required:      binding.Required,
 			Identity:      binding.Identity,
 		})

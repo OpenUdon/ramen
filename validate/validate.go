@@ -207,6 +207,11 @@ func validateSchema(resource project.Resource, profileRedaction project.Redactio
 		} else if strings.TrimSpace(binding.OperationID) != "" && !operationIDMatchesRole(resource, binding.OperationRole, binding.OperationID) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_operation_mismatch", Severity: "error", Message: fmt.Sprintf("resource %s request binding operation_id %s does not match %s operation metadata", resource.Address, binding.OperationID, binding.OperationRole), Address: resource.Address, OperationID: binding.OperationID})
 		}
+		switch strings.TrimSpace(binding.Encoding) {
+		case "", "base64":
+		default:
+			diagnostics = append(diagnostics, Diagnostic{Code: "validate.binding_encoding_unknown", Severity: "error", Message: fmt.Sprintf("resource %s request binding encoding %q is not supported", resource.Address, binding.Encoding), Address: resource.Address, OperationID: binding.OperationID})
+		}
 		if binding.Required && !hasAttributePath(resource.Attributes, binding.Path) && !responseDerivedStatePath(resource, binding.Path) {
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.attribute_required", Severity: "error", Message: fmt.Sprintf("resource %s requires request-bound attribute %s", resource.Address, binding.Path), Address: resource.Address})
 		}

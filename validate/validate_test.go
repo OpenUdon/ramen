@@ -41,6 +41,37 @@ func TestRunValidatesNativeProjectAndAPISourceOperations(t *testing.T) {
 	}
 }
 
+func TestRunRejectsUnknownRequestBindingEncoding(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Attributes: map[string]any{"name": "example"},
+			Operations: map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+			RequestBindings: []project.RequestBinding{{
+				OperationRole: "create",
+				OperationID:   "createExample",
+				Path:          "name",
+				RequestPath:   "name",
+				Encoding:      "rot13",
+			}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.Valid || !hasValidateCode(result, "validate.binding_encoding_unknown") {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestRunReportsUnknownOperation(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")

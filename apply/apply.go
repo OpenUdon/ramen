@@ -3,6 +3,7 @@ package apply
 import (
 	"cmp"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -601,6 +602,7 @@ func applyNativeRequestBindings(request map[string]any, resource tfplan.Resource
 		if !ok {
 			continue
 		}
+		value = encodeBindingValue(binding, value)
 		location := strings.ToLower(strings.TrimSpace(binding.Location))
 		if location == "" {
 			location = "body"
@@ -650,6 +652,22 @@ func bindingValue(binding project.RequestBinding, attrs, identity map[string]any
 		}
 	}
 	return nil, false
+}
+
+func encodeBindingValue(binding project.RequestBinding, value any) any {
+	switch strings.TrimSpace(binding.Encoding) {
+	case "base64":
+		switch typed := value.(type) {
+		case string:
+			return base64.StdEncoding.EncodeToString([]byte(typed))
+		case []byte:
+			return base64.StdEncoding.EncodeToString(typed)
+		default:
+			return base64.StdEncoding.EncodeToString([]byte(fmt.Sprint(typed)))
+		}
+	default:
+		return value
+	}
 }
 
 func lookupBindingValue(values map[string]any, path string) (any, bool) {

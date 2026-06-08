@@ -146,6 +146,7 @@ type RequestBinding struct {
 	Path          string `json:"path"`
 	RequestPath   string `json:"request_path"`
 	Location      string `json:"location,omitempty"`
+	Encoding      string `json:"encoding,omitempty"`
 	Required      bool   `json:"required,omitempty"`
 	Identity      bool   `json:"identity,omitempty"`
 }
