@@ -368,7 +368,7 @@ access, are:
 
 | rank | provider | why it fits the conversion corpus |
 |---:|---|---|
-| 1 | GitHub (`integrations/github`) | Static mapper/parity work now covers repository, issue label, and repository file resources over a focused REST OpenAPI subset; a broad provider fixture scanner and full corpus entries are still pending. |
+| 1 | GitHub (`integrations/github`) | Recorded mapper/parity work now covers repository, issue label, and repository file resources over a focused REST OpenAPI subset; a broad provider fixture scanner and full corpus entries are still pending. |
 | 2 | Datadog (`DataDog/datadog`) | Very high Terraform usage, broad SaaS REST API, many monitor/dashboard/synthetic resources suitable for desired-state mapping. |
 | 3 | Grafana (`grafana/grafana`) | Strong dashboard/folder/alerting provider, REST-shaped API surface, useful local/open-source and cloud targets. |
 | 4 | OCI (`oracle/oci`) | Large cloud provider outside the current five; likely high corpus volume, but heavier API-source and auth work. |

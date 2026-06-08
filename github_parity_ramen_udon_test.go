@@ -1172,26 +1172,6 @@ func sanitizeGitHubParityOutput(output string) string {
 	return output
 }
 
-func assertGitHubParityObservationSanitized(t *testing.T, lane string, observation githubParityRuntimeObservation) {
-	t.Helper()
-	forbidden := []string{"authorization", "bearer", "credential", "raw_response", "secret", "token"}
-	values := []string{observation.Resource}
-	for key, value := range observation.Fields {
-		values = append(values, key)
-		if valueString, ok := value.(string); ok {
-			values = append(values, valueString)
-		}
-	}
-	for _, value := range values {
-		normalized := strings.ToLower(value)
-		for _, bad := range forbidden {
-			if strings.Contains(normalized, bad) {
-				t.Fatalf("%s recording contains forbidden material %q in %q", lane, bad, value)
-			}
-		}
-	}
-}
-
 func githubParityRuntimeWorkDir(t *testing.T, runtimeName, repoName string) string {
 	t.Helper()
 	debugRoot := strings.TrimSpace(os.Getenv("RAMEN_GITHUB_DEBUG_DIR"))

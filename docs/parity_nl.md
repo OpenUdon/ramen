@@ -21,10 +21,10 @@ and API source inputs. Z06 is observations-only: it records the Z02 Cosmos DB
 settle/re-recording closure and intentionally has no standalone Terraform HCL,
 native Ramen project, API source, or iCoT prompt.
 
-GitHub `H01`-`H03` are a newer planned/static parity track with an opt-in H04
-live-account harness. They remain outside the M40/M41 25-row prompt inventory
-and the committed 24-row iCoT replay gate until GitHub authoring behavior is
-separately reviewed and pinned.
+GitHub `H01`-`H03` are recorded provider/runtime parity tracks with an opt-in
+H04 live-account harness. They remain outside the M40/M41 25-row prompt
+inventory and the committed 24-row iCoT replay gate until GitHub authoring
+behavior is separately reviewed and pinned.
 
 ## Command Roles
 
@@ -86,9 +86,9 @@ committed `testdata/parity/icot-replay.json` inventory.
 | C03 | Cloudflare R2 metadata variants | Recorded OpenTofu, Terraform, and Ramen+udon R2 metadata mutability observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C04 | Cloudflare D1 database create/read | Recorded OpenTofu, Terraform, and Ramen+udon D1 create/read observations. | HCL, focused OpenAPI, native create/read fixture, and sanitized live recording are committed and replayed with direct delete cleanup. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C05 | Cloudflare D1 UUID/delete unlock | Recorded OpenTofu, Terraform, and Ramen+udon D1 UUID/delete observations. | HCL, focused OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | D1 update is intentionally unsupported because the focused API source exposes no D1 update operation; future recording updates require cleanup and secret review. |
-| H01 | GitHub organization repository lifecycle | Planned/static GitHub REST repository lifecycle evidence; no live recording committed. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and opt-in H04 live runner are committed. | Not in the 24-row iCoT replay gate yet. | Run H04 with scoped org credentials, then promote sanitized disposable private repository recording after cleanup review. |
-| H02 | GitHub issue label lifecycle | Planned/static GitHub REST issue label lifecycle evidence; no live recording committed. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and opt-in H04 live runner are committed. | Not in the 24-row iCoT replay gate yet. | Run H04 setup/cleanup for disposable repository plus label, then promote sanitized recording. |
-| H03 | GitHub repository file lifecycle | Planned/static GitHub REST contents evidence with base64 request binding; no live recording committed. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and opt-in H04 live runner are committed. | Not in the 24-row iCoT replay gate yet. | Run H04 setup/cleanup for initialized disposable repository and keep payload bytes out of recordings. |
+| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 24-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
+| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 24-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
+| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 24-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
 
 ## Remaining Cross-Cutting Gaps
 
@@ -164,7 +164,7 @@ project name to pass to iCoT.
 
 ## GitHub
 
-These rows are planned/static provider parity entries and are not part of the
+These rows are recorded provider/runtime parity entries and are not part of the
 existing committed iCoT replay gate.
 
 | Entry | Original Terraform HCL | Converted Ramen/OpenUdon Workflow | Natural-Language Terraform Request | Natural-Language Ramen iCoT Request | API Source | Project Name |

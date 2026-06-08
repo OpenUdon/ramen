@@ -1,7 +1,7 @@
 {
   "version": "ramen.github.provider-parity.v1",
   "lane": "H02",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "integrations/github",
     "version_constraint": "~> 6.0"
@@ -34,17 +34,17 @@
       "delete label and repository before recording",
       "verify label and repository absence after every runtime"
     ],
-    "promotion": "H02 has an opt-in H04 live runner; recording promotion still requires a successful scoped run and sanitized cleanup review."
+    "promotion": "H02 has a committed sanitized H04 live recording after scoped execution and cleanup review."
   },
   "recording": {
-    "status": "deferred",
+    "status": "recorded",
     "artifact_path": "testdata/parity/github/h02/live.observations.json",
     "update_env": "RAMEN_GITHUB_PARITY_RECORD_UPDATE",
     "compare_without_update": true,
-    "decision": "No live GitHub recording is committed; promotion requires explicit opt-in execution and sanitized cleanup evidence."
+    "decision": "Sanitized live GitHub recording committed after successful scoped execution and cleanup absence verification on 2026-06-08."
   },
   "promotion": {
-    "next": "Run the H04 opt-in H02 live parity pass with a scoped GitHub organization token, then review sanitized observations before promotion.",
+    "next": "Future recording updates require the H04 opt-in H02 live parity pass, scoped GitHub organization token, cleanup absence, and sanitizer review.",
     "live_candidate": true,
     "preconditions": [
       "scoped GitHub organization token",
@@ -72,12 +72,16 @@
         "issues/update-label",
         "issues/delete-label"
       ],
+      "observation_artifacts": [
+        "testdata/parity/github/h02/live.observations.json"
+      ],
       "observed_fields": [
         "after_create.exists",
         "after_create.color",
         "after_update.description",
         "no_op",
-        "after_delete.exists"
+        "after_delete.exists",
+        "after_cleanup.exists"
       ],
       "expected_transitions": [
         "setup-repository",
@@ -93,7 +97,7 @@
   ],
   "notes": [
     "H02 manages only the label; disposable repository setup/cleanup belongs to the live harness.",
-    "Default replay validates static HCL/native/OpenAPI fixtures only.",
+    "Default replay validates static HCL/native/OpenAPI fixtures and the committed sanitized live recording.",
     "The existing 24-row iCoT replay gate is unchanged; GitHub iCoT rows are deferred."
   ]
 }

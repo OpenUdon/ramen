@@ -1,7 +1,7 @@
 {
   "version": "ramen.github.provider-parity.v1",
   "lane": "H03",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "integrations/github",
     "version_constraint": "~> 6.0"
@@ -20,7 +20,7 @@
     "credential_env": "UDON_CREDENTIAL_GITHUB_TOKEN",
     "resource_prefix": "ramen-parity-h03-",
     "requires_explicit_lane": true,
-    "live_enabled": false,
+    "live_enabled": true,
     "cleanup_fallback": "GitHub REST DELETE /repos/{owner}/{repo}/contents/{path} plus DELETE /repos/{owner}/{repo}",
     "required_env": [
       "RAMEN_GITHUB_TOFU",
@@ -34,20 +34,19 @@
       "delete file and repository before recording",
       "verify file and repository absence after every runtime"
     ],
-    "promotion": "H03 live execution is parked until the Ramen+udon DELETE request body reaches GitHub with message and sha."
+    "promotion": "H03 has a committed sanitized H04 live recording after scoped execution and cleanup review."
   },
   "recording": {
-    "status": "deferred",
+    "status": "recorded",
     "artifact_path": "testdata/parity/github/h03/live.observations.json",
     "update_env": "RAMEN_GITHUB_PARITY_RECORD_UPDATE",
     "compare_without_update": true,
-    "decision": "No live GitHub recording is committed; promotion is blocked until Ramen+udon file delete succeeds with a DELETE request body."
+    "decision": "Sanitized live GitHub recording committed after successful scoped execution and cleanup absence verification on 2026-06-08."
   },
   "promotion": {
-    "next": "Fix the H03 Ramen+udon GitHub contents DELETE request body path, then re-enable the opt-in live runner and review sanitized observations before promotion.",
-    "live_candidate": false,
+    "next": "Future recording updates require the H04 opt-in H03 live parity pass, scoped GitHub organization token, cleanup absence, and sanitizer review.",
+    "live_candidate": true,
     "preconditions": [
-      "Ramen+udon sends GitHub contents DELETE body with message and sha",
       "scoped GitHub organization token",
       "cleanup absence verified"
     ]
@@ -71,12 +70,16 @@
         "repos/get-content",
         "repos/delete-file"
       ],
+      "observation_artifacts": [
+        "testdata/parity/github/h03/live.observations.json"
+      ],
       "observed_fields": [
         "after_create.exists",
         "after_create.path",
         "after_update.sha_changed",
         "no_op",
-        "after_delete.exists"
+        "after_delete.exists",
+        "after_cleanup.exists"
       ],
       "expected_transitions": [
         "setup-repository",
@@ -93,7 +96,7 @@
   "notes": [
     "H03 uses request binding encoding=base64 for GitHub REST file content bodies.",
     "H03 update/delete request bindings rely on response-derived sha from read evidence.",
-    "H03 live execution is disabled until the Ramen+udon DELETE request body issue is fixed.",
+    "H03 live execution is enabled after fixing DELETE request body preservation in the udon HTTP client path.",
     "The existing 24-row iCoT replay gate is unchanged; GitHub iCoT rows are deferred."
   ]
 }

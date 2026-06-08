@@ -1,0 +1,50 @@
+{
+  "version": "ramen.github.provider-parity.v1",
+  "lane": "H03",
+  "scenario": "GitHub repository file lifecycle",
+  "recorded_at": "2026-06-08T22:31:44Z",
+  "duration_ms": 25136,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-h03-opentofu-849a3c10",
+      "duration_ms": 15322,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.path": "ramen-parity-h03.txt",
+        "after_create.sha_present": true,
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.sha_changed": true,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-h03-ramen-849a3c10",
+      "duration_ms": 8933,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.path": "ramen-parity-h03.txt",
+        "after_create.sha_present": true,
+        "after_delete.exists": false,
+        "after_update.exists": true,
+        "after_update.sha_changed": true,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_create.path",
+      "after_update.sha_changed",
+      "no_op",
+      "after_delete.exists",
+      "after_cleanup.exists"
+    ]
+  }
+}

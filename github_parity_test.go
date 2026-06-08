@@ -28,7 +28,7 @@ const (
 )
 
 var githubParityLanes = []string{"h01", "h02", "h03"}
-var githubParityLiveRunnerLanes = []string{"h01", "h02"}
+var githubParityLiveRunnerLanes = []string{"h01", "h02", "h03"}
 
 type githubParityArtifact struct {
 	Version   string                 `json:"version"`
@@ -232,9 +232,67 @@ func assertGitHubParityArtifact(t *testing.T, lane string, artifact githubParity
 	if artifact.Status == "planned" && len(scenario.ObservationArtifacts) != 0 {
 		t.Fatalf("%s planned scenario must not claim observation_artifacts: %#v", wantLane, scenario)
 	}
+	if artifact.Status == "recorded" {
+		if artifact.Recording.Status != "recorded" {
+			t.Fatalf("%s recorded artifact has recording status %#v", wantLane, artifact.Recording)
+		}
+		if !slices.Contains(scenario.ObservationArtifacts, artifact.Recording.ArtifactPath) {
+			t.Fatalf("%s recorded scenario does not reference %s: %#v", wantLane, artifact.Recording.ArtifactPath, scenario)
+		}
+		assertGitHubParityRecordedLiveArtifact(t, lane, artifact, scenario)
+	}
 	for _, path := range scenario.FixturePaths {
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("%s fixture %s is not readable: %v", wantLane, path, err)
+		}
+	}
+}
+
+func assertGitHubParityRecordedLiveArtifact(t *testing.T, lane string, artifact githubParityArtifact, scenario githubParityScenario) {
+	t.Helper()
+	data, err := os.ReadFile(artifact.Recording.ArtifactPath)
+	if err != nil {
+		t.Fatalf("%s read live recording %s: %v", strings.ToUpper(lane), artifact.Recording.ArtifactPath, err)
+	}
+	assertGitHubParityRecordingSanitizedBytes(t, strings.ToUpper(lane), data)
+	var recording githubParityLiveRecording
+	if err := json.Unmarshal(data, &recording); err != nil {
+		t.Fatalf("%s decode live recording %s: %v", strings.ToUpper(lane), artifact.Recording.ArtifactPath, err)
+	}
+	if recording.Version != githubParityArtifactV1 || recording.Lane != strings.ToUpper(lane) || recording.Scenario != scenario.Name {
+		t.Fatalf("%s live recording metadata invalid: %#v", strings.ToUpper(lane), recording)
+	}
+	if !recording.Comparison.Matched {
+		t.Fatalf("%s live recording comparison did not match: %#v", strings.ToUpper(lane), recording.Comparison)
+	}
+	for _, field := range recording.Comparison.Fields {
+		if !slices.Contains(scenario.ObservedFields, field) {
+			t.Fatalf("%s live recording comparison field %q missing from scenario observed fields %#v", strings.ToUpper(lane), field, scenario.ObservedFields)
+		}
+	}
+	if len(recording.Observations) != len(artifact.Runtimes) {
+		t.Fatalf("%s live observations = %d, want %d runtimes", strings.ToUpper(lane), len(recording.Observations), len(artifact.Runtimes))
+	}
+	seen := map[string]bool{}
+	for _, observation := range recording.Observations {
+		if !slices.Contains(artifact.Runtimes, observation.Runtime) {
+			t.Fatalf("%s live recording runtime %q not declared in %#v", strings.ToUpper(lane), observation.Runtime, artifact.Runtimes)
+		}
+		if seen[observation.Runtime] {
+			t.Fatalf("%s live recording has duplicate runtime %q", strings.ToUpper(lane), observation.Runtime)
+		}
+		seen[observation.Runtime] = true
+		assertGitHubParityLiveObservationSemantics(t, lane, observation)
+		assertGitHubParityObservationSanitized(t, strings.ToUpper(lane), observation)
+	}
+}
+
+func assertGitHubParityRecordingSanitizedBytes(t *testing.T, lane string, data []byte) {
+	t.Helper()
+	normalized := strings.ToLower(string(data))
+	for _, bad := range githubParityForbiddenRecordingSubstrings() {
+		if strings.Contains(normalized, bad) {
+			t.Fatalf("%s recording contains forbidden material %q", lane, bad)
 		}
 	}
 }
@@ -294,6 +352,29 @@ func assertGitHubParityLiveObservationSemantics(t *testing.T, lane string, obser
 			t.Fatalf("%s %s live field %s = %#v, want %#v", strings.ToUpper(lane), observation.Runtime, field, got, want)
 		}
 	}
+}
+
+func assertGitHubParityObservationSanitized(t *testing.T, lane string, observation githubParityRuntimeObservation) {
+	t.Helper()
+	values := []string{observation.Resource}
+	for key, value := range observation.Fields {
+		values = append(values, key)
+		if valueString, ok := value.(string); ok {
+			values = append(values, valueString)
+		}
+	}
+	for _, value := range values {
+		normalized := strings.ToLower(value)
+		for _, bad := range githubParityForbiddenRecordingSubstrings() {
+			if strings.Contains(normalized, bad) {
+				t.Fatalf("%s recording contains forbidden material %q in %q", lane, bad, value)
+			}
+		}
+	}
+}
+
+func githubParityForbiddenRecordingSubstrings() []string {
+	return []string{"authorization", "bearer", "credential", "raw_response", "secret", "token", "ramen h03 create", "ramen h03 update"}
 }
 
 func githubParityFailure(runtime, class string, err error) githubParityRuntimeResult {

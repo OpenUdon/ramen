@@ -1,0 +1,52 @@
+{
+  "version": "ramen.github.provider-parity.v1",
+  "lane": "H02",
+  "scenario": "GitHub issue label lifecycle",
+  "recorded_at": "2026-06-08T22:31:10Z",
+  "duration_ms": 22730,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-h02-opentofu-8b1abb84",
+      "duration_ms": 12725,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.color": "0e8a16",
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-h02",
+        "after_delete.exists": false,
+        "after_update.color": "b60205",
+        "after_update.description": "Ramen GitHub H02 parity fixture updated",
+        "after_update.exists": true,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-h02-ramen-8b1abb84",
+      "duration_ms": 9242,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.color": "0e8a16",
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-h02",
+        "after_delete.exists": false,
+        "after_update.color": "b60205",
+        "after_update.description": "Ramen GitHub H02 parity fixture updated",
+        "after_update.exists": true,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_create.color",
+      "after_update.description",
+      "no_op",
+      "after_delete.exists",
+      "after_cleanup.exists"
+    ]
+  }
+}
