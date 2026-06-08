@@ -1,4 +1,4 @@
-# Ramen provider test corpus (Terraform fixtures + API sources → UWS)
+# Ramen conversion corpus (Terraform fixtures + API sources -> UWS)
 
 ## Context
 
@@ -8,6 +8,12 @@ converts it to a native UWS/Ramen project in **both YAML and HCL**. Purpose:
 regression-gate `ramen convert tf`, provide clean reference fixtures, and
 measure mapping coverage so it grows as `tfmapping` (and later AI-authoring)
 expands.
+
+This is the right home for the durable conversion-corpus note: it explains the
+fixtures, generator, and expansion criteria. The memory bank remains the source
+of truth for milestone scope, sequencing, and acceptance criteria; update it
+only when corpus expansion becomes committed roadmap work rather than an
+inventory/status note.
 
 Current provider inputs:
 
@@ -66,9 +72,9 @@ conversions without weakening the clean corpus contract.
   `location` values before conversion.
 - Kubernetes examples are static Terraform files under
   `../terraform-provider-kubernetes/examples`. Current Kubernetes mapping
-  coverage is `kubernetes_namespace` and `kubernetes_namespace_v1` as resources
-  and data sources, backed by the pinned Kubernetes Swagger artifact in
-  `../apitools`.
+  coverage includes Namespace, ConfigMap, ServiceAccount, Secret, Role,
+  RoleBinding, and ClusterRole resource/data-source types, backed by the pinned
+  Kubernetes Swagger artifact in `../apitools`.
 - Cloudflare fixtures are static Terraform files under
   `../terraform-provider-cloudflare/internal/services/<service>/testdata`.
   Current Cloudflare mapping coverage is `cloudflare_r2_bucket` and
@@ -112,7 +118,7 @@ compatibility adapter, but it should not be the canonical source model.
   (`writeDocumentFormats`); `Result` gained `NativeProjectHCLPath`/`UWSHCLPath`;
   `cmd/ramen` prints `native-hcl`/`uws-hcl`.
 - **`tfmapping.Registry.SupportedTypes()`** — public enumerator backed by
-  per-mapper lists (`awsMapper`/`googleMapper`), deduped and sorted. Generator
+  per-mapper lists, deduped and sorted. Generator
   uses it instead of duplicating the hardcoded set.
 - **`cmd/corpusgen`** — derives the services to scan from `SupportedTypes()`;
   resolves AWS Smithy, Google Discovery, Azure OpenAPI, Cloudflare OpenAPI, and
@@ -197,22 +203,37 @@ Large API source documents are **referenced by relative path** in `meta.json`
 
 ## Results
 
-```
-corpusgen: emitted=157 considered=822 services=8
-           dropped(unsupported=555 no-resource=58 no-model=0 diagnostics=52 hcl=0 template=0)
-```
-- **157 clean entries**: AWS iam = 23, AWS lambda = 18, AWS s3 = 28,
-  Google storage = 45, AzureRM cosmos = 31, Cloudflare R2 bucket = 8,
-  Cloudflare D1 database = 1, Kubernetes core = 3.
-- 555 dropped: config used a resource type ramen does not map yet.
-- 52 dropped: fallback/unsupported/error diagnostics during conversion.
-- 0 dropped on HCL round-trip (was 10 before the `dethcl` string-escaping fix).
-- 0 dropped on template rendering.
-- Regeneration is idempotent (committed `.hcl` is byte-stable across runs).
+Committed corpus artifacts currently contain 159 entries in
+`testdata/corpus/manifest.json`:
 
-### Why only 157 (the funnel)
+| provider/service | entries |
+|---|---:|
+| aws/iam | 23 |
+| aws/lambda | 18 |
+| aws/s3 | 28 |
+| azurerm/cosmos | 31 |
+| cloudflare/d1_database | 1 |
+| cloudflare/r2_bucket | 8 |
+| google/storage | 45 |
+| kubernetes/core | 3 |
+| kubernetes/rbac | 2 |
 
-157 is **not** the number of Terraform configs in the providers — it is what
+The generated `testdata/corpus/COVERAGE.md` is stale in the current tree: it
+still reports 157 entries. A fresh `go run ./cmd/corpusgen --check` reports
+generator drift rather than passing:
+
+```
+corpusgen: emitted=164 considered=822 services=8
+           dropped(unsupported=545 no-resource=58 no-model=0 diagnostics=55 hcl=0 template=0)
+```
+
+That drift should be reconciled by a dedicated corpus-regeneration change. This
+document describes both the committed corpus and the current expansion signal;
+it does not regenerate or promote new corpus artifacts by itself.
+
+### Why only 159 (the funnel)
+
+159 is **not** the number of Terraform configs in the providers — it is what
 survives a deliberately narrow funnel. The AWS provider has ~266 services, ~580
 resource types, and thousands of test configs (~14.3K Go `testAcc*Config*`
 builders + ~3K static files). The Google provider adds another fixture style:
@@ -263,7 +284,7 @@ mapped resource services with local OpenAPI docs → 1 (core)
   └─ static examples considered                → 165 inputs
        ├─ 118 dropped: uses a Terraform type ramen does not map yet
        ├─  44 dropped: no managed resource in the snippet
-       └─   3 emitted: namespace resource coverage
+       └─   5 committed: core namespace coverage plus RBAC RoleBinding/ClusterRole fixtures
 ```
 
 Cloudflare:
@@ -274,7 +295,7 @@ mapped resource services with local OpenAPI docs → 2 (r2_bucket, d1_database)
        └─ 9 emitted: R2 bucket and D1 database resource coverage
 ```
 
-So `157 = clean-only × mapped provider services × locally available API source
+So `159 = clean-only × mapped provider services × locally available API source
 documents × supported fixture extraction`. Each narrowing is a chosen scope
 (clean conversions only; local API source documents; supported fixture sources
 first), **not** a ceiling. The set grows
@@ -293,10 +314,74 @@ automatically — no hand-editing — along three axes:
 With template rendering, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_versioning`, `aws_iam_user`, and `aws_lambda_permission` now
 added, the current AWS clean corpus is 69 entries; Google storage adds 45 and
-AzureRM Cosmos adds 31, Cloudflare R2/D1 adds 9, and Kubernetes core namespaces
-add 3 for 157 total. The same funnel still applies: only diagnostic-clean
+AzureRM Cosmos adds 31, Cloudflare R2/D1 adds 9, and Kubernetes adds 5 for 159
+committed entries. The same funnel still applies: only diagnostic-clean
 outputs from mapped types in
 services with local API source documents are emitted.
+
+### Unsupported-type status
+
+The unsupported counter is a fixture-drop count, not a distinct Terraform type
+count. A fixture is dropped when any managed resource type in that fixture is
+not currently mapped by `tfmapping`. The current scanned fixture areas contain
+about 250 distinct unsupported managed resource types. The highest-yield
+unsupported resource types by source occurrence are:
+
+| unsupported managed resource type | seen in scanned sources |
+|---|---:|
+| `aws_s3_object` | 121 |
+| `aws_iam_policy` | 89 |
+| `azurerm_resource_group` | 74 |
+| `aws_s3_bucket_ownership_controls` | 49 |
+| `aws_lambda_event_source_mapping` | 48 |
+| `aws_s3_directory_bucket` | 47 |
+| `aws_s3_bucket_lifecycle_configuration` | 43 |
+| `google_storage_bucket_object` | 41 |
+| `aws_lambda_layer_version` | 40 |
+| `aws_s3_bucket_object` | 38 |
+| `aws_s3_bucket_acl` | 38 |
+| `aws_kms_key` | 35 |
+| `aws_iam_role_policy_attachment` | 29 |
+| `aws_s3_bucket_replication_configuration` | 28 |
+| `aws_iam_group` | 27 |
+| `aws_s3_bucket_server_side_encryption_configuration` | 25 |
+| `aws_s3_object_copy` | 21 |
+| `aws_s3_bucket_website_configuration` | 21 |
+| `aws_iam_openid_connect_provider` | 21 |
+| `aws_s3_bucket_policy` | 20 |
+
+The practical next expansion targets inside the current provider universe are
+therefore S3 subresources, IAM policies/attachments/groups, Lambda event and
+layer resources, Google Storage objects and IAM resources, Azure Resource Group
+and Cosmos child resources, and selected Kubernetes workload/service types.
+
+### Outside-provider candidates
+
+Outside AWS, Google, AzureRM, Cloudflare, Kubernetes, and the new static
+GitHub parity slice, the same conversion corpus criterion can apply, but it is
+not automatic. Each new provider needs a Terraform provider checkout, fixture
+scanner, local API source documents, `tfmapping` entries, identity/request
+bindings, and clean conversion gates.
+
+Good first candidates, ranked by practical corpus fit rather than live-test
+access, are:
+
+| rank | provider | why it fits the conversion corpus |
+|---:|---|---|
+| 1 | GitHub (`integrations/github`) | Static mapper/parity work now covers repository, issue label, and repository file resources over a focused REST OpenAPI subset; a broad provider fixture scanner and full corpus entries are still pending. |
+| 2 | Datadog (`DataDog/datadog`) | Very high Terraform usage, broad SaaS REST API, many monitor/dashboard/synthetic resources suitable for desired-state mapping. |
+| 3 | Grafana (`grafana/grafana`) | Strong dashboard/folder/alerting provider, REST-shaped API surface, useful local/open-source and cloud targets. |
+| 4 | OCI (`oracle/oci`) | Large cloud provider outside the current five; likely high corpus volume, but heavier API-source and auth work. |
+| 5 | Okta (`okta/okta`) | Identity resources map naturally to desired state; API is REST-shaped and provider usage is high. |
+| 6 | MongoDB Atlas (`mongodb/mongodbatlas`) | Managed infrastructure API with project/cluster/network resources and public REST/OpenAPI orientation. |
+| 7 | Snowflake (`snowflakedb/snowflake`) | Popular provider, but less direct because many operations are SQL/driver-backed rather than plain REST CRUD. |
+| 8 | vSphere (`vmware/vsphere`) | Popular infrastructure provider, but API shape and local testability are heavier than SaaS REST providers. |
+| 9 | Linode (`linode/linode`) | Smaller IaaS provider with a straightforward API token model and useful server/network/domain first slices. |
+| 10 | Hetzner Cloud (`hetznercloud/hcloud`) | Clean IaaS resource model and simple auth; good small-cloud corpus candidate. |
+
+The most pragmatic first implementation order is GitHub, then Datadog or
+Grafana, then MongoDB Atlas or Okta. Those are closer to the current
+OpenAPI/desired-state path than Snowflake, vSphere, or broad OCI coverage.
 
 ---
 

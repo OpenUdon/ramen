@@ -12,15 +12,6 @@ JSON, Google Discovery, and OpenAPI, computes desired-state plans, records
 SQLite state history, and hands approved UWS execution documents to an
 explicit trusted executor boundary.
 
-Ramen uses shared `github.com/OpenUdon/evidence/...` primitives for neutral
-evidence where the behavior is product-independent. Current shared use covers
-SHA-256 digest helpers, redaction pattern handling behind Ramen's stricter
-secret-keyword policy, approval requirement evaluation behind Ramen-owned
-governance wire formats, and neutral async executor evidence records.
-Ramen-specific behavior, including `ramen.approval.v1`, `ramen.policy.v1`,
-state history, reconciliation, delete confirmation, and executor
-orchestration, remains Ramen-owned.
-
 ## Why Ramen
 
 Ramen is for teams that have API source documents and need desired-state
@@ -38,10 +29,8 @@ Ramen differs from adjacent tools in a narrow way:
 - Generic workflow runners execute steps; Ramen adds identity matching,
   dependency graphs, deterministic plans, import, refresh evidence, state
   history, and approval-artifact checks.
-- Generated SDKs provide imperative API calls; Ramen provides operator
+- Generated SDKs and CLIs (like az, gcloud etc.) provide imperative API calls; Ramen provides operator
   workflows and durable desired-state records.
-- OpenUdon owns workflow authoring and review packaging; Ramen owns
-  desired-state graphing, state, diff, and reconciliation.
 
 ## Adoption Readiness
 
@@ -67,36 +56,6 @@ operational support contracts.
 See [docs/evidence-index.md](docs/evidence-index.md) for the current
 credential-free, recorded replay, and sanitized live evidence that backs these
 claims.
-
-
-## Scope
-
-Ramen owns desired-state reconciliation:
-
-- native UWS/Ramen project loading and validation;
-- Ramen reconciliation metadata over UWS;
-- API source operation inventory consumption through public `apitools`;
-- Terraform/OpenTofu HCL conversion through public `tfconfig` via
-  `ramen convert`;
-- resource-to-operation mapping, including public `tfmapping` for conversion
-  compatibility;
-- dependency graph construction;
-- deterministic plan and diff output;
-- SQLite state, locks, and revision history;
-- refresh, apply, and import orchestration;
-- public executor interfaces and optional trusted executor adapters.
-
-Shared evidence helpers live in `github.com/OpenUdon/evidence/...` only for
-neutral digest, artifact, diagnostic, redaction, approval, and async execution
-primitives. Ramen uses them behind Ramen-owned package and wire boundaries;
-they do not own Ramen plan, policy, state, reconciliation, delete
-confirmation, or executor semantics. The OpenUdon/Ramen boundary is summarized
-in [docs/openudon-evidence-alignment.md](docs/openudon-evidence-alignment.md).
-
-Ramen does not import Terraform code, OpenTofu internals, Terraform providers,
-provider plugins, provider SDKs, or private udon packages in default public
-builds. The optional udon adapter is planned behind an explicit `udon` build
-tag.
 
 ## Commands
 
