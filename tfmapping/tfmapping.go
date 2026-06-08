@@ -155,6 +155,8 @@ func (r Registry) MapObject(obj Object, purpose, action string) Mapping {
 		return azureRMMapper{}.MapObject(obj, purpose, action)
 	case "cloudflare":
 		return cloudflareMapper{}.MapObject(obj, purpose, action)
+	case "github":
+		return githubMapper{}.MapObject(obj, purpose, action)
 	case "google":
 		return googleMapper{}.MapObject(obj, purpose, action)
 	case "kubernetes":
@@ -194,6 +196,9 @@ func (r Registry) SupportedTypes() []SupportedType {
 	}
 	if _, ok := r.providerMappers["cloudflare"]; !ok {
 		add(cloudflareMapper{}.SupportedTypes())
+	}
+	if _, ok := r.providerMappers["github"]; !ok {
+		add(githubMapper{}.SupportedTypes())
 	}
 	if _, ok := r.providerMappers["google"]; !ok {
 		add(googleMapper{}.SupportedTypes())
@@ -619,6 +624,69 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 					return []string{"account_id"}
 				case "name":
 					return []string{"database_id"}
+				}
+			}
+		}
+	case "github":
+		if sourceKind == APISourceKindOpenAPI {
+			switch operationID {
+			case "repos/create-in-org":
+				switch attrPath {
+				case "owner":
+					return []string{"org"}
+				case "name", "description", "private", "visibility", "has_issues", "auto_init":
+					return []string{attrPath}
+				}
+			case "repos/get", "repos/update", "repos/delete":
+				switch attrPath {
+				case "owner":
+					return []string{"owner"}
+				case "name", "repository", "repo":
+					return []string{"repo"}
+				case "description", "private", "visibility", "has_issues":
+					return []string{attrPath}
+				}
+			case "issues/create-label":
+				switch attrPath {
+				case "owner":
+					return []string{"owner"}
+				case "repository":
+					return []string{"repo"}
+				case "name", "color", "description":
+					return []string{attrPath}
+				}
+			case "issues/get-label", "issues/delete-label":
+				switch attrPath {
+				case "owner":
+					return []string{"owner"}
+				case "repository":
+					return []string{"repo"}
+				case "name":
+					return []string{"name"}
+				}
+			case "issues/update-label":
+				switch attrPath {
+				case "owner":
+					return []string{"owner"}
+				case "repository":
+					return []string{"repo"}
+				case "name":
+					return []string{"name"}
+				case "color", "description":
+					return []string{attrPath}
+				}
+			case "repos/get-content", "repos/create-or-update-file-contents", "repos/delete-file":
+				switch attrPath {
+				case "owner":
+					return []string{"owner"}
+				case "repository":
+					return []string{"repo"}
+				case "file", "path":
+					return []string{"path"}
+				case "branch", "message", "content", "sha":
+					return []string{attrPath}
+				case "commit_message":
+					return []string{"message"}
 				}
 			}
 		}
@@ -1051,6 +1119,235 @@ func (cloudflareMapper) SupportedTypes() []SupportedType {
 	}
 }
 
+type githubMapper struct{}
+
+func (githubMapper) MapObject(obj Object, purpose, action string) Mapping {
+	mapping := Mapping{Object: obj, Purpose: purpose, Action: action}
+	if obj.Kind != "resource" {
+		return unsupportedActionMapping(mapping, "GitHub mapping supports managed resources")
+	}
+	switch obj.Type {
+	case "github_repository":
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{Name: "owner", TerraformPath: "owner", RequestKeys: []string{"org", "owner"}, Required: true},
+			{Name: "repository", TerraformPath: "name", RequestKeys: []string{"name", "repo"}, ResponsePaths: []string{"name", "full_name"}, Required: true},
+		}
+		mapping.Schema = []SchemaPath{
+			{Path: "owner", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "name", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "description", Type: "string", Optional: true, Updateable: true},
+			{Path: "visibility", Type: "string", Optional: true, Updateable: true},
+			{Path: "private", Type: "bool", Optional: true, Updateable: true},
+			{Path: "has_issues", Type: "bool", Optional: true, Updateable: true},
+			{Path: "auto_init", Type: "bool", Optional: true, CreateOnly: true},
+			{Path: "default_branch", Type: "string", Computed: true, ReadOnly: true},
+			{Path: "html_url", Type: "string", Computed: true, ReadOnly: true},
+		}
+		switch {
+		case purpose == "create" && (action == "create" || action == "replace"):
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/create-in-org")
+			mapping.RequestBindings = githubRepositoryRequestBindings("create", "repos/create-in-org")
+		case purpose == "read":
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/get")
+			mapping.RequestBindings = githubRepositoryRequestBindings("read", "repos/get")
+			mapping.ResponseBindings = githubRepositoryResponseBindings()
+		case purpose == "update" && (action == "update" || action == "replace"):
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/update")
+			mapping.RequestBindings = githubRepositoryRequestBindings("update", "repos/update")
+		case purpose == "delete":
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/delete")
+			mapping.RequestBindings = githubRepositoryRequestBindings("delete", "repos/delete")
+		default:
+			return unsupportedActionMapping(mapping, "GitHub repository mapping supports read, create, update, and delete")
+		}
+		return mapping
+	case "github_issue_label":
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{Name: "owner", TerraformPath: "owner", RequestKeys: []string{"owner"}, Required: true},
+			{Name: "repository", TerraformPath: "repository", RequestKeys: []string{"repo"}, Required: true},
+			{Name: "name", TerraformPath: "name", RequestKeys: []string{"name"}, ResponsePaths: []string{"name"}, Required: true},
+		}
+		mapping.Schema = []SchemaPath{
+			{Path: "owner", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "repository", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "name", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "color", Type: "string", Optional: true, Updateable: true},
+			{Path: "description", Type: "string", Optional: true, Updateable: true},
+		}
+		switch {
+		case purpose == "create" && (action == "create" || action == "replace"):
+			mapping.Target = githubOpenAPIOperationTarget("issues", "issues/create-label")
+			mapping.RequestBindings = githubLabelRequestBindings("create", "issues/create-label")
+		case purpose == "read":
+			mapping.Target = githubOpenAPIOperationTarget("issues", "issues/get-label")
+			mapping.RequestBindings = githubLabelRequestBindings("read", "issues/get-label")
+			mapping.ResponseBindings = githubLabelResponseBindings()
+		case purpose == "update" && (action == "update" || action == "replace"):
+			mapping.Target = githubOpenAPIOperationTarget("issues", "issues/update-label")
+			mapping.RequestBindings = githubLabelRequestBindings("update", "issues/update-label")
+		case purpose == "delete":
+			mapping.Target = githubOpenAPIOperationTarget("issues", "issues/delete-label")
+			mapping.RequestBindings = githubLabelRequestBindings("delete", "issues/delete-label")
+		default:
+			return unsupportedActionMapping(mapping, "GitHub issue label mapping supports read, create, update, and delete")
+		}
+		return mapping
+	case "github_repository_file":
+		mapping.IdentityAttributes = []IdentityAttribute{
+			{Name: "owner", TerraformPath: "owner", RequestKeys: []string{"owner"}, Required: true},
+			{Name: "repository", TerraformPath: "repository", RequestKeys: []string{"repo"}, Required: true},
+			{Name: "path", TerraformPath: "file", RequestKeys: []string{"path"}, ResponsePaths: []string{"path"}, Required: true},
+		}
+		mapping.Schema = []SchemaPath{
+			{Path: "owner", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "repository", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "file", Type: "string", Required: true, Identity: true, Immutable: true},
+			{Path: "content", Type: "string", Required: true, Updateable: true},
+			{Path: "commit_message", Type: "string", Optional: true, Updateable: true},
+			{Path: "branch", Type: "string", Optional: true, Updateable: true},
+			{Path: "sha", Type: "string", Computed: true, ResponseDerivedIdentity: true, ReadOnly: true},
+		}
+		switch {
+		case purpose == "create" && (action == "create" || action == "replace"):
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/create-or-update-file-contents")
+			mapping.RequestBindings = githubRepositoryFileRequestBindings("create", "repos/create-or-update-file-contents", false)
+		case purpose == "read":
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/get-content")
+			mapping.RequestBindings = githubRepositoryFileRequestBindings("read", "repos/get-content", false)
+			mapping.ResponseBindings = githubRepositoryFileResponseBindings()
+		case purpose == "update" && (action == "update" || action == "replace"):
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/create-or-update-file-contents")
+			mapping.RequestBindings = githubRepositoryFileRequestBindings("update", "repos/create-or-update-file-contents", true)
+		case purpose == "delete":
+			mapping.Target = githubOpenAPIOperationTarget("repos", "repos/delete-file")
+			mapping.RequestBindings = githubRepositoryFileRequestBindings("delete", "repos/delete-file", true)
+		default:
+			return unsupportedActionMapping(mapping, "GitHub repository file mapping supports read, create, update, and delete")
+		}
+		return mapping
+	default:
+		return unsupportedTypeMapping(mapping, "GitHub")
+	}
+}
+
+func (githubMapper) SupportedTypes() []SupportedType {
+	return []SupportedType{
+		{Provider: "github", Type: "github_issue_label", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_repository", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_repository_file", Kinds: []string{"resource"}},
+	}
+}
+
+func githubRepositoryRequestBindings(role OperationRole, operationID string) []RequestBinding {
+	out := []RequestBinding{
+		{OperationRole: role, OperationID: operationID, Path: "owner", RequestPath: mapGithubOwnerRequestPath(operationID), Location: "path", Required: true, Identity: true},
+	}
+	switch role {
+	case OperationRoleCreate:
+		out = append(out,
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "name", RequestPath: "name", Location: "body", Required: true, Identity: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "description", RequestPath: "description", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "visibility", RequestPath: "visibility", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "private", RequestPath: "private", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "has_issues", RequestPath: "has_issues", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "auto_init", RequestPath: "auto_init", Location: "body"},
+		)
+	case OperationRoleRead, OperationRoleDelete:
+		out = append(out, RequestBinding{OperationRole: role, OperationID: operationID, Path: "name", RequestPath: "repo", Location: "path", Required: true, Identity: true})
+	case OperationRoleUpdate:
+		out = append(out,
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "name", RequestPath: "repo", Location: "path", Required: true, Identity: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "description", RequestPath: "description", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "visibility", RequestPath: "visibility", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "private", RequestPath: "private", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "has_issues", RequestPath: "has_issues", Location: "body"},
+		)
+	}
+	return out
+}
+
+func githubRepositoryResponseBindings() []ResponseBinding {
+	return []ResponseBinding{
+		{OperationRole: OperationRoleRead, OperationID: "repos/get", ResponsePath: "name", StatePath: "name", Identity: true, Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "repos/get", ResponsePath: "full_name", StatePath: "full_name", Computed: true, Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "repos/get", ResponsePath: "visibility", StatePath: "visibility", Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "repos/get", ResponsePath: "private", StatePath: "private", Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "repos/get", ResponsePath: "default_branch", StatePath: "default_branch", Computed: true, Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "repos/get", ResponsePath: "html_url", StatePath: "html_url", Computed: true, Observed: true},
+	}
+}
+
+func githubLabelRequestBindings(role OperationRole, operationID string) []RequestBinding {
+	out := []RequestBinding{
+		{OperationRole: role, OperationID: operationID, Path: "owner", RequestPath: "owner", Location: "path", Required: true, Identity: true},
+		{OperationRole: role, OperationID: operationID, Path: "repository", RequestPath: "repo", Location: "path", Required: true, Identity: true},
+	}
+	switch role {
+	case OperationRoleCreate:
+		out = append(out,
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "name", RequestPath: "name", Location: "body", Required: true, Identity: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "color", RequestPath: "color", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "description", RequestPath: "description", Location: "body"},
+		)
+	case OperationRoleRead, OperationRoleDelete:
+		out = append(out, RequestBinding{OperationRole: role, OperationID: operationID, Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true})
+	case OperationRoleUpdate:
+		out = append(out,
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "name", RequestPath: "name", Location: "path", Required: true, Identity: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "color", RequestPath: "color", Location: "body"},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "description", RequestPath: "description", Location: "body"},
+		)
+	}
+	return out
+}
+
+func githubLabelResponseBindings() []ResponseBinding {
+	return []ResponseBinding{
+		{OperationRole: OperationRoleRead, OperationID: "issues/get-label", ResponsePath: "name", StatePath: "name", Identity: true, Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "issues/get-label", ResponsePath: "color", StatePath: "color", Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "issues/get-label", ResponsePath: "description", StatePath: "description", Observed: true},
+	}
+}
+
+func githubRepositoryFileRequestBindings(role OperationRole, operationID string, includeSHA bool) []RequestBinding {
+	out := []RequestBinding{
+		{OperationRole: role, OperationID: operationID, Path: "owner", RequestPath: "owner", Location: "path", Required: true, Identity: true},
+		{OperationRole: role, OperationID: operationID, Path: "repository", RequestPath: "repo", Location: "path", Required: true, Identity: true},
+		{OperationRole: role, OperationID: operationID, Path: "file", RequestPath: "path", Location: "path", Required: true, Identity: true},
+	}
+	switch role {
+	case OperationRoleCreate, OperationRoleUpdate:
+		out = append(out,
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "commit_message", RequestPath: "message", Location: "body", Required: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "content", RequestPath: "content", Location: "body", Encoding: "base64", Required: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "branch", RequestPath: "branch", Location: "body"},
+		)
+	case OperationRoleDelete:
+		out = append(out,
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "commit_message", RequestPath: "message", Location: "body", Required: true},
+			RequestBinding{OperationRole: role, OperationID: operationID, Path: "branch", RequestPath: "branch", Location: "body"},
+		)
+	}
+	if includeSHA {
+		out = append(out, RequestBinding{OperationRole: role, OperationID: operationID, Path: "sha", RequestPath: "sha", Location: "body", Required: true, Identity: true})
+	}
+	return out
+}
+
+func githubRepositoryFileResponseBindings() []ResponseBinding {
+	return []ResponseBinding{
+		{OperationRole: OperationRoleRead, OperationID: "repos/get-content", ResponsePath: "path", StatePath: "file", Identity: true, Observed: true},
+		{OperationRole: OperationRoleRead, OperationID: "repos/get-content", ResponsePath: "sha", StatePath: "sha", Identity: true, ResponseDerivedIdentity: true, Computed: true, Observed: true},
+	}
+}
+
+func mapGithubOwnerRequestPath(operationID string) string {
+	if operationID == "repos/create-in-org" {
+		return "org"
+	}
+	return "owner"
+}
+
 type kubernetesMapper struct{}
 
 func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
@@ -1324,6 +1621,14 @@ func cloudflareOpenAPIOperationTarget(service, operationID string) OperationTarg
 	return OperationTarget{
 		SourceKinds:  []string{APISourceKindOpenAPI},
 		SourceIDs:    []string{service, "cloudflare", "cloudflare-api", "cloudflare-api-openapi"},
+		OperationIDs: []string{operationID, normalizeName(operationID)},
+	}
+}
+
+func githubOpenAPIOperationTarget(service, operationID string) OperationTarget {
+	return OperationTarget{
+		SourceKinds:  []string{APISourceKindOpenAPI},
+		SourceIDs:    []string{service, "github", "github-rest-api", "github-rest-api-openapi"},
 		OperationIDs: []string{operationID, normalizeName(operationID)},
 	}
 }

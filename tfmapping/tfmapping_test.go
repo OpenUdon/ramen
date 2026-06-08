@@ -52,6 +52,9 @@ func TestDefaultRegistrySupportedTypes(t *testing.T) {
 		{Provider: "azurerm", Type: "azurerm_cosmosdb_account", Kinds: []string{"resource", "data_source"}},
 		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
 		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_issue_label", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_repository", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_repository_file", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
@@ -95,6 +98,9 @@ func TestRegistrySupportedTypesHonorsProviderOverrides(t *testing.T) {
 		{Provider: "azurerm", Type: "azurerm_cosmosdb_account", Kinds: []string{"resource", "data_source"}},
 		{Provider: "cloudflare", Type: "cloudflare_d1_database", Kinds: []string{"resource"}},
 		{Provider: "cloudflare", Type: "cloudflare_r2_bucket", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_issue_label", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_repository", Kinds: []string{"resource"}},
+		{Provider: "github", Type: "github_repository_file", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
@@ -204,6 +210,34 @@ func TestDefaultRegistryIdentityAttributes(t *testing.T) {
 			Required:      true,
 		},
 	})
+
+	githubRepo := registry.MapObject(Object{Kind: "resource", Type: "github_repository", Provider: "provider.github"}, "create", "create")
+	assertIdentities(t, githubRepo.IdentityAttributes, []IdentityAttribute{
+		{
+			Name:          "owner",
+			TerraformPath: "owner",
+			RequestKeys:   []string{"org", "owner"},
+			Required:      true,
+		},
+		{
+			Name:          "repository",
+			TerraformPath: "name",
+			RequestKeys:   []string{"name", "repo"},
+			ResponsePaths: []string{"name", "full_name"},
+			Required:      true,
+		},
+	})
+
+	githubFile := registry.MapObject(Object{Kind: "resource", Type: "github_repository_file", Provider: "provider.github"}, "update", "update")
+	var foundBase64 bool
+	for _, binding := range githubFile.RequestBindings {
+		if binding.Path == "content" && binding.Encoding == "base64" {
+			foundBase64 = true
+		}
+	}
+	if !foundBase64 {
+		t.Fatalf("GitHub repository file update request bindings missing base64 content encoding: %#v", githubFile.RequestBindings)
+	}
 
 	configMap := registry.MapObject(Object{Kind: "resource", Type: "kubernetes_config_map_v1", Provider: "provider.kubernetes"}, "create", "create")
 	assertIdentities(t, configMap.IdentityAttributes, []IdentityAttribute{
@@ -494,6 +528,18 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "d1-get-database", "name")
 	if len(keys) != 1 || keys[0] != "database_id" {
 		t.Fatalf("unexpected Cloudflare D1 read request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "github_repository", Provider: "provider.github"}, APISourceKindOpenAPI, "repos/create-in-org", "owner")
+	if len(keys) != 1 || keys[0] != "org" {
+		t.Fatalf("unexpected GitHub repository create owner request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "github_issue_label", Provider: "provider.github"}, APISourceKindOpenAPI, "issues/update-label", "repository")
+	if len(keys) != 1 || keys[0] != "repo" {
+		t.Fatalf("unexpected GitHub label update repository request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "github_repository_file", Provider: "provider.github"}, APISourceKindOpenAPI, "repos/create-or-update-file-contents", "commit_message")
+	if len(keys) != 1 || keys[0] != "message" {
+		t.Fatalf("unexpected GitHub repository file commit message request keys: %#v", keys)
 	}
 	static := registry.StaticRequestBindings(obj, "iam", "aws-smithy/iam.json", "POST_CreateRole")
 	if static["Action"] != "CreateRole" || static["Version"] != "2010-05-08" {
