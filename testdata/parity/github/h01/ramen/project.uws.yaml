@@ -1,0 +1,299 @@
+info:
+  description: GitHub organization repository lifecycle parity fixture for H01.
+  title: ramen_github_h01_repository_lifecycle_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: github
+    serverUrl: https://api.github.com
+  security:
+    - binding: github_token
+      name: github_token
+      scheme:
+        scheme: bearer
+        type: http
+operations:
+  - description: Create the GitHub organization repository.
+    operationId: h01_repository_create
+    sourceDescription: github
+    sourceOperationId: repos/create-in-org
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - description: Read the GitHub repository.
+    operationId: h01_repository_read
+    sourceDescription: github
+    sourceOperationId: repos/get
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - description: Update the GitHub repository metadata.
+    operationId: h01_repository_update
+    sourceDescription: github
+    sourceOperationId: repos/update
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - description: Delete the GitHub repository.
+    operationId: h01_repository_delete
+    sourceDescription: github
+    sourceOperationId: repos/delete
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+sourceDescriptions:
+  - name: github
+    type: openapi
+    url: ../../../../api-sources/github-repos-openapi.json
+uws: 1.4.0
+workflows:
+  - description: Static workflow for GitHub repository lifecycle parity.
+    steps:
+      - operationRef: h01_repository_create
+        stepId: create
+      - operationRef: h01_repository_read
+        stepId: read
+      - operationRef: h01_repository_update
+        stepId: update
+      - operationRef: h01_repository_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  version: ramen.project.v1
+  api_sources:
+    - id: github
+      kind: openapi
+      path: ../../../../api-sources/github-repos-openapi.json
+  metadata:
+    action: create
+    source: H01 GitHub provider parity fixture
+  redaction: {}
+  resources:
+    - address: github_repository.repo
+      attributes:
+        owner: github-owner-placeholder
+        name: ramen-parity-h01-static
+        description: Ramen GitHub H01 parity fixture
+        visibility: private
+        has_issues: true
+        auto_init: true
+      credential_bindings:
+        - github_token
+      identity_attributes:
+        - name: owner
+          path: owner
+          request_keys:
+            - org
+            - owner
+          required: true
+        - name: repository
+          path: name
+          request_keys:
+            - name
+            - repo
+          response_paths:
+            - name
+            - full_name
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: github_repository
+        terraform_address: github_repository.repo
+      name: repo
+      operations:
+        create:
+          credential_bindings:
+            - github_token
+          method: POST
+          operation_id: repos/create-in-org
+          purpose: create
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        read:
+          credential_bindings:
+            - github_token
+          method: GET
+          operation_id: repos/get
+          purpose: read
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        update:
+          credential_bindings:
+            - github_token
+          method: PATCH
+          operation_id: repos/update
+          purpose: update
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        delete:
+          credential_bindings:
+            - github_token
+          method: DELETE
+          operation_id: repos/delete
+          purpose: delete
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+      redaction: {}
+      request_bindings:
+        - operation_id: repos/create-in-org
+          operation_role: create
+          path: owner
+          request_path: org
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-in-org
+          operation_role: create
+          path: name
+          request_path: name
+          location: body
+          required: true
+          identity: true
+        - operation_id: repos/create-in-org
+          operation_role: create
+          path: description
+          request_path: description
+          location: body
+        - operation_id: repos/create-in-org
+          operation_role: create
+          path: visibility
+          request_path: visibility
+          location: body
+        - operation_id: repos/create-in-org
+          operation_role: create
+          path: has_issues
+          request_path: has_issues
+          location: body
+        - operation_id: repos/create-in-org
+          operation_role: create
+          path: auto_init
+          request_path: auto_init
+          location: body
+        - operation_id: repos/get
+          operation_role: read
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/get
+          operation_role: read
+          path: name
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/update
+          operation_role: update
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/update
+          operation_role: update
+          path: name
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/update
+          operation_role: update
+          path: description
+          request_path: description
+          location: body
+        - operation_id: repos/update
+          operation_role: update
+          path: visibility
+          request_path: visibility
+          location: body
+        - operation_id: repos/update
+          operation_role: update
+          path: has_issues
+          request_path: has_issues
+          location: body
+        - operation_id: repos/delete
+          operation_role: delete
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/delete
+          operation_role: delete
+          path: name
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: repos/get
+          operation_role: read
+          state_path: name
+          response_path: name
+          identity: true
+          observed: true
+        - operation_id: repos/get
+          operation_role: read
+          state_path: full_name
+          response_path: full_name
+          computed: true
+          observed: true
+        - operation_id: repos/get
+          operation_role: read
+          state_path: visibility
+          response_path: visibility
+          observed: true
+        - operation_id: repos/get
+          operation_role: read
+          state_path: default_branch
+          response_path: default_branch
+          computed: true
+          observed: true
+      schema:
+        - path: owner
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: name
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: description
+          type: string
+          optional: true
+          updateable: true
+        - path: visibility
+          type: string
+          optional: true
+          updateable: true
+        - path: has_issues
+          type: bool
+          optional: true
+          updateable: true
+        - path: auto_init
+          type: bool
+          optional: true
+          create_only: true
+        - path: full_name
+          type: string
+          computed: true
+          read_only: true
+        - path: default_branch
+          type: string
+          computed: true
+          read_only: true
+      type: github_repository

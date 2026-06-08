@@ -1,0 +1,97 @@
+{
+  "version": "ramen.github.provider-parity.v1",
+  "lane": "H01",
+  "status": "planned",
+  "provider": {
+    "source": "integrations/github",
+    "version_constraint": "~> 6.0"
+  },
+  "openapi": {
+    "source_path": "testdata/api-sources/github-repos-openapi.json",
+    "fixture": "focused GitHub REST repository/label/contents OpenAPI subset"
+  },
+  "safety": {
+    "live_env": "RAMEN_GITHUB_PARITY",
+    "record_update_env": "RAMEN_GITHUB_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GITHUB_PARITY_LANE",
+    "opentofu_env": "RAMEN_GITHUB_TOFU",
+    "owner_env": "GITHUB_OWNER",
+    "credential_binding": "github_token",
+    "credential_env": "UDON_CREDENTIAL_GITHUB_TOKEN",
+    "resource_prefix": "ramen-parity-h01-",
+    "requires_explicit_lane": true,
+    "live_enabled": true,
+    "cleanup_fallback": "GitHub REST DELETE /repos/{owner}/{repo}",
+    "required_env": [
+      "RAMEN_GITHUB_TOFU",
+      "GITHUB_OWNER",
+      "GITHUB_TOKEN",
+      "UDON_CREDENTIAL_GITHUB_TOKEN"
+    ],
+    "cost_guardrails": [
+      "one disposable private repository per runtime",
+      "no collaborators webhooks packages pages or secrets",
+      "delete repository before recording",
+      "verify repository absence after every runtime"
+    ],
+    "promotion": "H01 has an opt-in H04 live runner; recording promotion still requires a successful scoped run and sanitized cleanup review."
+  },
+  "recording": {
+    "status": "deferred",
+    "artifact_path": "testdata/parity/github/h01/live.observations.json",
+    "update_env": "RAMEN_GITHUB_PARITY_RECORD_UPDATE",
+    "compare_without_update": true,
+    "decision": "No live GitHub recording is committed; promotion requires explicit opt-in execution and sanitized cleanup evidence."
+  },
+  "promotion": {
+    "next": "Run the H04 opt-in H01 live parity pass with a scoped GitHub organization token, then review sanitized observations before promotion.",
+    "live_candidate": true,
+    "preconditions": [
+      "scoped GitHub organization token",
+      "private disposable repository only",
+      "cleanup absence verified"
+    ]
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "GitHub repository lifecycle",
+      "resource_type": "github_repository",
+      "terraform_resource_type": "github_repository",
+      "fixture_paths": [
+        "testdata/parity/github/h01/hcl/main.tf",
+        "testdata/parity/github/h01/ramen/project.uws.yaml",
+        "testdata/api-sources/github-repos-openapi.json"
+      ],
+      "operation_ids": [
+        "repos/create-in-org",
+        "repos/get",
+        "repos/update",
+        "repos/delete"
+      ],
+      "observed_fields": [
+        "after_create.exists",
+        "after_create.visibility",
+        "after_update.description",
+        "no_op",
+        "after_delete.exists"
+      ],
+      "expected_transitions": [
+        "create",
+        "read",
+        "update",
+        "no-op",
+        "delete",
+        "absence"
+      ]
+    }
+  ],
+  "notes": [
+    "H01 is organization-scoped because github_repository owner is supplied by the provider configuration.",
+    "Default replay validates static HCL/native/OpenAPI fixtures only.",
+    "The existing 24-row iCoT replay gate is unchanged; GitHub iCoT rows are deferred."
+  ]
+}

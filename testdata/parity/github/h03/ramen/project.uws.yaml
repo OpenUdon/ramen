@@ -1,0 +1,339 @@
+info:
+  description: GitHub repository file lifecycle parity fixture for H03.
+  title: ramen_github_h03_repository_file_lifecycle_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: github
+    serverUrl: https://api.github.com
+  security:
+    - binding: github_token
+      name: github_token
+      scheme:
+        scheme: bearer
+        type: http
+operations:
+  - operationId: h03_file_create
+    sourceDescription: github
+    sourceOperationId: repos/create-or-update-file-contents
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - operationId: h03_file_read
+    sourceDescription: github
+    sourceOperationId: repos/get-content
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - operationId: h03_file_update
+    sourceDescription: github
+    sourceOperationId: repos/create-or-update-file-contents
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - operationId: h03_file_delete
+    sourceDescription: github
+    sourceOperationId: repos/delete-file
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+sourceDescriptions:
+  - name: github
+    type: openapi
+    url: ../../../../api-sources/github-repos-openapi.json
+uws: 1.4.0
+workflows:
+  - steps:
+      - operationRef: h03_file_create
+        stepId: create
+      - operationRef: h03_file_read
+        stepId: read
+      - operationRef: h03_file_update
+        stepId: update
+      - operationRef: h03_file_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  version: ramen.project.v1
+  api_sources:
+    - id: github
+      kind: openapi
+      path: ../../../../api-sources/github-repos-openapi.json
+  metadata:
+    action: create
+    source: H03 GitHub provider parity fixture
+  redaction: {}
+  resources:
+    - address: github_repository_file.file
+      attributes:
+        owner: github-owner-placeholder
+        repository: ramen-parity-h03-static
+        file: ramen-parity-h03.txt
+        content: ramen h03 create
+        branch: main
+        commit_message: Create Ramen H03 parity file
+      credential_bindings:
+        - github_token
+      identity_attributes:
+        - name: owner
+          path: owner
+          request_keys:
+            - owner
+          required: true
+        - name: repository
+          path: repository
+          request_keys:
+            - repo
+          required: true
+        - name: path
+          path: file
+          request_keys:
+            - path
+          response_paths:
+            - path
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: github_repository_file
+        terraform_address: github_repository_file.file
+      name: file
+      operations:
+        create:
+          credential_bindings:
+            - github_token
+          method: PUT
+          operation_id: repos/create-or-update-file-contents
+          purpose: create
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        read:
+          credential_bindings:
+            - github_token
+          method: GET
+          operation_id: repos/get-content
+          purpose: read
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        update:
+          credential_bindings:
+            - github_token
+          method: PUT
+          operation_id: repos/create-or-update-file-contents
+          purpose: update
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        delete:
+          credential_bindings:
+            - github_token
+          method: DELETE
+          operation_id: repos/delete-file
+          purpose: delete
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+      redaction: {}
+      request_bindings:
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: create
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: create
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: create
+          path: file
+          request_path: path
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: create
+          path: commit_message
+          request_path: message
+          location: body
+          required: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: create
+          path: content
+          request_path: content
+          location: body
+          encoding: base64
+          required: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: create
+          path: branch
+          request_path: branch
+          location: body
+        - operation_id: repos/get-content
+          operation_role: read
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/get-content
+          operation_role: read
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/get-content
+          operation_role: read
+          path: file
+          request_path: path
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: file
+          request_path: path
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: commit_message
+          request_path: message
+          location: body
+          required: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: content
+          request_path: content
+          location: body
+          encoding: base64
+          required: true
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: branch
+          request_path: branch
+          location: body
+        - operation_id: repos/create-or-update-file-contents
+          operation_role: update
+          path: sha
+          request_path: sha
+          location: body
+          required: true
+          identity: true
+        - operation_id: repos/delete-file
+          operation_role: delete
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/delete-file
+          operation_role: delete
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/delete-file
+          operation_role: delete
+          path: file
+          request_path: path
+          location: path
+          required: true
+          identity: true
+        - operation_id: repos/delete-file
+          operation_role: delete
+          path: commit_message
+          request_path: message
+          location: body
+          required: true
+        - operation_id: repos/delete-file
+          operation_role: delete
+          path: branch
+          request_path: branch
+          location: body
+        - operation_id: repos/delete-file
+          operation_role: delete
+          path: sha
+          request_path: sha
+          location: body
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: repos/get-content
+          operation_role: read
+          state_path: file
+          response_path: path
+          identity: true
+          observed: true
+        - operation_id: repos/get-content
+          operation_role: read
+          state_path: sha
+          response_path: sha
+          identity: true
+          response_derived_identity: true
+          computed: true
+          observed: true
+      schema:
+        - path: owner
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: repository
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: file
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: content
+          type: string
+          required: true
+          updateable: true
+        - path: branch
+          type: string
+          optional: true
+          updateable: true
+        - path: commit_message
+          type: string
+          optional: true
+          updateable: true
+        - path: sha
+          type: string
+          computed: true
+          response_derived_identity: true
+          read_only: true
+      type: github_repository_file

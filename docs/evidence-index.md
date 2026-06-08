@@ -47,6 +47,17 @@ live evidence so adopters can inspect what has actually been proven.
   have committed sanitized D1 create/read and UUID-delete live recordings.
   Default tests replay those recordings without calling Cloudflare APIs or
   requiring credentials.
+- `testdata/parity/github/h01` through `h03` start a planned/static GitHub
+  parity lane over a focused GitHub REST OpenAPI subset. H01 covers
+  organization repository lifecycle, H02 covers issue labels, and H03 covers
+  repository file contents with Base64 request-binding metadata and
+  response-derived `sha`. Default tests validate HCL/native/OpenAPI metadata,
+  operation IDs, request bindings, and response bindings without GitHub
+  credentials or network access. H04 adds an opt-in live-account harness across
+  OpenTofu and Ramen+udon; H01 and H02 passed live with recording disabled on
+  2026-06-08. H03 is live-disabled until the Ramen+udon GitHub contents DELETE
+  request body path is fixed, because GitHub reports the required DELETE body
+  fields as missing. No live GitHub recording is committed yet.
 - `testdata/parity/google/y01` starts the Google Cloud parity lane with
   static-only Google Cloud Storage Bucket create/read/update/delete metadata
   over Google Discovery. It reuses existing Google Storage corpus evidence and
@@ -178,6 +189,11 @@ live evidence so adopters can inspect what has actually been proven.
   endpoint and records metadata-only observations. Y04-Y06 were recorded on
   2026-06-07 across OpenTofu and Ramen+udon with verified cleanup. Recording
   updates require `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1`.
+- GitHub live parity is opt-in through H04. H01-H03 metadata defines
+  `RAMEN_GITHUB_PARITY`, `RAMEN_GITHUB_PARITY_LANE`,
+  `RAMEN_GITHUB_PARITY_RECORD_UPDATE`, `RAMEN_GITHUB_TOFU`, `GITHUB_OWNER`,
+  `GITHUB_TOKEN`, and `UDON_CREDENTIAL_GITHUB_TOKEN`; sanitized recordings are promoted only after
+  disposable repository cleanup is reviewed.
 
 ## Validation Evidence
 

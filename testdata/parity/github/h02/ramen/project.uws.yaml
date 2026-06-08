@@ -1,0 +1,290 @@
+info:
+  description: GitHub repository issue label lifecycle parity fixture for H02.
+  title: ramen_github_h02_issue_label_lifecycle_parity
+  version: 1.0.0
+x-udon-config:
+  provider:
+    name: github
+    serverUrl: https://api.github.com
+  security:
+    - binding: github_token
+      name: github_token
+      scheme:
+        scheme: bearer
+        type: http
+operations:
+  - operationId: h02_label_create
+    sourceDescription: github
+    sourceOperationId: issues/create-label
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - operationId: h02_label_read
+    sourceDescription: github
+    sourceOperationId: issues/get-label
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - operationId: h02_label_update
+    sourceDescription: github
+    sourceOperationId: issues/update-label
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+  - operationId: h02_label_delete
+    sourceDescription: github
+    sourceOperationId: issues/delete-label
+    request:
+      x-ramen-credential-bindings:
+        - github_token
+sourceDescriptions:
+  - name: github
+    type: openapi
+    url: ../../../../api-sources/github-repos-openapi.json
+uws: 1.4.0
+workflows:
+  - steps:
+      - operationRef: h02_label_create
+        stepId: create
+      - operationRef: h02_label_read
+        stepId: read
+      - operationRef: h02_label_update
+        stepId: update
+      - operationRef: h02_label_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  version: ramen.project.v1
+  api_sources:
+    - id: github
+      kind: openapi
+      path: ../../../../api-sources/github-repos-openapi.json
+  metadata:
+    action: create
+    source: H02 GitHub provider parity fixture
+  redaction: {}
+  resources:
+    - address: github_issue_label.label
+      attributes:
+        owner: github-owner-placeholder
+        repository: ramen-parity-h02-static
+        name: ramen-parity-h02
+        color: 0e8a16
+        description: Ramen GitHub H02 parity fixture
+      credential_bindings:
+        - github_token
+      identity_attributes:
+        - name: owner
+          path: owner
+          request_keys:
+            - owner
+          required: true
+        - name: repository
+          path: repository
+          request_keys:
+            - repo
+          required: true
+        - name: name
+          path: name
+          request_keys:
+            - name
+          response_paths:
+            - name
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        parity_target: github_issue_label
+        terraform_address: github_issue_label.label
+      name: label
+      operations:
+        create:
+          credential_bindings:
+            - github_token
+          method: POST
+          operation_id: issues/create-label
+          purpose: create
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        read:
+          credential_bindings:
+            - github_token
+          method: GET
+          operation_id: issues/get-label
+          purpose: read
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        update:
+          credential_bindings:
+            - github_token
+          method: PATCH
+          operation_id: issues/update-label
+          purpose: update
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+        delete:
+          credential_bindings:
+            - github_token
+          method: DELETE
+          operation_id: issues/delete-label
+          purpose: delete
+          source_id: github
+          source_kind: openapi
+          source_path: ../../../../api-sources/github-repos-openapi.json
+      redaction: {}
+      request_bindings:
+        - operation_id: issues/create-label
+          operation_role: create
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/create-label
+          operation_role: create
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/create-label
+          operation_role: create
+          path: name
+          request_path: name
+          location: body
+          required: true
+          identity: true
+        - operation_id: issues/create-label
+          operation_role: create
+          path: color
+          request_path: color
+          location: body
+        - operation_id: issues/create-label
+          operation_role: create
+          path: description
+          request_path: description
+          location: body
+        - operation_id: issues/get-label
+          operation_role: read
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/get-label
+          operation_role: read
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/get-label
+          operation_role: read
+          path: name
+          request_path: name
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/update-label
+          operation_role: update
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/update-label
+          operation_role: update
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/update-label
+          operation_role: update
+          path: name
+          request_path: name
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/update-label
+          operation_role: update
+          path: color
+          request_path: color
+          location: body
+        - operation_id: issues/update-label
+          operation_role: update
+          path: description
+          request_path: description
+          location: body
+        - operation_id: issues/delete-label
+          operation_role: delete
+          path: owner
+          request_path: owner
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/delete-label
+          operation_role: delete
+          path: repository
+          request_path: repo
+          location: path
+          required: true
+          identity: true
+        - operation_id: issues/delete-label
+          operation_role: delete
+          path: name
+          request_path: name
+          location: path
+          required: true
+          identity: true
+      required_operations:
+        - create
+        - read
+        - update
+        - delete
+      response_bindings:
+        - operation_id: issues/get-label
+          operation_role: read
+          state_path: name
+          response_path: name
+          identity: true
+          observed: true
+        - operation_id: issues/get-label
+          operation_role: read
+          state_path: color
+          response_path: color
+          observed: true
+        - operation_id: issues/get-label
+          operation_role: read
+          state_path: description
+          response_path: description
+          observed: true
+      schema:
+        - path: owner
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: repository
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: name
+          type: string
+          required: true
+          identity: true
+          immutable: true
+        - path: color
+          type: string
+          optional: true
+          updateable: true
+        - path: description
+          type: string
+          optional: true
+          updateable: true
+      type: github_issue_label
