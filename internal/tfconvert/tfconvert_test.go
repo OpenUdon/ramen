@@ -507,6 +507,85 @@ resource "aws_iam_role" "role" {
 	}
 }
 
+func TestConvertGitHubRepositoryDerivesOwnerFromProviderConfig(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	openAPIPath := filepath.Join(root, "github.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+provider "github" {
+  owner = var.github_owner
+}
+
+variable "github_owner" {
+  default = "github-owner-placeholder"
+}
+
+resource "github_repository" "repo" {
+  name        = "ramen-parity-h01-static"
+  description = "Ramen GitHub H01 parity fixture"
+  visibility  = "private"
+  auto_init   = true
+}
+`)
+	writeFileForTest(t, openAPIPath, `openapi: 3.0.3
+info:
+  title: GitHub Test
+  version: v1
+paths:
+  /orgs/{org}/repos:
+    post:
+      operationId: repos/create-in-org
+      parameters:
+        - name: org
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: created
+`)
+
+	result, err := Convert(context.Background(), Options{
+		ConfigDir: configDir,
+		OpenAPIs:  []OpenAPIInput{{ID: "github", Path: openAPIPath}},
+		Action:    "create",
+		OutDir:    filepath.Join(root, "out"),
+		Strict:    true,
+	})
+	if err != nil {
+		t.Fatalf("Convert returned error: %v", err)
+	}
+	nativeDoc, err := project.Load(result.NativeProjectPath)
+	if err != nil {
+		t.Fatalf("load native project: %v", err)
+	}
+	if len(nativeDoc.Profile.Resources) != 1 {
+		t.Fatalf("native project resources = %#v", nativeDoc.Profile.Resources)
+	}
+	repo := nativeDoc.Profile.Resources[0]
+	if got := repo.Attributes["owner"]; got != "var.github_owner" {
+		t.Fatalf("derived GitHub owner attribute = %#v, want provider expression", got)
+	}
+	if repo.Operations["create"].OperationID != "repos/create-in-org" {
+		t.Fatalf("GitHub create operation = %#v", repo.Operations["create"])
+	}
+	var foundOwnerBinding bool
+	for _, binding := range repo.RequestBindings {
+		if binding.OperationRole == "create" && binding.Path == "owner" && binding.RequestPath == "org" && binding.Location == "path" {
+			foundOwnerBinding = true
+		}
+	}
+	if !foundOwnerBinding {
+		t.Fatalf("native project request bindings missing GitHub owner/org binding: %#v", repo.RequestBindings)
+	}
+}
+
 func TestConvertAWSS3BucketVersioningNestsDottedTerraformAttributes(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")

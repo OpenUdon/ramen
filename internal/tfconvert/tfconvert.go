@@ -437,6 +437,7 @@ func (c *conversionState) selectObjects() {
 					Config:        c.attributes(addr, mod.Address, res.Config),
 					Range:         res.Range,
 				}
+				obj.Config = c.withProviderDerivedAttributes(obj)
 				c.selected = append(c.selected, obj)
 			}
 		}
@@ -454,6 +455,7 @@ func (c *conversionState) selectObjects() {
 					Config:        c.attributes(addr, mod.Address, ds.Config),
 					Range:         ds.Range,
 				}
+				obj.Config = c.withProviderDerivedAttributes(obj)
 				c.selected = append(c.selected, obj)
 			}
 		}
@@ -470,6 +472,46 @@ func (c *conversionState) selectObjects() {
 		}
 	}
 	c.assignSelectedDependencies()
+}
+
+func (c *conversionState) withProviderDerivedAttributes(obj selectedObject) []attributeFact {
+	out := slices.Clone(obj.Config)
+	if objectProviderLocalName(obj) != "github" || hasAttributeFact(out, "owner") {
+		return out
+	}
+	if owner, ok := c.providerConfigAttribute(obj, "owner"); ok {
+		out = append(out, attributeFact{Path: "owner", Value: owner.Value, Sensitive: owner.Sensitive, TodoID: owner.TodoID})
+		slices.SortFunc(out, func(a, b attributeFact) int { return cmp.Compare(a.Path, b.Path) })
+	}
+	return out
+}
+
+func (c *conversionState) providerConfigAttribute(obj selectedObject, path string) (attributeFact, bool) {
+	localName := objectProviderLocalName(obj)
+	bindingName := obj.Binding
+	for _, binding := range c.bindings {
+		if binding.ModuleAddress != obj.ModuleAddress || binding.LocalName != localName {
+			continue
+		}
+		if bindingName != "" && bindingName != "default" && binding.Name != bindingName {
+			continue
+		}
+		for _, attr := range binding.Config {
+			if attr.Path == path {
+				return attr, true
+			}
+		}
+	}
+	return attributeFact{}, false
+}
+
+func hasAttributeFact(attrs []attributeFact, path string) bool {
+	for _, attr := range attrs {
+		if attr.Path == path {
+			return true
+		}
+	}
+	return false
 }
 
 func targetSelected(targets map[string]bool, addr string) bool {
@@ -1705,6 +1747,8 @@ func nativeRequestBindings(bindings []tfmapping.RequestBinding) []project.Reques
 			OperationID:   binding.OperationID,
 			Path:          binding.Path,
 			RequestPath:   binding.RequestPath,
+			Location:      binding.Location,
+			Encoding:      binding.Encoding,
 			Required:      binding.Required,
 			Identity:      binding.Identity,
 		})
