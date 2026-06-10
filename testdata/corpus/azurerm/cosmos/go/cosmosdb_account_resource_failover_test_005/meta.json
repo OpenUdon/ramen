@@ -12,5 +12,6 @@
       "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
     }
   ],
-  "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+  "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+  "source_repo": "terraform-provider-azurerm"
 }

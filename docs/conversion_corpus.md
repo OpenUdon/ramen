@@ -32,12 +32,20 @@ Current provider inputs:
 - Kubernetes: `../terraform-provider-kubernetes` examples + the pinned
   Kubernetes Swagger artifact under
   `../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json`.
+- OpenTofu: optional static Terraform docs/examples under `../opentofu`,
+  currently contributing only examples that map to supported provider/API
+  source pairs and pass the same clean corpus gates.
 
 The pipeline scans broadly but **emits narrowly**: only conversions that map
-cleanly (no `mapping.unsupported_*` / fallback-only diagnostic) *and* round-trip
-through HCL become corpus entries. Re-running the generator yields more entries
-automatically as coverage grows — the generator, not the data, is the durable
+cleanly (no `mapping.unsupported_*` / fallback-only diagnostic), pass strict
+native Ramen validation with local API source documents, and round-trip through
+HCL become corpus entries. Re-running the generator yields more entries
+automatically as coverage grows; the generator, not the data, is the durable
 asset.
+
+T01 consumes this strict-valid clean corpus as silver NL-to-Ramen training data.
+Silver rows are useful converted examples, not parity-backed correctness
+claims.
 
 Negative cases live separately under `testdata/diagnostic-corpus`. Those tests
 assert expected diagnostics for unsupported, ambiguous, malformed, or incomplete
@@ -86,7 +94,7 @@ conversions without weakening the clean corpus contract.
 - **Source:** AWS static testdata and supported `.gtpl` templates first; Google
   and AzureRM raw Terraform snippets from Go acceptance tests where no static
   testdata is available; Kubernetes static provider examples; Cloudflare static
-  service testdata.
+  service testdata; optional strict-valid OpenTofu static docs/examples.
 - **API source scope:** only local API source documents; for AWS this means the
   existing 29 Smithy models, and for Google this currently means the local
   Discovery documents in `../apitools`; for AzureRM this currently means local
@@ -95,7 +103,9 @@ conversions without weakening the clean corpus contract.
   provider fixture; for Cloudflare this currently uses a
   focused checked-in OpenAPI subset because the full cached Cloudflare OpenAPI
   document exceeds the default local source read limit.
-- **Output:** clean conversions only (drop fallback/unsupported).
+- **Output:** clean and strict-valid conversions only (drop
+  fallback/unsupported, native validation failures, and HCL round-trip
+  failures).
 
 ### Future: AWSCC / Cloud Control
 
@@ -125,11 +135,13 @@ compatibility adapter, but it should not be the canonical source model.
   Kubernetes OpenAPI source documents; scans AWS static Terraform files and
   renderable `.gtpl` templates; mines Google and AzureRM raw Terraform snippets
   from Go acceptance tests; scans Cloudflare static service testdata and
-  Kubernetes static examples; copies each provider config into the entry's
+  Kubernetes static examples; scans optional OpenTofu static docs/examples;
+  copies each provider config into the entry's
   `input/` and converts from there (so the recorded `config_dir` matches what
   the test reproduces); gates on clean diagnostics **and** HCL round-trip;
-  preserves an existing semantically-equal `.hcl` and prunes stale entries
-  (stable, idempotent regeneration); writes `manifest.json` + `COVERAGE.md`.
+  gates on strict native validation; records `source_repo`; preserves an
+  existing semantically-equal `.hcl` and prunes stale entries (stable,
+  idempotent regeneration); writes `manifest.json` + `COVERAGE.md`.
 - **`corpus_test.go`** — re-converts each entry and asserts `project.uws.yaml`
   and `plan.json` match byte-for-byte (deterministic) and `project.uws.hcl` is
   *structurally* equal to the YAML (`HCLToJSON`/`YAMLToJSON` + `DeepEqual`, since
@@ -194,6 +206,15 @@ testdata/corpus/cloudflare/<service>/<provider_testdata_file>/
   plan.json           conversion plan artifact (deterministic golden)
   diagnostics.json    convert diagnostics (clean)
   meta.json           provider, service, types, api_sources, source_dir
+
+testdata/corpus/opentofu/<provider>/<service>/<opentofu_path>/
+  input/main.tf       copied static OpenTofu documentation/example config
+  project.uws.yaml    converted native project (deterministic golden)
+  project.uws.hcl     HCL serialization (structurally equal to the YAML)
+  plan.json           conversion plan artifact (deterministic golden)
+  diagnostics.json    convert diagnostics (clean)
+  meta.json           provider, service, types, api_sources/smithy models,
+                      source_dir, source_repo
 testdata/corpus/manifest.json + COVERAGE.md
 ```
 Large API source documents are **referenced by relative path** in `meta.json`
@@ -203,33 +224,23 @@ Large API source documents are **referenced by relative path** in `meta.json`
 
 ## Results
 
-Committed corpus artifacts currently contain 159 entries in
+Committed corpus artifacts currently contain 159 strict-valid entries in
 `testdata/corpus/manifest.json`:
 
 | provider/service | entries |
 |---|---:|
 | aws/iam | 23 |
 | aws/lambda | 18 |
-| aws/s3 | 28 |
+| aws/s3 | 29 |
 | azurerm/cosmos | 31 |
 | cloudflare/d1_database | 1 |
 | cloudflare/r2_bucket | 8 |
 | google/storage | 45 |
-| kubernetes/core | 3 |
-| kubernetes/rbac | 2 |
+| kubernetes/core | 4 |
 
-The generated `testdata/corpus/COVERAGE.md` is stale in the current tree: it
-still reports 157 entries. A fresh `go run ./cmd/corpusgen --check` reports
-generator drift rather than passing:
-
-```
-corpusgen: emitted=164 considered=822 services=8
-           dropped(unsupported=545 no-resource=58 no-model=0 diagnostics=55 hcl=0 template=0)
-```
-
-That drift should be reconciled by a dedicated corpus-regeneration change. This
-document describes both the committed corpus and the current expansion signal;
-it does not regenerate or promote new corpus artifacts by itself.
+One of the AWS S3 entries comes from the optional OpenTofu documentation/example
+scan. Six otherwise clean conversions are dropped because strict native
+validation finds incomplete desired-state metadata.
 
 ### Why only 159 (the funnel)
 

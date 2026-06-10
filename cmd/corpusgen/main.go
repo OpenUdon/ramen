@@ -29,6 +29,7 @@ import (
 
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	"github.com/OpenUdon/ramen/tfmapping"
+	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/uws/convert"
 )
 
@@ -43,6 +44,7 @@ const (
 	defaultCloudflareOpenAPIDir  = "testdata/api-sources"
 	defaultKubernetesProviderDir = "../terraform-provider-kubernetes"
 	defaultKubernetesOpenAPIDir  = "../apitools/catalog-openapi-cache/openapi"
+	defaultOpenTofuDir           = "../opentofu"
 	defaultOutDir                = "testdata/corpus"
 )
 
@@ -88,6 +90,7 @@ type entryMeta struct {
 	APISources    []apiSourceRef `json:"api_sources,omitempty"`
 	SmithyModels  []modelRef     `json:"smithy_models,omitempty"`
 	SourceDir     string         `json:"source_dir"`
+	SourceRepo    string         `json:"source_repo,omitempty"`
 }
 
 type manifest struct {
@@ -103,6 +106,7 @@ type stats struct {
 	droppedUnsupported int
 	droppedNoModel     int
 	droppedDiagnostics int
+	droppedValidation  int
 	droppedHCL         int
 	droppedTemplate    int
 	emitted            int
@@ -120,6 +124,7 @@ func main() {
 	cloudflareOpenAPIDir := flag.String("cloudflare-openapi-dir", defaultCloudflareOpenAPIDir, "Directory of Cloudflare OpenAPI YAML/JSON files")
 	kubernetesProviderDir := flag.String("kubernetes-provider-dir", defaultKubernetesProviderDir, "Path to the terraform-provider-kubernetes checkout")
 	kubernetesOpenAPIDir := flag.String("kubernetes-openapi-dir", defaultKubernetesOpenAPIDir, "Directory of Kubernetes OpenAPI/Swagger JSON files")
+	openTofuDir := flag.String("opentofu-dir", defaultOpenTofuDir, "Path to the OpenTofu checkout for optional static documentation/example Terraform inputs")
 	providers := flag.String("providers", "aws,google,azurerm,cloudflare,kubernetes", "Comma-separated providers to scan: aws, google, azurerm, cloudflare, kubernetes")
 	outDir := flag.String("out", defaultOutDir, "Corpus output directory (relative to repo root)")
 	action := flag.String("action", "create", "Desired action passed to ramen convert")
@@ -137,6 +142,7 @@ func main() {
 		CloudflareOpenAPIDir:  *cloudflareOpenAPIDir,
 		KubernetesProviderDir: *kubernetesProviderDir,
 		KubernetesOpenAPIDir:  *kubernetesOpenAPIDir,
+		OpenTofuDir:           *openTofuDir,
 		Providers:             *providers,
 		OutDir:                *outDir,
 		Action:                *action,
@@ -158,6 +164,7 @@ type runOptions struct {
 	CloudflareOpenAPIDir  string
 	KubernetesProviderDir string
 	KubernetesOpenAPIDir  string
+	OpenTofuDir           string
 	Providers             string
 	OutDir                string
 	Action                string
@@ -169,6 +176,7 @@ type providerSpec struct {
 	ProviderDir string
 	SourceDir   string
 	SourceKind  string
+	SourceRepo  string
 	testInputs  func(string, string) ([]configInput, error)
 	findSource  func(string, string) (string, bool)
 }
@@ -222,6 +230,7 @@ func run(opts runOptions) error {
 					outDir:         opts.OutDir,
 					action:         opts.Action,
 					sourceKind:     spec.SourceKind,
+					sourceRepo:     spec.SourceRepo,
 					mappedKinds:    mapping.mappedKinds,
 					serviceForType: mapping.serviceForType,
 					serviceSource:  serviceSource,
@@ -238,6 +247,17 @@ func run(opts runOptions) error {
 			}
 		}
 		emittedDirs[spec.Name] = providerEmittedDirs
+	}
+
+	if dirExists(opts.OpenTofuDir) {
+		openTofuEntries, openTofuDirs, err := processOpenTofuInputs(ctx, opts, registry, providerSpecs, st)
+		if err != nil {
+			return err
+		}
+		entries = append(entries, openTofuEntries...)
+		if len(openTofuDirs) > 0 {
+			emittedDirs["opentofu"] = openTofuDirs
+		}
 	}
 
 	for provider, dirs := range emittedDirs {
@@ -289,6 +309,7 @@ func specsForOptions(opts runOptions) []providerSpec {
 			ProviderDir: opts.AWSProviderDir,
 			SourceDir:   opts.AWSSmithyDir,
 			SourceKind:  tfmapping.APISourceKindAWSSmithy,
+			SourceRepo:  "terraform-provider-aws",
 			testInputs: func(providerDir, svc string) ([]configInput, error) {
 				return configInputs(filepath.Join(providerDir, "internal", "service", svc, "testdata"))
 			},
@@ -301,6 +322,7 @@ func specsForOptions(opts runOptions) []providerSpec {
 			ProviderDir: opts.GoogleProviderDir,
 			SourceDir:   opts.GoogleDiscoveryDir,
 			SourceKind:  tfmapping.APISourceKindGoogleDiscovery,
+			SourceRepo:  "terraform-provider-google",
 			testInputs: func(providerDir, svc string) ([]configInput, error) {
 				return googleConfigInputs(filepath.Join(providerDir, "google", "services", svc))
 			},
@@ -313,6 +335,7 @@ func specsForOptions(opts runOptions) []providerSpec {
 			ProviderDir: opts.AzureProviderDir,
 			SourceDir:   opts.AzureOpenAPIDir,
 			SourceKind:  tfmapping.APISourceKindOpenAPI,
+			SourceRepo:  "terraform-provider-azurerm",
 			testInputs: func(providerDir, svc string) ([]configInput, error) {
 				return azureRMConfigInputs(filepath.Join(providerDir, "internal", "services", svc))
 			},
@@ -325,6 +348,7 @@ func specsForOptions(opts runOptions) []providerSpec {
 			ProviderDir: opts.CloudflareProviderDir,
 			SourceDir:   opts.CloudflareOpenAPIDir,
 			SourceKind:  tfmapping.APISourceKindOpenAPI,
+			SourceRepo:  "terraform-provider-cloudflare",
 			testInputs: func(providerDir, svc string) ([]configInput, error) {
 				return cloudflareConfigInputs(filepath.Join(providerDir, "internal", "services", svc, "testdata"))
 			},
@@ -337,6 +361,7 @@ func specsForOptions(opts runOptions) []providerSpec {
 			ProviderDir: opts.KubernetesProviderDir,
 			SourceDir:   opts.KubernetesOpenAPIDir,
 			SourceKind:  tfmapping.APISourceKindOpenAPI,
+			SourceRepo:  "terraform-provider-kubernetes",
 			testInputs: func(providerDir, svc string) ([]configInput, error) {
 				return terraformFileInputs(filepath.Join(providerDir, "examples"))
 			},
@@ -382,6 +407,116 @@ func mappedProviderTypes(registry tfmapping.Registry, provider string) (provider
 	return out, nil
 }
 
+func processOpenTofuInputs(ctx context.Context, opts runOptions, registry tfmapping.Registry, specs []providerSpec, st *stats) ([]entryMeta, map[string]bool, error) {
+	inputs, err := openTofuConfigInputs(opts.OpenTofuDir)
+	if err != nil {
+		return nil, nil, err
+	}
+	if len(inputs) == 0 {
+		return nil, nil, nil
+	}
+
+	specByProvider := map[string]providerSpec{}
+	mappingByProvider := map[string]providerMapping{}
+	sourceByProvider := map[string]map[string]string{}
+	for _, spec := range specs {
+		specByProvider[spec.Name] = spec
+		mapping, err := mappedProviderTypes(registry, spec.Name)
+		if err != nil {
+			return nil, nil, err
+		}
+		mappingByProvider[spec.Name] = mapping
+		serviceSource := map[string]string{}
+		for svc := range mapping.services {
+			if path, ok := spec.findSource(spec.SourceDir, svc); ok {
+				serviceSource[svc] = path
+			}
+		}
+		sourceByProvider[spec.Name] = serviceSource
+	}
+
+	var entries []entryMeta
+	emittedDirs := map[string]bool{}
+	for _, input := range inputs {
+		rendered, resources, _, err := prepareInput(input)
+		if err != nil {
+			return nil, nil, err
+		}
+		if len(resources) == 0 {
+			st.configsConsidered++
+			st.droppedNoResource++
+			continue
+		}
+		provider := providerForTerraformTypes(resources)
+		spec, ok := specByProvider[provider]
+		if !ok {
+			st.configsConsidered++
+			st.droppedUnsupported++
+			continue
+		}
+		mapping := mappingByProvider[provider]
+		services := map[string]bool{}
+		supported := true
+		for _, rt := range resources {
+			if !mapping.mappedKinds["resource"][rt] {
+				supported = false
+				break
+			}
+			services[mapping.serviceForType[rt]] = true
+		}
+		if !supported || len(services) != 1 {
+			st.configsConsidered++
+			st.droppedUnsupported++
+			continue
+		}
+		service := sortedKeys(services)[0]
+		if _, ok := sourceByProvider[provider][service]; !ok {
+			st.configsConsidered++
+			st.droppedNoModel++
+			continue
+		}
+		input.Content = rendered
+		meta, emitted, err := processConfigDir(ctx, processArgs{
+			input:          input,
+			provider:       provider,
+			service:        service,
+			providerDir:    opts.OpenTofuDir,
+			outDir:         opts.OutDir,
+			action:         opts.Action,
+			sourceKind:     spec.SourceKind,
+			sourceRepo:     "opentofu",
+			entryPrefix:    "opentofu",
+			mappedKinds:    mapping.mappedKinds,
+			serviceForType: mapping.serviceForType,
+			serviceSource:  sourceByProvider[provider],
+		}, st)
+		if err != nil {
+			return nil, nil, err
+		}
+		if emitted {
+			entries = append(entries, meta)
+			emittedDirs[filepath.Join(opts.OutDir, filepath.FromSlash(meta.Path))] = true
+			st.emitted++
+			st.perService[provider+"/"+service]++
+		}
+	}
+	return entries, emittedDirs, nil
+}
+
+func providerForTerraformTypes(types []string) string {
+	providers := map[string]bool{}
+	for _, typ := range types {
+		parts := strings.SplitN(typ, "_", 2)
+		if len(parts) == 2 {
+			providers[parts[0]] = true
+		}
+	}
+	if len(providers) != 1 {
+		return ""
+	}
+	return sortedKeys(providers)[0]
+}
+
 type processArgs struct {
 	input          configInput
 	provider       string
@@ -390,6 +525,8 @@ type processArgs struct {
 	outDir         string
 	action         string
 	sourceKind     string
+	sourceRepo     string
+	entryPrefix    string
 	mappedKinds    map[string]map[string]bool
 	serviceForType map[string]string
 	serviceSource  map[string]string
@@ -421,7 +558,11 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 		return entryMeta{}, false, nil
 	}
 
-	entryRel := filepath.Join(a.provider, a.service, a.input.EntryRel)
+	parts := []string{a.provider, a.service, a.input.EntryRel}
+	if strings.TrimSpace(a.entryPrefix) != "" {
+		parts = append([]string{a.entryPrefix}, parts...)
+	}
+	entryRel := filepath.Join(parts...)
 	entryDir := filepath.Join(a.outDir, entryRel)
 
 	// Copy the input first and convert from the corpus input directory so the
@@ -454,6 +595,20 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 		st.droppedDiagnostics++
 		return entryMeta{}, false, nil
 	}
+	validateInputs := make([]ramenvalidate.APISourceInput, 0, len(apiSources))
+	for _, src := range apiSources {
+		validateInputs = append(validateInputs, ramenvalidate.APISourceInput{Kind: src.Kind, ID: src.ID, Path: src.Path})
+	}
+	validation, err := ramenvalidate.Run(ctx, ramenvalidate.Options{
+		ProjectPath: res.NativeProjectPath,
+		APISources:  validateInputs,
+		Strict:      true,
+	})
+	if err != nil || !validation.Valid {
+		os.RemoveAll(entryDir)
+		st.droppedValidation++
+		return entryMeta{}, false, nil
+	}
 
 	// Only keep entries whose generated HCL round-trips back to the same
 	// document as the YAML. Some configs still expose UWS HCL string-escaping
@@ -474,6 +629,7 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 		ResourceTypes: resources,
 		DataSources:   datas,
 		SourceDir:     filepath.ToSlash(mustRel(a.providerDir, a.input.Path)),
+		SourceRepo:    a.sourceRepo,
 	}
 	if a.sourceKind == tfmapping.APISourceKindAWSSmithy {
 		for _, src := range sources {
@@ -495,6 +651,7 @@ func copyInputFiles(input configInput, rendered []byte, inputDir string) error {
 	if err := os.MkdirAll(inputDir, 0o755); err != nil {
 		return err
 	}
+	rendered = normalizeTerraformBytes(rendered)
 	if input.Template {
 		return os.WriteFile(filepath.Join(inputDir, "main.tf"), rendered, 0o644)
 	}
@@ -822,8 +979,9 @@ type configInput struct {
 
 func prepareInput(input configInput) ([]byte, []string, []string, error) {
 	if len(input.Content) > 0 {
-		resources, datas := extractTypesFromBytes(input.Content)
-		return input.Content, resources, datas, nil
+		data := normalizeTerraformBytes(input.Content)
+		resources, datas := extractTypesFromBytes(data)
+		return data, resources, datas, nil
 	}
 	if !input.Template {
 		resources, datas, err := extractTypes(input.Path)
@@ -835,6 +993,12 @@ func prepareInput(input configInput) ([]byte, []string, []string, error) {
 	}
 	resources, datas := extractTypesFromBytes(data)
 	return data, resources, datas, nil
+}
+
+func normalizeTerraformBytes(data []byte) []byte {
+	data = bytes.ReplaceAll(data, []byte("\r\n"), []byte("\n"))
+	data = bytes.ReplaceAll(data, []byte("\r"), []byte("\n"))
+	return data
 }
 
 func renderProviderTemplate(path string) ([]byte, error) {
@@ -1045,6 +1209,30 @@ func goTestConfigInputs(serviceDir string, sanitize func(string) string) ([]conf
 
 func terraformFileInputs(root string) ([]configInput, error) {
 	return sanitizedTerraformFileInputs(root, nil)
+}
+
+func openTofuConfigInputs(root string) ([]configInput, error) {
+	var out []configInput
+	for _, relRoot := range []string{
+		"website/docs",
+		"docs",
+		"testing/equivalence-tests",
+	} {
+		inputs, err := sanitizedTerraformFileInputs(filepath.Join(root, filepath.FromSlash(relRoot)), nil)
+		if err != nil {
+			return nil, err
+		}
+		for _, input := range inputs {
+			rel, err := filepath.Rel(root, input.Path)
+			if err != nil {
+				return nil, err
+			}
+			input.EntryRel = strings.TrimSuffix(filepath.ToSlash(rel), ".tf")
+			out = append(out, input)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].EntryRel < out[j].EntryRel })
+	return out, nil
 }
 
 func sanitizedTerraformFileInputs(root string, sanitize func(string) string) ([]configInput, error) {
@@ -1341,6 +1529,7 @@ func writeCoverage(outDir string, st *stats, registry tfmapping.Registry) error 
 	fmt.Fprintf(&b, "- dropped (unsupported Terraform type): %d\n", st.droppedUnsupported)
 	fmt.Fprintf(&b, "- dropped (no API source document for a needed service): %d\n", st.droppedNoModel)
 	fmt.Fprintf(&b, "- dropped (fallback/unsupported/error diagnostics): %d\n", st.droppedDiagnostics)
+	fmt.Fprintf(&b, "- dropped (strict native validation): %d\n", st.droppedValidation)
 	fmt.Fprintf(&b, "- dropped (HCL round-trip not yet clean): %d\n", st.droppedHCL)
 	fmt.Fprintf(&b, "- dropped (template render failed): %d\n", st.droppedTemplate)
 	if len(st.servicesNoModel) > 0 {
@@ -1363,9 +1552,9 @@ func writeCoverage(outDir string, st *stats, registry tfmapping.Registry) error 
 }
 
 func printSummary(st *stats) {
-	fmt.Printf("corpusgen: emitted=%d considered=%d services=%d dropped(unsupported=%d no-resource=%d no-model=%d diagnostics=%d hcl=%d template=%d)\n",
+	fmt.Printf("corpusgen: emitted=%d considered=%d services=%d dropped(unsupported=%d no-resource=%d no-model=%d diagnostics=%d validation=%d hcl=%d template=%d)\n",
 		st.emitted, st.configsConsidered, st.servicesScanned,
-		st.droppedUnsupported, st.droppedNoResource, st.droppedNoModel, st.droppedDiagnostics, st.droppedHCL, st.droppedTemplate)
+		st.droppedUnsupported, st.droppedNoResource, st.droppedNoModel, st.droppedDiagnostics, st.droppedValidation, st.droppedHCL, st.droppedTemplate)
 }
 
 func contains(list []string, v string) bool {

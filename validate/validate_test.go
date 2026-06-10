@@ -168,6 +168,30 @@ func TestRunTreatsWarningsAsErrorsInStrictMode(t *testing.T) {
 	}
 }
 
+func TestRunAllowsExternalTerraformDataSourceDependencies(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:      "example_resource.test",
+			Kind:         "resource",
+			Type:         "example_resource",
+			Dependencies: []string{"data.example_source.current"},
+			Operations:   map[string]project.OperationRole{"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"}},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath, Strict: true})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !result.Valid || hasValidateCode(result, "validate.dependency_missing") {
+		t.Fatalf("data source dependency should validate: %#v", result)
+	}
+}
+
 func TestRunValidatesMappingSchemaMetadata(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")

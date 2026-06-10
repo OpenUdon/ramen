@@ -14,5 +14,6 @@
       "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
     }
   ],
-  "source_dir": "internal/service/iam/testdata/Role/tags_ignore"
+  "source_dir": "internal/service/iam/testdata/Role/tags_ignore",
+  "source_repo": "terraform-provider-aws"
 }

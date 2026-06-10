@@ -12,5 +12,6 @@
       "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
     }
   ],
-  "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override"
+  "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override",
+  "source_repo": "terraform-provider-aws"
 }

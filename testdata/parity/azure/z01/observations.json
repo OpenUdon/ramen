@@ -43,7 +43,7 @@
   "scenarios": [
     {
       "name": "sql_database_lifecycle",
-      "resource_type": "azure_sql_database",
+      "resource_type": "azurerm_mssql_database",
       "terraform_resource_type": "azurerm_mssql_database",
       "fixture_paths": [
         "testdata/parity/azure/z01/hcl/main.tf",

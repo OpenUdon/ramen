@@ -17,7 +17,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/basic"
+      "source_dir": "internal/service/iam/testdata/Role/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/basic_v5.100.0",
@@ -35,7 +36,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/basic_v5.100.0"
+      "source_dir": "internal/service/iam/testdata/Role/basic_v5.100.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/basic_v6.0.0",
@@ -53,7 +55,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/basic_v6.0.0"
+      "source_dir": "internal/service/iam/testdata/Role/basic_v6.0.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/list_basic",
@@ -71,7 +74,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/list_basic"
+      "source_dir": "internal/service/iam/testdata/Role/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/list_include_resource",
@@ -89,7 +93,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/list_include_resource"
+      "source_dir": "internal/service/iam/testdata/Role/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/tags",
@@ -107,7 +112,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/tags"
+      "source_dir": "internal/service/iam/testdata/Role/tags",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/tags_defaults",
@@ -125,7 +131,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/tags_defaults"
+      "source_dir": "internal/service/iam/testdata/Role/tags_defaults",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/Role/tags_ignore",
@@ -143,7 +150,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/Role/tags_ignore"
+      "source_dir": "internal/service/iam/testdata/Role/tags_ignore",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/RolePolicy/basic",
@@ -162,7 +170,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/RolePolicy/basic"
+      "source_dir": "internal/service/iam/testdata/RolePolicy/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/RolePolicy/basic_v6.0.0",
@@ -181,7 +190,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/RolePolicy/basic_v6.0.0"
+      "source_dir": "internal/service/iam/testdata/RolePolicy/basic_v6.0.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/RolePolicy/list_basic",
@@ -197,7 +207,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/RolePolicy/list_basic"
+      "source_dir": "internal/service/iam/testdata/RolePolicy/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/RolePolicy/list_include_resource",
@@ -213,7 +224,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource"
+      "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/basic",
@@ -228,7 +240,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/basic"
+      "source_dir": "internal/service/iam/testdata/User/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/basic_v6.35.1",
@@ -243,7 +256,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/basic_v6.35.1"
+      "source_dir": "internal/service/iam/testdata/User/basic_v6.35.1",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/list_basic",
@@ -258,7 +272,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/list_basic"
+      "source_dir": "internal/service/iam/testdata/User/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/list_include_resource",
@@ -273,7 +288,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/list_include_resource"
+      "source_dir": "internal/service/iam/testdata/User/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/list_path_prefix",
@@ -288,7 +304,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/list_path_prefix"
+      "source_dir": "internal/service/iam/testdata/User/list_path_prefix",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/tags",
@@ -303,7 +320,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/tags"
+      "source_dir": "internal/service/iam/testdata/User/tags",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/tags_defaults",
@@ -318,7 +336,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/tags_defaults"
+      "source_dir": "internal/service/iam/testdata/User/tags_defaults",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/User/tags_ignore",
@@ -333,7 +352,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/User/tags_ignore"
+      "source_dir": "internal/service/iam/testdata/User/tags_ignore",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/tmpl/role_basic",
@@ -351,7 +371,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/tmpl/role_basic.gtpl"
+      "source_dir": "internal/service/iam/testdata/tmpl/role_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/tmpl/role_policy_basic",
@@ -370,7 +391,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/tmpl/role_policy_basic.gtpl"
+      "source_dir": "internal/service/iam/testdata/tmpl/role_policy_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/iam/tmpl/user_basic",
@@ -385,7 +407,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/iam/testdata/tmpl/user_basic.gtpl"
+      "source_dir": "internal/service/iam/testdata/tmpl/user_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/basic",
@@ -409,7 +432,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/basic"
+      "source_dir": "internal/service/lambda/testdata/Function/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/basic_v6.7.0",
@@ -433,7 +457,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/basic_v6.7.0"
+      "source_dir": "internal/service/lambda/testdata/Function/basic_v6.7.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/basic_v6.8.0",
@@ -457,7 +482,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/basic_v6.8.0"
+      "source_dir": "internal/service/lambda/testdata/Function/basic_v6.8.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/list_basic",
@@ -481,7 +507,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/list_basic"
+      "source_dir": "internal/service/lambda/testdata/Function/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/list_include_resource",
@@ -505,7 +532,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/list_include_resource"
+      "source_dir": "internal/service/lambda/testdata/Function/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/list_region_override",
@@ -529,7 +557,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/list_region_override"
+      "source_dir": "internal/service/lambda/testdata/Function/list_region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/region_override",
@@ -553,7 +582,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/region_override"
+      "source_dir": "internal/service/lambda/testdata/Function/region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/tags",
@@ -577,7 +607,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/tags"
+      "source_dir": "internal/service/lambda/testdata/Function/tags",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/tags_defaults",
@@ -601,7 +632,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/tags_defaults"
+      "source_dir": "internal/service/lambda/testdata/Function/tags_defaults",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Function/tags_ignore",
@@ -625,7 +657,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Function/tags_ignore"
+      "source_dir": "internal/service/lambda/testdata/Function/tags_ignore",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Permission/basic",
@@ -646,7 +679,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Permission/basic"
+      "source_dir": "internal/service/lambda/testdata/Permission/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Permission/basic_v6.9.0",
@@ -667,7 +701,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Permission/basic_v6.9.0"
+      "source_dir": "internal/service/lambda/testdata/Permission/basic_v6.9.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Permission/list_basic",
@@ -688,7 +723,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Permission/list_basic"
+      "source_dir": "internal/service/lambda/testdata/Permission/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Permission/list_include_resource",
@@ -709,7 +745,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Permission/list_include_resource"
+      "source_dir": "internal/service/lambda/testdata/Permission/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Permission/list_region_override",
@@ -730,7 +767,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Permission/list_region_override"
+      "source_dir": "internal/service/lambda/testdata/Permission/list_region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/Permission/region_override",
@@ -751,7 +789,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/Permission/region_override"
+      "source_dir": "internal/service/lambda/testdata/Permission/region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/tmpl/function_basic",
@@ -775,7 +814,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/tmpl/function_basic.gtpl"
+      "source_dir": "internal/service/lambda/testdata/tmpl/function_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/lambda/tmpl/permission_basic",
@@ -796,7 +836,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/lambda/testdata/tmpl/permission_basic.gtpl"
+      "source_dir": "internal/service/lambda/testdata/tmpl/permission_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/basic",
@@ -811,7 +852,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/basic"
+      "source_dir": "internal/service/s3/testdata/Bucket/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/basic_v5.100.0",
@@ -826,7 +868,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/basic_v5.100.0"
+      "source_dir": "internal/service/s3/testdata/Bucket/basic_v5.100.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/basic_v6.0.0",
@@ -841,7 +884,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/basic_v6.0.0"
+      "source_dir": "internal/service/s3/testdata/Bucket/basic_v6.0.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/list_basic",
@@ -856,7 +900,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/list_basic"
+      "source_dir": "internal/service/s3/testdata/Bucket/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/list_include_resource",
@@ -871,7 +916,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/list_include_resource"
+      "source_dir": "internal/service/s3/testdata/Bucket/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/list_region_override",
@@ -886,7 +932,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/list_region_override"
+      "source_dir": "internal/service/s3/testdata/Bucket/list_region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/namespace_account-regional_name_generated",
@@ -901,7 +948,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_generated"
+      "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_generated",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/namespace_account-regional_name_prefix",
@@ -916,7 +964,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_prefix"
+      "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_prefix",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/namespace_global",
@@ -931,7 +980,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/namespace_global"
+      "source_dir": "internal/service/s3/testdata/Bucket/namespace_global",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/region_override",
@@ -946,7 +996,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/region_override"
+      "source_dir": "internal/service/s3/testdata/Bucket/region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/tags",
@@ -961,7 +1012,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/tags"
+      "source_dir": "internal/service/s3/testdata/Bucket/tags",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/tags_defaults",
@@ -976,7 +1028,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/tags_defaults"
+      "source_dir": "internal/service/s3/testdata/Bucket/tags_defaults",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/Bucket/tags_ignore",
@@ -991,7 +1044,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/Bucket/tags_ignore"
+      "source_dir": "internal/service/s3/testdata/Bucket/tags_ignore",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/basic",
@@ -1007,7 +1061,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic"
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/basic_v6.9.0",
@@ -1023,7 +1078,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic_v6.9.0"
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic_v6.9.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/list_basic",
@@ -1039,7 +1095,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_basic"
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/list_region_override",
@@ -1055,7 +1112,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_region_override"
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketPublicAccessBlock/region_override",
@@ -1071,7 +1129,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override"
+      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/basic",
@@ -1087,7 +1146,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/basic_v6.30.0",
@@ -1103,7 +1163,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.30.0"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.30.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/basic_v6.9.0",
@@ -1119,7 +1180,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.9.0"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.9.0",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/list_basic",
@@ -1135,7 +1197,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_basic"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_basic",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/list_include_resource",
@@ -1151,7 +1214,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/list_region_override",
@@ -1167,7 +1231,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_region_override"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/BucketVersioning/region_override",
@@ -1183,7 +1248,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/region_override"
+      "source_dir": "internal/service/s3/testdata/BucketVersioning/region_override",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/tmpl/bucket_basic",
@@ -1198,7 +1264,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/tmpl/bucket_basic.gtpl"
+      "source_dir": "internal/service/s3/testdata/tmpl/bucket_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/tmpl/bucket_public_access_block_basic",
@@ -1214,7 +1281,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/tmpl/bucket_public_access_block_basic.gtpl"
+      "source_dir": "internal/service/s3/testdata/tmpl/bucket_public_access_block_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "aws/s3/tmpl/bucket_versioning_basic",
@@ -1230,7 +1298,8 @@
           "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "internal/service/s3/testdata/tmpl/bucket_versioning_basic.gtpl"
+      "source_dir": "internal/service/s3/testdata/tmpl/bucket_versioning_basic.gtpl",
+      "source_repo": "terraform-provider-aws"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001",
@@ -1246,7 +1315,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002",
@@ -1262,7 +1332,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003",
@@ -1278,7 +1349,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004",
@@ -1294,7 +1366,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005",
@@ -1310,7 +1383,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006",
@@ -1326,7 +1400,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_001",
@@ -1342,7 +1417,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_002",
@@ -1358,7 +1434,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_004",
@@ -1374,7 +1451,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_005",
@@ -1390,7 +1468,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_020",
@@ -1406,7 +1485,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_023",
@@ -1422,7 +1502,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_024",
@@ -1438,7 +1519,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_025",
@@ -1454,7 +1536,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_026",
@@ -1470,7 +1553,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_035",
@@ -1486,7 +1570,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_036",
@@ -1502,7 +1587,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_037",
@@ -1518,7 +1604,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_038",
@@ -1534,7 +1621,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_039",
@@ -1550,7 +1638,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_043",
@@ -1566,7 +1655,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_045",
@@ -1582,7 +1672,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_047",
@@ -1598,7 +1689,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_048",
@@ -1614,7 +1706,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_049",
@@ -1630,7 +1723,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_050",
@@ -1646,7 +1740,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_051",
@@ -1662,7 +1757,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_052",
@@ -1678,7 +1774,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_053",
@@ -1694,7 +1791,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_account_resource_test_055",
@@ -1710,7 +1808,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001",
@@ -1726,7 +1825,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
-      "source_dir": "internal/services/cosmos/cosmosdb_sql_dedicated_gateway_resource_test.go"
+      "source_dir": "internal/services/cosmos/cosmosdb_sql_dedicated_gateway_resource_test.go",
+      "source_repo": "terraform-provider-azurerm"
     },
     {
       "path": "cloudflare/d1_database/d1databasebasic",
@@ -1742,7 +1842,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/d1_database/testdata/d1databasebasic.tf"
+      "source_dir": "internal/services/d1_database/testdata/d1databasebasic.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/comprehensive",
@@ -1758,7 +1859,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/comprehensive.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/comprehensive.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/jurisdiction",
@@ -1774,7 +1876,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/jurisdiction.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/jurisdiction.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/jurisdiction_specific",
@@ -1790,7 +1893,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/jurisdiction_specific.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/jurisdiction_specific.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/location",
@@ -1806,7 +1910,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/location.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/location.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/r2bucketbasic",
@@ -1822,7 +1927,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/r2bucketbasic.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/r2bucketbasic.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/r2bucketminimum",
@@ -1838,7 +1944,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/r2bucketminimum.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/r2bucketminimum.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/r2bucketupdate",
@@ -1854,7 +1961,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/r2bucketupdate.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/r2bucketupdate.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "cloudflare/r2_bucket/storage_class",
@@ -1870,7 +1978,8 @@
           "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
         }
       ],
-      "source_dir": "internal/services/r2_bucket/testdata/storage_class.tf"
+      "source_dir": "internal/services/r2_bucket/testdata/storage_class.tf",
+      "source_repo": "terraform-provider-cloudflare"
     },
     {
       "path": "google/storage/go/data_source_google_storage_bucket_test_001",
@@ -1889,7 +1998,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go"
+      "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/data_source_google_storage_bucket_test_002",
@@ -1908,7 +2018,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go"
+      "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/list_google_storage_bucket_test_001",
@@ -1924,7 +2035,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/list_google_storage_bucket_test.go"
+      "source_dir": "google/services/storage/list_google_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_object_test_019",
@@ -1940,7 +2052,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_object_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_object_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_001",
@@ -1956,7 +2069,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_002",
@@ -1972,7 +2086,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_003",
@@ -1988,7 +2103,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_004",
@@ -2004,7 +2120,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_005",
@@ -2020,7 +2137,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_006",
@@ -2036,7 +2154,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_007",
@@ -2052,7 +2171,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_008",
@@ -2068,7 +2188,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_009",
@@ -2084,7 +2205,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_010",
@@ -2100,7 +2222,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_011",
@@ -2116,7 +2239,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_012",
@@ -2132,7 +2256,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_013",
@@ -2148,7 +2273,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_017",
@@ -2164,7 +2290,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_020",
@@ -2180,7 +2307,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_022",
@@ -2196,7 +2324,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_023",
@@ -2212,7 +2341,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_024",
@@ -2228,7 +2358,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_025",
@@ -2244,7 +2375,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_026",
@@ -2260,7 +2392,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_027",
@@ -2276,7 +2409,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_030",
@@ -2292,7 +2426,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_031",
@@ -2308,7 +2443,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_033",
@@ -2324,7 +2460,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_034",
@@ -2340,7 +2477,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_035",
@@ -2356,7 +2494,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_036",
@@ -2372,7 +2511,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_038",
@@ -2388,7 +2528,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_039",
@@ -2404,7 +2545,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_040",
@@ -2420,7 +2562,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_041",
@@ -2436,7 +2579,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_042",
@@ -2452,7 +2596,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_043",
@@ -2468,7 +2613,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_044",
@@ -2484,7 +2630,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_045",
@@ -2500,7 +2647,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_046",
@@ -2516,7 +2664,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_047",
@@ -2532,7 +2681,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_051",
@@ -2548,7 +2698,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_052",
@@ -2564,7 +2715,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_bucket_test_053",
@@ -2580,7 +2732,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_bucket_test.go"
+      "source_dir": "google/services/storage/resource_storage_bucket_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "google/storage/go/resource_storage_folder_test_001",
@@ -2596,7 +2749,8 @@
           "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
         }
       ],
-      "source_dir": "google/services/storage/resource_storage_folder_test.go"
+      "source_dir": "google/services/storage/resource_storage_folder_test.go",
+      "source_repo": "terraform-provider-google"
     },
     {
       "path": "kubernetes/core/example_1",
@@ -2612,7 +2766,25 @@
           "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
         }
       ],
-      "source_dir": "examples/example_1.tf"
+      "source_dir": "examples/example_1.tf",
+      "source_repo": "terraform-provider-kubernetes"
+    },
+    {
+      "path": "kubernetes/core/resources/cluster_role_v1/example_1",
+      "provider": "kubernetes",
+      "service": "core",
+      "resource_types": [
+        "kubernetes_cluster_role_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "core",
+          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+        }
+      ],
+      "source_dir": "examples/resources/cluster_role_v1/example_1.tf",
+      "source_repo": "terraform-provider-kubernetes"
     },
     {
       "path": "kubernetes/core/resources/namespace/example_1",
@@ -2628,7 +2800,8 @@
           "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
         }
       ],
-      "source_dir": "examples/resources/namespace/example_1.tf"
+      "source_dir": "examples/resources/namespace/example_1.tf",
+      "source_repo": "terraform-provider-kubernetes"
     },
     {
       "path": "kubernetes/core/resources/namespace_v1/example_1",
@@ -2644,39 +2817,24 @@
           "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
         }
       ],
-      "source_dir": "examples/resources/namespace_v1/example_1.tf"
+      "source_dir": "examples/resources/namespace_v1/example_1.tf",
+      "source_repo": "terraform-provider-kubernetes"
     },
     {
-      "path": "kubernetes/rbac/cluster_role_v1/basic",
-      "provider": "kubernetes",
-      "service": "rbac",
+      "path": "opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main",
+      "provider": "aws",
+      "service": "s3",
       "resource_types": [
-        "kubernetes_cluster_role_v1"
+        "aws_s3_bucket"
       ],
-      "api_sources": [
+      "smithy_models": [
         {
-          "kind": "openapi",
-          "id": "rbac",
-          "path": "testdata/parity/kubernetes/k08/openapi/rbac.json"
+          "id": "s3",
+          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
         }
       ],
-      "source_dir": "testdata/corpus/kubernetes/rbac/cluster_role_v1/basic/input"
-    },
-    {
-      "path": "kubernetes/rbac/role_binding_v1/basic",
-      "provider": "kubernetes",
-      "service": "rbac",
-      "resource_types": [
-        "kubernetes_role_binding_v1"
-      ],
-      "api_sources": [
-        {
-          "kind": "openapi",
-          "id": "rbac",
-          "path": "testdata/parity/kubernetes/k07/openapi/rbac.json"
-        }
-      ],
-      "source_dir": "testdata/parity/kubernetes/k07/hcl/main.tf"
+      "source_dir": "website/docs/cli/commands/test/examples/offline/main.tf",
+      "source_repo": "opentofu"
     }
   ]
 }

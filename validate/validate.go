@@ -96,6 +96,9 @@ func validateProfile(profile project.Profile) []Diagnostic {
 			if dep == "" {
 				continue
 			}
+			if strings.HasPrefix(dep, "data.") {
+				continue
+			}
 			if !addresses[dep] {
 				found := false
 				for _, candidate := range profile.Resources {

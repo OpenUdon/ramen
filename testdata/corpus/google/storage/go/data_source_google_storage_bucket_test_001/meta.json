@@ -15,5 +15,6 @@
       "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
     }
   ],
-  "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go"
+  "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go",
+  "source_repo": "terraform-provider-google"
 }

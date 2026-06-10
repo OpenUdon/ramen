@@ -11,5 +11,6 @@
       "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
     }
   ],
-  "source_dir": "internal/service/iam/testdata/User/list_path_prefix"
+  "source_dir": "internal/service/iam/testdata/User/list_path_prefix",
+  "source_repo": "terraform-provider-aws"
 }

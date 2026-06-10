@@ -3,21 +3,19 @@ info:
     title: ramen_native_project
     version: 1.0.0
 operations:
-    - description: Review create create for Terraform resource kubernetes_cluster_role_v1.basic
-      operationId: kubernetes_cluster_role_v1_basic_create
+    - description: Review create create for Terraform resource kubernetes_cluster_role_v1.example
+      operationId: kubernetes_cluster_role_v1_example_create
       request:
         body:
             metadata:
-                labels: '{"app.kubernetes.io/managed-by":"ramen","ramen.openudon.dev/corpus":"cluster-role"}'
-                name: '"ramen-corpus-cluster-role"'
+                name: '"terraform-example"'
         x-ramen-terraform:
             attributes:
                 metadata:
-                    labels: '{"app.kubernetes.io/managed-by":"ramen","ramen.openudon.dev/corpus":"cluster-role"}'
-                    name: '"ramen-corpus-cluster-role"'
+                    name: '"terraform-example"'
                 rule:
                     api_groups: '[""]'
-                    resources: '["configmaps","secrets"]'
+                    resources: '["namespaces","pods"]'
                     verbs: '["get","list","watch"]'
             identity_attributes:
                 - name: name
@@ -28,16 +26,16 @@ operations:
                     - metadata.name
                   terraform_path: metadata.name
             object:
-                address: kubernetes_cluster_role_v1.basic
+                address: kubernetes_cluster_role_v1.example
                 kind: resource
-                name: basic
+                name: example
                 type: kubernetes_cluster_role_v1
-      sourceDescription: rbac
+      sourceDescription: core
       sourceOperationId: createRbacAuthorizationV1ClusterRole
 sourceDescriptions:
-    - name: rbac
+    - name: core
       type: openapi
-      url: openapi/rbac.json
+      url: openapi/core.json
 uws: 1.4.0
 workflows:
     - description: Review mapped Terraform/OpenTofu objects as API source operations.
@@ -45,31 +43,30 @@ workflows:
         - body:
             action: create
             purpose: create
-            terraform_address: kubernetes_cluster_role_v1.basic
+            terraform_address: kubernetes_cluster_role_v1.example
             terraform_type: kubernetes_cluster_role_v1
-          operationRef: kubernetes_cluster_role_v1_basic_create
-          stepId: kubernetes_cluster_role_v1_basic_create
+          operationRef: kubernetes_cluster_role_v1_example_create
+          stepId: kubernetes_cluster_role_v1_example_create
       type: sequence
       workflowId: main
 x-ramen-desired-state:
     api_sources:
-        - id: rbac
+        - id: core
           kind: openapi
-          path: openapi/rbac.json
+          path: openapi/core.json
     metadata:
         action: create
-        config_dir: testdata/corpus/kubernetes/rbac/cluster_role_v1/basic/input
+        config_dir: testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/input
         source: ramen convert tf
     redaction: {}
     resources:
-        - address: kubernetes_cluster_role_v1.basic
+        - address: kubernetes_cluster_role_v1.example
           attributes:
             metadata:
-                labels: '{"app.kubernetes.io/managed-by":"ramen","ramen.openudon.dev/corpus":"cluster-role"}'
-                name: '"ramen-corpus-cluster-role"'
+                name: '"terraform-example"'
             rule:
                 api_groups: '[""]'
-                resources: '["configmaps","secrets"]'
+                resources: '["namespaces","pods"]'
                 verbs: '["get","list","watch"]'
           identity_attributes:
             - name: name
@@ -82,15 +79,15 @@ x-ramen-desired-state:
           kind: resource
           lifecycle: {}
           metadata:
-            terraform_address: kubernetes_cluster_role_v1.basic
-          name: basic
+            terraform_address: kubernetes_cluster_role_v1.example
+          name: example
           operations:
             create:
                 operation_id: createRbacAuthorizationV1ClusterRole
                 purpose: create
-                source_id: rbac
+                source_id: core
                 source_kind: openapi
-                source_path: openapi/rbac.json
+                source_path: openapi/core.json
           redaction: {}
           type: kubernetes_cluster_role_v1
     version: ramen.project.v1

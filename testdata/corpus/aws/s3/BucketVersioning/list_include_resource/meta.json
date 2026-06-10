@@ -12,5 +12,6 @@
       "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
     }
   ],
-  "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource"
+  "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource",
+  "source_repo": "terraform-provider-aws"
 }

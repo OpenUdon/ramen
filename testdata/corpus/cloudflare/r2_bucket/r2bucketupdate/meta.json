@@ -12,5 +12,6 @@
       "path": "testdata/api-sources/cloudflare-r2-d1-openapi.json"
     }
   ],
-  "source_dir": "internal/services/r2_bucket/testdata/r2bucketupdate.tf"
+  "source_dir": "internal/services/r2_bucket/testdata/r2bucketupdate.tf",
+  "source_repo": "terraform-provider-cloudflare"
 }

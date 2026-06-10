@@ -20,5 +20,6 @@
       "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
     }
   ],
-  "source_dir": "internal/service/lambda/testdata/Function/list_region_override"
+  "source_dir": "internal/service/lambda/testdata/Function/list_region_override",
+  "source_repo": "terraform-provider-aws"
 }

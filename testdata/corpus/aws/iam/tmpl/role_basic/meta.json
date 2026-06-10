@@ -14,5 +14,6 @@
       "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
     }
   ],
-  "source_dir": "internal/service/iam/testdata/tmpl/role_basic.gtpl"
+  "source_dir": "internal/service/iam/testdata/tmpl/role_basic.gtpl",
+  "source_repo": "terraform-provider-aws"
 }

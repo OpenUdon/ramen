@@ -4,15 +4,15 @@
   "action": "create",
   "steps": [
     {
-      "address": "kubernetes_role_binding_v1.basic",
+      "address": "kubernetes_cluster_role_v1.example",
       "kind": "resource",
-      "type": "kubernetes_role_binding_v1",
+      "type": "kubernetes_cluster_role_v1",
       "purpose": "create",
       "action": "create",
       "source_kind": "openapi",
-      "source_id": "rbac",
-      "source_path": "openapi/rbac.json",
-      "operation_id": "createRbacAuthorizationV1NamespacedRoleBinding",
+      "source_id": "core",
+      "source_path": "openapi/core.json",
+      "operation_id": "createRbacAuthorizationV1ClusterRole",
       "identity_attributes": [
         {
           "name": "name",
@@ -22,17 +22,6 @@
           ],
           "response_paths": [
             "metadata.name"
-          ],
-          "required": true
-        },
-        {
-          "name": "namespace",
-          "terraform_path": "metadata.namespace",
-          "request_keys": [
-            "namespace"
-          ],
-          "response_paths": [
-            "metadata.namespace"
           ],
           "required": true
         }

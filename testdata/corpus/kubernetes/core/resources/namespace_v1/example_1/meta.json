@@ -12,5 +12,6 @@
       "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
     }
   ],
-  "source_dir": "examples/resources/namespace_v1/example_1.tf"
+  "source_dir": "examples/resources/namespace_v1/example_1.tf",
+  "source_repo": "terraform-provider-kubernetes"
 }

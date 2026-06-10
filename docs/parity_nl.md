@@ -26,6 +26,28 @@ H04 live-account harness. They remain outside the M40/M41 25-row prompt
 inventory and the committed 24-row iCoT replay gate until GitHub authoring
 behavior is separately reviewed and pinned.
 
+For T01, this document is the gold-source inventory for runnable parity-backed
+training rows. It is not the full training dataset; silver conversion rows are
+generated from `testdata/corpus/manifest.json` and documented in
+`docs/training_corpus.md`.
+
+## GitHub Status Records
+
+Implementation status for the GitHub parity lanes lives in memory-bank status
+files; this natural-language inventory does not create separate milestone files
+for itself.
+
+| Track | Status Record | Role |
+|---|---|---|
+| H01 | [status-H01.md](../memory-bank/status-H01.md) | GitHub organization repository recorded parity. |
+| H02 | [status-H02.md](../memory-bank/status-H02.md) | GitHub issue label recorded parity. |
+| H03 | [status-H03.md](../memory-bank/status-H03.md) | GitHub repository file recorded parity with base64 content request binding and response-derived SHA. |
+| H04 | [status-H04.md](../memory-bank/status-H04.md) | Live-account harness, preflight, cleanup, and recording promotion runbook for H01-H03. |
+
+Add new milestone/status files only when a new parity lane or cross-cutting
+parity harness is introduced; update this inventory when those lanes need
+natural-language authoring rows or current coverage entries.
+
 ## Command Roles
 
 `ramen convert` is the migration path from Terraform/OpenTofu-shaped HCL into

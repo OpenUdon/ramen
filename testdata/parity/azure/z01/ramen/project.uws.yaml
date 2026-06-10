@@ -41,7 +41,7 @@ x-ramen-desired-state:
     scope: planned-static-fixture
   redaction: {}
   resources:
-    - address: azure_sql_database.z01_sql_database
+    - address: azurerm_mssql_database.z01_sql_database
       attributes:
         api-version: "2023-08-01"
         databaseName: ramen-parity-z01-static
@@ -204,5 +204,5 @@ x-ramen-desired-state:
         - read
         - delete
       schema: []
-      type: azure_sql_database
+      type: azurerm_mssql_database
   version: ramen.project.v1
