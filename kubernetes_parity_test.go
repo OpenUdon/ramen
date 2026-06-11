@@ -30,7 +30,7 @@ const (
 	kubernetesProviderVersion    = "3.1.0"
 )
 
-var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08"}
+var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08", "k12"}
 
 type kubernetesParityArtifact struct {
 	Version          string                     `json:"version"`
@@ -268,6 +268,11 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 			if lane == "k08" {
 				assertKubernetesK08HCLFixture(t)
 				assertKubernetesK08NativeProjectFixture(t)
+			}
+			if lane == "k12" {
+				assertKubernetesK12HCLFixture(t)
+				assertKubernetesK12NativeProjectFixture(t)
+				assertKubernetesRamenPlanFixture(t, "k12")
 			}
 		})
 	}
@@ -3045,6 +3050,53 @@ func assertKubernetesK08HCLFixture(t *testing.T) {
 	}
 	if !foundProvider {
 		t.Fatalf("K08 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
+	}
+}
+
+func assertKubernetesK12NativeProjectFixture(t *testing.T) {
+	t.Helper()
+	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
+		ProjectPath: filepath.Join(kubernetesParityFixtureRoot, "k12", "ramen"),
+	})
+	if err != nil {
+		t.Fatalf("validate K12 native Ramen project fixture: %v", err)
+	}
+	if !result.Valid {
+		t.Fatalf("K12 native Ramen project fixture did not validate: %#v", result.Diagnostics)
+	}
+	if result.Summary.Diagnostics != 0 {
+		t.Fatalf("K12 native Ramen project fixture diagnostics = %#v", result.Summary)
+	}
+}
+
+func assertKubernetesK12HCLFixture(t *testing.T) {
+	t.Helper()
+	doc, err := tfconfig.LoadDir(filepath.Join(kubernetesParityFixtureRoot, "k12", "hcl"))
+	if err != nil {
+		t.Fatalf("load K12 HCL fixture: %v", err)
+	}
+	if len(doc.Diagnostics) != 0 {
+		t.Fatalf("K12 HCL fixture diagnostics: %#v", doc.Diagnostics)
+	}
+	if len(doc.Modules) != 1 {
+		t.Fatalf("K12 HCL fixture module count = %d, want 1", len(doc.Modules))
+	}
+	module := doc.Modules[0]
+	if len(module.Resources) != 1 {
+		t.Fatalf("K12 HCL fixture resource count = %d, want 1", len(module.Resources))
+	}
+	resource := module.Resources[0]
+	if resource.Address != "kubernetes_cluster_role_binding_v1.k12_cluster_role_binding" || resource.Type != "kubernetes_cluster_role_binding_v1" {
+		t.Fatalf("K12 HCL fixture resource = %#v", resource)
+	}
+	var foundProvider bool
+	for _, req := range module.RequiredProviders {
+		if req.LocalName == "kubernetes" && req.Source == "hashicorp/kubernetes" && slices.Contains(req.VersionConstraints, "3.1.0") {
+			foundProvider = true
+		}
+	}
+	if !foundProvider {
+		t.Fatalf("K12 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
 	}
 }
 

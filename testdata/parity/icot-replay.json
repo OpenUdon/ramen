@@ -74,6 +74,15 @@
       "role_match": "exact"
     },
     {
+      "row": "K12",
+      "project_name": "k12_cluster_role_binding",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and can delete it for cleanup.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k12/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1ClusterRoleBinding",
+      "approved_fixture": "testdata/parity/kubernetes/k12/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
       "row": "Z01",
       "project_name": "z01_sql_database",
       "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes an Azure SQL database. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, `serverName` `${var.server_name}`, `databaseName` `${var.database_name}`, and SKU `Basic`.",
@@ -116,6 +125,15 @@
       "api_sources": [{"kind": "openapi", "id": "azure-sql", "path": "testdata/parity/azure/z05/openapi/sql.json"}],
       "seed_operation": "Databases_CreateOrUpdate",
       "approved_fixture": "testdata/parity/azure/z05/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Z08",
+      "project_name": "z08_resource_group",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that reads a Resource Group for static import/read closure. Use `subscriptionId` `${var.azure_subscription_id}` and `resourceGroupName` `${var.resource_group_name}`.",
+      "api_sources": [{"kind": "openapi", "id": "resources", "path": "testdata/parity/azure/z08/openapi/resources.json"}],
+      "seed_operation": "ResourceGroups_Get",
+      "approved_fixture": "testdata/parity/azure/z08/ramen/project.uws.yaml",
       "role_match": "exact"
     },
     {
@@ -170,6 +188,15 @@
       "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y06/discovery/storage.json"}],
       "seed_operation": "storage.managedFolders.insert",
       "approved_fixture": "testdata/parity/google/y06/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "Y08",
+      "project_name": "y08_storage_bucket_metadata_drift",
+      "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, updates, and deletes a bucket for metadata drift review. Use `bucket` `${var.bucket_name}`, `project` `${var.project}`, `location` `US`, uniform bucket-level access enabled, and labels for lane `y08` and parity phase.",
+      "api_sources": [{"kind": "google-discovery", "id": "storage", "path": "testdata/parity/google/y08/discovery/storage.json"}],
+      "seed_operation": "storage.buckets.insert",
+      "approved_fixture": "testdata/parity/google/y08/ramen/project.uws.yaml",
       "role_match": "exact"
     },
     {

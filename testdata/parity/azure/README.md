@@ -33,8 +33,8 @@ Additional recording updates still require an explicit operator-scoped run.
 Z07 records broader Azure follow-up work as parked until a specific low-risk
 candidate, focused ARM fixture, cleanup policy, and default credential-free
 checks are selected.
-Z08 is selected as the next static-first follow-up to close Resource Group
-read/import evidence from Z03 before any new Azure mutation lane.
+Z08 is the static-first follow-up that closes Resource Group read/import
+evidence from Z03 before any new Azure mutation lane.
 
 Live mutation tests are excluded from regular test suites. They require the
 `azurelive` build tag and a specific `go test -run` selection.

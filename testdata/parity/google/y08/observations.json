@@ -1,0 +1,74 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y08",
+  "status": "planned",
+  "provider": {
+    "source": "hashicorp/google",
+    "version_constraint": "~> 6.0"
+  },
+  "discovery": {
+    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "fixture": "testdata/parity/google/y08/ramen/project.uws.yaml"
+  },
+  "safety": {
+    "live_env": "RAMEN_GOOGLE_PARITY",
+    "record_update_env": "RAMEN_GOOGLE_PARITY_RECORD_UPDATE",
+    "lane_env": "RAMEN_GOOGLE_PARITY_LANE",
+    "opentofu_env": "RAMEN_GOOGLE_TOFU",
+    "credential_binding": "google_oauth2",
+    "resource_prefix": "ramen-parity-y08-",
+    "requires_explicit_lane": true,
+    "live_enabled": false,
+    "cleanup_fallback": "gcloud storage rm --recursive gs://<ramen-parity-y08-*> --quiet, then gcloud storage buckets describe gs://<name> to verify absence",
+    "required_env": [
+      "RAMEN_GOOGLE_TOFU",
+      "GOOGLE_APPLICATION_CREDENTIALS",
+      "RAMEN_GOOGLE_PROJECT"
+    ],
+    "cost_guardrails": [
+      "static drift first",
+      "empty bucket only if live-approved later",
+      "delete bucket before recording"
+    ],
+    "promotion": "parked until Y08 static drift fixtures are reviewed and live GCP cleanup is explicitly approved"
+  },
+  "runtimes": [
+    "opentofu",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "storage_bucket_metadata_drift_static",
+      "resource_type": "google_storage_bucket",
+      "terraform_resource_type": "google_storage_bucket",
+      "fixture_paths": [
+        "testdata/parity/google/y08/hcl/main.tf",
+        "testdata/parity/google/y08/ramen/project.uws.yaml"
+      ],
+      "operation_ids": [
+        "storage.buckets.insert",
+        "storage.buckets.get",
+        "storage.buckets.patch",
+        "storage.buckets.delete"
+      ],
+      "observed_fields": [
+        "name",
+        "id",
+        "location",
+        "iamConfiguration.uniformBucketLevelAccess.enabled",
+        "labels.ramen_parity_phase"
+      ],
+      "expected_transitions": [
+        "static-create-plan",
+        "static-read-plan",
+        "static-update-plan",
+        "static-delete-plan",
+        "live-recording-parked"
+      ]
+    }
+  ],
+  "notes": [
+    "Y08 is static-first evidence for GCS bucket label/metadata drift.",
+    "Live recording is intentionally parked until an operator approves GCP credentials, global bucket naming, and cleanup."
+  ]
+}

@@ -27,7 +27,7 @@ sanitization review.
 Y07 records broader Google Cloud follow-up work as parked until a specific
 GCS drift/update or new-resource candidate is selected with focused Discovery
 fixtures, cleanup policy, and default credential-free checks.
-Y08 is selected as the next static-first follow-up for bucket label/metadata
-drift. It must remain credential-free until a later explicit live promotion.
+Y08 is the static-first follow-up for bucket label/metadata drift. It must
+remain credential-free until a later explicit live promotion.
 
 See `LIVE.md` for the current live guardrail contract.

@@ -772,6 +772,54 @@
       }
     },
     {
+      "id": "gold-k12",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and can delete it for cleanup.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/kubernetes/k12/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/kubernetes/k12/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/kubernetes/k12/hcl/main.tf",
+      "provider": "kubernetes",
+      "service": "rbac",
+      "resource_types": [
+        "kubernetes_cluster_role_binding_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "rbac",
+          "path": "testdata/parity/kubernetes/k12/openapi/rbac.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "K12",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "K12",
+        "project_name": "k12_cluster_role_binding"
+      }
+    },
+    {
       "id": "gold-y01",
       "tier": "gold",
       "confidence": 1,
@@ -1060,6 +1108,54 @@
       }
     },
     {
+      "id": "gold-y08",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, updates, and deletes a bucket for metadata drift review. Use `bucket` `${var.bucket_name}`, `project` `${var.project}`, `location` `US`, uniform bucket-level access enabled, and labels for lane `y08` and parity phase.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/google/y08/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/google/y08/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/google/y08/hcl/main.tf",
+      "provider": "google",
+      "service": "storage",
+      "resource_types": [
+        "google_storage_bucket"
+      ],
+      "api_sources": [
+        {
+          "kind": "google-discovery",
+          "id": "storage",
+          "path": "testdata/parity/google/y08/discovery/storage.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "Y08",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "Y08",
+        "project_name": "y08_storage_bucket_metadata_drift"
+      }
+    },
+    {
       "id": "gold-z01",
       "tier": "gold",
       "confidence": 1,
@@ -1297,6 +1393,54 @@
       "metadata": {
         "parity_row": "Z05",
         "project_name": "z05_sql_database"
+      }
+    },
+    {
+      "id": "gold-z08",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over Azure Resource Manager that reads a Resource Group for static import/read closure. Use `subscriptionId` `${var.azure_subscription_id}` and `resourceGroupName` `${var.resource_group_name}`.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/azure/z08/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/azure/z08/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/azure/z08/hcl/main.tf",
+      "provider": "azurerm",
+      "service": "resources",
+      "resource_types": [
+        "azurerm_resource_group"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "resources",
+          "path": "testdata/parity/azure/z08/openapi/resources.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "Z08",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "Z08",
+        "project_name": "z08_resource_group"
       }
     },
     {

@@ -1,0 +1,129 @@
+info:
+    description: K12 Kubernetes ClusterRoleBinding create/read/delete static parity fixture.
+    title: ramen_kubernetes_k12_cluster_role_binding_parity
+    version: 1.0.0
+operations:
+    - description: Create the K12 ClusterRoleBinding.
+      operationId: kubernetes_cluster_role_binding_v1_k12_create
+      sourceDescription: rbac
+      sourceOperationId: createRbacAuthorizationV1ClusterRoleBinding
+    - description: Read the K12 ClusterRoleBinding.
+      operationId: kubernetes_cluster_role_binding_v1_k12_read
+      sourceDescription: rbac
+      sourceOperationId: readRbacAuthorizationV1ClusterRoleBinding
+    - description: Delete the K12 ClusterRoleBinding.
+      operationId: kubernetes_cluster_role_binding_v1_k12_delete
+      sourceDescription: rbac
+      sourceOperationId: deleteRbacAuthorizationV1ClusterRoleBinding
+sourceDescriptions:
+    - name: rbac
+      type: openapi
+      url: ../openapi/rbac.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, read, and delete through Ramen.
+      steps:
+        - operationRef: kubernetes_cluster_role_binding_v1_k12_create
+          stepId: create
+        - operationRef: kubernetes_cluster_role_binding_v1_k12_read
+          stepId: read
+        - operationRef: kubernetes_cluster_role_binding_v1_k12_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: rbac
+          kind: openapi
+          path: ../openapi/rbac.json
+    metadata:
+        source: K12 Kubernetes provider parity fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_cluster_role_binding_v1.k12_cluster_role_binding
+          attributes:
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k12
+                name: ramen-parity-k12-cluster-role-binding
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k12
+            metadata.name: ramen-parity-k12-cluster-role-binding
+            roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: ramen-parity-k12-cluster-role
+            subjects:
+                - kind: ServiceAccount
+                  name: ramen-parity-k12-service-account
+                  namespace: ramen-parity-k12-subjects
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+          request_bindings:
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRoleBinding
+              path: metadata
+              request_path: metadata
+              location: body
+              required: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRoleBinding
+              path: roleRef
+              request_path: roleRef
+              location: body
+              required: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRoleBinding
+              path: subjects
+              request_path: subjects
+              location: body
+              required: true
+            - operation_role: read
+              operation_id: readRbacAuthorizationV1ClusterRoleBinding
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: delete
+              operation_id: deleteRbacAuthorizationV1ClusterRoleBinding
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_cluster_role_binding_v1
+          name: k12_cluster_role_binding
+          operations:
+            create:
+                operation_id: createRbacAuthorizationV1ClusterRoleBinding
+                purpose: create
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            read:
+                operation_id: readRbacAuthorizationV1ClusterRoleBinding
+                purpose: read
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            delete:
+                operation_id: deleteRbacAuthorizationV1ClusterRoleBinding
+                purpose: delete
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+          redaction: {}
+          type: kubernetes_cluster_role_binding_v1
+    version: ramen.project.v1

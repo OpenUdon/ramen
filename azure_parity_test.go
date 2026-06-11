@@ -28,7 +28,7 @@ const (
 	azureParityFixtureRoot  = "testdata/parity/azure"
 )
 
-var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06"}
+var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06", "z08"}
 var azureParityLiveRunnerLanes = []string{"z01", "z02", "z04", "z05"}
 
 type azureParityArtifact struct {
@@ -435,6 +435,15 @@ func assertAzureParitySafetyContract(t *testing.T, lane string, safety azurePari
 				t.Fatalf("Z06 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}
 		}
+	case "z08":
+		if safety.LiveEnabled {
+			t.Fatalf("Z08 must remain live-disabled while Resource Group import/read closure is static")
+		}
+		for _, guardrail := range []string{"static import/read closure", "no live Azure mutation", "cleanup verification before any future recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Z08 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
 	}
 }
 
@@ -585,7 +594,7 @@ func assertAzureParityStaticFixtures(t *testing.T, lane string, artifact azurePa
 			"read":   {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
 			"delete": {"subscriptionId", "resourceGroupName", "accountName", "api-version"},
 		})
-	case "z03":
+	case "z03", "z08":
 		assertAzureParityPlanFixture(t, lane, "read", "ResourceGroups_Get", "read")
 		assertAzureParityRequestBindings(t, lane, map[string][]string{
 			"read": {"subscriptionId", "resourceGroupName", "api-version"},
@@ -731,7 +740,7 @@ func azureParitySummaryHasOne(summary tfplan.Summary, field string) bool {
 func assertAzureParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
 	t.Helper()
 	action := "create"
-	if lane == "z03" {
+	if lane == "z03" || lane == "z08" {
 		action = "read"
 	}
 	result, err := tfplan.Build(context.Background(), tfplan.Options{

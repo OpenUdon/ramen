@@ -36,7 +36,7 @@ and mapping evidence before `kubernetes_role_binding_v1` or
 
 ## Next Static Candidate
 
-K12 is selected as the next evidence-first Kubernetes lane for
+K12 is the static evidence-first Kubernetes lane for
 `kubernetes_cluster_role_binding_v1` create/read/delete. Mapping advertisement
-and live recording remain parked until focused fixtures and default replay
-checks exist.
+and live recording remain parked until recorded parity evidence and a
+follow-on mapping gate exist.

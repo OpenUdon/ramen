@@ -27,7 +27,7 @@ const (
 	googleParityFixtureRoot = "testdata/parity/google"
 )
 
-var googleParityLanes = []string{"y01", "y02", "y03", "y04", "y05", "y06"}
+var googleParityLanes = []string{"y01", "y02", "y03", "y04", "y05", "y06", "y08"}
 var googleParityLiveRunnerLanes = []string{"y02", "y03", "y04", "y05", "y06"}
 
 type googleParityArtifact struct {
@@ -398,6 +398,15 @@ func assertGoogleParitySafetyContract(t *testing.T, lane string, safety googlePa
 				t.Fatalf("Y06 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}
 		}
+	case "y08":
+		if safety.LiveEnabled {
+			t.Fatalf("Y08 must remain live-disabled while metadata drift evidence is static")
+		}
+		for _, guardrail := range []string{"static drift first", "empty bucket only if live-approved later", "delete bucket before recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Y08 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
 	default:
 		t.Fatalf("no safety assertions registered for Google parity lane %s", lane)
 	}
@@ -408,14 +417,14 @@ func assertGoogleParityStaticFixtures(t *testing.T, lane string, artifact google
 	assertGoogleParityHCLFixture(t, lane, artifact)
 	assertGoogleParityNativeProjectFixture(t, lane)
 	switch lane {
-	case "y01", "y03", "y04":
+	case "y01", "y03", "y04", "y08":
 		assertGoogleParityPlanFixture(t, lane, "create", "storage.buckets.insert", "create", false)
 		assertGoogleParityPlanFixture(t, lane, "read", "storage.buckets.get", "read", false)
 		if lane != "y04" {
 			assertGoogleParityPlanFixture(t, lane, "create", "storage.buckets.patch", "update", true)
 		}
 		assertGoogleParityPlanFixture(t, lane, "delete", "storage.buckets.delete", "delete", true)
-		if lane == "y03" {
+		if lane == "y03" || lane == "y08" {
 			assertGoogleParityRequestBindings(t, lane, map[string][]string{
 				"create": {"name", "location", "iamConfiguration.uniformBucketLevelAccess.enabled", "project", "labels"},
 				"read":   {"bucket"},
@@ -568,7 +577,7 @@ func seedGoogleParityState(t *testing.T, lane, statePath string) {
 
 func googleParitySeedSnapshot(lane string) (state.ResourceSnapshot, error) {
 	switch lane {
-	case "y01", "y03", "y04":
+	case "y01", "y03", "y04", "y08":
 		return state.ResourceSnapshot{
 			Address:        "google_storage_bucket.bucket",
 			Type:           "google_storage_bucket",
