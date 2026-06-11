@@ -103,6 +103,23 @@ runtime, verified post-delete absence, and did not create SQL servers, elastic
 pools, private endpoints, backups beyond service defaults, or other recurring
 resources.
 
+## Z08 Resource Group Read
+
+Z08 may use live read-only execution against an existing Resource Group named
+by `RAMEN_AZURE_RESOURCE_GROUP`, or by `RAMEN_AZURE_SQL_RESOURCE_GROUP` as a
+fallback when the SQL profile Resource Group is the approved read target. The
+recording stores a synthetic public-safe resource label plus existence, ID
+presence, location, and name-match booleans; it does not store the real
+Resource Group name or raw ARM ID.
+
+## Z09 Resource Group Lifecycle
+
+Z09 may use live mutation after the operator approves empty Resource Group
+create/delete in the scoped subscription. The recorded fixture used one empty
+`ramen-parity-z09-*` Resource Group per runtime, created no child resources,
+deleted every Resource Group it created, and verified post-delete absence
+before preserving the sanitized observation summary.
+
 ## Planned Z03/Z06 Safety
 
 Z03 and Z06 default checks are static or read-only. Any future live mutation

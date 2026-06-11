@@ -1,0 +1,166 @@
+info:
+  description: Azure Resource Group lifecycle parity fixture for Z09.
+  title: ramen_z09_azure_resource_group_lifecycle_parity
+  version: 1.0.0
+uws: 1.4.0
+operations:
+  - description: Create or update the Azure Resource Group.
+    operationId: z09_resource_group_create
+    sourceDescription: resources
+    sourceOperationId: ResourceGroups_CreateOrUpdate
+  - description: Read the Azure Resource Group.
+    operationId: z09_resource_group_read
+    sourceDescription: resources
+    sourceOperationId: ResourceGroups_Get
+  - description: Delete the Azure Resource Group.
+    operationId: z09_resource_group_delete
+    sourceDescription: resources
+    sourceOperationId: ResourceGroups_Delete
+sourceDescriptions:
+  - name: resources
+    type: openapi
+    url: ../openapi/resources.json
+workflows:
+  - description: Static workflow for Resource Group lifecycle replay.
+    steps:
+      - operationRef: z09_resource_group_create
+        stepId: create
+      - operationRef: z09_resource_group_read
+        stepId: read
+      - operationRef: z09_resource_group_delete
+        stepId: delete
+    type: sequence
+    workflowId: main
+x-ramen-desired-state:
+  api_sources:
+    - kind: openapi
+      id: resources
+      path: ../openapi/resources.json
+  metadata:
+    source: z09-azure-resource-group-parity
+    scope: empty-resource-group-lifecycle
+  redaction: {}
+  resources:
+    - address: azurerm_resource_group.z09_group
+      attributes:
+        api-version: "2024-03-01"
+        location: eastus
+        resourceGroupName: ramen-parity-z09-static
+        subscriptionId: subscription-placeholder
+      identity_attributes:
+        - name: resource_group_name
+          path: resourceGroupName
+          request_keys:
+            - resourceGroupName
+          response_paths:
+            - name
+            - id
+          required: true
+      kind: resource
+      lifecycle: {}
+      metadata:
+        evidence: z09
+        provider: azure
+      name: z09_group
+      operations:
+        create:
+          purpose: create
+          method: PUT
+          source_kind: openapi
+          source_id: resources
+          source_path: ../openapi/resources.json
+          operation_id: ResourceGroups_CreateOrUpdate
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: resources
+          source_path: ../openapi/resources.json
+          operation_id: ResourceGroups_Get
+        delete:
+          purpose: delete
+          method: DELETE
+          source_kind: openapi
+          source_id: resources
+          source_path: ../openapi/resources.json
+          operation_id: ResourceGroups_Delete
+      request_bindings:
+        - operation_id: ResourceGroups_CreateOrUpdate
+          operation_role: create
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: ResourceGroups_CreateOrUpdate
+          operation_role: create
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+          identity: true
+        - operation_id: ResourceGroups_CreateOrUpdate
+          operation_role: create
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: ResourceGroups_CreateOrUpdate
+          operation_role: create
+          path: location
+          request_path: location
+          location: body
+          required: true
+        - operation_id: ResourceGroups_Get
+          operation_role: read
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: ResourceGroups_Get
+          operation_role: read
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+          identity: true
+        - operation_id: ResourceGroups_Get
+          operation_role: read
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+        - operation_id: ResourceGroups_Delete
+          operation_role: delete
+          path: subscriptionId
+          request_path: subscriptionId
+          location: path
+          required: true
+        - operation_id: ResourceGroups_Delete
+          operation_role: delete
+          path: resourceGroupName
+          request_path: resourceGroupName
+          location: path
+          required: true
+          identity: true
+        - operation_id: ResourceGroups_Delete
+          operation_role: delete
+          path: api-version
+          request_path: api-version
+          location: query
+          required: true
+      redaction: {}
+      required_operations:
+        - create
+        - read
+        - delete
+      runtime_hints:
+        retry:
+          max_attempts: 6
+          interval: 5s
+        waiter:
+          until: exists
+          max_attempts: 12
+          interval: 5s
+      schema: []
+      type: azurerm_resource_group
+  version: ramen.project.v1

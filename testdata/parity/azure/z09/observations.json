@@ -1,6 +1,6 @@
 {
   "version": "ramen.azure.provider-parity.v1",
-  "lane": "Z08",
+  "lane": "Z09",
   "status": "recorded",
   "provider": {
     "source": "hashicorp/azurerm",
@@ -8,14 +8,14 @@
   },
   "openapi": {
     "source_path": "../apitools/catalog-openapi-cache/openapi/azure-resources-resource-manager-openapi.json",
-    "fixture": "testdata/parity/azure/z08/openapi/resources.json"
+    "fixture": "testdata/parity/azure/z09/openapi/resources.json"
   },
   "safety": {
     "live_env": "RAMEN_AZURE_PARITY",
     "record_update_env": "RAMEN_AZURE_PARITY_RECORD_UPDATE",
     "lane_env": "RAMEN_AZURE_PARITY_LANE",
     "credential_env": "UDON_CREDENTIAL_AZURE_AUTH",
-    "resource_prefix": "ramen-parity-z08-",
+    "resource_prefix": "ramen-parity-z09-",
     "requires_explicit_lane": true,
     "live_enabled": true,
     "required_env": [
@@ -30,10 +30,11 @@
       "AZURE_CLIENT_ID": "ARM_CLIENT_ID",
       "AZURE_CLIENT_SECRET": "ARM_CLIENT_SECRET"
     },
+    "cleanup_fallback": "az group delete --name <resource-group> --yes",
     "cost_guardrails": [
-      "existing resource group read only",
-      "no live Azure mutation",
-      "no raw resource group names in recordings"
+      "one empty disposable resource group per runtime",
+      "no child resources",
+      "delete resource group before recording"
     ]
   },
   "runtimes": [
@@ -43,39 +44,41 @@
   ],
   "scenarios": [
     {
-      "name": "resource_group_static_import_read_closure",
+      "name": "resource_group_lifecycle",
       "resource_type": "azurerm_resource_group",
       "terraform_resource_type": "azurerm_resource_group",
       "fixture_paths": [
-        "testdata/parity/azure/z08/hcl/main.tf",
-        "testdata/parity/azure/z08/openapi/resources.json",
-        "testdata/parity/azure/z08/ramen/project.uws.yaml"
+        "testdata/parity/azure/z09/hcl/main.tf",
+        "testdata/parity/azure/z09/openapi/resources.json",
+        "testdata/parity/azure/z09/ramen/project.uws.yaml"
       ],
       "operation_ids": [
-        "ResourceGroups_Get"
+        "ResourceGroups_CreateOrUpdate",
+        "ResourceGroups_Get",
+        "ResourceGroups_Delete"
       ],
       "observed_fields": [
-        "exists",
-        "id_present",
-        "location",
-        "name_matches_input"
+        "after_apply.exists",
+        "after_apply.id_present",
+        "after_apply.location",
+        "after_destroy.exists"
       ],
       "expected_transitions": [
-        "static-read-plan",
-        "structured-import-ready",
-        "live-read",
-        "mutation-handed-off-to-z09"
+        "create",
+        "read",
+        "no-op",
+        "delete",
+        "post-delete-missing"
       ],
       "observation_artifacts": [
-        "testdata/parity/azure/z08/live.observations.json"
+        "testdata/parity/azure/z09/live.observations.json"
       ]
     }
   ],
-  "recorded_at": "2026-06-11T22:31:42Z",
-  "recordings_source": "opt-in Z08 Azure Resource Group read-only live parity run",
+  "recorded_at": "2026-06-11T22:38:29Z",
+  "recordings_source": "opt-in Z09 Azure Resource Group lifecycle live parity run",
   "notes": [
-    "Z08 closes static Resource Group import/read evidence from the Z03 shape before any new Azure mutation lane.",
-    "The live read recording sanitizes the real resource group name and records only existence, ID presence, location, and name-input match.",
-    "Create/delete mutation is handled by the separate low-risk Z09 Azure Resource Group lifecycle lane."
+    "Z09 activates the parked post-Z08 Azure mutation placeholder as the lowest-risk Resource Group lifecycle lane.",
+    "Live execution creates one empty ramen-parity-z09-* Resource Group per runtime, creates no child resources, deletes it, and verifies absence before recording."
   ]
 }

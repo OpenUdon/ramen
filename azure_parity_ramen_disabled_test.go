@@ -30,3 +30,15 @@ func runAzureParityZ05Live(ctx context.Context, t *testing.T, artifact azurePari
 	t.Skip("build with -tags 'azurelive udon' to run the Z05 live runner")
 	return azureParityLiveRecording{}
 }
+
+func runAzureParityZ08Live(ctx context.Context, t *testing.T, artifact azureParityArtifact) azureParityLiveRecording {
+	t.Helper()
+	t.Skip("build with -tags 'azurelive udon' to run the Z08 live runner")
+	return azureParityLiveRecording{}
+}
+
+func runAzureParityZ09Live(ctx context.Context, t *testing.T, artifact azureParityArtifact) azureParityLiveRecording {
+	t.Helper()
+	t.Skip("build with -tags 'azurelive udon' to run the Z09 live runner")
+	return azureParityLiveRecording{}
+}

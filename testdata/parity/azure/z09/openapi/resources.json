@@ -1,0 +1,100 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Azure Resource Group Lifecycle Parity Fixture",
+    "version": "2024-03-01"
+  },
+  "servers": [
+    {
+      "url": "https://management.azure.com"
+    }
+  ],
+  "paths": {
+    "/subscriptions/{subscriptionId}/resourcegroups/{resourceGroupName}": {
+      "put": {
+        "operationId": "ResourceGroups_CreateOrUpdate",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {"$ref": "#/components/schemas/ResourceGroup"}
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Resource group",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ResourceGroup"}
+              }
+            }
+          },
+          "201": {
+            "description": "Resource group created",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ResourceGroup"}
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "ResourceGroups_Get",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {
+            "description": "Resource group",
+            "content": {
+              "application/json": {
+                "schema": {"$ref": "#/components/schemas/ResourceGroup"}
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "operationId": "ResourceGroups_Delete",
+        "parameters": [
+          {"name": "subscriptionId", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "resourceGroupName", "in": "path", "required": true, "schema": {"type": "string"}},
+          {"name": "api-version", "in": "query", "required": true, "schema": {"type": "string"}}
+        ],
+        "responses": {
+          "200": {"description": "Deleted"},
+          "202": {"description": "Accepted"},
+          "204": {"description": "No content"}
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "azure_auth": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    },
+    "schemas": {
+      "ResourceGroup": {
+        "type": "object",
+        "properties": {
+          "id": {"type": "string"},
+          "name": {"type": "string"},
+          "location": {"type": "string"},
+          "properties": {"type": "object"}
+        }
+      }
+    }
+  }
+}

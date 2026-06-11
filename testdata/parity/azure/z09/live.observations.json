@@ -1,0 +1,42 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z09",
+  "scenario": "resource_group_lifecycle",
+  "recorded_at": "2026-06-11T22:38:29Z",
+  "duration_ms": 121885,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-z09-opentofu-18b827c6",
+      "duration_ms": 104878,
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_destroy.exists": false,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-z09-ramen-18b827c6",
+      "duration_ms": 17007,
+      "fields": {
+        "after_apply.exists": true,
+        "after_apply.id_present": true,
+        "after_apply.location": "eastus",
+        "after_destroy.exists": false,
+        "no_op": false
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_apply.exists",
+      "after_apply.id_present",
+      "after_apply.location",
+      "after_destroy.exists"
+    ]
+  }
+}

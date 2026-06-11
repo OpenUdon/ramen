@@ -48,6 +48,10 @@ func TestAzureProviderParityLive(t *testing.T) {
 		recording = runAzureParityZ04Live(ctx, t, artifact)
 	case "z05":
 		recording = runAzureParityZ05Live(ctx, t, artifact)
+	case "z08":
+		recording = runAzureParityZ08Live(ctx, t, artifact)
+	case "z09":
+		recording = runAzureParityZ09Live(ctx, t, artifact)
 	default:
 		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", azureParityLaneEnv, selectedLane)
 	}

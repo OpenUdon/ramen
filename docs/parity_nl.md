@@ -9,21 +9,21 @@ resource state and operation shape, not byte-for-byte Terraform state,
 provider internals, or provider plan-file compatibility.
 
 This file is the natural-language inventory for the parity set. It records
-the 31 prompt rows used by the iCoT replay audit:
+the 32 prompt rows used by the iCoT replay audit:
 
 - 12 Kubernetes rows: K01-K10, K12, and K13.
-- 7 Azure rows: Z01-Z06 and Z08.
+- 8 Azure rows: Z01-Z06, Z08, and Z09.
 - 7 Google Cloud rows: Y01-Y06 and Y08.
 - 5 Cloudflare rows: C01-C05.
 
-Of those 31 rows, 30 are runnable authoring entries with HCL/native fixtures
+Of those 32 rows, 31 are runnable authoring entries with HCL/native fixtures
 and API source inputs. Z06 is observations-only: it records the Z02 Cosmos DB
 settle/re-recording closure and intentionally has no standalone Terraform HCL,
 native Ramen project, API source, or iCoT prompt.
 
 GitHub `H01`-`H03` are recorded provider/runtime parity tracks with an opt-in
 H04 live-account harness. They remain outside the M40/M41 25-row prompt
-inventory and the committed 30-row iCoT replay gate until GitHub authoring
+inventory and the committed 31-row iCoT replay gate until GitHub authoring
 behavior is separately reviewed and pinned.
 
 For T01, this document is the gold-source inventory for runnable parity-backed
@@ -67,8 +67,8 @@ operation. M41 added shared lifecycle sibling inference and reran the same
 inventory with deterministic fixture-seed answers. The current recorded M41
 baseline is:
 
-- 30/30 runnable rows generated native projects that validate.
-- 30/30 runnable rows match the approved fixture role and operation-ID sets.
+- 31/31 runnable rows generated native projects that validate.
+- 31/31 runnable rows match the approved fixture role and operation-ID sets.
 - Z01 and Z05 treat idempotent Azure SQL `Databases_CreateOrUpdate` as a
   lifecycle `create` role while preserving the underlying `PUT` method and
   source operation.
@@ -76,7 +76,7 @@ baseline is:
 
 Recent authoring fixes also keep request and response schemas separate and
 preserve writable desired inputs when read responses echo the same field path.
-The full 30-row replay is now enforced by `icot_replay_test.go` using the
+The full 31-row replay is now enforced by `icot_replay_test.go` using the
 committed `testdata/parity/icot-replay.json` inventory.
 
 ## Current Coverage Summary
@@ -101,7 +101,8 @@ committed `testdata/parity/icot-replay.json` inventory.
 | Z04 | Azure Storage Account lifecycle | Recorded OpenTofu and Ramen+udon Storage Account lifecycle observations. | HCL, focused Storage OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require storage-account naming, cleanup, and secret review. |
 | Z05 | Azure SQL database create-or-update follow-on | Recorded OpenTofu and Ramen+udon Azure SQL create/read/delete observations. | HCL, focused Azure SQL OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future update/drift expansion should add a bounded update field before broadening claims. |
 | Z06 | Cosmos settle re-recording closure | Observations-only closure for Z02 settle behavior. | No standalone HCL/native fixture; points back to Z02. | Not runnable. | None as an authoring row; future work belongs to Z02 recording refresh if needed. |
-| Z08 | Azure Resource Group static import/read closure | Static/read fixture; no live mutation in scope. | HCL, focused Resources OpenAPI, and native read fixture are committed and replayed. | Validates; role and operation set matches. | Live read and any create/delete mutation remain parked. |
+| Z08 | Azure Resource Group import/read closure | Recorded read-only observations against an existing Resource Group. | HCL, focused Resources OpenAPI, native read fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | The live recording sanitizes the real Resource Group name and keeps mutation out of this lane. |
+| Z09 | Azure Resource Group lifecycle | Recorded OpenTofu and Ramen+udon empty Resource Group lifecycle observations. | HCL, focused Resources OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Creates no child resources and verifies post-delete absence before recording. |
 | Y01 | Google Cloud Storage bucket lifecycle | Static-readiness evidence; live mutation coverage moved to later Google rows. | HCL, Discovery source, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Y01 remains the credential-free static baseline; real GCP execution is covered by Y02-Y06. |
 | Y02 | Google Cloud Storage bucket read-only | Recorded OpenTofu and Ramen+udon read-only observations against an existing public bucket. | HCL data-source fixture, Discovery source, native read fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require an operator-provided bucket and secret review. |
 | Y03 | Google Cloud Storage bucket mutation | Recorded OpenTofu and Ramen+udon live observations. | HCL, Discovery source, and native create/read/update/delete fixture are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
@@ -114,9 +115,9 @@ committed `testdata/parity/icot-replay.json` inventory.
 | C03 | Cloudflare R2 metadata variants | Recorded OpenTofu, Terraform, and Ramen+udon R2 metadata mutability observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C04 | Cloudflare D1 database create/read | Recorded OpenTofu, Terraform, and Ramen+udon D1 create/read observations. | HCL, focused OpenAPI, native create/read fixture, and sanitized live recording are committed and replayed with direct delete cleanup. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C05 | Cloudflare D1 UUID/delete unlock | Recorded OpenTofu, Terraform, and Ramen+udon D1 UUID/delete observations. | HCL, focused OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | D1 update is intentionally unsupported because the focused API source exposes no D1 update operation; future recording updates require cleanup and secret review. |
-| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 30-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
-| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 30-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
-| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 30-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
+| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 31-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
+| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 31-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
+| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 31-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
 
 ## Remaining Cross-Cutting Gaps
 
@@ -173,6 +174,7 @@ project name to pass to iCoT.
 | Z05 | [main.tf](../testdata/parity/azure/z05/hcl/main.tf) | [project.uws.yaml](../testdata/parity/azure/z05/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/azurerm` `~> 4.0` that creates an `azurerm_mssql_database` named by `database_name`, on a SQL server ID built from `subscription_id`, `resource_group_name`, and `server_name`, using SKU `Basic`. | Create a Ramen workflow over Azure Resource Manager that creates, reads, updates, and deletes an Azure SQL database. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, `serverName` `${var.server_name}`, `databaseName` `${var.database_name}`, and SKU `Basic`. | `openapi:azure-sql=testdata/parity/azure/z05/openapi/sql.json` | `z05_sql_database` |
 | Z06 | None; observations-only lane | None | No standalone Terraform configuration; this lane records Z02 Cosmos DB settle/re-recording readiness rather than declaring a new Terraform resource. | No standalone Ramen workflow prompt; this lane documents Z02 Cosmos DB settle and re-recording readiness rather than introducing a separate resource workflow. | None | None |
 | Z08 | [main.tf](../testdata/parity/azure/z08/hcl/main.tf) | [project.uws.yaml](../testdata/parity/azure/z08/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/azurerm` `~> 4.0` that creates an `azurerm_resource_group` with configurable name defaulting to `ramen-parity-z08-static` and location defaulting to `eastus`. | Create a Ramen workflow over Azure Resource Manager that reads a Resource Group for static import/read closure. Use `subscriptionId` `${var.azure_subscription_id}` and `resourceGroupName` `${var.resource_group_name}`. | `openapi:resources=testdata/parity/azure/z08/openapi/resources.json` | `z08_resource_group` |
+| Z09 | [main.tf](../testdata/parity/azure/z09/hcl/main.tf) | [project.uws.yaml](../testdata/parity/azure/z09/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/azurerm` `~> 4.0` that creates an empty `azurerm_resource_group` with configurable name defaulting to `ramen-parity-z09-static` and location defaulting to `eastus`. | Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes an empty Resource Group. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, and `location` `${var.location}`. | `openapi:resources=testdata/parity/azure/z09/openapi/resources.json` | `z09_resource_group` |
 
 ## Google Cloud
 

@@ -1,0 +1,41 @@
+{
+  "version": "ramen.azure.provider-parity.v1",
+  "lane": "Z08",
+  "scenario": "resource_group_static_import_read_closure",
+  "recorded_at": "2026-06-11T22:31:42Z",
+  "duration_ms": 28691,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-z08-existing",
+      "duration_ms": 23483,
+      "fields": {
+        "exists": true,
+        "id_present": true,
+        "location": "eastus",
+        "name_matches_input": true,
+        "plan_noop": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-z08-existing",
+      "duration_ms": 4147,
+      "fields": {
+        "exists": true,
+        "id_present": true,
+        "location": "eastus",
+        "name_matches_input": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "exists",
+      "id_present",
+      "location",
+      "name_matches_input"
+    ]
+  }
+}

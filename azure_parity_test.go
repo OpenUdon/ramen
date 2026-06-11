@@ -28,8 +28,8 @@ const (
 	azureParityFixtureRoot  = "testdata/parity/azure"
 )
 
-var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06", "z08"}
-var azureParityLiveRunnerLanes = []string{"z01", "z02", "z04", "z05"}
+var azureParityLanes = []string{"z01", "z02", "z03", "z04", "z05", "z06", "z08", "z09"}
+var azureParityLiveRunnerLanes = []string{"z01", "z02", "z04", "z05", "z08", "z09"}
 
 type azureParityArtifact struct {
 	Version          string                `json:"version"`
@@ -348,6 +348,22 @@ func assertAzureParityLiveRecording(t *testing.T, lane string, artifact azurePar
 		if !recording.Comparison.Matched {
 			t.Fatalf("%s recording comparison did not match", wantLane)
 		}
+	case "z08":
+		want := compareAzureParityZ08Observations(recording.Observations)
+		if !reflect.DeepEqual(recording.Comparison, want) {
+			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)
+		}
+		if !recording.Comparison.Matched {
+			t.Fatalf("%s recording comparison did not match", wantLane)
+		}
+	case "z09":
+		want := compareAzureParityZ09Observations(recording.Observations)
+		if !reflect.DeepEqual(recording.Comparison, want) {
+			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)
+		}
+		if !recording.Comparison.Matched {
+			t.Fatalf("%s recording comparison did not match", wantLane)
+		}
 	default:
 		t.Fatalf("no recording assertions registered for Azure parity lane %s", lane)
 	}
@@ -436,12 +452,24 @@ func assertAzureParitySafetyContract(t *testing.T, lane string, safety azurePari
 			}
 		}
 	case "z08":
-		if safety.LiveEnabled {
-			t.Fatalf("Z08 must remain live-disabled while Resource Group import/read closure is static")
+		if !safety.LiveEnabled {
+			t.Fatalf("Z08 must be marked live-enabled after existing Resource Group read guardrails are approved")
 		}
-		for _, guardrail := range []string{"static import/read closure", "no live Azure mutation", "cleanup verification before any future recording"} {
+		for _, guardrail := range []string{"existing resource group read only", "no live Azure mutation", "no raw resource group names in recordings"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {
 				t.Fatalf("Z08 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
+			}
+		}
+	case "z09":
+		if !safety.LiveEnabled {
+			t.Fatalf("Z09 must be marked live-enabled after empty Resource Group lifecycle guardrails are approved")
+		}
+		if !strings.Contains(safety.CleanupFallback, "az group delete") {
+			t.Fatalf("Z09 cleanup fallback = %q, want az group delete", safety.CleanupFallback)
+		}
+		for _, guardrail := range []string{"one empty disposable resource group per runtime", "no child resources", "delete resource group before recording"} {
+			if !slices.Contains(safety.CostGuardrails, guardrail) {
+				t.Fatalf("Z09 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}
 		}
 	}
@@ -517,6 +545,44 @@ func compareAzureParityZ04Observations(observations []azureParityRuntimeObservat
 
 func compareAzureParityZ05Observations(observations []azureParityRuntimeObservation) azureParityObservationComparison {
 	return compareAzureParityZ01Observations(observations)
+}
+
+func compareAzureParityZ08Observations(observations []azureParityRuntimeObservation) azureParityObservationComparison {
+	fields := []string{
+		"exists",
+		"id_present",
+		"location",
+		"name_matches_input",
+	}
+	comparison := compareAzureParityObservationFields(observations, fields)
+	if len(observations) == 0 {
+		return comparison
+	}
+	for _, observation := range observations {
+		if observation.Fields["exists"] != true || observation.Fields["id_present"] != true || observation.Fields["name_matches_input"] != true {
+			comparison.Matched = false
+		}
+	}
+	return comparison
+}
+
+func compareAzureParityZ09Observations(observations []azureParityRuntimeObservation) azureParityObservationComparison {
+	fields := []string{
+		"after_apply.exists",
+		"after_apply.id_present",
+		"after_apply.location",
+		"after_destroy.exists",
+	}
+	comparison := compareAzureParityObservationFields(observations, fields)
+	if len(observations) == 0 {
+		return comparison
+	}
+	for _, observation := range observations {
+		if observation.Fields["after_apply.exists"] != true || observation.Fields["after_apply.id_present"] != true || observation.Fields["after_destroy.exists"] != false {
+			comparison.Matched = false
+		}
+	}
+	return comparison
 }
 
 func compareAzureParityObservationFields(observations []azureParityRuntimeObservation, fields []string) azureParityObservationComparison {
@@ -598,6 +664,15 @@ func assertAzureParityStaticFixtures(t *testing.T, lane string, artifact azurePa
 		assertAzureParityPlanFixture(t, lane, "read", "ResourceGroups_Get", "read")
 		assertAzureParityRequestBindings(t, lane, map[string][]string{
 			"read": {"subscriptionId", "resourceGroupName", "api-version"},
+		})
+	case "z09":
+		assertAzureParityPlanFixture(t, lane, "create", "ResourceGroups_CreateOrUpdate", "create")
+		assertAzureParityPlanFixture(t, lane, "read", "ResourceGroups_Get", "read")
+		assertAzureParityPlanFixture(t, lane, "delete", "ResourceGroups_Delete", "delete")
+		assertAzureParityRequestBindings(t, lane, map[string][]string{
+			"create": {"subscriptionId", "resourceGroupName", "api-version", "location"},
+			"read":   {"subscriptionId", "resourceGroupName", "api-version"},
+			"delete": {"subscriptionId", "resourceGroupName", "api-version"},
 		})
 	case "z04":
 		assertAzureParityPlanFixture(t, lane, "create", "StorageAccounts_Create", "create")

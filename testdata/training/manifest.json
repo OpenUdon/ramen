@@ -1588,6 +1588,54 @@
       }
     },
     {
+      "id": "gold-z09",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes an empty Resource Group. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, and `location` `${var.location}`.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/azure/z09/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/azure/z09/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/azure/z09/hcl/main.tf",
+      "provider": "azurerm",
+      "service": "resources",
+      "resource_types": [
+        "azurerm_resource_group"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "resources",
+          "path": "testdata/parity/azure/z09/openapi/resources.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "Z09",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "Z09",
+        "project_name": "z09_resource_group"
+      }
+    },
+    {
       "id": "silver-aws-iam-role-basic",
       "tier": "silver",
       "confidence": 0.72,

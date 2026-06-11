@@ -164,6 +164,15 @@
       "role_match": "exact"
     },
     {
+      "row": "Z09",
+      "project_name": "z09_resource_group",
+      "goal": "Create a Ramen workflow over Azure Resource Manager that creates, reads, and deletes an empty Resource Group. Use `subscriptionId` `${var.azure_subscription_id}`, `resourceGroupName` `${var.resource_group_name}`, and `location` `${var.location}`.",
+      "api_sources": [{"kind": "openapi", "id": "resources", "path": "testdata/parity/azure/z09/openapi/resources.json"}],
+      "seed_operation": "ResourceGroups_CreateOrUpdate",
+      "approved_fixture": "testdata/parity/azure/z09/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
       "row": "Y01",
       "project_name": "y01_storage_bucket",
       "goal": "Create a Ramen workflow over the Google Cloud Storage API that creates, reads, updates, and deletes a Cloud Storage bucket in `US` with uniform bucket-level access enabled.",

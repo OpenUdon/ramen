@@ -12,9 +12,10 @@ Z-lane parity compares Azure API-visible observations from:
 
 Default tests validate committed static metadata, HCL parsing, native project
 validation, operation IDs, request bindings, observation artifacts, and
-sanitized recorded replay artifacts. Z01, Z02, Z04, and Z05 have committed
-sanitized live recordings. Z03 remains a read/static fixture lane, and Z06
-records the static readiness/closure of the Z02 settle-path re-recording.
+sanitized recorded replay artifacts. Z01, Z02, Z04, Z05, Z08, and Z09 have
+committed sanitized live recordings. Z03 remains a read/static fixture lane,
+and Z06 records the static readiness/closure of the Z02 settle-path
+re-recording.
 Live Azure parity recording is opt-in through `RAMEN_AZURE_PARITY=1` and requires an explicit
 `RAMEN_AZURE_PARITY_LANE=<lane>` selection. Recording updates are guarded by
 `RAMEN_AZURE_PARITY_RECORD_UPDATE=1`.
@@ -27,14 +28,17 @@ Future mutation runs must use the minimum number of smallest practical
 resources, avoid large or high-cost Azure resources, and destroy or clean up
 every resource they create before any recording update is accepted.
 
-See `LIVE.md` for the current live guardrail contract. Z01, Z02, Z04, and Z05
-are live-enabled by metadata and have committed sanitized recordings.
+See `LIVE.md` for the current live guardrail contract. Z01, Z02, Z04, Z05,
+Z08, and Z09 are live-enabled by metadata and have committed sanitized
+recordings.
 Additional recording updates still require an explicit operator-scoped run.
-Z07 records broader Azure follow-up work as parked until a specific low-risk
-candidate, focused ARM fixture, cleanup policy, and default credential-free
-checks are selected.
-Z08 is the static-first follow-up that closes Resource Group read/import
-evidence from Z03 before any new Azure mutation lane.
+Z07 records the broader Azure follow-up review that selected Z08 for Resource
+Group read/import evidence and Z09 for the lowest-risk empty Resource Group
+lifecycle mutation lane.
+Z08 closes Resource Group read/import evidence with a read-only live recording
+against an existing operator-selected Resource Group. Z09 closes the selected
+post-Z08 Azure mutation placeholder with one empty disposable Resource Group
+per runtime, no child resources, and post-delete absence verification.
 
 Live mutation tests are excluded from regular test suites. They require the
 `azurelive` build tag and a specific `go test -run` selection.

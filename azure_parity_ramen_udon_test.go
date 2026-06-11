@@ -356,6 +356,129 @@ func runAzureParityZ05Live(ctx context.Context, t *testing.T, artifact azurePari
 	}
 }
 
+type azureParityZ08Scope struct {
+	ResourceGroup string
+	Location      string
+}
+
+func runAzureParityZ08Live(ctx context.Context, t *testing.T, artifact azureParityArtifact) azureParityLiveRecording {
+	t.Helper()
+	started := time.Now()
+	requireSupportedAzureParityBaseline(t)
+	scope, err := azureParityZ08ScopeFromEnv(ctx)
+	if err != nil {
+		t.Fatalf("Z08 Azure Resource Group live-read scope: %v", err)
+	}
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, string, azureParityZ08Scope) azureParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runAzureParityZ08HCLRuntime, tool: os.Getenv(azureParityTofuEnv)},
+		{runtime: "ramen", run: runAzureParityZ08RamenRuntime, tool: ""},
+	}
+	if azureParityLiveBaselineMode() == "both" {
+		runs = slices.Insert(runs, 1, struct {
+			runtime string
+			run     func(context.Context, *testing.T, string, azureParityZ08Scope) azureParityRuntimeResult
+			tool    string
+		}{runtime: "terraform", run: runAzureParityZ08HCLRuntime, tool: os.Getenv(azureParityTerraformEnv)})
+	}
+	var observations []azureParityRuntimeObservation
+	var failures []azureParityRuntimeFailure
+	for _, run := range runs {
+		result := timedAzureParityRuntime(run.runtime, func() azureParityRuntimeResult {
+			return run.run(ctx, t, run.tool, scope)
+		})
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s Azure Resource Group read parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("Z08 Azure Resource Group live read did not complete for all runtimes")
+	}
+	comparison := compareAzureParityZ08Observations(observations)
+	if !comparison.Matched {
+		t.Fatalf("Z08 Azure Resource Group live-read observations did not match: %#v", observations)
+	}
+	return azureParityLiveRecording{
+		Version:      azureParityArtifactV1,
+		Lane:         "Z08",
+		Scenario:     artifact.Scenarios[0].Name,
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+type azureParityZ09Scope struct {
+	Location string
+	Suffix   string
+}
+
+func runAzureParityZ09Live(ctx context.Context, t *testing.T, artifact azureParityArtifact) azureParityLiveRecording {
+	t.Helper()
+	started := time.Now()
+	requireSupportedAzureParityBaseline(t)
+	scope := azureParityZ09Scope{
+		Location: strings.TrimSpace(os.Getenv("RAMEN_AZURE_RESOURCE_GROUP_LOCATION")),
+		Suffix:   azureParityZ02RunSuffix(),
+	}
+	if scope.Location == "" {
+		scope.Location = "eastus"
+	}
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, azureParityZ09Scope) azureParityRuntimeResult
+	}{
+		{runtime: "opentofu", run: runAzureParityZ09OpenTofuRuntime},
+		{runtime: "ramen", run: runAzureParityZ09RamenRuntime},
+	}
+	if azureParityLiveBaselineMode() == "both" {
+		runs = slices.Insert(runs, 1, struct {
+			runtime string
+			run     func(context.Context, *testing.T, azureParityZ09Scope) azureParityRuntimeResult
+		}{runtime: "terraform", run: runAzureParityZ09TerraformRuntime})
+	}
+	var observations []azureParityRuntimeObservation
+	var failures []azureParityRuntimeFailure
+	for _, run := range runs {
+		result := timedAzureParityRuntime(run.runtime, func() azureParityRuntimeResult {
+			return run.run(ctx, t, scope)
+		})
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s Azure Resource Group lifecycle parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("Z09 Azure Resource Group lifecycle did not complete for all runtimes")
+	}
+	comparison := compareAzureParityZ09Observations(observations)
+	if !comparison.Matched {
+		t.Fatalf("Z09 Azure Resource Group lifecycle observations did not match: %#v", observations)
+	}
+	return azureParityLiveRecording{
+		Version:      azureParityArtifactV1,
+		Lane:         "Z09",
+		Scenario:     artifact.Scenarios[0].Name,
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
 func timedAzureParityRuntime(runtime string, run func() azureParityRuntimeResult) azureParityRuntimeResult {
 	started := time.Now()
 	result := run()
@@ -363,6 +486,41 @@ func timedAzureParityRuntime(runtime string, run func() azureParityRuntimeResult
 		result.Observation.DurationMS = time.Since(started).Milliseconds()
 	}
 	return result
+}
+
+func azureParityZ08ScopeFromEnv(ctx context.Context) (azureParityZ08Scope, error) {
+	resourceGroup := strings.TrimSpace(os.Getenv("RAMEN_AZURE_RESOURCE_GROUP"))
+	if resourceGroup == "" {
+		resourceGroup = strings.TrimSpace(os.Getenv("RAMEN_AZURE_SQL_RESOURCE_GROUP"))
+	}
+	if err := validateAzureParityReadResourceGroupName(resourceGroup); err != nil {
+		return azureParityZ08Scope{}, err
+	}
+	observed, err := observeAzureParityResourceGroupDetails(ctx, resourceGroup)
+	if err != nil {
+		return azureParityZ08Scope{}, err
+	}
+	if !observed.Exists {
+		return azureParityZ08Scope{}, fmt.Errorf("resource group %q does not exist", resourceGroup)
+	}
+	location := strings.TrimSpace(os.Getenv("RAMEN_AZURE_RESOURCE_GROUP_LOCATION"))
+	if location == "" {
+		location = observed.Location
+	}
+	if strings.TrimSpace(location) == "" {
+		return azureParityZ08Scope{}, fmt.Errorf("resource group %q has no observable location", resourceGroup)
+	}
+	return azureParityZ08Scope{ResourceGroup: resourceGroup, Location: location}, nil
+}
+
+func validateAzureParityReadResourceGroupName(name string) error {
+	if strings.TrimSpace(name) == "" {
+		return fmt.Errorf("resource group name is required")
+	}
+	if strings.ContainsAny(name, "/\n\r\t") {
+		return fmt.Errorf("resource group name contains unsupported characters")
+	}
+	return nil
 }
 
 func runAzureParityHCLRuntimeWithTool(ctx context.Context, t *testing.T, tool string) azureParityRuntimeResult {
@@ -560,6 +718,115 @@ func runAzureParityZ05HCLRuntimeWithTool(ctx context.Context, t *testing.T, tool
 		Runtime:  runtimeName,
 		Resource: databaseName,
 		Fields:   azureParitySQLObservationFields(afterApply, afterDestroy, planExit == 0),
+	}}
+}
+
+func runAzureParityZ08HCLRuntime(ctx context.Context, t *testing.T, tool string, scope azureParityZ08Scope) azureParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.Contains(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	if err := validateAzureParityReadResourceGroupName(scope.ResourceGroup); err != nil {
+		return azureParityFailure(runtimeName, "safety", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(azureParityFixtureRoot, "z08", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	tfvars := map[string]string{
+		"resource_group_name": scope.ResourceGroup,
+		"location":            scope.Location,
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), tfvars); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	env := append(os.Environ(), azureParityARMEnvFromProfile()...)
+	if err := runAzureParityCommand(ctx, workDir, env, tool, "init", "-input=false", "-no-color"); err != nil {
+		return azureParityFailure(runtimeName, "init", err)
+	}
+	importID := fmt.Sprintf("/subscriptions/%s/resourceGroups/%s", strings.TrimSpace(os.Getenv("AZURE_SUBSCRIPTION_ID")), scope.ResourceGroup)
+	if err := runAzureParityCommand(ctx, workDir, env, tool, "import", "-input=false", "-no-color", "azurerm_resource_group.z08_group", importID); err != nil {
+		return azureParityFailure(runtimeName, "import", err)
+	}
+	observed, err := observeAzureParityResourceGroupDetails(ctx, scope.ResourceGroup)
+	if err != nil {
+		return azureParityFailure(runtimeName, "observe", err)
+	}
+	planExit, _, err := runAzureParityPlan(ctx, workDir, env, tool)
+	if err != nil {
+		return azureParityFailure(runtimeName, "plan", err)
+	}
+	fields := azureParityResourceGroupObservationFields(observed, scope.ResourceGroup)
+	fields["plan_noop"] = planExit == 0
+	return azureParityRuntimeResult{Observation: azureParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: "ramen-parity-z08-existing",
+		Fields:   fields,
+	}}
+}
+
+func runAzureParityZ09OpenTofuRuntime(ctx context.Context, t *testing.T, scope azureParityZ09Scope) azureParityRuntimeResult {
+	t.Helper()
+	return runAzureParityZ09HCLRuntime(ctx, t, "opentofu", os.Getenv(azureParityTofuEnv), scope)
+}
+
+func runAzureParityZ09TerraformRuntime(ctx context.Context, t *testing.T, scope azureParityZ09Scope) azureParityRuntimeResult {
+	t.Helper()
+	return runAzureParityZ09HCLRuntime(ctx, t, "terraform", os.Getenv(azureParityTerraformEnv), scope)
+}
+
+func runAzureParityZ09HCLRuntime(ctx context.Context, t *testing.T, runtimeName, tool string, scope azureParityZ09Scope) azureParityRuntimeResult {
+	t.Helper()
+	resourceGroup := azureParityZ09ResourceGroupName(runtimeName, scope.Suffix)
+	if err := validateAzureParityZ09ResourceGroupName(resourceGroup); err != nil {
+		return azureParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteAzureParityResourceGroup(ctx, resourceGroup); err != nil {
+		return azureParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteAzureParityResourceGroup(context.Background(), resourceGroup); err != nil {
+			t.Logf("cleanup Azure Resource Group %s: %v", resourceGroup, err)
+		}
+	})
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(azureParityFixtureRoot, "z09", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	tfvars := map[string]string{
+		"resource_group_name": resourceGroup,
+		"location":            scope.Location,
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), tfvars); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	env := append(os.Environ(), azureParityARMEnvFromProfile()...)
+	if err := runAzureParityCommand(ctx, workDir, env, tool, "init", "-input=false", "-no-color"); err != nil {
+		return azureParityFailure(runtimeName, "init", err)
+	}
+	if err := runAzureParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return azureParityFailure(runtimeName, "apply", err)
+	}
+	afterApply, err := waitAzureParityResourceGroup(ctx, resourceGroup, true)
+	if err != nil {
+		return azureParityFailure(runtimeName, "observe", err)
+	}
+	planExit, _, err := runAzureParityPlan(ctx, workDir, env, tool)
+	if err != nil {
+		return azureParityFailure(runtimeName, "plan", err)
+	}
+	if err := runAzureParityCommand(ctx, workDir, env, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return azureParityFailure(runtimeName, "destroy", err)
+	}
+	afterDestroy, err := waitAzureParityResourceGroup(ctx, resourceGroup, false)
+	if err != nil {
+		return azureParityFailure(runtimeName, "observe", err)
+	}
+	return azureParityRuntimeResult{Observation: azureParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: resourceGroup,
+		Fields:   azureParityResourceGroupLifecycleFields(afterApply, afterDestroy, planExit == 0),
 	}}
 }
 
@@ -935,6 +1202,155 @@ func runAzureParityZ05RamenRuntime(ctx context.Context, t *testing.T, _ string) 
 	}}
 }
 
+func runAzureParityZ08RamenRuntime(ctx context.Context, t *testing.T, _ string, scope azureParityZ08Scope) azureParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	if err := refreshAzureParityUdonToken(ctx); err != nil {
+		return azureParityFailure(runtimeName, "credential", err)
+	}
+	if err := validateAzureParityReadResourceGroupName(scope.ResourceGroup); err != nil {
+		return azureParityFailure(runtimeName, "safety", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "resources.json")
+	if err := copyFixtureFile(filepath.Join(azureParityFixtureRoot, "z08", "openapi", "resources.json"), openAPIPath); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderAzureParityZ08Project(filepath.Join(azureParityFixtureRoot, "z08", "ramen", "project.uws.yaml"), projectPath, scope); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir:           filepath.Join(workDir, "udon"),
+		CredentialResolvers: azureParityUdonCredentialResolvers(),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			observed, err := observeAzureParityResourceGroupDetails(projectorCtx, scope.ResourceGroup)
+			if err != nil {
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{"resource_group_name": observed.Name}
+			result.Computed = map[string]any{
+				"id_present": observed.IDPresent,
+				"name":       observed.Name,
+				"location":   observed.Location,
+			}
+			return result, nil
+		},
+	}
+	if err := buildAndApplyAzureParityPlan(ctx, projectPath, statePath, "read", filepath.Join(workDir, "read-plan.json"), udonExecutor); err != nil {
+		return azureParityFailure(runtimeName, "read", err)
+	}
+	observed, err := observeAzureParityResourceGroupDetails(ctx, scope.ResourceGroup)
+	if err != nil {
+		return azureParityFailure(runtimeName, "observe", err)
+	}
+	return azureParityRuntimeResult{Observation: azureParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: "ramen-parity-z08-existing",
+		Fields:   azureParityResourceGroupObservationFields(observed, scope.ResourceGroup),
+	}}
+}
+
+func runAzureParityZ09RamenRuntime(ctx context.Context, t *testing.T, scope azureParityZ09Scope) azureParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	if err := refreshAzureParityUdonToken(ctx); err != nil {
+		return azureParityFailure(runtimeName, "credential", err)
+	}
+	resourceGroup := azureParityZ09ResourceGroupName(runtimeName, scope.Suffix)
+	if err := validateAzureParityZ09ResourceGroupName(resourceGroup); err != nil {
+		return azureParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteAzureParityResourceGroup(ctx, resourceGroup); err != nil {
+		return azureParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteAzureParityResourceGroup(context.Background(), resourceGroup); err != nil {
+			t.Logf("cleanup Azure Resource Group %s: %v", resourceGroup, err)
+		}
+	})
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	deleteProjectPath := filepath.Join(workDir, "ramen", "project.delete.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "resources.json")
+	if err := copyFixtureFile(filepath.Join(azureParityFixtureRoot, "z09", "openapi", "resources.json"), openAPIPath); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderAzureParityZ09Project(filepath.Join(azureParityFixtureRoot, "z09", "ramen", "project.uws.yaml"), projectPath, scope, resourceGroup, false); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderAzureParityZ09Project(filepath.Join(azureParityFixtureRoot, "z09", "ramen", "project.uws.yaml"), deleteProjectPath, scope, resourceGroup, true); err != nil {
+		return azureParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir:           filepath.Join(workDir, "udon"),
+		CredentialResolvers: azureParityUdonCredentialResolvers(),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := observeAzureParityResourceGroupDetails(projectorCtx, resourceGroup)
+			if err != nil {
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{"resource_group_name": observed.Name}
+			result.Computed = map[string]any{
+				"id_present": observed.IDPresent,
+				"name":       observed.Name,
+				"location":   observed.Location,
+			}
+			return result, nil
+		},
+	}
+	if err := buildAndApplyAzureParityPlan(ctx, projectPath, statePath, "create", filepath.Join(workDir, "create-plan.json"), udonExecutor); err != nil {
+		return azureParityFailure(runtimeName, "apply", err)
+	}
+	afterApply, err := waitAzureParityResourceGroup(ctx, resourceGroup, true)
+	if err != nil {
+		return azureParityFailure(runtimeName, "observe", err)
+	}
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		return azureParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1
+	if err := buildAndApplyAzureParityPlan(ctx, projectPath, statePath, "read", filepath.Join(workDir, "read-plan.json"), udonExecutor); err != nil {
+		return azureParityFailure(runtimeName, "read", err)
+	}
+	if err := buildAndApplyAzureParityPlan(ctx, deleteProjectPath, statePath, "delete", filepath.Join(workDir, "delete-plan.json"), udonExecutor); err != nil {
+		return azureParityFailure(runtimeName, "delete", err)
+	}
+	afterDestroy, err := waitAzureParityResourceGroup(ctx, resourceGroup, false)
+	if err != nil {
+		return azureParityFailure(runtimeName, "observe", err)
+	}
+	return azureParityRuntimeResult{Observation: azureParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: resourceGroup,
+		Fields:   azureParityResourceGroupLifecycleFields(afterApply, afterDestroy, noOp),
+	}}
+}
+
 func refreshAzureParityUdonToken(ctx context.Context) error {
 	_, err := refreshAzureParityUdonTokenValue(ctx)
 	return err
@@ -1087,6 +1503,51 @@ func renderAzureParityZ05Project(src, dst, databaseName string, deleteWaiter boo
 	return os.WriteFile(dst, []byte(out), 0o644)
 }
 
+func renderAzureParityZ08Project(src, dst string, scope azureParityZ08Scope) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	out := string(data)
+	replacements := [][2]string{
+		{"subscription-placeholder", strings.TrimSpace(os.Getenv("AZURE_SUBSCRIPTION_ID"))},
+		{"ramen-parity-z08-static", scope.ResourceGroup},
+		{"eastus", scope.Location},
+		{"../openapi/resources.json", "openapi/resources.json"},
+	}
+	for _, replacement := range replacements {
+		out = strings.ReplaceAll(out, replacement[0], replacement[1])
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, []byte(out), 0o644)
+}
+
+func renderAzureParityZ09Project(src, dst string, scope azureParityZ09Scope, resourceGroup string, deleteWaiter bool) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	out := string(data)
+	replacements := [][2]string{
+		{"subscription-placeholder", strings.TrimSpace(os.Getenv("AZURE_SUBSCRIPTION_ID"))},
+		{"ramen-parity-z09-static", resourceGroup},
+		{"eastus", scope.Location},
+		{"../openapi/resources.json", "openapi/resources.json"},
+	}
+	for _, replacement := range replacements {
+		out = strings.ReplaceAll(out, replacement[0], replacement[1])
+	}
+	if deleteWaiter {
+		out = strings.Replace(out, "until: exists", "until: missing", 1)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, []byte(out), 0o644)
+}
+
 type azureParityCosmosAccountObservation struct {
 	Exists    bool
 	Name      string
@@ -1156,7 +1617,7 @@ func createAzureParityResourceGroup(ctx context.Context, resourceGroup, location
 }
 
 func deleteAzureParityResourceGroup(ctx context.Context, resourceGroup string) error {
-	if !strings.HasPrefix(resourceGroup, "ramen-parity-z02-") && !strings.HasPrefix(resourceGroup, "ramen-parity-z04-") {
+	if !strings.HasPrefix(resourceGroup, "ramen-parity-z02-") && !strings.HasPrefix(resourceGroup, "ramen-parity-z04-") && !strings.HasPrefix(resourceGroup, "ramen-parity-z09-") {
 		return fmt.Errorf("refusing to delete non-isolated parity resource group %q", resourceGroup)
 	}
 	exists, err := observeAzureParityResourceGroup(ctx, resourceGroup)
@@ -1176,20 +1637,114 @@ func deleteAzureParityResourceGroup(ctx context.Context, resourceGroup string) e
 	if err != nil {
 		return fmt.Errorf("az group delete failed: %w: %s", err, sanitizeAzureParityCommandOutput(string(out)))
 	}
-	return nil
+	_, err = waitAzureParityResourceGroup(ctx, resourceGroup, false)
+	return err
+}
+
+type azureParityResourceGroupObservation struct {
+	Exists    bool
+	Name      string
+	Location  string
+	IDPresent bool
 }
 
 func observeAzureParityResourceGroup(ctx context.Context, resourceGroup string) (bool, error) {
+	observed, err := observeAzureParityResourceGroupDetails(ctx, resourceGroup)
+	if err != nil {
+		return false, err
+	}
+	return observed.Exists, nil
+}
+
+func observeAzureParityResourceGroupDetails(ctx context.Context, resourceGroup string) (azureParityResourceGroupObservation, error) {
 	args := []string{
-		"group", "exists",
+		"group", "show",
 		"--name", resourceGroup,
 		"--subscription", strings.TrimSpace(os.Getenv("AZURE_SUBSCRIPTION_ID")),
+		"-o", "json",
 	}
 	out, err := osexec.CommandContext(ctx, "az", args...).CombinedOutput()
 	if err != nil {
-		return false, fmt.Errorf("az group exists failed: %w: %s", err, sanitizeAzureParityCommandOutput(string(out)))
+		if isAzureParityNotFound(string(out)) {
+			return azureParityResourceGroupObservation{Exists: false}, nil
+		}
+		return azureParityResourceGroupObservation{}, fmt.Errorf("az group show failed: %w: %s", err, sanitizeAzureParityCommandOutput(string(out)))
 	}
-	return strings.TrimSpace(string(out)) == "true", nil
+	var doc struct {
+		ID       string `json:"id"`
+		Name     string `json:"name"`
+		Location string `json:"location"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return azureParityResourceGroupObservation{}, fmt.Errorf("decode Azure Resource Group observation: %w", err)
+	}
+	return azureParityResourceGroupObservation{
+		Exists:    true,
+		Name:      doc.Name,
+		Location:  doc.Location,
+		IDPresent: strings.TrimSpace(doc.ID) != "",
+	}, nil
+}
+
+func azureParityResourceGroupObservationFields(observed azureParityResourceGroupObservation, expectedName string) map[string]any {
+	return map[string]any{
+		"exists":             observed.Exists,
+		"id_present":         observed.IDPresent,
+		"location":           observed.Location,
+		"name_matches_input": strings.EqualFold(observed.Name, expectedName),
+	}
+}
+
+func waitAzureParityResourceGroup(ctx context.Context, resourceGroup string, wantExists bool) (azureParityResourceGroupObservation, error) {
+	var last azureParityResourceGroupObservation
+	var lastErr error
+	for attempt := 0; attempt < 60; attempt++ {
+		observed, err := observeAzureParityResourceGroupDetails(ctx, resourceGroup)
+		if err == nil && observed.Exists == wantExists {
+			return observed, nil
+		}
+		last = observed
+		lastErr = err
+		select {
+		case <-ctx.Done():
+			return last, ctx.Err()
+		case <-time.After(10 * time.Second):
+		}
+	}
+	if lastErr != nil {
+		return last, lastErr
+	}
+	return last, fmt.Errorf("timed out waiting for Azure Resource Group %s exists=%t", resourceGroup, wantExists)
+}
+
+func azureParityZ09ResourceGroupName(runtime, suffix string) string {
+	return "ramen-parity-z09-" + runtime + "-" + suffix
+}
+
+func validateAzureParityZ09ResourceGroupName(name string) error {
+	if !strings.HasPrefix(name, "ramen-parity-z09-") {
+		return fmt.Errorf("resource group name %q must use ramen-parity-z09-* prefix", name)
+	}
+	if len(name) > 90 {
+		return fmt.Errorf("resource group name %q is too long", name)
+	}
+	for _, r := range name {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' || r == '-' {
+			continue
+		}
+		return fmt.Errorf("resource group name %q contains unsupported character %q", name, r)
+	}
+	return nil
+}
+
+func azureParityResourceGroupLifecycleFields(afterApply, afterDestroy azureParityResourceGroupObservation, noOp bool) map[string]any {
+	return map[string]any{
+		"after_apply.exists":     afterApply.Exists,
+		"after_apply.id_present": afterApply.IDPresent,
+		"after_apply.location":   afterApply.Location,
+		"no_op":                  noOp,
+		"after_destroy.exists":   afterDestroy.Exists,
+	}
 }
 
 type azureParityStorageAccountObservation struct {
