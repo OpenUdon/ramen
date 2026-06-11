@@ -1,0 +1,66 @@
+info:
+    title: Configure nginx with multiple notifiers
+    version: 1.0.0
+operations:
+    - description: Install nginx
+      operationId: install_nginx
+      outputs:
+        changed: $response.body.changed
+      request:
+        body:
+            name: nginx
+            state: present
+      sourceDescription: builtin
+      sourceOperationId: ansible.builtin.apt
+      successCriteria:
+        - condition: $response.body.failed != true
+    - description: Deploy nginx config
+      operationId: deploy_nginx_config
+      outputs:
+        changed: $response.body.changed
+      request:
+        body:
+            dest: /etc/nginx/nginx.conf
+            src: nginx.conf.j2
+      sourceDescription: builtin
+      sourceOperationId: ansible.builtin.template
+      successCriteria:
+        - condition: $response.body.failed != true
+    - description: restart nginx
+      operationId: restart_nginx
+      outputs:
+        changed: $response.body.changed
+      request:
+        body:
+            name: nginx
+            state: restarted
+      sourceDescription: builtin
+      sourceOperationId: ansible.builtin.service
+      successCriteria:
+        - condition: $response.body.failed != true
+sourceDescriptions:
+    - name: builtin
+      type: ansible-module
+      url: testdata/argspec/ansible-builtin.argspec.json
+uws: 1.6.0
+workflows:
+    - steps:
+        - operationRef: install_nginx
+          stepId: install_nginx
+        - operationRef: deploy_nginx_config
+          stepId: deploy_nginx_config
+        - cases:
+            - name: notified_by_install_nginx
+              steps:
+                - operationRef: restart_nginx
+                  stepId: restart_nginx_run_1
+              when: $steps.install_nginx.outputs.changed == true
+            - name: notified_by_deploy_nginx_config
+              steps:
+                - operationRef: restart_nginx
+                  stepId: restart_nginx_run_2
+              when: $steps.deploy_nginx_config.outputs.changed == true
+          stepId: restart_nginx_notify
+          type: switch
+      type: sequence
+      workflowId: main

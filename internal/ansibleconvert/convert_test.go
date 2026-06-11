@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -143,6 +144,15 @@ func TestConvertLoopLowersForEach(t *testing.T) {
 	}
 	if !strings.Contains(string(diagnosticsJSON), `"diagnostics": []`) {
 		t.Fatalf("clean diagnostics should serialize as an empty array, got:\n%s", diagnosticsJSON)
+	}
+	review, err := os.ReadFile(result.ReviewMD)
+	if err != nil {
+		t.Fatalf("read review markdown: %v", err)
+	}
+	for _, want := range []string{"# Ansible Conversion Review", "## Lowered Operations", "`create_app_directories`", "Status: `pass`"} {
+		if !strings.Contains(string(review), want) {
+			t.Fatalf("review missing %q:\n%s", want, review)
+		}
 	}
 	step := findStep(doc.Workflows[0].Steps, "create_app_directories")
 	if step == nil {
@@ -317,6 +327,13 @@ func TestConvertAllSkippedWritesDiagnosticsWithoutDocument(t *testing.T) {
 	if _, err := os.Stat(result.DiagnosticsJSON); err != nil {
 		t.Fatalf("diagnostics must be written even when no document is emitted: %v", err)
 	}
+	review, err := os.ReadFile(result.ReviewMD)
+	if err != nil {
+		t.Fatalf("review must be written even when no document is emitted: %v", err)
+	}
+	if !strings.Contains(string(review), "No operations were lowered.") {
+		t.Fatalf("all-skipped review missing no-operations summary:\n%s", review)
+	}
 	if result.StrictFailures < 2 {
 		t.Fatalf("expected module_unknown plus no-tasks-lowered strict diagnostics, got %d: %#v", result.StrictFailures, result.Diagnostics)
 	}
@@ -329,4 +346,82 @@ func TestConvertAllSkippedWritesDiagnosticsWithoutDocument(t *testing.T) {
 	if !sawNoTasks {
 		t.Fatalf("missing no-tasks-lowered diagnostic: %#v", result.Diagnostics)
 	}
+}
+
+func TestAnsibleConversionCorpusDrift(t *testing.T) {
+	corpusRoot := filepath.Join("..", "..", "testdata", "ansible-conversion")
+	entries, err := os.ReadDir(corpusRoot)
+	if err != nil {
+		t.Fatalf("read Ansible conversion corpus: %v", err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if entry.IsDir() {
+			names = append(names, entry.Name())
+		}
+	}
+	slices.Sort(names)
+	wantNames := []string{"failclosed", "loop", "multinotify", "nginx"}
+	if !slices.Equal(names, wantNames) {
+		t.Fatalf("corpus entries = %v, want %v", names, wantNames)
+	}
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			outDir := t.TempDir()
+			result, err := Convert(context.Background(), Options{
+				PlaybookPath: filepath.Join(corpusRoot, name, "input", "playbook.yml"),
+				Argspecs: []ArgspecInput{
+					{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+				},
+				OutDir: outDir,
+			})
+			if err != nil {
+				t.Fatalf("Convert(%s) failed: %v", name, err)
+			}
+			actualByRel := map[string]string{
+				"expected/diagnostics.json": result.DiagnosticsJSON,
+				"expected/diagnostics.md":   result.DiagnosticsMD,
+				"expected/review.md":        result.ReviewMD,
+			}
+			if result.UWSPath != "" {
+				actualByRel["workflows/workflow.uws.yaml"] = result.UWSPath
+			}
+			for _, rel := range sortedMapKeys(actualByRel) {
+				actual, err := os.ReadFile(actualByRel[rel])
+				if err != nil {
+					t.Fatalf("read actual %s: %v", rel, err)
+				}
+				expectedPath := filepath.Join(corpusRoot, name, rel)
+				expected, err := os.ReadFile(expectedPath)
+				if err != nil {
+					t.Fatalf("read expected %s: %v", expectedPath, err)
+				}
+				if rel == "expected/review.md" {
+					actual = normalizeReviewForCorpus(actual, outDir, filepath.Join(corpusRoot, name))
+					expected = normalizeReviewForCorpus(expected, filepath.Join(corpusRoot, name), filepath.Join(corpusRoot, name))
+				}
+				if string(actual) != string(expected) {
+					t.Fatalf("%s drifted for %s\n--- expected\n%s\n--- actual\n%s", rel, name, expected, actual)
+				}
+			}
+		})
+	}
+}
+
+func sortedMapKeys(m map[string]string) []string {
+	keys := make([]string, 0, len(m))
+	for key := range m {
+		keys = append(keys, key)
+	}
+	slices.Sort(keys)
+	return keys
+}
+
+func normalizeReviewForCorpus(data []byte, outDir, corpusDir string) []byte {
+	text := string(data)
+	text = strings.ReplaceAll(text, filepath.ToSlash(outDir), "<OUT_DIR>")
+	text = strings.ReplaceAll(text, filepath.ToSlash(filepath.Clean(outDir)), "<OUT_DIR>")
+	text = strings.ReplaceAll(text, filepath.ToSlash(corpusDir), "<OUT_DIR>")
+	text = strings.ReplaceAll(text, filepath.ToSlash(filepath.Clean(corpusDir)), "<OUT_DIR>")
+	return []byte(text)
 }

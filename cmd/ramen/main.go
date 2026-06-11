@@ -2459,6 +2459,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 		fmt.Println("UWS document: not written (no tasks could be lowered; see diagnostics)")
 	}
 	fmt.Printf("Diagnostics: %s (%d total, %d strict)\n", result.DiagnosticsJSON, len(result.Diagnostics), result.StrictFailures)
+	fmt.Printf("Review: %s\n", result.ReviewMD)
 	if *strict && result.StrictFailures > 0 {
 		os.Exit(3)
 	}

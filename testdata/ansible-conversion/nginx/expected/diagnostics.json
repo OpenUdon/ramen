@@ -1,0 +1,11 @@
+{
+  "version": "ramen.ansible-convert.v1",
+  "diagnostics": [
+    {
+      "code": "ansible.hosts_runtime_owned",
+      "severity": "info",
+      "message": "play \"Configure nginx\" targets hosts \"webservers\"; host fan-out and connection are runtime-owned (stage-1 inventory posture)",
+      "strict_failure": false
+    }
+  ]
+}

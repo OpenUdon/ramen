@@ -1286,6 +1286,36 @@ paths:
 	}
 }
 
+func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
+	root := t.TempDir()
+	outDir := filepath.Join(root, "ansible")
+	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
+	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
+	cmd := helperCommand("convert", "ansible", "--playbook", playbookPath, "--argspec", "builtin="+argspecPath, "--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("convert ansible failed: %v\n%s", err, output)
+	}
+	text := string(output)
+	for _, expected := range []string{"Converted playbook:", "UWS document:", "Diagnostics:", "Review:"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("convert ansible output missing %q:\n%s", expected, output)
+		}
+	}
+	for _, rel := range []string{"workflows/workflow.uws.yaml", "workflows/workflow.hcl", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
+		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
+			t.Fatalf("missing %s: %v", rel, err)
+		}
+	}
+	review, err := os.ReadFile(filepath.Join(outDir, "expected", "review.md"))
+	if err != nil {
+		t.Fatalf("read review: %v", err)
+	}
+	if !strings.Contains(string(review), "## Strict Gate") || !strings.Contains(string(review), "Generated artifacts are static review scaffolding") {
+		t.Fatalf("review missing expected sections:\n%s", review)
+	}
+}
+
 func TestCLIInitAndPlanWritesStaticPlan(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")

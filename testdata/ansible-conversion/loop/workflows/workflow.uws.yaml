@@ -1,0 +1,33 @@
+components:
+    variables:
+        create_app_directories_items:
+            - /etc/app
+            - /var/log/app
+info:
+    title: Create application directories
+    version: 1.0.0
+operations:
+    - description: Create app directories
+      operationId: create_app_directories
+      outputs:
+        changed: $response.body.changed
+      request:
+        body:
+            path: $item
+            state: directory
+      sourceDescription: builtin
+      sourceOperationId: ansible.builtin.file
+      successCriteria:
+        - condition: $response.body.failed != true
+sourceDescriptions:
+    - name: builtin
+      type: ansible-module
+      url: testdata/argspec/ansible-builtin.argspec.json
+uws: 1.6.0
+workflows:
+    - steps:
+        - forEach: $variables.create_app_directories_items
+          operationRef: create_app_directories
+          stepId: create_app_directories
+      type: sequence
+      workflowId: main

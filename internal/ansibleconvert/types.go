@@ -53,6 +53,7 @@ type Result struct {
 	HCLPath         string
 	DiagnosticsJSON string
 	DiagnosticsMD   string
+	ReviewMD        string
 	Diagnostics     []Diagnostic
 	StrictFailures  int
 }

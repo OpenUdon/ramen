@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/OpenUdon/ramen/internal/convertcore"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 // Convert parses the playbook, lowers it against the supplied argspec
@@ -44,6 +45,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	result := &Result{
 		DiagnosticsJSON: filepath.Join(opts.OutDir, "expected", "diagnostics.json"),
 		DiagnosticsMD:   filepath.Join(opts.OutDir, "expected", "diagnostics.md"),
+		ReviewMD:        filepath.Join(opts.OutDir, "expected", "review.md"),
 		Diagnostics:     diags,
 	}
 	for _, d := range diags {
@@ -63,6 +65,9 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 		if err := convertcore.WriteDocumentFormats(doc, result.UWSPath, result.HCLPath); err != nil {
 			return nil, fmt.Errorf("write UWS document: %w", err)
 		}
+	}
+	if err := writeReview(result, doc, opts); err != nil {
+		return nil, err
 	}
 	return result, nil
 }
@@ -110,4 +115,123 @@ func writeDiagnostics(result *Result, diags []Diagnostic) error {
 		}
 	}
 	return os.WriteFile(result.DiagnosticsMD, []byte(b.String()), 0o644)
+}
+
+func writeReview(result *Result, doc *uws1.Document, opts Options) error {
+	if err := os.MkdirAll(filepath.Dir(result.ReviewMD), 0o755); err != nil {
+		return err
+	}
+	var b strings.Builder
+	b.WriteString("# Ansible Conversion Review\n\n")
+	b.WriteString("Generated artifacts are static review scaffolding. Ramen did not execute Ansible, modules, inventory connections, API source operations, or UWS workflows.\n\n")
+
+	b.WriteString("## Conversion Summary\n\n")
+	fmt.Fprintf(&b, "- Playbook: `%s`\n", opts.PlaybookPath)
+	fmt.Fprintf(&b, "- Argspec documents: `%d`\n", len(opts.Argspecs))
+	fmt.Fprintf(&b, "- Lowered operations: `%d`\n", len(doc.Operations))
+	fmt.Fprintf(&b, "- Diagnostics: `%d`\n", len(result.Diagnostics))
+	fmt.Fprintf(&b, "- Strict failures: `%d`\n", result.StrictFailures)
+
+	b.WriteString("\n## Artifact Paths\n\n")
+	writeArtifactPath(&b, "UWS document", result.UWSPath)
+	writeArtifactPath(&b, "HCL document", result.HCLPath)
+	writeArtifactPath(&b, "Diagnostics JSON", result.DiagnosticsJSON)
+	writeArtifactPath(&b, "Diagnostics Markdown", result.DiagnosticsMD)
+	writeArtifactPath(&b, "Review Markdown", result.ReviewMD)
+
+	b.WriteString("\n## Lowered Operations\n\n")
+	if len(doc.Operations) == 0 {
+		b.WriteString("No operations were lowered.\n")
+	} else {
+		stepRefs := operationStepRefs(doc)
+		b.WriteString("| Operation | Source | Module | Workflow Steps |\n|---|---|---|---|\n")
+		for _, op := range doc.Operations {
+			refs := stepRefs[op.OperationID]
+			if len(refs) == 0 {
+				refs = []string{"-"}
+			}
+			fmt.Fprintf(&b, "| `%s` | `%s` | `%s` | %s |\n",
+				escapeTable(op.OperationID),
+				escapeTable(op.SourceDescription),
+				escapeTable(op.SourceOperationID),
+				escapeTable(strings.Join(refs, ", ")))
+		}
+	}
+
+	b.WriteString("\n## Diagnostics Summary\n\n")
+	if len(result.Diagnostics) == 0 {
+		b.WriteString("No diagnostics. The playbook lowered cleanly.\n")
+	} else {
+		counts := map[string]int{}
+		for _, diag := range result.Diagnostics {
+			counts[diag.Severity]++
+		}
+		for _, severity := range sortedKeys(counts) {
+			fmt.Fprintf(&b, "- `%s`: `%d`\n", severity, counts[severity])
+		}
+	}
+
+	b.WriteString("\n## Strict Gate\n\n")
+	switch {
+	case result.StrictFailures == 0:
+		b.WriteString("Status: `pass`. No strict-failure diagnostics were emitted.\n")
+	case opts.Strict:
+		fmt.Fprintf(&b, "Status: `fail`. `--strict` was requested and `%d` strict-failure diagnostics were emitted.\n", result.StrictFailures)
+	default:
+		fmt.Fprintf(&b, "Status: `not-enforced`. `%d` strict-failure diagnostics were emitted; rerun with `--strict` to make them exit non-zero.\n", result.StrictFailures)
+	}
+	return os.WriteFile(result.ReviewMD, []byte(b.String()), 0o644)
+}
+
+func writeArtifactPath(b *strings.Builder, label, path string) {
+	if strings.TrimSpace(path) == "" {
+		fmt.Fprintf(b, "- %s: not written\n", label)
+		return
+	}
+	fmt.Fprintf(b, "- %s: `%s`\n", label, path)
+}
+
+func operationStepRefs(doc *uws1.Document) map[string][]string {
+	refs := map[string][]string{}
+	for _, workflow := range doc.Workflows {
+		collectStepRefs(refs, workflow.Steps)
+	}
+	for operationID := range refs {
+		sort.Strings(refs[operationID])
+	}
+	return refs
+}
+
+func collectStepRefs(refs map[string][]string, steps []*uws1.Step) {
+	for _, step := range steps {
+		if step == nil {
+			continue
+		}
+		if step.OperationRef != "" {
+			refs[step.OperationRef] = append(refs[step.OperationRef], step.StepID)
+		}
+		collectStepRefs(refs, step.Steps)
+		for _, c := range step.Cases {
+			if c != nil {
+				collectStepRefs(refs, c.Steps)
+			}
+		}
+		collectStepRefs(refs, step.Default)
+	}
+}
+
+func sortedKeys(counts map[string]int) []string {
+	keys := make([]string, 0, len(counts))
+	for key := range counts {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+func escapeTable(value string) string {
+	if value == "" {
+		return "-"
+	}
+	return strings.ReplaceAll(value, "|", "\\|")
 }

@@ -1,0 +1,10 @@
+- name: Create application directories
+  hosts: localhost
+  tasks:
+    - name: Create app directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - /etc/app
+        - /var/log/app

@@ -1,0 +1,62 @@
+- name: Fail closed cases
+  hosts: localhost
+  vars:
+    env: prod
+  tasks:
+    - name: Delegated block
+      delegate_to: localhost
+      block:
+        - name: Inside delegated block
+          ansible.builtin.service:
+            name: nginx
+            state: restarted
+
+    - name: Guarded block
+      when: env == "prod"
+      block:
+        - name: Doubly guarded child
+          ansible.builtin.service:
+            name: nginx
+            state: stopped
+          when: env == "prod"
+        - name: Singly guarded child
+          ansible.builtin.service:
+            name: nginx
+            state: started
+
+    - name: Guarded producer
+      ansible.builtin.shell:
+        cmd: echo producing
+      when: ansible_facts['os_family'] == "Debian"
+      register: produced
+
+    - name: Consumer of skipped producer
+      ansible.builtin.shell:
+        cmd: "{{ produced.stdout }}"
+      notify: guarded restart
+
+    - name: Consumer before future producer
+      ansible.builtin.shell:
+        cmd: "{{ future_result.stdout }}"
+
+    - name: Future producer
+      ansible.builtin.shell:
+        cmd: echo future
+      register: future_result
+
+    - name: Block with rescue
+      block:
+        - name: Main inside rescue block
+          ansible.builtin.shell:
+            cmd: echo main
+      rescue:
+        - name: Rescue task omitted
+          ansible.builtin.shell:
+            cmd: echo rescue
+
+  handlers:
+    - name: guarded restart
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+      when: env == "prod"
