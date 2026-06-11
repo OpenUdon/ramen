@@ -49,6 +49,14 @@ rows use `0.72`.
 Silver rows also record an equivalent `go run ./cmd/ramen convert ...`
 command for reproducing the conversion shape.
 
+## Exclusions
+
+Ansible conversion fixtures under `testdata/ansible-conversion` are not T01
+rows. They are static UWS workflow conversion evidence from
+`ramen convert ansible`, not NL-to-Ramen desired-state project data. A future
+Txx milestone may define a separate workflow-only training/evaluation shape,
+but T01 keeps those fixtures out of `testdata/training/manifest.json`.
+
 ## Regeneration
 
 ```bash

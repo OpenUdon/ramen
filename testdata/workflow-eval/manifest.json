@@ -1,0 +1,49 @@
+{
+  "version": "ramen.workflow-eval.v1",
+  "entries": [
+    {
+      "id": "ansible-failclosed",
+      "source": "ramen convert ansible",
+      "category": "ansible-conversion",
+      "input_path": "testdata/ansible-conversion/failclosed/input/playbook.yml",
+      "workflow_path": "testdata/ansible-conversion/failclosed/workflows/workflow.uws.yaml",
+      "hcl_path": "testdata/ansible-conversion/failclosed/workflows/workflow.hcl",
+      "diagnostics_path": "testdata/ansible-conversion/failclosed/expected/diagnostics.json",
+      "review_path": "testdata/ansible-conversion/failclosed/expected/review.md",
+      "strict_failures": 7
+    },
+    {
+      "id": "ansible-loop",
+      "source": "ramen convert ansible",
+      "category": "ansible-conversion",
+      "input_path": "testdata/ansible-conversion/loop/input/playbook.yml",
+      "workflow_path": "testdata/ansible-conversion/loop/workflows/workflow.uws.yaml",
+      "hcl_path": "testdata/ansible-conversion/loop/workflows/workflow.hcl",
+      "diagnostics_path": "testdata/ansible-conversion/loop/expected/diagnostics.json",
+      "review_path": "testdata/ansible-conversion/loop/expected/review.md",
+      "strict_failures": 0
+    },
+    {
+      "id": "ansible-multinotify",
+      "source": "ramen convert ansible",
+      "category": "ansible-conversion",
+      "input_path": "testdata/ansible-conversion/multinotify/input/playbook.yml",
+      "workflow_path": "testdata/ansible-conversion/multinotify/workflows/workflow.uws.yaml",
+      "hcl_path": "testdata/ansible-conversion/multinotify/workflows/workflow.hcl",
+      "diagnostics_path": "testdata/ansible-conversion/multinotify/expected/diagnostics.json",
+      "review_path": "testdata/ansible-conversion/multinotify/expected/review.md",
+      "strict_failures": 0
+    },
+    {
+      "id": "ansible-nginx",
+      "source": "ramen convert ansible",
+      "category": "ansible-conversion",
+      "input_path": "testdata/ansible-conversion/nginx/input/playbook.yml",
+      "workflow_path": "testdata/ansible-conversion/nginx/workflows/workflow.uws.yaml",
+      "hcl_path": "testdata/ansible-conversion/nginx/workflows/workflow.hcl",
+      "diagnostics_path": "testdata/ansible-conversion/nginx/expected/diagnostics.json",
+      "review_path": "testdata/ansible-conversion/nginx/expected/review.md",
+      "strict_failures": 0
+    }
+  ]
+}

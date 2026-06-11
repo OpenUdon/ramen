@@ -79,6 +79,20 @@ func TestTrainingManifestCoversCorpusSilverRows(t *testing.T) {
 	}
 }
 
+func TestTrainingManifestExcludesAnsibleConversionFixtures(t *testing.T) {
+	manifest := loadTrainingManifest(t)
+	for _, entry := range manifest.Entries {
+		if strings.Contains(entry.ID, "ansible") {
+			t.Fatalf("training manifest includes Ansible conversion entry %s; M45 keeps Ansible workflow conversion evidence out of T01", entry.ID)
+		}
+		for _, path := range append([]string{entry.PrimaryWorkflowPath, entry.HCLPath, entry.Provenance.SourcePath}, entry.WorkflowPaths...) {
+			if strings.Contains(path, "testdata/ansible-conversion") {
+				t.Fatalf("training manifest entry %s references Ansible conversion fixture %s", entry.ID, path)
+			}
+		}
+	}
+}
+
 func TestTrainingManifestReferencedFilesExist(t *testing.T) {
 	manifest := loadTrainingManifest(t)
 	for _, entry := range manifest.Entries {
