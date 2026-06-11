@@ -33,3 +33,10 @@ they did not record update-specific API-visible parity. A future K-lane must
 add focused update fixtures, committed replay or sanitized live observations,
 and mapping evidence before `kubernetes_role_binding_v1` or
 `kubernetes_cluster_role_v1` update can be advertised.
+
+## Next Static Candidate
+
+K12 is selected as the next evidence-first Kubernetes lane for
+`kubernetes_cluster_role_binding_v1` create/read/delete. Mapping advertisement
+and live recording remain parked until focused fixtures and default replay
+checks exist.
