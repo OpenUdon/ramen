@@ -1678,6 +1678,33 @@ func TestCLIStateAsyncEvidenceJSON(t *testing.T) {
 	}
 }
 
+func TestCLIStateAsyncEvidenceDoesNotExposeResumeOrResubmit(t *testing.T) {
+	for _, flag := range []string{"--resume", "--resubmit"} {
+		cmd := helperCommand("state", "async-evidence", flag)
+		output, err := cmd.CombinedOutput()
+		if err == nil {
+			t.Fatalf("state async-evidence %s unexpectedly succeeded:\n%s", flag, output)
+		}
+		if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
+			t.Fatalf("state async-evidence %s exit = %v, output:\n%s", flag, err, output)
+		}
+		if !strings.Contains(string(output), strings.TrimPrefix(flag, "--")) {
+			t.Fatalf("state async-evidence %s output missing rejected flag:\n%s", flag, output)
+		}
+	}
+
+	cmd := helperCommand("state", "async-evidence", "--help")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("state async-evidence help failed: %v\n%s", err, output)
+	}
+	for _, forbidden := range []string{"--resume", "--resubmit"} {
+		if strings.Contains(string(output), forbidden) {
+			t.Fatalf("state async-evidence help advertises %s:\n%s", forbidden, output)
+		}
+	}
+}
+
 func helperCommand(args ...string) *exec.Cmd {
 	cmd := exec.Command(os.Args[0], append([]string{"-test.run=TestHelperProcess", "--"}, args...)...)
 	cmd.Env = append(os.Environ(), "GO_WANT_HELPER_PROCESS=1")

@@ -93,11 +93,15 @@ planning, refresh, import, apply, and destroy consume them in the later command
 tracks, and live-behavior claims remain parked until recorded or live
 equivalence evidence exists.
 
-M46 keeps the remaining escape hatches parked behind evidence: identity-changing
-update planning, arbitrary custom diff behavior, opaque import ID parsers, and
-automatic async resume/resubmit. These should become narrow metadata or command
-features only after a specific fixture or recorded/live equivalence case proves
-the behavior is needed.
+M46 closes the current hardening ownership audit by codifying the remaining
+escape hatches as explicit guardrails. Identity-changing update metadata emits
+`validate.identity_update_unsupported` rather than silently planning a rename;
+arbitrary custom diff behavior remains rejected as `validate.normalizer_unknown`;
+opaque import parser work stays closed for the current mapped non-AWS set
+because structured identity metadata is sufficient; and `ramen state
+async-evidence` remains read-only inspection with no resume or resubmit flags.
+Any future feature in these areas needs a narrow status lane, mapping metadata,
+and fixture or recorded/live evidence.
 
 V03 carries the first consumer slice: native project resources can now declare
 `schema`, `request_bindings`, `response_bindings`, `normalizers`,

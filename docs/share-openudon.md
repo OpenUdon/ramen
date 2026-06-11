@@ -44,23 +44,22 @@ retry/read-waiter behavior, read-confirmed delete semantics, and
 Ramen-orchestrated pre-delete settle metadata for native resources with read
 roles.
 
-M47 records the current Ramen-side state of this item as parked and
-OpenUdon-led. Ramen can contribute reviewed contract input, but should not
-start an implementation milestone, import OpenUdon product packages, or extract
-a shared module until OpenUdon has a concrete approval/governance proposal.
+M47 records the current Ramen-side contribution in
+`docs/openudon-governance-contract.md`. Ramen has supplied boundary and contract
+input, but should not start an implementation milestone, import OpenUdon
+product packages, or extract a shared module until OpenUdon accepts or requests
+a concrete approval/governance contract.
 
 ## Next Moves
 
-1. Compare Ramen `governance` artifacts with OpenUdon approval and
-   review-handoff artifacts.
+1. OpenUdon reviews the Ramen-side contract input.
 
-   Inventory the public and internal schemas, digest inputs, policy decisions,
-   approval requirements, approver metadata, package/run handoff fields, and
-   audit records. Record which fields are semantically identical, which are
-   product-specific, and which only look similar because they use the same
-   words.
+   The input in `docs/openudon-governance-contract.md` separates the candidate
+   neutral approval/governance core from Ramen-owned desired-state data and
+   OpenUdon-owned package-review data.
 
-2. Define the shared approval/governance core and versioning strategy.
+2. Define the shared approval/governance core and versioning strategy only if
+   OpenUdon accepts a common contract direction.
 
    The shared core should describe the smallest stable contract both projects
    can honor without forcing either product to inherit the other's workflow.

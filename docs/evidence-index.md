@@ -228,9 +228,9 @@ live evidence so adopters can inspect what has actually been proven.
   not imply desired-state convergence, delete success, or state mutation.
 - M30 persists normalized request, response, status, and confirmation-read
   records in local SQLite state and exposes read-only
-  `ramen state async-evidence` inspection. Automatic resume/resubmit policy
-  remains parked until operation handles and terminal observations are proven
-  by fixtures.
+  `ramen state async-evidence` inspection. M46 keeps automatic
+  resume/resubmit out of the CLI until operation handles and terminal
+  observations are proven by fixtures.
 
 ## OpenUdon Boundary
 
@@ -241,6 +241,9 @@ live evidence so adopters can inspect what has actually been proven.
   governance, and plan approval semantics.
 - OpenUdon owns package review, approval templates, package digests, and
   trusted-runner handoff.
+- M47 records Ramen's governance contract input in
+  `docs/openudon-governance-contract.md`; implementation remains gated on an
+  OpenUdon-reviewed shared contract.
 
 ## Review Checklist For New Evidence
 

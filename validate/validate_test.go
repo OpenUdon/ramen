@@ -401,6 +401,65 @@ func TestRunValidatesCrossFieldMappingMetadata(t *testing.T) {
 	}
 }
 
+func TestRunWarnsOnIdentityChangingUpdateOwnership(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:    "example_resource.test",
+			Kind:       "resource",
+			Type:       "example_resource",
+			Attributes: map[string]any{"name": "renamable"},
+			Schema: []project.SchemaPath{{
+				Path:       "name",
+				Type:       "string",
+				Identity:   true,
+				Updateable: true,
+			}},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"},
+			},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if !result.Valid || !hasValidateDiagnostic(result, "validate.identity_update_unsupported", "warning") {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestRunRejectsCustomDiffEscapeHatchOwnership(t *testing.T) {
+	root := t.TempDir()
+	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")
+	projectPath := writeValidateProject(t, root, project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "openapi", ID: "api", Path: sourcePath}},
+		Resources: []project.Resource{{
+			Address:     "example_resource.test",
+			Kind:        "resource",
+			Type:        "example_resource",
+			Attributes:  map[string]any{"name": "example"},
+			Normalizers: []project.Normalizer{{Path: "name", Kind: "custom_diff"}},
+			Operations: map[string]project.OperationRole{
+				"create": {SourceKind: "openapi", SourceID: "api", OperationID: "createExample"},
+			},
+		}},
+	})
+
+	result, err := Run(context.Background(), Options{ProjectPath: projectPath})
+	if err != nil {
+		t.Fatalf("Run returned error: %v", err)
+	}
+	if result.Valid || !hasValidateDiagnostic(result, "validate.normalizer_unknown", "error") {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
 func TestRunAcceptsRuntimeHintsWithReadRole(t *testing.T) {
 	root := t.TempDir()
 	createPath := writeValidateOpenAPI(t, root, "create.yaml", "createExample")
@@ -485,6 +544,15 @@ func TestRunReportsLoadAndMissingSourceErrors(t *testing.T) {
 func hasValidateCode(result *Result, code string) bool {
 	for _, diag := range result.Diagnostics {
 		if diag.Code == code {
+			return true
+		}
+	}
+	return false
+}
+
+func hasValidateDiagnostic(result *Result, code, severity string) bool {
+	for _, diag := range result.Diagnostics {
+		if diag.Code == code && diag.Severity == severity {
 			return true
 		}
 	}
