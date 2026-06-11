@@ -1,0 +1,28 @@
+- name: Tier three constructs
+  hosts: localhost
+  vars:
+    users:
+      - alice
+      - bob
+  tasks:
+    - name: Use a filter
+      ansible.builtin.shell:
+        cmd: "echo {{ users | join(',') }}"
+
+    - name: Dynamic include
+      include_tasks: extra.yml
+
+    - name: Custom module
+      acme.custom.widget:
+        size: 1
+
+    - name: Guarded by facts
+      ansible.builtin.shell:
+        cmd: echo guarded
+      when: ansible_facts['os_family'] == "Debian"
+
+    - name: Delegated restart
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+      delegate_to: localhost

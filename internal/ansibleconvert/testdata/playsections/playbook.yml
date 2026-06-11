@@ -1,0 +1,16 @@
+- name: Play-level sections
+  hosts: localhost
+  pre_tasks:
+    - name: Pre task omitted
+      ansible.builtin.shell:
+        cmd: echo pre
+  roles:
+    - nginx
+  tasks:
+    - name: Main task
+      ansible.builtin.shell:
+        cmd: echo main
+  post_tasks:
+    - name: Post task omitted
+      ansible.builtin.shell:
+        cmd: echo post

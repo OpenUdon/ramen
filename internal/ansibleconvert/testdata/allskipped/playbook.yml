@@ -1,0 +1,6 @@
+- name: Nothing lowers
+  hosts: localhost
+  tasks:
+    - name: Custom module only
+      acme.custom.widget:
+        size: 1

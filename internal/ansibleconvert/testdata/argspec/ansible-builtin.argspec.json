@@ -1,0 +1,50 @@
+{
+    "argspec": "uws.ansible.1.0",
+    "collection": "ansible.builtin",
+    "info": {
+        "source": "hand-curated test fixture"
+    },
+    "modules": {
+        "ansible.builtin.apt": {
+            "shortDescription": "Manages apt packages",
+            "parameters": {
+                "name": {"type": "list", "elements": "str"},
+                "state": {"type": "str", "choices": ["absent", "build-dep", "latest", "present", "fixed"]},
+                "update_cache": {"type": "bool"}
+            }
+        },
+        "ansible.builtin.template": {
+            "shortDescription": "Template a file out to a target host",
+            "parameters": {
+                "src": {"type": "path", "required": true},
+                "dest": {"type": "path", "required": true},
+                "owner": {"type": "str"},
+                "mode": {"type": "raw"}
+            }
+        },
+        "ansible.builtin.service": {
+            "shortDescription": "Manage services",
+            "parameters": {
+                "name": {"type": "str", "required": true},
+                "state": {"type": "str", "choices": ["reloaded", "restarted", "started", "stopped"]},
+                "enabled": {"type": "bool"}
+            }
+        },
+        "ansible.builtin.shell": {
+            "shortDescription": "Execute shell commands",
+            "parameters": {
+                "cmd": {"type": "str"},
+                "chdir": {"type": "path"},
+                "creates": {"type": "path"}
+            }
+        },
+        "ansible.builtin.file": {
+            "shortDescription": "Manage files and directories",
+            "parameters": {
+                "path": {"type": "path", "required": true, "aliases": ["dest", "name"]},
+                "state": {"type": "str", "choices": ["absent", "directory", "file", "hard", "link", "touch"]},
+                "mode": {"type": "raw"}
+            }
+        }
+    }
+}

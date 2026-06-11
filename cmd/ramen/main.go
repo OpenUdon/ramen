@@ -30,6 +30,7 @@ import (
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/internal/ansibleconvert"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
@@ -2397,14 +2398,70 @@ func runConvertCommand(ctx context.Context, args []string) {
 	switch args[0] {
 	case "-h", "--help", "help":
 		convertUsage(os.Stdout, "ramen convert")
+	case "tf":
+		runConvertTFCommand(ctx, args[1:])
+	case "ansible":
+		runConvertAnsibleCommand(ctx, args[1:])
 	default:
+		// Backward compatible: bare flags keep converting Terraform/OpenTofu.
 		runConvertTFCommand(ctx, args)
 	}
 }
 
 func convertUsage(out *os.File, command string) {
-	fmt.Fprintf(out, "Usage: %s [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n\n", command)
-	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration into native Ramen/UWS project artifacts. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
+	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n", command)
+	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--out DIR] [--strict]\n\n", command)
+	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
+}
+
+func runConvertAnsibleCommand(ctx context.Context, args []string) {
+	fs := flag.NewFlagSet("ramen convert ansible", flag.ExitOnError)
+	playbook := fs.String("playbook", "", "Ansible playbook YAML file")
+	outDir := fs.String("out", ".ramen/convert-ansible", "Output directory for converted artifacts")
+	strict := fs.Bool("strict", false, "Exit non-zero when strict-failure diagnostics are present")
+	var argspecs repeatedStringFlag
+	fs.Var(&argspecs, "argspec", "Collection argspec document as ID=PATH (repeatable; uws.ansible.1.0 shape)")
+	fs.Usage = func() {
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--out DIR] [--strict]\n\n")
+		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS 1.6 workflow bound to ansible-module sources. Tier-3 constructs (complex Jinja2, dynamic includes, unknown modules) become diagnostics, not guesses.\n\n")
+		fs.PrintDefaults()
+	}
+	if err := fs.Parse(args); err != nil {
+		os.Exit(2)
+	}
+	if strings.TrimSpace(*playbook) == "" {
+		fmt.Fprintln(os.Stderr, "ramen convert ansible: --playbook is required")
+		os.Exit(2)
+	}
+	specs := make([]ansibleconvert.ArgspecInput, 0, len(argspecs))
+	for _, value := range argspecs {
+		id, path, ok := strings.Cut(value, "=")
+		if !ok || strings.TrimSpace(id) == "" || strings.TrimSpace(path) == "" {
+			fmt.Fprintf(os.Stderr, "ramen convert ansible: --argspec must be ID=PATH, got %q\n", value)
+			os.Exit(2)
+		}
+		specs = append(specs, ansibleconvert.ArgspecInput{ID: strings.TrimSpace(id), Path: strings.TrimSpace(path)})
+	}
+	result, err := ansibleconvert.Convert(ctx, ansibleconvert.Options{
+		PlaybookPath: *playbook,
+		Argspecs:     specs,
+		OutDir:       *outDir,
+		Strict:       *strict,
+	})
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Converted playbook: %s\n", *playbook)
+	if result.UWSPath != "" {
+		fmt.Printf("UWS document: %s\n", result.UWSPath)
+	} else {
+		fmt.Println("UWS document: not written (no tasks could be lowered; see diagnostics)")
+	}
+	fmt.Printf("Diagnostics: %s (%d total, %d strict)\n", result.DiagnosticsJSON, len(result.Diagnostics), result.StrictFailures)
+	if *strict && result.StrictFailures > 0 {
+		os.Exit(3)
+	}
 }
 
 func runConvertTFCommand(ctx context.Context, args []string) {

@@ -67,8 +67,10 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 			t.Fatalf("convert help missing %q:\n%s", expected, text)
 		}
 	}
-	if strings.Contains(text, "legacy alias") || strings.Contains(text, "convert tf") {
-		t.Fatalf("convert help still mentions removed alias:\n%s", text)
+	for _, expected := range []string{"ansible", "--playbook"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("convert help missing ansible subcommand %q:\n%s", expected, text)
+		}
 	}
 
 	for _, helpArg := range []string{"-h", "help"} {
@@ -84,14 +86,22 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 
 	cmd = helperCommand("convert", "tf", "--help")
 	output, err = cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("convert tf unexpectedly succeeded:\n%s", output)
-	}
-	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
-		t.Fatalf("convert tf exit = %v, output:\n%s", err, output)
+	if err != nil {
+		t.Fatalf("convert tf --help failed: %v\n%s", err, output)
 	}
 	if !strings.Contains(string(output), "Usage: ramen convert") {
-		t.Fatalf("convert tf failure missing usage:\n%s", output)
+		t.Fatalf("convert tf help missing usage:\n%s", output)
+	}
+
+	cmd = helperCommand("convert", "ansible", "--help")
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
+	}
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "ansible-module"} {
+		if !strings.Contains(string(output), expected) {
+			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
+		}
 	}
 
 	cmd = helperCommand("icot", "--help")
@@ -1266,13 +1276,13 @@ paths:
 	if !strings.Contains(string(output), "create=1") {
 		t.Fatalf("native project plan output missing summary:\n%s", output)
 	}
-	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "aws="+openAPIPath, "--action", "create", "--out", filepath.Join(root, "alias-out"))
+	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "aws="+openAPIPath, "--action", "create", "--out", filepath.Join(root, "subcommand-out"))
 	output, err = cmd.CombinedOutput()
-	if err == nil {
-		t.Fatalf("convert tf unexpectedly wrote artifacts:\n%s", output)
+	if err != nil {
+		t.Fatalf("convert tf subcommand failed: %v\n%s", err, output)
 	}
-	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 2 {
-		t.Fatalf("convert tf exit = %v, output:\n%s", err, output)
+	if _, err := os.Stat(filepath.Join(root, "subcommand-out", "workflows", "workflow.uws.yaml")); err != nil {
+		t.Fatalf("convert tf subcommand missing UWS artifact: %v", err)
 	}
 }
 
