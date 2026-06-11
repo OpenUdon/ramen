@@ -9,21 +9,21 @@ resource state and operation shape, not byte-for-byte Terraform state,
 provider internals, or provider plan-file compatibility.
 
 This file is the natural-language inventory for the parity set. It records
-the 32 prompt rows used by the iCoT replay audit:
+the 33 prompt rows used by the iCoT replay audit:
 
 - 12 Kubernetes rows: K01-K10, K12, and K13.
 - 8 Azure rows: Z01-Z06, Z08, and Z09.
 - 7 Google Cloud rows: Y01-Y06 and Y08.
-- 5 Cloudflare rows: C01-C05.
+- 6 Cloudflare rows: C01-C06.
 
-Of those 32 rows, 31 are runnable authoring entries with HCL/native fixtures
+Of those 33 rows, 32 are runnable authoring entries with HCL/native fixtures
 and API source inputs. Z06 is observations-only: it records the Z02 Cosmos DB
 settle/re-recording closure and intentionally has no standalone Terraform HCL,
 native Ramen project, API source, or iCoT prompt.
 
 GitHub `H01`-`H03` are recorded provider/runtime parity tracks with an opt-in
 H04 live-account harness. They remain outside the M40/M41 25-row prompt
-inventory and the committed 31-row iCoT replay gate until GitHub authoring
+inventory and the committed 32-row iCoT replay gate until GitHub authoring
 behavior is separately reviewed and pinned.
 
 For T01, this document is the gold-source inventory for runnable parity-backed
@@ -67,8 +67,8 @@ operation. M41 added shared lifecycle sibling inference and reran the same
 inventory with deterministic fixture-seed answers. The current recorded M41
 baseline is:
 
-- 31/31 runnable rows generated native projects that validate.
-- 31/31 runnable rows match the approved fixture role and operation-ID sets.
+- 32/32 runnable rows generated native projects that validate.
+- 32/32 runnable rows match the approved fixture role and operation-ID sets.
 - Z01 and Z05 treat idempotent Azure SQL `Databases_CreateOrUpdate` as a
   lifecycle `create` role while preserving the underlying `PUT` method and
   source operation.
@@ -76,7 +76,7 @@ baseline is:
 
 Recent authoring fixes also keep request and response schemas separate and
 preserve writable desired inputs when read responses echo the same field path.
-The full 31-row replay is now enforced by `icot_replay_test.go` using the
+The full 32-row replay is now enforced by `icot_replay_test.go` using the
 committed `testdata/parity/icot-replay.json` inventory.
 
 ## Current Coverage Summary
@@ -114,10 +114,11 @@ committed `testdata/parity/icot-replay.json` inventory.
 | C02 | Cloudflare R2 bucket read-missing | Recorded OpenTofu, Terraform, and Ramen+udon R2 read-missing observations. | HCL, focused OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C03 | Cloudflare R2 metadata variants | Recorded OpenTofu, Terraform, and Ramen+udon R2 metadata mutability observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C04 | Cloudflare D1 database create/read | Recorded OpenTofu, Terraform, and Ramen+udon D1 create/read observations. | HCL, focused OpenAPI, native create/read fixture, and sanitized live recording are committed and replayed with direct delete cleanup. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
-| C05 | Cloudflare D1 UUID/delete unlock | Recorded OpenTofu, Terraform, and Ramen+udon D1 UUID/delete observations. | HCL, focused OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | D1 update is intentionally unsupported because the focused API source exposes no D1 update operation; future recording updates require cleanup and secret review. |
-| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 31-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
-| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 31-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
-| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 31-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
+| C05 | Cloudflare D1 UUID/delete unlock | Recorded OpenTofu, Terraform, and Ramen+udon D1 UUID/delete observations. | HCL, focused OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
+| C06 | Cloudflare D1 read-replication update | Recorded OpenTofu, Terraform, and Ramen+udon D1 `read_replication.mode` update observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Update support is bounded to D1 `read_replication.mode`; future D1 update expansion requires new evidence. |
+| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 32-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
+| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 32-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
+| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 32-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
 
 ## Remaining Cross-Cutting Gaps
 
@@ -197,6 +198,7 @@ project name to pass to iCoT.
 | C03 | [main.tf](../testdata/parity/cloudflare/c03/hcl/main.tf) | [project.uws.yaml](../testdata/parity/cloudflare/c03/ramen/project.uws.yaml) | Create a Terraform configuration using `cloudflare/cloudflare` `~> 5.0` that creates a Cloudflare R2 bucket with variable account ID and bucket name, defaulting the bucket name to `ramen-parity-c03-static`, setting location `ENAM`, storage class `InfrequentAccess`, and jurisdiction `default`. | Create a Ramen workflow over the Cloudflare R2 API that creates, reads, updates, and deletes an R2 bucket. Use `account_id` `${var.account_id}`, `bucket_name` `${var.bucket_name}`, location `ENAM`, storage class `InfrequentAccess`, and jurisdiction `default`. | `openapi:cloudflare=testdata/api-sources/cloudflare-r2-d1-openapi.json` | `c03_r2_bucket_metadata` |
 | C04 | [main.tf](../testdata/parity/cloudflare/c04/hcl/main.tf) | [project.uws.yaml](../testdata/parity/cloudflare/c04/ramen/project.uws.yaml) | Create a Terraform configuration using `cloudflare/cloudflare` `~> 5.0` that creates a Cloudflare D1 database with `account_id` and `database_name` string variables, defaulting the database name to `ramen-parity-c04-static`. | Create a Ramen workflow over the Cloudflare D1 API that creates and reads a D1 database. Use `account_id` `${var.account_id}` and `database_name` `${var.database_name}`, and capture the response-derived database UUID for state. | `openapi:cloudflare=testdata/api-sources/cloudflare-r2-d1-openapi.json` | `c04_d1_database` |
 | C05 | [main.tf](../testdata/parity/cloudflare/c05/hcl/main.tf) | [project.uws.yaml](../testdata/parity/cloudflare/c05/ramen/project.uws.yaml) | Create a Terraform configuration using `cloudflare/cloudflare` `~> 5.0` that creates a Cloudflare D1 database with `account_id` and `database_name` string variables, defaulting the database name to `ramen-parity-c05-static`. | Create a Ramen workflow over the Cloudflare D1 API that creates, reads, and deletes a D1 database. Use `account_id` `${var.account_id}` and `database_name` `${var.database_name}`, and reuse response-derived `result.uuid` as `database_id` for read/delete. | `openapi:cloudflare=testdata/api-sources/cloudflare-r2-d1-delete-openapi.json` | `c05_d1_database_uuid` |
+| C06 | [main.tf](../testdata/parity/cloudflare/c06/hcl/main.tf) | [project.uws.yaml](../testdata/parity/cloudflare/c06/ramen/project.uws.yaml) | Create a Terraform configuration using `cloudflare/cloudflare` `~> 5.0` that creates a Cloudflare D1 database with `account_id`, `database_name`, and `read_replication_mode` string variables, defaulting the database name to `ramen-parity-c06-static` and read replication to `disabled`. | Create a Ramen workflow over the Cloudflare D1 API that creates, reads, updates, and deletes a D1 database. Use `account_id` `${var.account_id}`, `database_name` `${var.database_name}`, response-derived `result.uuid` as `database_id`, and update only `read_replication.mode`. | `openapi:cloudflare=testdata/api-sources/cloudflare-r2-d1-update-openapi.json` | `c06_d1_read_replication_update` |
 
 ## GitHub
 

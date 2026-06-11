@@ -1,14 +1,14 @@
 {
   "version": "ramen.cloudflare.provider-parity.v1",
-  "lane": "C05",
+  "lane": "C06",
   "status": "recorded",
   "provider": {
     "source": "cloudflare/cloudflare",
     "version_constraint": "~> 5.0"
   },
   "openapi": {
-    "source_path": "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json",
-    "fixture": "focused Cloudflare R2/D1 OpenAPI subset"
+    "source_path": "testdata/api-sources/cloudflare-r2-d1-update-openapi.json",
+    "fixture": "focused Cloudflare D1 update OpenAPI subset"
   },
   "safety": {
     "live_env": "RAMEN_CLOUDFLARE_PARITY",
@@ -19,7 +19,7 @@
     "account_env": "CLOUDFLARE_ACCOUNT_ID",
     "credential_binding": "cloudflare_api_token",
     "credential_env": "UDON_CREDENTIAL_CLOUDFLARE_API_TOKEN",
-    "resource_prefix": "ramen-parity-c05-",
+    "resource_prefix": "ramen-parity-c06-",
     "requires_explicit_lane": true,
     "live_enabled": true,
     "cleanup_fallback": "Cloudflare API DELETE /accounts/{account_id}/d1/database/{database_id}",
@@ -32,20 +32,21 @@
     ],
     "cost_guardrails": [
       "one disposable D1 database per runtime",
+      "read-replication mode update only",
       "delete database before recording",
       "cleanup absence before recording"
     ],
-    "promotion": "C05 has a committed sanitized live recording from disposable D1 UUID/delete parity."
+    "promotion": "C06 has a committed sanitized live recording from disposable D1 read-replication update parity."
   },
   "recording": {
     "status": "recorded",
-    "artifact_path": "testdata/parity/cloudflare/c05/live.observations.json",
+    "artifact_path": "testdata/parity/cloudflare/c06/live.observations.json",
     "update_env": "RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE",
     "compare_without_update": false,
-    "decision": "Promoted from the 2026-06-07T21:39:48Z opt-in live run after sanitized observations and cleanup absence were reviewed."
+    "decision": "Promoted from the 2026-06-11T23:27:34Z opt-in live run after sanitized observations and cleanup absence were reviewed."
   },
   "promotion": {
-    "next": "Recording promoted; future C05 updates require an explicit sanitized record-update run.",
+    "next": "Recording promoted; future C06 updates require an explicit sanitized record-update run.",
     "live_candidate": true,
     "preconditions": [
       "scoped Cloudflare account token",
@@ -60,38 +61,41 @@
   ],
   "scenarios": [
     {
-      "name": "d1 uuid delete unlock",
+      "name": "d1 read replication update",
       "resource_type": "cloudflare_d1_database",
       "terraform_resource_type": "cloudflare_d1_database",
       "fixture_paths": [
-        "testdata/parity/cloudflare/c05/hcl/main.tf",
-        "testdata/parity/cloudflare/c05/ramen/project.uws.yaml",
-        "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json"
+        "testdata/parity/cloudflare/c06/hcl/main.tf",
+        "testdata/parity/cloudflare/c06/ramen/project.uws.yaml",
+        "testdata/api-sources/cloudflare-r2-d1-update-openapi.json"
       ],
       "operation_ids": [
         "d1-create-database",
         "d1-get-database",
+        "d1-update-database",
         "d1-delete-database"
       ],
       "observed_fields": [
         "name",
         "uuid_present",
+        "read_replication_mode",
         "delete_via_runtime"
       ],
       "expected_transitions": [
         "live-create",
         "live-read",
+        "live-update",
         "live-delete"
       ],
       "observation_artifacts": [
-        "testdata/parity/cloudflare/c05/live.observations.json"
+        "testdata/parity/cloudflare/c06/live.observations.json"
       ]
     }
   ],
   "notes": [
-    "C05 unlocks D1 delete through response-derived UUID handling and does not claim D1 update behavior.",
-    "Default replay validates the committed sanitized C05 live.observations.json without Cloudflare access."
+    "C06 is bounded to D1 read_replication.mode because current Cloudflare API and provider docs expose that as the D1 database update field.",
+    "Default replay validates the committed sanitized C06 live.observations.json without Cloudflare access."
   ],
-  "recorded_at": "2026-06-07T21:39:48Z",
-  "recordings_source": "RAMEN_CLOUDFLARE_PARITY=1 RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 RAMEN_CLOUDFLARE_PARITY_LANE=c05 with local OpenTofu and Terraform CLIs, Ramen+udon, a scoped Cloudflare account token, disposable ramen-parity-c05-* D1 databases, response-derived UUID delete evidence, and cleanup absence verified."
+  "recorded_at": "2026-06-11T23:27:34Z",
+  "recordings_source": "RAMEN_CLOUDFLARE_PARITY=1 RAMEN_CLOUDFLARE_PARITY_RECORD_UPDATE=1 RAMEN_CLOUDFLARE_PARITY_LANE=c06 with local OpenTofu and Terraform CLIs, Ramen+udon, a scoped Cloudflare account token, disposable ramen-parity-c06-* D1 databases, read_replication.mode update evidence, and cleanup absence verified."
 }

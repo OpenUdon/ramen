@@ -40,7 +40,7 @@ live evidence so adopters can inspect what has actually been proven.
   create/read/put/delete, and S3 Bucket Versioning create/read/put. These lanes
   validate HCL/native/Smithy metadata, including SigV4 provider appendices, and
   do not claim live AWS mutation.
-- `testdata/parity/cloudflare/c01` through `c05` start the Cloudflare parity
+- `testdata/parity/cloudflare/c01` through `c06` start the Cloudflare parity
   lane over the focused R2/D1 OpenAPI subset. C01-C03 have static R2 fixtures
   plus committed sanitized OpenTofu, Terraform, and Ramen+udon live recordings
   for lifecycle, read-missing, and metadata-mutability behavior. C04 and C05
@@ -122,8 +122,8 @@ live evidence so adopters can inspect what has actually been proven.
 - `testdata/parity/cloudflare/c01` through `c05` record sanitized Cloudflare
   R2/D1 parity observations across OpenTofu, Terraform, and Ramen+udon for R2
   lifecycle, R2 read-missing, R2 metadata mutability, D1 create/read, and D1
-  response-derived UUID delete. D1 update remains intentionally unsupported
-  because the focused API source exposes no D1 update operation.
+  response-derived UUID delete. C06 records bounded D1 `read_replication.mode`
+  update evidence against the focused update source.
 - `testdata/parity/github/h01/live.observations.json`,
   `h02/live.observations.json`, and `h03/live.observations.json` record
   sanitized GitHub parity observations across OpenTofu and Ramen+udon for
@@ -176,7 +176,7 @@ live evidence so adopters can inspect what has actually been proven.
   minimal, avoid large/high-cost cloud resources, and verify cleanup before any
   recording update.
 - Cloudflare live parity remains opt-in through `RAMEN_CLOUDFLARE_PARITY=1`
-  and explicit `RAMEN_CLOUDFLARE_PARITY_LANE`. C01-C05 were recorded on
+  and explicit `RAMEN_CLOUDFLARE_PARITY_LANE`. C01-C06 were recorded on
   2026-06-07 across OpenTofu, Terraform, and Ramen+udon with disposable R2
   buckets or D1 databases, scoped account-level Cloudflare token environment,
   and verified cleanup. Future recording updates require

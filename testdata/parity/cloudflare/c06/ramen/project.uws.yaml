@@ -1,6 +1,6 @@
 info:
-  description: Cloudflare D1 database UUID/delete unlock fixture for C05.
-  title: ramen_cloudflare_c05_d1_uuid_delete_unlock_parity
+  description: Cloudflare D1 database read-replication update fixture for C06.
+  title: ramen_cloudflare_c06_d1_read_replication_update_parity
   version: 1.0.0
 x-udon-config:
   provider:
@@ -14,30 +14,36 @@ x-udon-config:
         type: http
 operations:
   - description: Create the Cloudflare D1 database.
-    operationId: c05_d1_database_create
+    operationId: c06_d1_database_create
     sourceDescription: cloudflare
     sourceOperationId: d1-create-database
   - description: Read the Cloudflare D1 database using its response-derived UUID.
-    operationId: c05_d1_database_read
+    operationId: c06_d1_database_read
     sourceDescription: cloudflare
     sourceOperationId: d1-get-database
+  - description: Update D1 read replication mode using its response-derived UUID.
+    operationId: c06_d1_database_update
+    sourceDescription: cloudflare
+    sourceOperationId: d1-update-database
   - description: Delete the Cloudflare D1 database using its response-derived UUID.
-    operationId: c05_d1_database_delete
+    operationId: c06_d1_database_delete
     sourceDescription: cloudflare
     sourceOperationId: d1-delete-database
 sourceDescriptions:
   - name: cloudflare
     type: openapi
-    url: ../../../../api-sources/cloudflare-r2-d1-delete-openapi.json
+    url: ../../../../api-sources/cloudflare-r2-d1-update-openapi.json
 uws: 1.4.0
 workflows:
-  - description: Static workflow for Cloudflare D1 UUID unlock planning.
+  - description: Static workflow for Cloudflare D1 read-replication update parity.
     steps:
-      - operationRef: c05_d1_database_create
+      - operationRef: c06_d1_database_create
         stepId: create
-      - operationRef: c05_d1_database_read
+      - operationRef: c06_d1_database_read
         stepId: read
-      - operationRef: c05_d1_database_delete
+      - operationRef: c06_d1_database_update
+        stepId: update
+      - operationRef: c06_d1_database_delete
         stepId: delete
     type: sequence
     workflowId: main
@@ -45,17 +51,19 @@ x-ramen-desired-state:
   api_sources:
     - id: cloudflare
       kind: openapi
-      path: ../../../../api-sources/cloudflare-r2-d1-delete-openapi.json
+      path: ../../../../api-sources/cloudflare-r2-d1-update-openapi.json
   metadata:
     action: create
-    source: C05 Cloudflare provider parity fixture
-    limitation: C05 does not claim D1 update; delete is unlocked through response-derived UUID request binding.
+    source: C06 Cloudflare provider parity fixture
+    update_scope: D1 read_replication.mode only.
   redaction: {}
   resources:
     - address: cloudflare_d1_database.database
       attributes:
         account_id: cloudflare-account-placeholder
-        name: ramen-parity-c05-static
+        name: ramen-parity-c06-static
+        read_replication:
+          mode: disabled
       credential_bindings:
         - cloudflare_api_token
       identity_attributes:
@@ -82,7 +90,7 @@ x-ramen-desired-state:
       metadata:
         parity_target: cloudflare_d1_database
         terraform_address: cloudflare_d1_database.database
-        uuid_delete_status: delete-unlocked
+        update_status: read-replication-update
       name: database
       operations:
         create:
@@ -93,7 +101,7 @@ x-ramen-desired-state:
           purpose: create
           source_id: cloudflare
           source_kind: openapi
-          source_path: ../../../../api-sources/cloudflare-r2-d1-delete-openapi.json
+          source_path: ../../../../api-sources/cloudflare-r2-d1-update-openapi.json
         read:
           credential_bindings:
             - cloudflare_api_token
@@ -102,7 +110,16 @@ x-ramen-desired-state:
           purpose: read
           source_id: cloudflare
           source_kind: openapi
-          source_path: ../../../../api-sources/cloudflare-r2-d1-delete-openapi.json
+          source_path: ../../../../api-sources/cloudflare-r2-d1-update-openapi.json
+        update:
+          credential_bindings:
+            - cloudflare_api_token
+          method: PUT
+          operation_id: d1-update-database
+          purpose: update
+          source_id: cloudflare
+          source_kind: openapi
+          source_path: ../../../../api-sources/cloudflare-r2-d1-update-openapi.json
         delete:
           credential_bindings:
             - cloudflare_api_token
@@ -111,7 +128,7 @@ x-ramen-desired-state:
           purpose: delete
           source_id: cloudflare
           source_kind: openapi
-          source_path: ../../../../api-sources/cloudflare-r2-d1-delete-openapi.json
+          source_path: ../../../../api-sources/cloudflare-r2-d1-update-openapi.json
       redaction: {}
       request_bindings:
         - operation_id: d1-create-database
@@ -128,6 +145,11 @@ x-ramen-desired-state:
           location: body
           required: true
           identity: true
+        - operation_id: d1-create-database
+          operation_role: create
+          path: read_replication
+          request_path: read_replication
+          location: body
         - operation_id: d1-get-database
           operation_role: read
           path: account_id
@@ -142,6 +164,26 @@ x-ramen-desired-state:
           location: path
           required: true
           identity: true
+        - operation_id: d1-update-database
+          operation_role: update
+          path: account_id
+          request_path: account_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: d1-update-database
+          operation_role: update
+          path: database_id
+          request_path: database_id
+          location: path
+          required: true
+          identity: true
+        - operation_id: d1-update-database
+          operation_role: update
+          path: read_replication
+          request_path: read_replication
+          location: body
+          required: true
         - operation_id: d1-delete-database
           operation_role: delete
           path: account_id
@@ -159,18 +201,24 @@ x-ramen-desired-state:
       required_operations:
         - create
         - read
+        - update
         - delete
       response_bindings:
         - operation_id: d1-get-database
           operation_role: read
           state_path: name
           response_path: result.name
-          observed: true
+          identity: true
         - operation_id: d1-get-database
           operation_role: read
           state_path: database_id
           response_path: result.uuid
           identity: true
           response_derived_identity: true
+        - operation_id: d1-get-database
+          operation_role: read
+          state_path: read_replication.mode
+          response_path: result.read_replication.mode
+          observed: true
       type: cloudflare_d1_database
   version: ramen.project.v1

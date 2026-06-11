@@ -279,6 +279,15 @@
       "seed_operation": "d1-create-database",
       "approved_fixture": "testdata/parity/cloudflare/c05/ramen/project.uws.yaml",
       "role_match": "exact"
+    },
+    {
+      "row": "C06",
+      "project_name": "c06_d1_read_replication_update",
+      "goal": "Create a Ramen workflow over the Cloudflare D1 API that creates, reads, updates, and deletes a D1 database. Use `account_id` `${var.account_id}`, `database_name` `${var.database_name}`, response-derived `result.uuid` as `database_id`, and update only `read_replication.mode`.",
+      "api_sources": [{"kind": "openapi", "id": "cloudflare", "path": "testdata/api-sources/cloudflare-r2-d1-update-openapi.json"}],
+      "seed_operation": "d1-create-database",
+      "approved_fixture": "testdata/parity/cloudflare/c06/ramen/project.uws.yaml",
+      "role_match": "exact"
     }
   ]
 }

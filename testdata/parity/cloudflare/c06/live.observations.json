@@ -1,0 +1,67 @@
+{
+  "version": "ramen.cloudflare.provider-parity.v1",
+  "lane": "C06",
+  "scenario": "d1 read replication update",
+  "recorded_at": "2026-06-11T23:27:34Z",
+  "duration_ms": 83792,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-c06-opentofu-18b82a7d",
+      "duration_ms": 9614,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c06-opentofu-18b82a7d",
+        "after_create.read_replication_mode": "disabled",
+        "after_create.uuid_present": true,
+        "after_update.exists": true,
+        "after_update.read_replication_mode": "auto",
+        "delete_via_runtime": false,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "terraform",
+      "resource": "ramen-parity-c06-terraform-18b82a7d",
+      "duration_ms": 8335,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c06-terraform-18b82a7d",
+        "after_create.read_replication_mode": "disabled",
+        "after_create.uuid_present": true,
+        "after_update.exists": true,
+        "after_update.read_replication_mode": "auto",
+        "delete_via_runtime": false,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-c06-ramen-18b82a7d",
+      "duration_ms": 65842,
+      "fields": {
+        "after_cleanup.exists": false,
+        "after_create.exists": true,
+        "after_create.name": "ramen-parity-c06-ramen-18b82a7d",
+        "after_create.read_replication_mode": "disabled",
+        "after_create.uuid_present": true,
+        "after_update.exists": true,
+        "after_update.read_replication_mode": "auto",
+        "delete_via_runtime": true,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "after_create.exists",
+      "after_create.uuid_present",
+      "after_update.read_replication_mode",
+      "no_op",
+      "after_cleanup.exists"
+    ]
+  }
+}

@@ -1,0 +1,208 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Cloudflare R2 and D1 update corpus OpenAPI subset",
+    "version": "corpus"
+  },
+  "servers": [
+    {
+      "url": "https://api.cloudflare.com"
+    }
+  ],
+  "paths": {
+    "/client/v4/accounts/{account_id}/d1/database": {
+      "post": {
+        "operationId": "d1-create-database",
+        "summary": "Create D1 Database",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "name"
+                ],
+                "properties": {
+                  "name": {
+                    "type": "string"
+                  },
+                  "jurisdiction": {
+                    "type": "string"
+                  },
+                  "primary_location_hint": {
+                    "type": "string"
+                  },
+                  "read_replication": {
+                    "$ref": "#/components/schemas/D1ReadReplication"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Created D1 database"
+          }
+        },
+        "security": [
+          {
+            "api_token": []
+          }
+        ]
+      }
+    },
+    "/client/v4/accounts/{account_id}/d1/database/{database_id}": {
+      "delete": {
+        "operationId": "d1-delete-database",
+        "summary": "Delete D1 Database",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "database_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deleted D1 database"
+          }
+        },
+        "security": [
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "get": {
+        "operationId": "d1-get-database",
+        "summary": "Get D1 Database",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "database_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "D1 database"
+          }
+        },
+        "security": [
+          {
+            "api_token": []
+          }
+        ]
+      },
+      "put": {
+        "operationId": "d1-update-database",
+        "summary": "Update D1 Database",
+        "parameters": [
+          {
+            "name": "account_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "database_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "read_replication"
+                ],
+                "properties": {
+                  "read_replication": {
+                    "$ref": "#/components/schemas/D1ReadReplication"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Updated D1 database"
+          }
+        },
+        "security": [
+          {
+            "api_token": []
+          }
+        ]
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "D1ReadReplication": {
+        "type": "object",
+        "required": [
+          "mode"
+        ],
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "disabled"
+            ]
+          }
+        }
+      }
+    },
+    "securitySchemes": {
+      "api_token": {
+        "type": "http",
+        "scheme": "bearer"
+      }
+    }
+  }
+}

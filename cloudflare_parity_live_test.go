@@ -46,6 +46,8 @@ func TestCloudflareProviderParityLive(t *testing.T) {
 		recording = runCloudflareParityC04Live(ctx, t, artifact)
 	case "c05":
 		recording = runCloudflareParityC05Live(ctx, t, artifact)
+	case "c06":
+		recording = runCloudflareParityC06Live(ctx, t, artifact)
 	default:
 		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", cloudflareParityLaneEnv, selectedLane)
 	}

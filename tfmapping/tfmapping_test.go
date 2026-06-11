@@ -321,6 +321,7 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "cloudflare r2 bucket delete", obj: Object{Kind: "resource", Type: "cloudflare_r2_bucket"}, purpose: "delete", action: "delete", operation: "r2-delete-bucket"},
 		{name: "cloudflare d1 database create", obj: Object{Kind: "resource", Type: "cloudflare_d1_database"}, purpose: "create", action: "create", operation: "d1-create-database"},
 		{name: "cloudflare d1 database read", obj: Object{Kind: "resource", Type: "cloudflare_d1_database"}, purpose: "read", action: "read", operation: "d1-get-database"},
+		{name: "cloudflare d1 database update", obj: Object{Kind: "resource", Type: "cloudflare_d1_database"}, purpose: "update", action: "update", operation: "d1-update-database"},
 		{name: "namespace create", obj: Object{Kind: "resource", Type: "kubernetes_namespace"}, purpose: "create", action: "create", operation: "createCoreV1Namespace"},
 		{name: "namespace read", obj: Object{Kind: "resource", Type: "kubernetes_namespace"}, purpose: "read", action: "read", operation: "readCoreV1Namespace"},
 		{name: "namespace update", obj: Object{Kind: "resource", Type: "kubernetes_namespace_v1"}, purpose: "update", action: "update", operation: "replaceCoreV1Namespace"},
@@ -379,7 +380,7 @@ func TestDefaultRegistryDiagnostics(t *testing.T) {
 		{name: "provider", obj: Object{Kind: "resource", Type: "example_resource", Provider: "provider.example"}, want: DiagnosticCodeUnsupportedProvider},
 		{name: "type", obj: Object{Kind: "resource", Type: "aws_instance", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedType},
 		{name: "action", obj: Object{Kind: "resource", Type: "aws_iam_role", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedAction},
-		{name: "cloudflare d1 database update", obj: Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, purpose: "update", action: "update", want: DiagnosticCodeUnsupportedAction},
+		{name: "cloudflare d1 database delete", obj: Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, purpose: "delete", action: "delete", want: DiagnosticCodeUnsupportedAction},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -575,6 +576,10 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "d1-get-database", "name")
 	if len(keys) != 1 || keys[0] != "database_id" {
 		t.Fatalf("unexpected Cloudflare D1 read request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "d1-update-database", "read_replication")
+	if len(keys) != 1 || keys[0] != "read_replication" {
+		t.Fatalf("unexpected Cloudflare D1 update request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "github_repository", Provider: "provider.github"}, APISourceKindOpenAPI, "repos/create-in-org", "owner")
 	if len(keys) != 1 || keys[0] != "org" {

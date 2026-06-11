@@ -67,6 +67,15 @@ func TestCloudflareParityC05Render(t *testing.T) {
 	})
 }
 
+func TestCloudflareParityC06Render(t *testing.T) {
+	assertRenderedCloudflareParityLane(t, "c06", []cloudflareParityRenderedPlanCase{
+		{action: "create", operationID: "d1-create-database", summary: "create"},
+		{action: "read", operationID: "d1-get-database", summary: "read"},
+		{action: "update", operationID: "d1-update-database", summary: "update", seed: true},
+		{action: "delete", operationID: "d1-delete-database", summary: "delete", seed: true},
+	})
+}
+
 type cloudflareParityRenderedPlanCase struct {
 	action      string
 	operationID string
@@ -132,9 +141,11 @@ func renderCloudflareParityProject(src, dst, accountID, resourceName, openAPIPat
 	out = strings.ReplaceAll(out, "ramen-parity-c03-static", resourceName)
 	out = strings.ReplaceAll(out, "ramen-parity-c04-static", resourceName)
 	out = strings.ReplaceAll(out, "ramen-parity-c05-static", resourceName)
+	out = strings.ReplaceAll(out, "ramen-parity-c06-static", resourceName)
 	if strings.TrimSpace(openAPIPath) != "" {
 		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-openapi.json", filepath.ToSlash(openAPIPath))
 		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-delete-openapi.json", filepath.ToSlash(openAPIPath))
+		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-update-openapi.json", filepath.ToSlash(openAPIPath))
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
@@ -146,6 +157,9 @@ func cloudflareParityOpenAPIPathForLane(lane string) (string, error) {
 	source := "testdata/api-sources/cloudflare-r2-d1-openapi.json"
 	if strings.ToLower(strings.TrimSpace(lane)) == "c05" {
 		source = "testdata/api-sources/cloudflare-r2-d1-delete-openapi.json"
+	}
+	if strings.ToLower(strings.TrimSpace(lane)) == "c06" {
+		source = "testdata/api-sources/cloudflare-r2-d1-update-openapi.json"
 	}
 	return filepath.Abs(source)
 }
@@ -301,6 +315,11 @@ func runCloudflareParityC05Live(ctx context.Context, t *testing.T, artifact clou
 	return runCloudflareParityD1Live(ctx, t, artifact, "c05", true)
 }
 
+func runCloudflareParityC06Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
+	t.Helper()
+	return runCloudflareParityD1UpdateLive(ctx, t, artifact)
+}
+
 func runCloudflareParityD1Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact, lane string, exerciseRamenDelete bool) cloudflareParityLiveRecording {
 	t.Helper()
 	started := time.Now()
@@ -349,6 +368,59 @@ func runCloudflareParityD1Live(ctx context.Context, t *testing.T, artifact cloud
 	return cloudflareParityLiveRecording{
 		Version:      cloudflareParityArtifactV1,
 		Lane:         strings.ToUpper(lane),
+		Scenario:     artifact.Scenarios[0].Name,
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		DurationMS:   time.Since(started).Milliseconds(),
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runCloudflareParityD1UpdateLive(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
+	t.Helper()
+	started := time.Now()
+	lane := "c06"
+	suffix := cloudflareParityRunSuffix()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, string) cloudflareParityRuntimeResult
+	}{
+		{runtime: "opentofu", run: func(ctx context.Context, t *testing.T, databaseName string) cloudflareParityRuntimeResult {
+			return runCloudflareParityD1UpdateHCLRuntime(ctx, t, "opentofu", os.Getenv(cloudflareParityTofuEnv), databaseName)
+		}},
+		{runtime: "terraform", run: func(ctx context.Context, t *testing.T, databaseName string) cloudflareParityRuntimeResult {
+			return runCloudflareParityD1UpdateHCLRuntime(ctx, t, "terraform", os.Getenv(cloudflareParityTerraformEnv), databaseName)
+		}},
+		{runtime: "ramen", run: runCloudflareParityD1UpdateRamenRuntime},
+	}
+	var observations []cloudflareParityRuntimeObservation
+	var failures []cloudflareParityRuntimeFailure
+	for _, run := range runs {
+		databaseName := cloudflareParityD1DatabaseName(lane, run.runtime, suffix)
+		result := timedCloudflareParityRuntime(run.runtime, func() cloudflareParityRuntimeResult {
+			return run.run(ctx, t, databaseName)
+		})
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s Cloudflare parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("C06 Cloudflare provider parity did not complete for all runtimes")
+	}
+	assertCloudflareParityD1RamenDeleteObserved(t, observations)
+	fields := []string{"after_create.exists", "after_create.uuid_present", "after_update.read_replication_mode", "no_op", "after_cleanup.exists"}
+	comparison := compareCloudflareParityObservations(observations, fields)
+	if !comparison.Matched {
+		t.Fatalf("C06 Cloudflare provider parity observations did not match: %#v", observations)
+	}
+	return cloudflareParityLiveRecording{
+		Version:      cloudflareParityArtifactV1,
+		Lane:         "C06",
 		Scenario:     artifact.Scenarios[0].Name,
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
 		DurationMS:   time.Since(started).Milliseconds(),
@@ -806,6 +878,70 @@ func runCloudflareParityD1HCLRuntime(ctx context.Context, t *testing.T, lane, ru
 	}}
 }
 
+func runCloudflareParityD1UpdateHCLRuntime(ctx context.Context, t *testing.T, runtimeName, tool, databaseName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	lane := "c06"
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteCloudflareParityD1DatabasesByName(ctx, databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteCloudflareParityD1DatabasesByName(context.Background(), databaseName, lane); err != nil {
+			t.Logf("cleanup Cloudflare D1 database %s: %v", databaseName, err)
+		}
+	})
+	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, databaseName)
+	if err := copyCloudflareParityFixtureFile(filepath.Join(cloudflareParityFixtureRoot, lane, "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := writeCloudflareParityD1UpdateTFVars(workDir, databaseName, "disabled"); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	env := append(os.Environ(), cloudflareParityEnvForTools()...)
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "init", "-input=false", "-no-color"); err != nil {
+		return cloudflareParityFailure(runtimeName, "init", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "apply", err)
+	}
+	afterCreate, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, true)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	afterCreate, err = observeCloudflareParityD1DatabaseByID(ctx, afterCreate.UUID, databaseName, lane)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	planExit, _, err := runCloudflareParityPlan(ctx, workDir, env, tool)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "plan", err)
+	}
+	if err := writeCloudflareParityD1UpdateTFVars(workDir, databaseName, "auto"); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "update", err)
+	}
+	afterUpdate, err := observeCloudflareParityD1DatabaseByID(ctx, afterCreate.UUID, databaseName, lane)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	if err := runCloudflareParityCommand(ctx, workDir, env, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return cloudflareParityFailure(runtimeName, "destroy", err)
+	}
+	afterCleanup, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, false)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	return cloudflareParityRuntimeResult{Observation: cloudflareParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: databaseName,
+		Fields:   cloudflareParityD1UpdateFields(afterCreate, afterUpdate, afterCleanup, planExit == 0, false),
+	}}
+}
+
 func runCloudflareParityD1RamenRuntime(ctx context.Context, t *testing.T, lane, databaseName string, exerciseDelete bool) cloudflareParityRuntimeResult {
 	t.Helper()
 	runtimeName := "ramen"
@@ -863,6 +999,76 @@ func runCloudflareParityD1RamenRuntime(ctx context.Context, t *testing.T, lane, 
 		Runtime:  runtimeName,
 		Resource: databaseName,
 		Fields:   cloudflareParityD1Fields(afterCreate, afterCleanup, noOp, deleteViaRuntime),
+	}}
+}
+
+func runCloudflareParityD1UpdateRamenRuntime(ctx context.Context, t *testing.T, databaseName string) cloudflareParityRuntimeResult {
+	t.Helper()
+	lane := "c06"
+	runtimeName := "ramen"
+	if err := validateCloudflareParityD1DatabaseName(databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "safety", err)
+	}
+	if err := deleteCloudflareParityD1DatabasesByName(ctx, databaseName, lane); err != nil {
+		return cloudflareParityFailure(runtimeName, "pre-cleanup", err)
+	}
+	t.Cleanup(func() {
+		if err := deleteCloudflareParityD1DatabasesByName(context.Background(), databaseName, lane); err != nil {
+			t.Logf("cleanup Cloudflare D1 database %s: %v", databaseName, err)
+		}
+	})
+	workDir := cloudflareParityRuntimeWorkDir(t, runtimeName, databaseName)
+	createProjectPath := filepath.Join(workDir, "create", "project.uws.yaml")
+	updateProjectPath := filepath.Join(workDir, "update", "project.uws.yaml")
+	openAPIPath, err := cloudflareParityOpenAPIPathForLane(lane)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderCloudflareParityD1UpdateProject(filepath.Join(cloudflareParityFixtureRoot, lane, "ramen", "project.uws.yaml"), createProjectPath, cloudflareParityAccountID(), databaseName, openAPIPath, "disabled"); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderCloudflareParityD1UpdateProject(filepath.Join(cloudflareParityFixtureRoot, lane, "ramen", "project.uws.yaml"), updateProjectPath, cloudflareParityAccountID(), databaseName, openAPIPath, "auto"); err != nil {
+		return cloudflareParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := cloudflareParityD1UdonExecutor(workDir, databaseName, lane)
+	if err := buildAndApplyCloudflareParityPlan(ctx, createProjectPath, statePath, "create", filepath.Join(workDir, "create-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "apply", err)
+	}
+	afterCreate, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, true)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	afterCreate, err = observeCloudflareParityD1DatabaseByID(ctx, afterCreate.UUID, databaseName, lane)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	planResult, err := buildCloudflareParityNoOpPlan(ctx, createProjectPath, statePath)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1
+	if err := buildAndApplyCloudflareParityPlan(ctx, createProjectPath, statePath, "read", filepath.Join(workDir, "read-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "read", err)
+	}
+	if err := buildAndApplyCloudflareParityPlan(ctx, updateProjectPath, statePath, "update", filepath.Join(workDir, "update-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "update", err)
+	}
+	afterUpdate, err := observeCloudflareParityD1DatabaseByID(ctx, afterCreate.UUID, databaseName, lane)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	if err := buildAndApplyCloudflareParityPlan(ctx, updateProjectPath, statePath, "delete", filepath.Join(workDir, "delete-plan.json"), udonExecutor); err != nil {
+		return cloudflareParityFailure(runtimeName, "delete", err)
+	}
+	afterCleanup, err := waitCloudflareParityD1DatabaseByName(ctx, databaseName, lane, false)
+	if err != nil {
+		return cloudflareParityFailure(runtimeName, "observe", err)
+	}
+	return cloudflareParityRuntimeResult{Observation: cloudflareParityRuntimeObservation{
+		Runtime:  runtimeName,
+		Resource: databaseName,
+		Fields:   cloudflareParityD1UpdateFields(afterCreate, afterUpdate, afterCleanup, noOp, true),
 	}}
 }
 
@@ -944,6 +1150,9 @@ func cloudflareParityD1UdonExecutor(workDir, databaseName, lane string) udon.Exe
 				"result": map[string]any{
 					"name": observed.Name,
 					"uuid": observed.UUID,
+					"read_replication": map[string]any{
+						"mode": normalizeCloudflareParityD1ReadReplicationMode(observed.ReadReplicationMode),
+					},
 				},
 			}
 			return result, nil
@@ -999,6 +1208,25 @@ func renderCloudflareParityR2Project(src, dst, accountID, bucketName, storageCla
 	if strings.TrimSpace(openAPIPath) != "" {
 		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-openapi.json", filepath.ToSlash(openAPIPath))
 		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-delete-openapi.json", filepath.ToSlash(openAPIPath))
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dst, []byte(out), 0o644)
+}
+
+func renderCloudflareParityD1UpdateProject(src, dst, accountID, databaseName, openAPIPath, readReplicationMode string) error {
+	data, err := os.ReadFile(src)
+	if err != nil {
+		return err
+	}
+	out := strings.ReplaceAll(string(data), "cloudflare-account-placeholder", accountID)
+	out = strings.ReplaceAll(out, "ramen-parity-c06-static", databaseName)
+	if strings.TrimSpace(readReplicationMode) != "" {
+		out = strings.ReplaceAll(out, "mode: disabled", "mode: "+readReplicationMode)
+	}
+	if strings.TrimSpace(openAPIPath) != "" {
+		out = strings.ReplaceAll(out, "../../../../api-sources/cloudflare-r2-d1-update-openapi.json", filepath.ToSlash(openAPIPath))
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
@@ -1273,6 +1501,20 @@ func writeCloudflareParityD1TFVars(dir, databaseName string) error {
 	return os.WriteFile(filepath.Join(dir, "terraform.tfvars.json"), data, 0o644)
 }
 
+func writeCloudflareParityD1UpdateTFVars(dir, databaseName, readReplicationMode string) error {
+	vars := map[string]string{
+		"account_id":            cloudflareParityAccountID(),
+		"database_name":         databaseName,
+		"read_replication_mode": readReplicationMode,
+	}
+	data, err := json.MarshalIndent(vars, "", "  ")
+	if err != nil {
+		return err
+	}
+	data = append(data, '\n')
+	return os.WriteFile(filepath.Join(dir, "terraform.tfvars.json"), data, 0o644)
+}
+
 type cloudflareParityR2BucketObservation struct {
 	Exists       bool
 	Name         string
@@ -1377,9 +1619,10 @@ func deleteCloudflareParityR2BucketIfExists(ctx context.Context, bucketName, lan
 }
 
 type cloudflareParityD1DatabaseObservation struct {
-	Exists bool
-	Name   string
-	UUID   string
+	Exists              bool
+	Name                string
+	UUID                string
+	ReadReplicationMode string
 }
 
 type cloudflareParityD1DatabaseListItem struct {
@@ -1537,9 +1780,12 @@ func decodeCloudflareParityD1DatabaseGet(body []byte) (cloudflareParityD1Databas
 	var doc struct {
 		Success bool `json:"success"`
 		Result  struct {
-			Name string `json:"name"`
-			UUID string `json:"uuid"`
-			ID   string `json:"id"`
+			Name            string `json:"name"`
+			UUID            string `json:"uuid"`
+			ID              string `json:"id"`
+			ReadReplication struct {
+				Mode string `json:"mode"`
+			} `json:"read_replication"`
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(body, &doc); err != nil {
@@ -1549,9 +1795,10 @@ func decodeCloudflareParityD1DatabaseGet(body []byte) (cloudflareParityD1Databas
 		return cloudflareParityD1DatabaseObservation{}, fmt.Errorf("Cloudflare D1 database get was not successful")
 	}
 	return cloudflareParityD1DatabaseObservation{
-		Exists: true,
-		Name:   doc.Result.Name,
-		UUID:   firstNonEmptyCloudflareParityString(doc.Result.UUID, doc.Result.ID),
+		Exists:              true,
+		Name:                doc.Result.Name,
+		UUID:                firstNonEmptyCloudflareParityString(doc.Result.UUID, doc.Result.ID),
+		ReadReplicationMode: doc.Result.ReadReplication.Mode,
 	}, nil
 }
 
@@ -1614,6 +1861,20 @@ func cloudflareParityD1Fields(afterCreate, afterCleanup cloudflareParityD1Databa
 	}
 }
 
+func cloudflareParityD1UpdateFields(afterCreate, afterUpdate, afterCleanup cloudflareParityD1DatabaseObservation, noOp, deleteViaRuntime bool) map[string]any {
+	return map[string]any{
+		"after_create.exists":                afterCreate.Exists,
+		"after_create.name":                  afterCreate.Name,
+		"after_create.uuid_present":          strings.TrimSpace(afterCreate.UUID) != "",
+		"after_create.read_replication_mode": normalizeCloudflareParityD1ReadReplicationMode(afterCreate.ReadReplicationMode),
+		"after_update.exists":                afterUpdate.Exists,
+		"after_update.read_replication_mode": normalizeCloudflareParityD1ReadReplicationMode(afterUpdate.ReadReplicationMode),
+		"no_op":                              noOp,
+		"delete_via_runtime":                 deleteViaRuntime,
+		"after_cleanup.exists":               afterCleanup.Exists,
+	}
+}
+
 func cloudflareParityR2ReadMissingFields(afterCreate, afterDelete cloudflareParityR2BucketObservation, missing bool) map[string]any {
 	return map[string]any{
 		"after_create.exists":             afterCreate.Exists,
@@ -1647,6 +1908,17 @@ func normalizeCloudflareParityR2Jurisdiction(value string) string {
 		return ""
 	}
 	return strings.ToLower(value)
+}
+
+func normalizeCloudflareParityD1ReadReplicationMode(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "auto":
+		return "auto"
+	case "disabled", "":
+		return "disabled"
+	default:
+		return value
+	}
 }
 
 func validateCloudflareParityBucketName(name, lane string) error {

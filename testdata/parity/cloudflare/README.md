@@ -17,7 +17,8 @@ The initial staged scope is:
   and Ramen+udon observations plus direct D1 delete cleanup.
 - `C05`: D1 response-derived UUID/delete unlock with committed sanitized
   OpenTofu, Terraform, and Ramen+udon observations; Ramen delete is exercised
-  through the response-derived UUID. D1 update is intentionally unsupported
-  until a D1 update operation appears in the focused API source.
-- `C06`: parked D1 update track. It has no fixture directory yet because no
-  suitable D1 update operation is present in the focused source.
+  through the response-derived UUID.
+- `C06`: D1 `read_replication.mode` update with committed sanitized
+  OpenTofu, Terraform, and Ramen+udon observations. The lane is intentionally
+  bounded to the current D1 update field exposed by Cloudflare API and provider
+  docs.

@@ -242,6 +242,54 @@
       }
     },
     {
+      "id": "gold-c06",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Cloudflare D1 API that creates, reads, updates, and deletes a D1 database. Use `account_id` `${var.account_id}`, `database_name` `${var.database_name}`, response-derived `result.uuid` as `database_id`, and update only `read_replication.mode`.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/cloudflare/c06/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/cloudflare/c06/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/cloudflare/c06/hcl/main.tf",
+      "provider": "cloudflare",
+      "service": "cloudflare",
+      "resource_types": [
+        "cloudflare_d1_database"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "cloudflare",
+          "path": "testdata/api-sources/cloudflare-r2-d1-update-openapi.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "C06",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "C06",
+        "project_name": "c06_d1_read_replication_update"
+      }
+    },
+    {
       "id": "gold-h01",
       "tier": "gold",
       "confidence": 1,

@@ -36,3 +36,9 @@ func runCloudflareParityC05Live(ctx context.Context, t *testing.T, artifact clou
 	t.Skip("build with -tags 'cloudflarelive udon' to run the C05 live runner")
 	return cloudflareParityLiveRecording{}
 }
+
+func runCloudflareParityC06Live(ctx context.Context, t *testing.T, artifact cloudflareParityArtifact) cloudflareParityLiveRecording {
+	t.Helper()
+	t.Skip("build with -tags 'cloudflarelive udon' to run the C06 live runner")
+	return cloudflareParityLiveRecording{}
+}

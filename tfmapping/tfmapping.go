@@ -682,6 +682,15 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "name":
 					return []string{"database_id"}
 				}
+			case "d1-update-database":
+				switch attrPath {
+				case "account_id":
+					return []string{"account_id"}
+				case "name":
+					return []string{"database_id"}
+				case "read_replication":
+					return []string{"read_replication"}
+				}
 			}
 		}
 	case "github":
@@ -1162,7 +1171,11 @@ func (cloudflareMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = cloudflareOpenAPIOperationTarget("d1_database", "d1-get-database")
 			return mapping
 		}
-		return unsupportedActionMapping(mapping, "Cloudflare D1 database mapping supports read and create; update/delete require response-derived database UUID handling")
+		if purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = cloudflareOpenAPIOperationTarget("d1_database", "d1-update-database")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Cloudflare D1 database mapping supports read, create, and read_replication update; delete requires response-derived database UUID handling")
 	default:
 		return unsupportedTypeMapping(mapping, "Cloudflare")
 	}
