@@ -1,6 +1,6 @@
 {
   "version": "ramen.kubernetes.provider-parity.v1",
-  "lane": "K12",
+  "lane": "K09",
   "status": "recorded",
   "provider": {
     "source": "hashicorp/kubernetes",
@@ -10,13 +10,13 @@
   },
   "openapi": {
     "source_path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json",
-    "fixture": "testdata/parity/kubernetes/k12/openapi/rbac.json"
+    "fixture": "testdata/parity/kubernetes/k09/openapi/rbac.json"
   },
   "safety": {
     "live_env": "RAMEN_K8S_PARITY",
     "record_update_env": "RAMEN_K8S_PARITY_RECORD_UPDATE",
     "context_prefix": "kind-",
-    "resource_prefix": "ramen-parity-k12-"
+    "resource_prefix": "ramen-parity-k09-"
   },
   "runtimes": [
     "opentofu",
@@ -25,15 +25,16 @@
   ],
   "scenarios": [
     {
-      "name": "cluster_role_binding_lifecycle",
-      "resource_type": "kubernetes_cluster_role_binding_v1",
+      "name": "role_binding_update_lifecycle",
+      "resource_type": "kubernetes_role_binding_v1",
       "fixture_paths": [
-        "testdata/parity/kubernetes/k12/hcl/main.tf",
-        "testdata/parity/kubernetes/k12/openapi/rbac.json",
-        "testdata/parity/kubernetes/k12/ramen/project.uws.yaml"
+        "testdata/parity/kubernetes/k09/hcl/main.tf",
+        "testdata/parity/kubernetes/k09/openapi/rbac.json",
+        "testdata/parity/kubernetes/k09/ramen/project.uws.yaml"
       ],
       "observed_fields": [
         "metadata.name",
+        "metadata.namespace",
         "metadata.labels",
         "roleRef.apiGroup",
         "roleRef.kind",
@@ -44,19 +45,20 @@
       ],
       "expected_transitions": [
         "create",
+        "update",
         "read",
         "no-op",
         "destroy"
       ],
       "observation_artifacts": [
-        "testdata/parity/kubernetes/k12/live.observations.json"
+        "testdata/parity/kubernetes/k09/live.observations.json"
       ]
     }
   ],
-  "recorded_at": "2026-06-11T21:24:12Z",
-  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k12 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform from .ramen/k08-tools/terraform, Ramen+udon via kubectl proxy, context kind-ramen-m21",
+  "recorded_at": "2026-06-11T21:49:39Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k09 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform from .ramen/k08-tools/terraform, Ramen+udon via kubectl proxy, context kind-ramen-m21",
   "notes": [
-    "K12 records ClusterRoleBinding create/read/no-op/destroy parity across OpenTofu, Terraform, and Ramen+udon.",
-    "Mapping advertisement is bounded to create/read/delete; K13 records the separate ClusterRoleBinding update evidence lane."
+    "K09 records RoleBinding label update parity across OpenTofu, Terraform, and Ramen+udon.",
+    "Mapping update advertisement is bounded to replaceRbacAuthorizationV1NamespacedRoleBinding."
   ]
 }

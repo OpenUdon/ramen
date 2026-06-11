@@ -14,7 +14,7 @@ import (
 )
 
 const trainingRoot = "testdata/training"
-const expectedRunnableGoldRows = 30
+const expectedRunnableGoldRows = 33
 
 var trainingMarkdownLinkRe = regexp.MustCompile(`\[[^\]]+\]\(([^)]+)\)`)
 

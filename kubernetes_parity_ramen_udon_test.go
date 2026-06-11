@@ -774,6 +774,149 @@ func runKubernetesParityRamenRoleBindingRuntime(ctx context.Context, t *testing.
 	}}
 }
 
+func runKubernetesParityRamenRoleBindingUpdateRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	namespace := "ramen-parity-k09-" + runtimeName
+	roleBindingName := "ramen-parity-k09-role-binding"
+	if err := createKubernetesParityNamespace(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "namespace", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "rbac.json")
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k09", "openapi", "rbac.json"), openAPIPath, serverURL); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderKubernetesParityProjectPhase(filepath.Join(kubernetesParityFixtureRoot, "k09", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json", "create"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := observeKubernetesParityRoleBinding(projectorCtx, env, namespace, roleBindingName)
+			if err != nil {
+				if isKubernetesParityNotFound(err) {
+					result.Missing = true
+					return result, nil
+				}
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{
+				"name":      observed.Name,
+				"namespace": observed.Namespace,
+			}
+			result.Computed = map[string]any{
+				"metadata.name":      observed.Name,
+				"metadata.namespace": observed.Namespace,
+				"metadata.labels":    observed.Labels,
+				"roleRef":            observed.RoleRef,
+				"subjects":           observed.Subjects,
+			}
+			return result, nil
+		},
+	}
+	applyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
+	}
+	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
+	}
+	namespaceAfterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	roleBindingAfterApply, err := observeKubernetesParityRoleBinding(ctx, env, namespace, roleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	if err := renderKubernetesParityProjectPhase(filepath.Join(kubernetesParityFixtureRoot, "k09", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json", "update"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	updateResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "update", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(updateResult), applyResultFeedbackMessages(updateResult)))
+	}
+	if updateResult.Summary.Update != 1 || updateResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "update", errUnexpectedKubernetesParitySummary("update", updateResult.Summary))
+	}
+	roleBindingAfterUpdate, err := observeKubernetesParityRoleBinding(ctx, env, namespace, roleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshResult, err := reconcile.Refresh(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
+	}
+	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Unchanged != 1 || refreshResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
+	}
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1 && len(planResult.Plan.Resources) == 1
+	destroyResult, err := reconcile.Destroy(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(destroyResult)))
+	}
+	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
+	}
+	roleBindingAfterDestroy, err := observeKubernetesParityRoleBindingAbsent(ctx, env, namespace, roleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                 runtimeName,
+		Namespace:               namespace,
+		RoleBindingName:         roleBindingName,
+		AfterApply:              namespaceAfterApply,
+		RoleBindingAfterApply:   &roleBindingAfterApply,
+		RoleBindingAfterUpdate:  &roleBindingAfterUpdate,
+		RoleBindingAfterDestroy: &roleBindingAfterDestroy,
+		NoOpPlan:                &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
+	}}
+}
+
 func runKubernetesParityRamenClusterRoleRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
 	t.Helper()
 	runtimeName := "ramen"
@@ -885,6 +1028,396 @@ func runKubernetesParityRamenClusterRoleRuntime(ctx context.Context, t *testing.
 		ClusterRoleAfterApply:   &clusterRoleAfterApply,
 		ClusterRoleAfterDestroy: &clusterRoleAfterDestroy,
 		NoOpPlan:                &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
+	}}
+}
+
+func runKubernetesParityRamenClusterRoleUpdateRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	namespace := "ramen-parity-k10-" + runtimeName
+	clusterRoleName := "ramen-parity-k10-cluster-role"
+	if err := validateKubernetesParityClusterRoleName(clusterRoleName, "k10"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "rbac.json")
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k10", "openapi", "rbac.json"), openAPIPath, serverURL); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderKubernetesParityProjectPhase(filepath.Join(kubernetesParityFixtureRoot, "k10", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json", "create"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := observeKubernetesParityClusterRoleForLane(projectorCtx, env, clusterRoleName, "k10")
+			if err != nil {
+				if isKubernetesParityNotFound(err) {
+					result.Missing = true
+					return result, nil
+				}
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{
+				"name": observed.Name,
+			}
+			result.Computed = map[string]any{
+				"metadata.name":   observed.Name,
+				"metadata.labels": observed.Labels,
+				"rule":            observed.Rules,
+			}
+			return result, nil
+		},
+	}
+	applyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
+	}
+	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
+	}
+	clusterRoleAfterApply, err := observeKubernetesParityClusterRoleForLane(ctx, env, clusterRoleName, "k10")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	if err := renderKubernetesParityProjectPhase(filepath.Join(kubernetesParityFixtureRoot, "k10", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json", "update"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	updateResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "update", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(updateResult), applyResultFeedbackMessages(updateResult)))
+	}
+	if updateResult.Summary.Update != 1 || updateResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "update", errUnexpectedKubernetesParitySummary("update", updateResult.Summary))
+	}
+	clusterRoleAfterUpdate, err := observeKubernetesParityClusterRoleForLane(ctx, env, clusterRoleName, "k10")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshResult, err := reconcile.Refresh(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
+	}
+	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Unchanged != 1 || refreshResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
+	}
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1 && len(planResult.Plan.Resources) == 1
+	destroyResult, err := reconcile.Destroy(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(destroyResult)))
+	}
+	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
+	}
+	clusterRoleAfterDestroy, err := observeKubernetesParityClusterRoleForLaneAbsent(ctx, env, clusterRoleName, "k10")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                 runtimeName,
+		ClusterRoleName:         clusterRoleName,
+		ClusterRoleAfterApply:   &clusterRoleAfterApply,
+		ClusterRoleAfterUpdate:  &clusterRoleAfterUpdate,
+		ClusterRoleAfterDestroy: &clusterRoleAfterDestroy,
+		NoOpPlan:                &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
+	}}
+}
+
+func runKubernetesParityRamenClusterRoleBindingRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	namespace := "ramen-parity-k12-" + runtimeName
+	clusterRoleBindingName := "ramen-parity-k12-cluster-role-binding"
+	if err := validateKubernetesParityNamespace(namespace, "k12"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityClusterRoleBindingName(clusterRoleBindingName, "k12"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "rbac.json")
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k12", "openapi", "rbac.json"), openAPIPath, serverURL); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderKubernetesParityProject(filepath.Join(kubernetesParityFixtureRoot, "k12", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := observeKubernetesParityClusterRoleBinding(projectorCtx, env, clusterRoleBindingName)
+			if err != nil {
+				if isKubernetesParityNotFound(err) {
+					result.Missing = true
+					return result, nil
+				}
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{
+				"name": observed.Name,
+			}
+			result.Computed = map[string]any{
+				"metadata.name":   observed.Name,
+				"metadata.labels": observed.Labels,
+				"roleRef":         observed.RoleRef,
+				"subjects":        observed.Subjects,
+			}
+			return result, nil
+		},
+	}
+	applyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
+	}
+	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
+	}
+	clusterRoleBindingAfterApply, err := observeKubernetesParityClusterRoleBinding(ctx, env, clusterRoleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshResult, err := reconcile.Refresh(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
+	}
+	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Unchanged != 1 || refreshResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
+	}
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1 && len(planResult.Plan.Resources) == 1
+	destroyResult, err := reconcile.Destroy(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(destroyResult)))
+	}
+	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
+	}
+	clusterRoleBindingAfterDestroy, err := observeKubernetesParityClusterRoleBindingAbsent(ctx, env, clusterRoleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                        runtimeName,
+		ClusterRoleBindingName:         clusterRoleBindingName,
+		ClusterRoleBindingAfterApply:   &clusterRoleBindingAfterApply,
+		ClusterRoleBindingAfterDestroy: &clusterRoleBindingAfterDestroy,
+		NoOpPlan:                       &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
+	}}
+}
+
+func runKubernetesParityRamenClusterRoleBindingUpdateRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, _ string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "ramen"
+	namespace := "ramen-parity-k13-" + runtimeName
+	clusterRoleBindingName := "ramen-parity-k13-cluster-role-binding"
+	if err := validateKubernetesParityNamespace(namespace, "k13"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityClusterRoleBindingName(clusterRoleBindingName, "k13"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "rbac.json")
+	serverURL, stopProxy, err := startKubernetesParityProxy(ctx, t, env)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	defer stopProxy()
+	if err := renderKubernetesParityOpenAPI(filepath.Join(kubernetesParityFixtureRoot, "k13", "openapi", "rbac.json"), openAPIPath, serverURL); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := renderKubernetesParityProjectPhase(filepath.Join(kubernetesParityFixtureRoot, "k13", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json", "create"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	statePath := filepath.Join(workDir, "state.db")
+	udonExecutor := udon.Executor{
+		OutputDir: filepath.Join(workDir, "udon"),
+		OutputProjector: func(projectorCtx context.Context, req executor.Request, _ string) (executor.Result, error) {
+			result := executor.Result{
+				Address:   req.Action.Address,
+				Operation: req.Action.Mapping.OperationID,
+				Success:   true,
+			}
+			if req.Action.Action == "delete" {
+				return result, nil
+			}
+			observed, err := observeKubernetesParityClusterRoleBindingForLane(projectorCtx, env, clusterRoleBindingName, "k13")
+			if err != nil {
+				if isKubernetesParityNotFound(err) {
+					result.Missing = true
+					return result, nil
+				}
+				return executor.Result{}, err
+			}
+			if !observed.Exists {
+				result.Missing = true
+				return result, nil
+			}
+			result.Identity = map[string]any{
+				"name": observed.Name,
+			}
+			result.Computed = map[string]any{
+				"metadata.name":   observed.Name,
+				"metadata.labels": observed.Labels,
+				"roleRef":         observed.RoleRef,
+				"subjects":        observed.Subjects,
+			}
+			return result, nil
+		},
+	}
+	applyResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(applyResult), applyResultFeedbackMessages(applyResult)))
+	}
+	if applyResult.Summary.Create != 1 || applyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "apply", errUnexpectedKubernetesParitySummary("apply", applyResult.Summary))
+	}
+	clusterRoleBindingAfterApply, err := observeKubernetesParityClusterRoleBindingForLane(ctx, env, clusterRoleBindingName, "k13")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	if err := renderKubernetesParityProjectPhase(filepath.Join(kubernetesParityFixtureRoot, "k13", "ramen", "project.uws.yaml"), projectPath, namespace, "openapi/rbac.json", "update"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	updateResult, err := apply.Apply(ctx, apply.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "update", fmt.Errorf("%w; errors=%v feedback=%v", err, applyResultErrors(updateResult), applyResultFeedbackMessages(updateResult)))
+	}
+	if updateResult.Summary.Update != 1 || updateResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "update", errUnexpectedKubernetesParitySummary("update", updateResult.Summary))
+	}
+	clusterRoleBindingAfterUpdate, err := observeKubernetesParityClusterRoleBindingForLane(ctx, env, clusterRoleBindingName, "k13")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	refreshResult, err := reconcile.Refresh(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "refresh", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(refreshResult)))
+	}
+	if refreshResult.Summary.Read != 1 || refreshResult.Summary.Unchanged != 1 || refreshResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "refresh", errUnexpectedKubernetesParitySummary("refresh", refreshResult.Summary))
+	}
+	planResult, err := tfplan.Build(ctx, tfplan.Options{ProjectPath: projectPath, StatePath: statePath})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	noOp := !planResult.Plan.Errored && planResult.Plan.Summary.NoOp == 1 && len(planResult.Plan.Resources) == 1
+	destroyResult, err := reconcile.Destroy(ctx, reconcile.Options{
+		ProjectPath: projectPath,
+		StatePath:   statePath,
+		AutoApprove: true,
+		Executor:    udonExecutor,
+	})
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", fmt.Errorf("%w; feedback=%v", err, reconcileFeedbackMessages(destroyResult)))
+	}
+	if destroyResult.Summary.Delete != 1 || destroyResult.Summary.Failed != 0 {
+		return kubernetesParityFailure(runtimeName, "destroy", errUnexpectedKubernetesParitySummary("destroy", destroyResult.Summary))
+	}
+	clusterRoleBindingAfterDestroy, err := observeKubernetesParityClusterRoleBindingForLaneAbsent(ctx, env, clusterRoleBindingName, "k13")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                        runtimeName,
+		ClusterRoleBindingName:         clusterRoleBindingName,
+		ClusterRoleBindingAfterApply:   &clusterRoleBindingAfterApply,
+		ClusterRoleBindingAfterUpdate:  &clusterRoleBindingAfterUpdate,
+		ClusterRoleBindingAfterDestroy: &clusterRoleBindingAfterDestroy,
+		NoOpPlan:                       &kubernetesParityNoOpObservation{NoOp: noOp, Summary: fmt.Sprintf("%+v", planResult.Plan.Summary)},
 	}}
 }
 

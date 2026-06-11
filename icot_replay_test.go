@@ -75,8 +75,8 @@ func TestICoTReplayRoleSetsMatchApproved(t *testing.T) {
 			exactMatches++
 		})
 	}
-	if exactMatches != 27 {
-		t.Fatalf("role match count exact=%d, want exact=27", exactMatches)
+	if exactMatches != 30 {
+		t.Fatalf("role match count exact=%d, want exact=30", exactMatches)
 	}
 }
 
@@ -89,8 +89,8 @@ func TestICoTReplayInventoryCoversParityFixtures(t *testing.T) {
 		}
 		rows[entry.Row] = true
 	}
-	if len(rows) != 27 {
-		t.Fatalf("inventory rows = %d, want 27", len(rows))
+	if len(rows) != 30 {
+		t.Fatalf("inventory rows = %d, want 30", len(rows))
 	}
 	for _, provider := range []string{"kubernetes", "azure", "google", "cloudflare"} {
 		matches, err := filepath.Glob(filepath.Join("testdata", "parity", provider, "*", "ramen", "project.uws.yaml"))

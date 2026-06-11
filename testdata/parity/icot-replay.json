@@ -74,12 +74,39 @@
       "role_match": "exact"
     },
     {
+      "row": "K09",
+      "project_name": "k09_role_binding_update",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a RoleBinding using `role_binding_name` `${var.role_binding_name}` and `namespace_name` `${var.namespace_name}`, binds `role_name` `${var.role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}`, and tracks the parity phase label.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k09/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1NamespacedRoleBinding",
+      "approved_fixture": "testdata/parity/kubernetes/k09/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K10",
+      "project_name": "k10_cluster_role_update",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a ClusterRole using `cluster_role_name` `${var.cluster_role_name}`, grants `get`, `list`, and `watch` on ConfigMaps and Secrets, can add Pods during update, and tracks the parity phase label.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k10/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1ClusterRole",
+      "approved_fixture": "testdata/parity/kubernetes/k10/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
       "row": "K12",
       "project_name": "k12_cluster_role_binding",
       "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and can delete it for cleanup.",
       "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k12/openapi/rbac.json"}],
       "seed_operation": "createRbacAuthorizationV1ClusterRoleBinding",
       "approved_fixture": "testdata/parity/kubernetes/k12/ramen/project.uws.yaml",
+      "role_match": "exact"
+    },
+    {
+      "row": "K13",
+      "project_name": "k13_cluster_role_binding_update",
+      "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and tracks the parity phase label.",
+      "api_sources": [{"kind": "openapi", "id": "rbac", "path": "testdata/parity/kubernetes/k13/openapi/rbac.json"}],
+      "seed_operation": "createRbacAuthorizationV1ClusterRoleBinding",
+      "approved_fixture": "testdata/parity/kubernetes/k13/ramen/project.uws.yaml",
       "role_match": "exact"
     },
     {

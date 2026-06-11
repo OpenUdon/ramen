@@ -1,0 +1,159 @@
+info:
+    description: K10 Kubernetes ClusterRole update provider parity fixture.
+    title: ramen_kubernetes_k10_cluster_role_update_parity
+    version: 1.0.0
+operations:
+    - description: Create the K10 ClusterRole.
+      operationId: kubernetes_cluster_role_v1_k10_create
+      sourceDescription: rbac
+      sourceOperationId: createRbacAuthorizationV1ClusterRole
+    - description: Read the K10 ClusterRole.
+      operationId: kubernetes_cluster_role_v1_k10_read
+      sourceDescription: rbac
+      sourceOperationId: readRbacAuthorizationV1ClusterRole
+    - description: Update the K10 ClusterRole labels and rules.
+      operationId: kubernetes_cluster_role_v1_k10_update
+      sourceDescription: rbac
+      sourceOperationId: replaceRbacAuthorizationV1ClusterRole
+    - description: Delete the K10 ClusterRole.
+      operationId: kubernetes_cluster_role_v1_k10_delete
+      sourceDescription: rbac
+      sourceOperationId: deleteRbacAuthorizationV1ClusterRole
+sourceDescriptions:
+    - name: rbac
+      type: openapi
+      url: ../openapi/rbac.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, update, read, no-op, and destroy through Ramen.
+      steps:
+        - operationRef: kubernetes_cluster_role_v1_k10_create
+          stepId: create
+        - operationRef: kubernetes_cluster_role_v1_k10_update
+          stepId: update
+        - operationRef: kubernetes_cluster_role_v1_k10_read
+          stepId: read
+        - operationRef: kubernetes_cluster_role_v1_k10_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: rbac
+          kind: openapi
+          path: ../openapi/rbac.json
+    metadata:
+        source: K10 Kubernetes ClusterRole update parity fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_cluster_role_v1.k10_cluster_role
+          attributes:
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k10
+                    ramen.openudon.dev/phase: update
+                name: ramen-parity-k10-cluster-role
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k10
+                ramen.openudon.dev/phase: update
+            metadata.name: ramen-parity-k10-cluster-role
+            rule:
+                - apiGroups:
+                    - ""
+                  resources:
+                    - configmaps
+                    - pods
+                    - secrets
+                  verbs:
+                    - get
+                    - list
+                    - watch
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+          request_bindings:
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRole
+              path: metadata
+              request_path: metadata
+              location: body
+              required: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1ClusterRole
+              path: rule
+              request_path: rules
+              location: body
+              required: true
+            - operation_role: read
+              operation_id: readRbacAuthorizationV1ClusterRole
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1ClusterRole
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1ClusterRole
+              path: metadata
+              request_path: metadata
+              location: body
+              required: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1ClusterRole
+              path: rule
+              request_path: rules
+              location: body
+              required: true
+            - operation_role: delete
+              operation_id: deleteRbacAuthorizationV1ClusterRole
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_cluster_role_v1
+          name: k10_cluster_role
+          operations:
+            create:
+                operation_id: createRbacAuthorizationV1ClusterRole
+                purpose: create
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            read:
+                operation_id: readRbacAuthorizationV1ClusterRole
+                purpose: read
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            update:
+                operation_id: replaceRbacAuthorizationV1ClusterRole
+                purpose: update
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            delete:
+                operation_id: deleteRbacAuthorizationV1ClusterRole
+                purpose: delete
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+          redaction: {}
+          type: kubernetes_cluster_role_v1
+    version: ramen.project.v1

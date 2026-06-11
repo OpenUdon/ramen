@@ -9,21 +9,21 @@ resource state and operation shape, not byte-for-byte Terraform state,
 provider internals, or provider plan-file compatibility.
 
 This file is the natural-language inventory for the parity set. It records
-the 28 prompt rows used by the iCoT replay audit:
+the 31 prompt rows used by the iCoT replay audit:
 
-- 9 Kubernetes rows: K01-K08 and K12.
+- 12 Kubernetes rows: K01-K10, K12, and K13.
 - 7 Azure rows: Z01-Z06 and Z08.
 - 7 Google Cloud rows: Y01-Y06 and Y08.
 - 5 Cloudflare rows: C01-C05.
 
-Of those 28 rows, 27 are runnable authoring entries with HCL/native fixtures
+Of those 31 rows, 30 are runnable authoring entries with HCL/native fixtures
 and API source inputs. Z06 is observations-only: it records the Z02 Cosmos DB
 settle/re-recording closure and intentionally has no standalone Terraform HCL,
 native Ramen project, API source, or iCoT prompt.
 
 GitHub `H01`-`H03` are recorded provider/runtime parity tracks with an opt-in
 H04 live-account harness. They remain outside the M40/M41 25-row prompt
-inventory and the committed 27-row iCoT replay gate until GitHub authoring
+inventory and the committed 30-row iCoT replay gate until GitHub authoring
 behavior is separately reviewed and pinned.
 
 For T01, this document is the gold-source inventory for runnable parity-backed
@@ -67,8 +67,8 @@ operation. M41 added shared lifecycle sibling inference and reran the same
 inventory with deterministic fixture-seed answers. The current recorded M41
 baseline is:
 
-- 27/27 runnable rows generated native projects that validate.
-- 27/27 runnable rows match the approved fixture role and operation-ID sets.
+- 30/30 runnable rows generated native projects that validate.
+- 30/30 runnable rows match the approved fixture role and operation-ID sets.
 - Z01 and Z05 treat idempotent Azure SQL `Databases_CreateOrUpdate` as a
   lifecycle `create` role while preserving the underlying `PUT` method and
   source operation.
@@ -76,7 +76,7 @@ baseline is:
 
 Recent authoring fixes also keep request and response schemas separate and
 preserve writable desired inputs when read responses echo the same field path.
-The full 27-row replay is now enforced by `icot_replay_test.go` using the
+The full 30-row replay is now enforced by `icot_replay_test.go` using the
 committed `testdata/parity/icot-replay.json` inventory.
 
 ## Current Coverage Summary
@@ -90,8 +90,11 @@ committed `testdata/parity/icot-replay.json` inventory.
 | K05 | Kubernetes RBAC Role lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
 | K06 | Kubernetes Opaque Secret lifecycle/update | Recorded non-sensitive Secret create/read/update/no-op/destroy observations. | HCL, focused OpenAPI, native create fixture, and native update fixture are committed and replayed. | Validates; role and operation set matches. | Keep real secret material out of fixtures and recordings. |
 | K07 | Kubernetes RoleBinding lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
-| K08 | Kubernetes ClusterRole lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | Update is intentionally unsupported until update-specific evidence exists; current mapping advertises create/read/delete only. |
-| K12 | Kubernetes ClusterRoleBinding static lifecycle | Static create/read/delete fixture; no live recording or mapping advertisement yet. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | Live recording and mapping advertisement remain parked until focused evidence exists. |
+| K08 | Kubernetes ClusterRole lifecycle | Recorded create/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | K10 separately records update behavior and gates the update mapping. |
+| K09 | Kubernetes RoleBinding update | Recorded create/update/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, native update fixture, and replace-operation mapping evidence are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
+| K10 | Kubernetes ClusterRole update | Recorded create/update/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, native update fixture, and replace-operation mapping evidence are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
+| K12 | Kubernetes ClusterRoleBinding lifecycle | Recorded OpenTofu, Terraform, and Ramen+udon observations. | HCL, focused RBAC OpenAPI, native fixture, create/read/delete mapping, and corpus fixture are committed and replayed. | Validates; role and operation set matches. | K13 separately records update behavior and gates the update mapping. |
+| K13 | Kubernetes ClusterRoleBinding update | Recorded create/update/read/no-op/destroy observations. | HCL, focused RBAC OpenAPI, native update fixture, and replace-operation mapping evidence are committed and replayed. | Validates; role and operation set matches. | None for current scope beyond optional recording refresh. |
 | Z01 | Azure SQL database create/read/delete | Recorded Azure SQL observations across OpenTofu, Terraform, and Ramen+udon. | HCL, focused Azure SQL OpenAPI, and native fixture are committed and replayed. | Validates; role and operation set matches. | Keep lifecycle `create` role aligned with the idempotent `Databases_CreateOrUpdate` source operation. |
 | Z02 | Azure Cosmos DB account lifecycle | Recorded Cosmos observations, refreshed through the settle path. | HCL, focused Cosmos OpenAPI, native fixture, runtime hints, and settle metadata are committed and replayed. | Validates; role and operation set matches. | Preserve desired `location` and similar inputs as writable, not response-derived identity. |
 | Z03 | Azure Resource Group read | Static/read fixture; no live mutation in scope. | HCL, focused Resources OpenAPI, and native read fixture are committed and replayed. | Validates; role and operation set matches. | It is read-only evidence, not create/update parity. |
@@ -111,9 +114,9 @@ committed `testdata/parity/icot-replay.json` inventory.
 | C03 | Cloudflare R2 metadata variants | Recorded OpenTofu, Terraform, and Ramen+udon R2 metadata mutability observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C04 | Cloudflare D1 database create/read | Recorded OpenTofu, Terraform, and Ramen+udon D1 create/read observations. | HCL, focused OpenAPI, native create/read fixture, and sanitized live recording are committed and replayed with direct delete cleanup. | Validates; role and operation set matches. | Future recording updates require cleanup and secret review. |
 | C05 | Cloudflare D1 UUID/delete unlock | Recorded OpenTofu, Terraform, and Ramen+udon D1 UUID/delete observations. | HCL, focused OpenAPI, native create/read/delete fixture, and sanitized live recording are committed and replayed. | Validates; role and operation set matches. | D1 update is intentionally unsupported because the focused API source exposes no D1 update operation; future recording updates require cleanup and secret review. |
-| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 27-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
-| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 27-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
-| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 27-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
+| H01 | GitHub organization repository lifecycle | Recorded OpenTofu and Ramen+udon repository lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 30-row iCoT replay gate yet. | Future recording updates require scoped org credentials, disposable private repository cleanup, and sanitizer review. |
+| H02 | GitHub issue label lifecycle | Recorded OpenTofu and Ramen+udon issue label lifecycle observations. | HCL, focused OpenAPI, native create/read/update/delete fixture, request/response binding checks, static replay, and sanitized live recording are committed. | Not in the 30-row iCoT replay gate yet. | Future recording updates require disposable repository/label cleanup and sanitizer review. |
+| H03 | GitHub repository file lifecycle | Recorded OpenTofu and Ramen+udon repository contents observations with base64 request binding. | HCL, focused OpenAPI, native create/read/update/delete fixture, response-derived `sha`, request `encoding: base64`, static replay, and sanitized live recording are committed. | Not in the 30-row iCoT replay gate yet. | Keep file payload bytes out of recordings; future updates require initialized repository cleanup and sanitizer review. |
 
 ## Remaining Cross-Cutting Gaps
 
@@ -154,7 +157,10 @@ project name to pass to iCoT.
 | K06 | [main.tf](../testdata/parity/kubernetes/k06/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k06/ramen/project.uws.yaml), [project.update.uws.yaml](../testdata/parity/kubernetes/k06/ramen/project.update.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates a namespaced Opaque `kubernetes_secret_v1` with variable name, a non-sensitive `sample` data value, and Ramen parity labels for lane `k06`. | Create a Ramen workflow over the Kubernetes API that creates and reads an Opaque Secret using `namespace_name` `${var.namespace_name}` and `secret_name` `${var.secret_name}`, stores non-sensitive sample data from `secret_value`, supports update, and can delete it for cleanup. | `openapi:core=testdata/parity/kubernetes/k06/openapi/core.json` | `k06_secret` |
 | K07 | [main.tf](../testdata/parity/kubernetes/k07/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k07/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates a namespaced `kubernetes_role_binding_v1` with Ramen parity labels for lane `k07`, binding a Role to a ServiceAccount subject. | Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a RoleBinding using `role_binding_name` `${var.role_binding_name}` and `namespace_name` `${var.namespace_name}`, binds `role_name` `${var.role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}`, and can delete it for cleanup. | `openapi:rbac=testdata/parity/kubernetes/k07/openapi/rbac.json` | `k07_role_binding` |
 | K08 | [main.tf](../testdata/parity/kubernetes/k08/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k08/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates a `kubernetes_cluster_role_v1` with Ramen parity labels for lane `k08` and a rule allowing `get`, `list`, and `watch` on ConfigMaps and Secrets. | Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a ClusterRole using `cluster_role_name` `${var.cluster_role_name}`, grants `get`, `list`, and `watch` on ConfigMaps and Secrets, and can delete it for cleanup. | `openapi:rbac=testdata/parity/kubernetes/k08/openapi/rbac.json` | `k08_cluster_role` |
+| K09 | [main.tf](../testdata/parity/kubernetes/k09/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k09/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates and updates a namespaced `kubernetes_role_binding_v1` with Ramen parity labels for lane `k09`, phase labels, and a Role-to-ServiceAccount subject binding. | Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a RoleBinding using `role_binding_name` `${var.role_binding_name}` and `namespace_name` `${var.namespace_name}`, binds `role_name` `${var.role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}`, and tracks the parity phase label. | `openapi:rbac=testdata/parity/kubernetes/k09/openapi/rbac.json` | `k09_role_binding_update` |
+| K10 | [main.tf](../testdata/parity/kubernetes/k10/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k10/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates and updates a `kubernetes_cluster_role_v1` with Ramen parity labels for lane `k10`, phase labels, and rules that can add Pods during update. | Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a ClusterRole using `cluster_role_name` `${var.cluster_role_name}`, grants `get`, `list`, and `watch` on ConfigMaps and Secrets, can add Pods during update, and tracks the parity phase label. | `openapi:rbac=testdata/parity/kubernetes/k10/openapi/rbac.json` | `k10_cluster_role_update` |
 | K12 | [main.tf](../testdata/parity/kubernetes/k12/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k12/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates a `kubernetes_cluster_role_binding_v1` with Ramen parity labels for lane `k12`, binding a ClusterRole to a ServiceAccount subject. | Create a Ramen workflow over the Kubernetes RBAC API that creates and reads a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and can delete it for cleanup. | `openapi:rbac=testdata/parity/kubernetes/k12/openapi/rbac.json` | `k12_cluster_role_binding` |
+| K13 | [main.tf](../testdata/parity/kubernetes/k13/hcl/main.tf) | [project.uws.yaml](../testdata/parity/kubernetes/k13/ramen/project.uws.yaml) | Create a Terraform configuration using `hashicorp/kubernetes` `3.1.0` that creates and updates a `kubernetes_cluster_role_binding_v1` with Ramen parity labels for lane `k13`, phase labels, and a ClusterRole-to-ServiceAccount subject binding. | Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and tracks the parity phase label. | `openapi:rbac=testdata/parity/kubernetes/k13/openapi/rbac.json` | `k13_cluster_role_binding_update` |
 
 ## Azure
 

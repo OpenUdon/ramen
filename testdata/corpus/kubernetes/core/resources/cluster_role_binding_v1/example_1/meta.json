@@ -1,0 +1,17 @@
+{
+  "path": "kubernetes/core/resources/cluster_role_binding_v1/example_1",
+  "provider": "kubernetes",
+  "service": "core",
+  "resource_types": [
+    "kubernetes_cluster_role_binding_v1"
+  ],
+  "api_sources": [
+    {
+      "kind": "openapi",
+      "id": "rbac",
+      "path": "testdata/parity/kubernetes/k12/openapi/rbac.json"
+    }
+  ],
+  "source_dir": "testdata/parity/kubernetes/k12/hcl/main.tf",
+  "source_repo": "ramen"
+}

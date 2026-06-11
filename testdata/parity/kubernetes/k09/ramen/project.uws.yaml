@@ -1,0 +1,205 @@
+info:
+    description: K09 Kubernetes RoleBinding update provider parity fixture.
+    title: ramen_kubernetes_k09_role_binding_update_parity
+    version: 1.0.0
+operations:
+    - description: Create the K09 RoleBinding.
+      operationId: kubernetes_role_binding_v1_k09_create
+      sourceDescription: rbac
+      sourceOperationId: createRbacAuthorizationV1NamespacedRoleBinding
+    - description: Read the K09 RoleBinding.
+      operationId: kubernetes_role_binding_v1_k09_read
+      sourceDescription: rbac
+      sourceOperationId: readRbacAuthorizationV1NamespacedRoleBinding
+    - description: Update the K09 RoleBinding labels.
+      operationId: kubernetes_role_binding_v1_k09_update
+      sourceDescription: rbac
+      sourceOperationId: replaceRbacAuthorizationV1NamespacedRoleBinding
+    - description: Delete the K09 RoleBinding.
+      operationId: kubernetes_role_binding_v1_k09_delete
+      sourceDescription: rbac
+      sourceOperationId: deleteRbacAuthorizationV1NamespacedRoleBinding
+sourceDescriptions:
+    - name: rbac
+      type: openapi
+      url: ../openapi/rbac.json
+uws: 1.4.0
+workflows:
+    - description: Exercise create, update, read, no-op, and destroy through Ramen.
+      steps:
+        - operationRef: kubernetes_role_binding_v1_k09_create
+          stepId: create
+        - operationRef: kubernetes_role_binding_v1_k09_update
+          stepId: update
+        - operationRef: kubernetes_role_binding_v1_k09_read
+          stepId: read
+        - operationRef: kubernetes_role_binding_v1_k09_delete
+          stepId: delete
+      type: sequence
+      workflowId: main
+x-ramen-desired-state:
+    api_sources:
+        - id: rbac
+          kind: openapi
+          path: ../openapi/rbac.json
+    metadata:
+        source: K09 Kubernetes RoleBinding update parity fixture
+    redaction: {}
+    resources:
+        - address: kubernetes_role_binding_v1.k09_role_binding
+          attributes:
+            metadata:
+                labels:
+                    app.kubernetes.io/managed-by: ramen-parity
+                    ramen.openudon.dev/lane: k09
+                    ramen.openudon.dev/phase: update
+                name: ramen-parity-k09-role-binding
+                namespace: ramen-parity-k09-namespace
+            metadata.labels:
+                app.kubernetes.io/managed-by: ramen-parity
+                ramen.openudon.dev/lane: k09
+                ramen.openudon.dev/phase: update
+            metadata.name: ramen-parity-k09-role-binding
+            metadata.namespace: ramen-parity-k09-namespace
+            roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: ramen-parity-k09-role
+            subjects:
+                - kind: ServiceAccount
+                  name: ramen-parity-k09-service-account
+                  namespace: ramen-parity-k09-namespace
+          identity_attributes:
+            - name: name
+              path: metadata.name
+              request_keys:
+                - name
+              required: true
+              response_paths:
+                - metadata.name
+            - name: namespace
+              path: metadata.namespace
+              request_keys:
+                - namespace
+              required: true
+              response_paths:
+                - metadata.namespace
+          request_bindings:
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.namespace
+              request_path: namespace
+              location: path
+              required: true
+              identity: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata
+              request_path: metadata
+              location: body
+              required: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1NamespacedRoleBinding
+              path: roleRef
+              request_path: roleRef
+              location: body
+              required: true
+            - operation_role: create
+              operation_id: createRbacAuthorizationV1NamespacedRoleBinding
+              path: subjects
+              request_path: subjects
+              location: body
+              required: true
+            - operation_role: read
+              operation_id: readRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: read
+              operation_id: readRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.namespace
+              request_path: namespace
+              location: path
+              required: true
+              identity: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.namespace
+              request_path: namespace
+              location: path
+              required: true
+              identity: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata
+              request_path: metadata
+              location: body
+              required: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1NamespacedRoleBinding
+              path: roleRef
+              request_path: roleRef
+              location: body
+              required: true
+            - operation_role: update
+              operation_id: replaceRbacAuthorizationV1NamespacedRoleBinding
+              path: subjects
+              request_path: subjects
+              location: body
+              required: true
+            - operation_role: delete
+              operation_id: deleteRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.name
+              request_path: name
+              location: path
+              required: true
+              identity: true
+            - operation_role: delete
+              operation_id: deleteRbacAuthorizationV1NamespacedRoleBinding
+              path: metadata.namespace
+              request_path: namespace
+              location: path
+              required: true
+              identity: true
+          kind: resource
+          lifecycle: {}
+          metadata:
+            parity_target: kubernetes_role_binding_v1
+          name: k09_role_binding
+          operations:
+            create:
+                operation_id: createRbacAuthorizationV1NamespacedRoleBinding
+                purpose: create
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            read:
+                operation_id: readRbacAuthorizationV1NamespacedRoleBinding
+                purpose: read
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            update:
+                operation_id: replaceRbacAuthorizationV1NamespacedRoleBinding
+                purpose: update
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+            delete:
+                operation_id: deleteRbacAuthorizationV1NamespacedRoleBinding
+                purpose: delete
+                source_id: rbac
+                source_kind: openapi
+                source_path: ../openapi/rbac.json
+          redaction: {}
+          type: kubernetes_role_binding_v1
+    version: ramen.project.v1

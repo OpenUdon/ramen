@@ -562,6 +562,7 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.OperationCandidate, goal, projectName string) project.Resource {
 	ctx = promptcontext.Normalize(ctx)
 	expansion := operationlifecycle.Expand(ctx, seed, operationlifecycle.Options{Goal: goal, DesiredState: true})
+	expansion = preferKubernetesRBACReplaceUpdate(ctx, expansion)
 	if len(expansion.Roles) == 0 {
 		return APIOperationResource(promptcontext.Context{Sources: ctx.Sources, Operations: []promptcontext.OperationCandidate{seed}, Schemas: ctx.Schemas, Credentials: ctx.Credentials, Metadata: ctx.Metadata}, goal, projectName)
 	}
@@ -677,6 +678,30 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 			"lifecycle_expansion": "operationlifecycle",
 		},
 	}
+}
+
+func preferKubernetesRBACReplaceUpdate(ctx promptcontext.Context, expansion operationlifecycle.Expansion) operationlifecycle.Expansion {
+	for i, role := range expansion.Roles {
+		if role.Role != "update" {
+			continue
+		}
+		opID := firstNonEmpty(role.Operation.OperationID, role.Operation.ID)
+		if !strings.HasPrefix(opID, "patchRbacAuthorizationV1") {
+			continue
+		}
+		replaceID := "replace" + strings.TrimPrefix(opID, "patch")
+		for _, op := range ctx.Operations {
+			candidateID := firstNonEmpty(op.OperationID, op.ID)
+			if candidateID != replaceID || op.SourceID != role.Operation.SourceID || op.Path != role.Operation.Path {
+				continue
+			}
+			expansion.Roles[i].Operation = op
+			expansion.Roles[i].Confidence = "high"
+			expansion.Roles[i].Reason = "Ramen Kubernetes RBAC parity evidence prefers replace update"
+			break
+		}
+	}
+	return expansion
 }
 
 // ReadOnlyResource builds a Ramen resource skeleton for read/list-style goals.

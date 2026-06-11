@@ -551,6 +551,21 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				case "metadata.namespace", "metadata.0.namespace":
 					return []string{"namespace"}
 				}
+			case "replaceRbacAuthorizationV1NamespacedRoleBinding":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name", "metadata.name"}
+				case "metadata.namespace", "metadata.0.namespace":
+					return []string{"namespace", "metadata.namespace"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "role_ref", "roleRef":
+					return []string{"roleRef"}
+				case "subject", "subjects":
+					return []string{"subjects"}
+				}
 			case "createRbacAuthorizationV1ClusterRole":
 				switch attrPath {
 				case "metadata.name", "metadata.0.name":
@@ -566,6 +581,48 @@ func (Registry) RequestKeys(obj Object, sourceKind, operationID, attrPath string
 				switch attrPath {
 				case "metadata.name", "metadata.0.name":
 					return []string{"name"}
+				}
+			case "replaceRbacAuthorizationV1ClusterRole":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name", "metadata.name"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "rule", "rules":
+					return []string{"rules"}
+				}
+			case "createRbacAuthorizationV1ClusterRoleBinding":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"metadata.name"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "role_ref", "roleRef":
+					return []string{"roleRef"}
+				case "subject", "subjects":
+					return []string{"subjects"}
+				}
+			case "readRbacAuthorizationV1ClusterRoleBinding", "deleteRbacAuthorizationV1ClusterRoleBinding":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name"}
+				}
+			case "replaceRbacAuthorizationV1ClusterRoleBinding":
+				switch attrPath {
+				case "metadata.name", "metadata.0.name":
+					return []string{"name", "metadata.name"}
+				case "metadata.annotations", "metadata.0.annotations":
+					return []string{"metadata.annotations"}
+				case "metadata.labels", "metadata.0.labels":
+					return []string{"metadata.labels"}
+				case "role_ref", "roleRef":
+					return []string{"roleRef"}
+				case "subject", "subjects":
+					return []string{"subjects"}
 				}
 			}
 		}
@@ -1506,11 +1563,15 @@ func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "deleteRbacAuthorizationV1NamespacedRoleBinding")
 			return mapping
 		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "replaceRbacAuthorizationV1NamespacedRoleBinding")
+			return mapping
+		}
 		if obj.Kind == "data_source" && purpose == "read" {
 			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "readRbacAuthorizationV1NamespacedRoleBinding")
 			return mapping
 		}
-		return unsupportedActionMapping(mapping, "Kubernetes RoleBinding mapping supports read, create, and delete; update remains parked until update evidence exists")
+		return unsupportedActionMapping(mapping, "Kubernetes RoleBinding mapping supports read, create, update, and delete")
 	case "kubernetes_cluster_role_v1":
 		if obj.Kind != "resource" && obj.Kind != "data_source" {
 			return unsupportedActionMapping(mapping, "Kubernetes ClusterRole mapping supports managed resources and data sources")
@@ -1528,11 +1589,41 @@ func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "deleteRbacAuthorizationV1ClusterRole")
 			return mapping
 		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "replaceRbacAuthorizationV1ClusterRole")
+			return mapping
+		}
 		if obj.Kind == "data_source" && purpose == "read" {
 			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "readRbacAuthorizationV1ClusterRole")
 			return mapping
 		}
-		return unsupportedActionMapping(mapping, "Kubernetes ClusterRole mapping supports read, create, and delete; update remains parked until update evidence exists")
+		return unsupportedActionMapping(mapping, "Kubernetes ClusterRole mapping supports read, create, update, and delete")
+	case "kubernetes_cluster_role_binding_v1":
+		if obj.Kind != "resource" && obj.Kind != "data_source" {
+			return unsupportedActionMapping(mapping, "Kubernetes ClusterRoleBinding mapping supports managed resources and data sources")
+		}
+		mapping.IdentityAttributes = kubernetesClusterIdentityAttributes()
+		if obj.Kind == "resource" && purpose == "create" && (action == "create" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "createRbacAuthorizationV1ClusterRoleBinding")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "readRbacAuthorizationV1ClusterRoleBinding")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "delete" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "deleteRbacAuthorizationV1ClusterRoleBinding")
+			return mapping
+		}
+		if obj.Kind == "resource" && purpose == "update" && (action == "update" || action == "replace") {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "replaceRbacAuthorizationV1ClusterRoleBinding")
+			return mapping
+		}
+		if obj.Kind == "data_source" && purpose == "read" {
+			mapping.Target = kubernetesOpenAPIOperationTarget("rbac", "readRbacAuthorizationV1ClusterRoleBinding")
+			return mapping
+		}
+		return unsupportedActionMapping(mapping, "Kubernetes ClusterRoleBinding mapping supports read, create, update, and delete")
 	default:
 		return unsupportedTypeMapping(mapping, "Kubernetes")
 	}
@@ -1541,6 +1632,7 @@ func (kubernetesMapper) MapObject(obj Object, purpose, action string) Mapping {
 // SupportedTypes must track the type switch in kubernetesMapper.MapObject.
 func (kubernetesMapper) SupportedTypes() []SupportedType {
 	return []SupportedType{
+		{Provider: "kubernetes", Type: "kubernetes_cluster_role_binding_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},

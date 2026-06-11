@@ -30,7 +30,7 @@ const (
 	kubernetesProviderVersion    = "3.1.0"
 )
 
-var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08", "k12"}
+var kubernetesParityLanes = []string{"k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08", "k09", "k10", "k12", "k13"}
 
 type kubernetesParityArtifact struct {
 	Version          string                     `json:"version"`
@@ -86,36 +86,42 @@ type kubernetesParityLiveRecording struct {
 }
 
 type kubernetesParityRuntimeObservation struct {
-	Runtime                            string                                     `json:"runtime"`
-	Namespace                          string                                     `json:"namespace"`
-	ConfigMapName                      string                                     `json:"config_map_name,omitempty"`
-	ServiceAccountName                 string                                     `json:"service_account_name,omitempty"`
-	RoleName                           string                                     `json:"role_name,omitempty"`
-	RoleBindingName                    string                                     `json:"role_binding_name,omitempty"`
-	ClusterRoleName                    string                                     `json:"cluster_role_name,omitempty"`
-	SecretName                         string                                     `json:"secret_name,omitempty"`
-	AfterApply                         kubernetesParityObservation                `json:"after_apply"`
-	NoOpPlan                           *kubernetesParityNoOpObservation           `json:"no_op_plan,omitempty"`
-	AfterDestroy                       *kubernetesParityObservation               `json:"after_destroy,omitempty"`
-	AfterOutOfBandDelete               *kubernetesParityObservation               `json:"after_out_of_band_delete,omitempty"`
-	ReadMissing                        *kubernetesParityReadMissingObservation    `json:"read_missing,omitempty"`
-	AfterReadMissingCleanup            *kubernetesParityObservation               `json:"after_read_missing_cleanup,omitempty"`
-	ConfigMapAfterApply                *kubernetesParityConfigMapObservation      `json:"config_map_after_apply,omitempty"`
-	ConfigMapAfterUpdate               *kubernetesParityConfigMapObservation      `json:"config_map_after_update,omitempty"`
-	ConfigMapAfterDestroy              *kubernetesParityConfigMapObservation      `json:"config_map_after_destroy,omitempty"`
-	ServiceAccountAfterApply           *kubernetesParityServiceAccountObservation `json:"service_account_after_apply,omitempty"`
-	ServiceAccountAfterDestroy         *kubernetesParityServiceAccountObservation `json:"service_account_after_destroy,omitempty"`
-	ServiceAccountAfterOutOfBandDelete *kubernetesParityServiceAccountObservation `json:"service_account_after_out_of_band_delete,omitempty"`
-	ServiceAccountAfterCleanup         *kubernetesParityServiceAccountObservation `json:"service_account_after_cleanup,omitempty"`
-	RoleAfterApply                     *kubernetesParityRoleObservation           `json:"role_after_apply,omitempty"`
-	RoleAfterDestroy                   *kubernetesParityRoleObservation           `json:"role_after_destroy,omitempty"`
-	RoleBindingAfterApply              *kubernetesParityRoleBindingObservation    `json:"role_binding_after_apply,omitempty"`
-	RoleBindingAfterDestroy            *kubernetesParityRoleBindingObservation    `json:"role_binding_after_destroy,omitempty"`
-	ClusterRoleAfterApply              *kubernetesParityClusterRoleObservation    `json:"cluster_role_after_apply,omitempty"`
-	ClusterRoleAfterDestroy            *kubernetesParityClusterRoleObservation    `json:"cluster_role_after_destroy,omitempty"`
-	SecretAfterApply                   *kubernetesParitySecretObservation         `json:"secret_after_apply,omitempty"`
-	SecretAfterUpdate                  *kubernetesParitySecretObservation         `json:"secret_after_update,omitempty"`
-	SecretAfterDestroy                 *kubernetesParitySecretObservation         `json:"secret_after_destroy,omitempty"`
+	Runtime                            string                                         `json:"runtime"`
+	Namespace                          string                                         `json:"namespace"`
+	ConfigMapName                      string                                         `json:"config_map_name,omitempty"`
+	ServiceAccountName                 string                                         `json:"service_account_name,omitempty"`
+	RoleName                           string                                         `json:"role_name,omitempty"`
+	RoleBindingName                    string                                         `json:"role_binding_name,omitempty"`
+	ClusterRoleName                    string                                         `json:"cluster_role_name,omitempty"`
+	ClusterRoleBindingName             string                                         `json:"cluster_role_binding_name,omitempty"`
+	SecretName                         string                                         `json:"secret_name,omitempty"`
+	AfterApply                         kubernetesParityObservation                    `json:"after_apply"`
+	NoOpPlan                           *kubernetesParityNoOpObservation               `json:"no_op_plan,omitempty"`
+	AfterDestroy                       *kubernetesParityObservation                   `json:"after_destroy,omitempty"`
+	AfterOutOfBandDelete               *kubernetesParityObservation                   `json:"after_out_of_band_delete,omitempty"`
+	ReadMissing                        *kubernetesParityReadMissingObservation        `json:"read_missing,omitempty"`
+	AfterReadMissingCleanup            *kubernetesParityObservation                   `json:"after_read_missing_cleanup,omitempty"`
+	ConfigMapAfterApply                *kubernetesParityConfigMapObservation          `json:"config_map_after_apply,omitempty"`
+	ConfigMapAfterUpdate               *kubernetesParityConfigMapObservation          `json:"config_map_after_update,omitempty"`
+	ConfigMapAfterDestroy              *kubernetesParityConfigMapObservation          `json:"config_map_after_destroy,omitempty"`
+	ServiceAccountAfterApply           *kubernetesParityServiceAccountObservation     `json:"service_account_after_apply,omitempty"`
+	ServiceAccountAfterDestroy         *kubernetesParityServiceAccountObservation     `json:"service_account_after_destroy,omitempty"`
+	ServiceAccountAfterOutOfBandDelete *kubernetesParityServiceAccountObservation     `json:"service_account_after_out_of_band_delete,omitempty"`
+	ServiceAccountAfterCleanup         *kubernetesParityServiceAccountObservation     `json:"service_account_after_cleanup,omitempty"`
+	RoleAfterApply                     *kubernetesParityRoleObservation               `json:"role_after_apply,omitempty"`
+	RoleAfterDestroy                   *kubernetesParityRoleObservation               `json:"role_after_destroy,omitempty"`
+	RoleBindingAfterApply              *kubernetesParityRoleBindingObservation        `json:"role_binding_after_apply,omitempty"`
+	RoleBindingAfterUpdate             *kubernetesParityRoleBindingObservation        `json:"role_binding_after_update,omitempty"`
+	RoleBindingAfterDestroy            *kubernetesParityRoleBindingObservation        `json:"role_binding_after_destroy,omitempty"`
+	ClusterRoleAfterApply              *kubernetesParityClusterRoleObservation        `json:"cluster_role_after_apply,omitempty"`
+	ClusterRoleAfterUpdate             *kubernetesParityClusterRoleObservation        `json:"cluster_role_after_update,omitempty"`
+	ClusterRoleAfterDestroy            *kubernetesParityClusterRoleObservation        `json:"cluster_role_after_destroy,omitempty"`
+	ClusterRoleBindingAfterApply       *kubernetesParityClusterRoleBindingObservation `json:"cluster_role_binding_after_apply,omitempty"`
+	ClusterRoleBindingAfterUpdate      *kubernetesParityClusterRoleBindingObservation `json:"cluster_role_binding_after_update,omitempty"`
+	ClusterRoleBindingAfterDestroy     *kubernetesParityClusterRoleBindingObservation `json:"cluster_role_binding_after_destroy,omitempty"`
+	SecretAfterApply                   *kubernetesParitySecretObservation             `json:"secret_after_apply,omitempty"`
+	SecretAfterUpdate                  *kubernetesParitySecretObservation             `json:"secret_after_update,omitempty"`
+	SecretAfterDestroy                 *kubernetesParitySecretObservation             `json:"secret_after_destroy,omitempty"`
 }
 
 type kubernetesParityObservation struct {
@@ -170,6 +176,16 @@ type kubernetesParityClusterRoleObservation struct {
 	Name       string                       `json:"name,omitempty"`
 	Labels     map[string]string            `json:"labels,omitempty"`
 	Rules      []kubernetesParityPolicyRule `json:"rules,omitempty"`
+}
+
+type kubernetesParityClusterRoleBindingObservation struct {
+	Exists     bool                                 `json:"exists"`
+	APIVersion string                               `json:"apiVersion,omitempty"`
+	Kind       string                               `json:"kind,omitempty"`
+	Name       string                               `json:"name,omitempty"`
+	Labels     map[string]string                    `json:"labels,omitempty"`
+	RoleRef    kubernetesParityRoleRef              `json:"roleRef,omitempty"`
+	Subjects   []kubernetesParityRoleBindingSubject `json:"subjects,omitempty"`
 }
 
 type kubernetesParityRoleRef struct {
@@ -269,10 +285,25 @@ func TestKubernetesProviderParityReplayArtifacts(t *testing.T) {
 				assertKubernetesK08HCLFixture(t)
 				assertKubernetesK08NativeProjectFixture(t)
 			}
+			if lane == "k09" {
+				assertKubernetesK09HCLFixture(t)
+				assertKubernetesK09NativeProjectFixture(t)
+				assertKubernetesRamenPlanFixture(t, "k09")
+			}
+			if lane == "k10" {
+				assertKubernetesK10HCLFixture(t)
+				assertKubernetesK10NativeProjectFixture(t)
+				assertKubernetesRamenPlanFixture(t, "k10")
+			}
 			if lane == "k12" {
 				assertKubernetesK12HCLFixture(t)
 				assertKubernetesK12NativeProjectFixture(t)
 				assertKubernetesRamenPlanFixture(t, "k12")
+			}
+			if lane == "k13" {
+				assertKubernetesK13HCLFixture(t)
+				assertKubernetesK13NativeProjectFixture(t)
+				assertKubernetesRamenPlanFixture(t, "k13")
 			}
 		})
 	}
@@ -315,6 +346,10 @@ func TestKubernetesProviderParity(t *testing.T) {
 		{lane: "k06", run: runKubernetesK06LiveParity},
 		{lane: "k07", run: runKubernetesK07LiveParity},
 		{lane: "k08", run: runKubernetesK08LiveParity},
+		{lane: "k09", run: runKubernetesK09LiveParity},
+		{lane: "k10", run: runKubernetesK10LiveParity},
+		{lane: "k12", run: runKubernetesK12LiveParity},
+		{lane: "k13", run: runKubernetesK13LiveParity},
 	}
 	var ran int
 	for _, liveRun := range liveRuns {
@@ -334,7 +369,7 @@ func TestKubernetesProviderParity(t *testing.T) {
 
 func kubernetesParityLaneHasLiveRunner(lane string) bool {
 	switch lane {
-	case "k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08":
+	case "k01", "k02", "k03", "k04", "k05", "k06", "k07", "k08", "k09", "k10", "k12", "k13":
 		return true
 	default:
 		return false
@@ -503,6 +538,14 @@ func assertKubernetesParityLiveRecording(t *testing.T, lane, scenario string, ru
 		comparison = compareKubernetesRoleBindingParityObservations(t, recording.Observations)
 	case "k08":
 		comparison = compareKubernetesClusterRoleParityObservations(t, recording.Observations)
+	case "k09":
+		comparison = compareKubernetesRoleBindingUpdateParityObservations(t, recording.Observations)
+	case "k10":
+		comparison = compareKubernetesClusterRoleUpdateParityObservations(t, recording.Observations)
+	case "k12":
+		comparison = compareKubernetesClusterRoleBindingParityObservations(t, recording.Observations)
+	case "k13":
+		comparison = compareKubernetesClusterRoleBindingUpdateParityObservations(t, recording.Observations)
 	default:
 		t.Fatalf("%s is recorded but has no semantic replay assertions", wantLane)
 	}
@@ -931,6 +974,219 @@ func runKubernetesK08LiveParity(t *testing.T, ctx context.Context, env kubernete
 		Version:      kubernetesParityArtifactV1,
 		Lane:         "K08",
 		Scenario:     "cluster_role_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runKubernetesK09LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLRoleBindingUpdateRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLRoleBindingUpdateRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenRoleBindingUpdateRuntime, tool: ""},
+	}
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		namespace := "ramen-parity-k09-" + run.runtime
+		if err := validateKubernetesParityNamespace(namespace, "k09"); err != nil {
+			t.Fatalf("unsafe namespace %s: %v", namespace, err)
+		}
+		if err := deleteKubernetesParityNamespaceIfExists(ctx, env, namespace); err != nil {
+			t.Fatalf("pre-cleanup %s: %v", namespace, err)
+		}
+		t.Cleanup(func() {
+			if err := deleteKubernetesParityNamespaceIfExists(context.Background(), env, namespace); err != nil {
+				t.Logf("cleanup namespace %s: %v", namespace, err)
+			}
+		})
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K09 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesRoleBindingUpdateParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K09",
+		Scenario:     "role_binding_update_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runKubernetesK10LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLClusterRoleUpdateRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLClusterRoleUpdateRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenClusterRoleUpdateRuntime, tool: ""},
+	}
+	clusterRoleName := "ramen-parity-k10-cluster-role"
+	if err := validateKubernetesParityClusterRoleName(clusterRoleName, "k10"); err != nil {
+		t.Fatalf("unsafe ClusterRole %s: %v", clusterRoleName, err)
+	}
+	if err := deleteKubernetesParityClusterRoleForLaneIfExists(ctx, env, clusterRoleName, "k10"); err != nil {
+		t.Fatalf("pre-cleanup ClusterRole %s: %v", clusterRoleName, err)
+	}
+	t.Cleanup(func() {
+		if err := deleteKubernetesParityClusterRoleForLaneIfExists(context.Background(), env, clusterRoleName, "k10"); err != nil {
+			t.Logf("cleanup ClusterRole %s: %v", clusterRoleName, err)
+		}
+	})
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		if err := deleteKubernetesParityClusterRoleForLaneIfExists(ctx, env, clusterRoleName, "k10"); err != nil {
+			t.Fatalf("pre-cleanup ClusterRole %s before %s: %v", clusterRoleName, run.runtime, err)
+		}
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K10 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesClusterRoleUpdateParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K10",
+		Scenario:     "cluster_role_update_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runKubernetesK12LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLClusterRoleBindingRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLClusterRoleBindingRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenClusterRoleBindingRuntime, tool: ""},
+	}
+	clusterRoleBindingName := "ramen-parity-k12-cluster-role-binding"
+	if err := validateKubernetesParityClusterRoleBindingName(clusterRoleBindingName, "k12"); err != nil {
+		t.Fatalf("unsafe ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
+	}
+	if err := deleteKubernetesParityClusterRoleBindingIfExists(ctx, env, clusterRoleBindingName); err != nil {
+		t.Fatalf("pre-cleanup ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
+	}
+	t.Cleanup(func() {
+		if err := deleteKubernetesParityClusterRoleBindingIfExists(context.Background(), env, clusterRoleBindingName); err != nil {
+			t.Logf("cleanup ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
+		}
+	})
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		if err := deleteKubernetesParityClusterRoleBindingIfExists(ctx, env, clusterRoleBindingName); err != nil {
+			t.Fatalf("pre-cleanup ClusterRoleBinding %s before %s: %v", clusterRoleBindingName, run.runtime, err)
+		}
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K12 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesClusterRoleBindingParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K12",
+		Scenario:     "cluster_role_binding_lifecycle",
+		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
+		Context:      env.contextName,
+		Observations: observations,
+		Comparison:   comparison,
+	}
+}
+
+func runKubernetesK13LiveParity(t *testing.T, ctx context.Context, env kubernetesParityLiveEnv, terraformPath, tofuPath string) kubernetesParityLiveRecording {
+	t.Helper()
+	runs := []struct {
+		runtime string
+		run     func(context.Context, *testing.T, kubernetesParityLiveEnv, string) kubernetesParityRuntimeResult
+		tool    string
+	}{
+		{runtime: "opentofu", run: runKubernetesParityHCLClusterRoleBindingUpdateRuntime, tool: tofuPath},
+		{runtime: "terraform", run: runKubernetesParityHCLClusterRoleBindingUpdateRuntime, tool: terraformPath},
+		{runtime: "ramen", run: runKubernetesParityRamenClusterRoleBindingUpdateRuntime, tool: ""},
+	}
+	clusterRoleBindingName := "ramen-parity-k13-cluster-role-binding"
+	if err := validateKubernetesParityClusterRoleBindingName(clusterRoleBindingName, "k13"); err != nil {
+		t.Fatalf("unsafe ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
+	}
+	if err := deleteKubernetesParityClusterRoleBindingForLaneIfExists(ctx, env, clusterRoleBindingName, "k13"); err != nil {
+		t.Fatalf("pre-cleanup ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
+	}
+	t.Cleanup(func() {
+		if err := deleteKubernetesParityClusterRoleBindingForLaneIfExists(context.Background(), env, clusterRoleBindingName, "k13"); err != nil {
+			t.Logf("cleanup ClusterRoleBinding %s: %v", clusterRoleBindingName, err)
+		}
+	})
+	var observations []kubernetesParityRuntimeObservation
+	var failures []kubernetesParityRuntimeFailure
+	for _, run := range runs {
+		if err := deleteKubernetesParityClusterRoleBindingForLaneIfExists(ctx, env, clusterRoleBindingName, "k13"); err != nil {
+			t.Fatalf("pre-cleanup ClusterRoleBinding %s before %s: %v", clusterRoleBindingName, run.runtime, err)
+		}
+		result := run.run(ctx, t, env, run.tool)
+		if result.Failure != nil {
+			failures = append(failures, *result.Failure)
+			continue
+		}
+		observations = append(observations, result.Observation)
+	}
+	if len(failures) > 0 {
+		for _, failure := range failures {
+			t.Logf("%s parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
+		}
+		t.Fatalf("K13 provider parity did not complete for all runtimes")
+	}
+	comparison := compareKubernetesClusterRoleBindingUpdateParityObservations(t, observations)
+	return kubernetesParityLiveRecording{
+		Version:      kubernetesParityArtifactV1,
+		Lane:         "K13",
+		Scenario:     "cluster_role_binding_update_lifecycle",
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
 		Context:      env.contextName,
 		Observations: observations,
@@ -1381,6 +1637,97 @@ func runKubernetesParityHCLRoleBindingRuntime(ctx context.Context, t *testing.T,
 	}}
 }
 
+func runKubernetesParityHCLRoleBindingUpdateRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	namespace := "ramen-parity-k09-" + runtimeName
+	roleBindingName := "ramen-parity-k09-role-binding"
+	roleName := "ramen-parity-k09-role"
+	serviceAccountName := "ramen-parity-k09-service-account"
+	if err := validateKubernetesParityRoleBindingName(roleBindingName, "k09"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityRoleName(roleName, "k09"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityServiceAccountName(serviceAccountName, "k09"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := createKubernetesParityNamespace(ctx, env, namespace); err != nil {
+		return kubernetesParityFailure(runtimeName, "namespace", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k09", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	createVars := map[string]any{
+		"kubeconfig_path":      env.kubeconfig,
+		"kube_context":         env.contextName,
+		"namespace_name":       namespace,
+		"role_binding_name":    roleBindingName,
+		"role_name":            roleName,
+		"service_account_name": serviceAccountName,
+		"phase":                "create",
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), createVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	namespaceAfterApply, err := observeKubernetesParityNamespace(ctx, env, namespace)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	roleBindingAfterApply, err := observeKubernetesParityRoleBinding(ctx, env, namespace, roleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	updateVars := cloneAnyMap(createVars)
+	updateVars["phase"] = "update"
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), updateVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "update", err)
+	}
+	roleBindingAfterUpdate, err := observeKubernetesParityRoleBinding(ctx, env, namespace, roleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	roleBindingAfterDestroy, err := observeKubernetesParityRoleBindingAbsent(ctx, env, namespace, roleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                 runtimeName,
+		Namespace:               namespace,
+		RoleBindingName:         roleBindingName,
+		AfterApply:              namespaceAfterApply,
+		RoleBindingAfterApply:   &roleBindingAfterApply,
+		RoleBindingAfterUpdate:  &roleBindingAfterUpdate,
+		RoleBindingAfterDestroy: &roleBindingAfterDestroy,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+	}}
+}
+
 func runKubernetesParityHCLClusterRoleRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
 	t.Helper()
 	runtimeName := "terraform"
@@ -1429,6 +1776,234 @@ func runKubernetesParityHCLClusterRoleRuntime(ctx context.Context, t *testing.T,
 		ClusterRoleName:         clusterRoleName,
 		ClusterRoleAfterApply:   &clusterRoleAfterApply,
 		ClusterRoleAfterDestroy: &clusterRoleAfterDestroy,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+	}}
+}
+
+func runKubernetesParityHCLClusterRoleUpdateRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	clusterRoleName := "ramen-parity-k10-cluster-role"
+	if err := validateKubernetesParityClusterRoleName(clusterRoleName, "k10"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k10", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	createVars := map[string]any{
+		"kubeconfig_path":   env.kubeconfig,
+		"kube_context":      env.contextName,
+		"cluster_role_name": clusterRoleName,
+		"phase":             "create",
+		"include_pods":      false,
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), createVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	clusterRoleAfterApply, err := observeKubernetesParityClusterRoleForLane(ctx, env, clusterRoleName, "k10")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	updateVars := cloneAnyMap(createVars)
+	updateVars["phase"] = "update"
+	updateVars["include_pods"] = true
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), updateVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "update", err)
+	}
+	clusterRoleAfterUpdate, err := observeKubernetesParityClusterRoleForLane(ctx, env, clusterRoleName, "k10")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	clusterRoleAfterDestroy, err := observeKubernetesParityClusterRoleForLaneAbsent(ctx, env, clusterRoleName, "k10")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                 runtimeName,
+		ClusterRoleName:         clusterRoleName,
+		ClusterRoleAfterApply:   &clusterRoleAfterApply,
+		ClusterRoleAfterUpdate:  &clusterRoleAfterUpdate,
+		ClusterRoleAfterDestroy: &clusterRoleAfterDestroy,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+	}}
+}
+
+func runKubernetesParityHCLClusterRoleBindingRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	clusterRoleBindingName := "ramen-parity-k12-cluster-role-binding"
+	clusterRoleName := "ramen-parity-k12-cluster-role"
+	serviceAccountName := "ramen-parity-k12-service-account"
+	serviceAccountNamespace := "ramen-parity-k12-subjects"
+	if err := validateKubernetesParityClusterRoleBindingName(clusterRoleBindingName, "k12"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityClusterRoleName(clusterRoleName, "k12"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityServiceAccountName(serviceAccountName, "k12"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityNamespace(serviceAccountNamespace, "k12"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k12", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	tfvars := map[string]string{
+		"kubeconfig_path":           env.kubeconfig,
+		"kube_context":              env.contextName,
+		"cluster_role_binding_name": clusterRoleBindingName,
+		"cluster_role_name":         clusterRoleName,
+		"service_account_name":      serviceAccountName,
+		"service_account_namespace": serviceAccountNamespace,
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), tfvars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	clusterRoleBindingAfterApply, err := observeKubernetesParityClusterRoleBinding(ctx, env, clusterRoleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	clusterRoleBindingAfterDestroy, err := observeKubernetesParityClusterRoleBindingAbsent(ctx, env, clusterRoleBindingName)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                        runtimeName,
+		ClusterRoleBindingName:         clusterRoleBindingName,
+		ClusterRoleBindingAfterApply:   &clusterRoleBindingAfterApply,
+		ClusterRoleBindingAfterDestroy: &clusterRoleBindingAfterDestroy,
+		NoOpPlan: &kubernetesParityNoOpObservation{
+			NoOp:     planExit == 0,
+			ExitCode: planExit,
+			Summary:  planSummary,
+		},
+	}}
+}
+
+func runKubernetesParityHCLClusterRoleBindingUpdateRuntime(ctx context.Context, t *testing.T, env kubernetesParityLiveEnv, tool string) kubernetesParityRuntimeResult {
+	t.Helper()
+	runtimeName := "terraform"
+	if strings.HasSuffix(filepath.Base(tool), "tofu") {
+		runtimeName = "opentofu"
+	}
+	clusterRoleBindingName := "ramen-parity-k13-cluster-role-binding"
+	clusterRoleName := "ramen-parity-k13-cluster-role"
+	serviceAccountName := "ramen-parity-k13-service-account"
+	serviceAccountNamespace := "ramen-parity-k13-subjects"
+	if err := validateKubernetesParityClusterRoleBindingName(clusterRoleBindingName, "k13"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityClusterRoleName(clusterRoleName, "k13"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityServiceAccountName(serviceAccountName, "k13"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := validateKubernetesParityNamespace(serviceAccountNamespace, "k13"); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	workDir := filepath.Join(t.TempDir(), runtimeName)
+	if err := copyFixtureFile(filepath.Join(kubernetesParityFixtureRoot, "k13", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	createVars := map[string]any{
+		"kubeconfig_path":           env.kubeconfig,
+		"kube_context":              env.contextName,
+		"cluster_role_binding_name": clusterRoleBindingName,
+		"cluster_role_name":         clusterRoleName,
+		"service_account_name":      serviceAccountName,
+		"service_account_namespace": serviceAccountNamespace,
+		"phase":                     "create",
+	}
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), createVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "init", "-input=false", "-no-color"); err != nil {
+		return kubernetesParityFailure(runtimeName, "init", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "apply", err)
+	}
+	clusterRoleBindingAfterApply, err := observeKubernetesParityClusterRoleBindingForLane(ctx, env, clusterRoleBindingName, "k13")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	updateVars := cloneAnyMap(createVars)
+	updateVars["phase"] = "update"
+	if err := writeJSONFile(filepath.Join(workDir, "terraform.tfvars.json"), updateVars); err != nil {
+		return kubernetesParityFailure(runtimeName, "fixture", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "update", err)
+	}
+	clusterRoleBindingAfterUpdate, err := observeKubernetesParityClusterRoleBindingForLane(ctx, env, clusterRoleBindingName, "k13")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	planExit, planSummary, err := runKubernetesParityPlan(ctx, workDir, tool)
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "plan", err)
+	}
+	if err := runKubernetesParityCommand(ctx, workDir, tool, "destroy", "-input=false", "-no-color", "-auto-approve"); err != nil {
+		return kubernetesParityFailure(runtimeName, "destroy", err)
+	}
+	clusterRoleBindingAfterDestroy, err := observeKubernetesParityClusterRoleBindingForLaneAbsent(ctx, env, clusterRoleBindingName, "k13")
+	if err != nil {
+		return kubernetesParityFailure(runtimeName, "observe", err)
+	}
+	return kubernetesParityRuntimeResult{Observation: kubernetesParityRuntimeObservation{
+		Runtime:                        runtimeName,
+		ClusterRoleBindingName:         clusterRoleBindingName,
+		ClusterRoleBindingAfterApply:   &clusterRoleBindingAfterApply,
+		ClusterRoleBindingAfterUpdate:  &clusterRoleBindingAfterUpdate,
+		ClusterRoleBindingAfterDestroy: &clusterRoleBindingAfterDestroy,
 		NoOpPlan: &kubernetesParityNoOpObservation{
 			NoOp:     planExit == 0,
 			ExitCode: planExit,
@@ -1878,7 +2453,11 @@ func observeKubernetesParityRoleBindingAbsent(ctx context.Context, env kubernete
 }
 
 func observeKubernetesParityClusterRole(ctx context.Context, env kubernetesParityLiveEnv, name string) (kubernetesParityClusterRoleObservation, error) {
-	if err := validateKubernetesParityClusterRoleName(name, "k08"); err != nil {
+	return observeKubernetesParityClusterRoleForLane(ctx, env, name, "k08")
+}
+
+func observeKubernetesParityClusterRoleForLane(ctx context.Context, env kubernetesParityLiveEnv, name, lane string) (kubernetesParityClusterRoleObservation, error) {
+	if err := validateKubernetesParityClusterRoleName(name, lane); err != nil {
 		return kubernetesParityClusterRoleObservation{}, err
 	}
 	out, err := runKubernetesParityKubectl(ctx, env, "get", "clusterrole", name, "-o", "json")
@@ -1911,10 +2490,14 @@ func observeKubernetesParityClusterRole(ctx context.Context, env kubernetesParit
 }
 
 func observeKubernetesParityClusterRoleAbsent(ctx context.Context, env kubernetesParityLiveEnv, name string) (kubernetesParityClusterRoleObservation, error) {
+	return observeKubernetesParityClusterRoleForLaneAbsent(ctx, env, name, "k08")
+}
+
+func observeKubernetesParityClusterRoleForLaneAbsent(ctx context.Context, env kubernetesParityLiveEnv, name, lane string) (kubernetesParityClusterRoleObservation, error) {
 	var last kubernetesParityClusterRoleObservation
 	deadline := time.Now().Add(45 * time.Second)
 	for {
-		observed, err := observeKubernetesParityClusterRole(ctx, env, name)
+		observed, err := observeKubernetesParityClusterRoleForLane(ctx, env, name, lane)
 		if err != nil {
 			return kubernetesParityClusterRoleObservation{}, err
 		}
@@ -1928,6 +2511,72 @@ func observeKubernetesParityClusterRoleAbsent(ctx context.Context, env kubernete
 		select {
 		case <-ctx.Done():
 			return kubernetesParityClusterRoleObservation{}, ctx.Err()
+		case <-time.After(500 * time.Millisecond):
+		}
+	}
+}
+
+func observeKubernetesParityClusterRoleBinding(ctx context.Context, env kubernetesParityLiveEnv, name string) (kubernetesParityClusterRoleBindingObservation, error) {
+	return observeKubernetesParityClusterRoleBindingForLane(ctx, env, name, "k12")
+}
+
+func observeKubernetesParityClusterRoleBindingForLane(ctx context.Context, env kubernetesParityLiveEnv, name, lane string) (kubernetesParityClusterRoleBindingObservation, error) {
+	if err := validateKubernetesParityClusterRoleBindingName(name, lane); err != nil {
+		return kubernetesParityClusterRoleBindingObservation{}, err
+	}
+	out, err := runKubernetesParityKubectl(ctx, env, "get", "clusterrolebinding", name, "-o", "json")
+	if err != nil {
+		if isKubernetesParityNotFound(err) {
+			return kubernetesParityClusterRoleBindingObservation{Exists: false}, nil
+		}
+		return kubernetesParityClusterRoleBindingObservation{}, err
+	}
+	var doc struct {
+		APIVersion string `json:"apiVersion"`
+		Kind       string `json:"kind"`
+		Metadata   struct {
+			Name   string            `json:"name"`
+			Labels map[string]string `json:"labels"`
+		} `json:"metadata"`
+		RoleRef  kubernetesParityRoleRef              `json:"roleRef"`
+		Subjects []kubernetesParityRoleBindingSubject `json:"subjects"`
+	}
+	if err := json.Unmarshal(out, &doc); err != nil {
+		return kubernetesParityClusterRoleBindingObservation{}, err
+	}
+	return kubernetesParityClusterRoleBindingObservation{
+		Exists:     true,
+		APIVersion: doc.APIVersion,
+		Kind:       doc.Kind,
+		Name:       doc.Metadata.Name,
+		Labels:     cloneStringMap(doc.Metadata.Labels),
+		RoleRef:    doc.RoleRef,
+		Subjects:   normalizeKubernetesParityRoleBindingSubjects(doc.Subjects),
+	}, nil
+}
+
+func observeKubernetesParityClusterRoleBindingAbsent(ctx context.Context, env kubernetesParityLiveEnv, name string) (kubernetesParityClusterRoleBindingObservation, error) {
+	return observeKubernetesParityClusterRoleBindingForLaneAbsent(ctx, env, name, "k12")
+}
+
+func observeKubernetesParityClusterRoleBindingForLaneAbsent(ctx context.Context, env kubernetesParityLiveEnv, name, lane string) (kubernetesParityClusterRoleBindingObservation, error) {
+	var last kubernetesParityClusterRoleBindingObservation
+	deadline := time.Now().Add(45 * time.Second)
+	for {
+		observed, err := observeKubernetesParityClusterRoleBindingForLane(ctx, env, name, lane)
+		if err != nil {
+			return kubernetesParityClusterRoleBindingObservation{}, err
+		}
+		last = observed
+		if !observed.Exists {
+			return observed, nil
+		}
+		if time.Now().After(deadline) {
+			return last, nil
+		}
+		select {
+		case <-ctx.Done():
+			return kubernetesParityClusterRoleBindingObservation{}, ctx.Err()
 		case <-time.After(500 * time.Millisecond):
 		}
 	}
@@ -2239,6 +2888,56 @@ func compareKubernetesRoleBindingParityObservations(t *testing.T, observations [
 	}
 }
 
+func compareKubernetesRoleBindingUpdateParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	createLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k09",
+		"ramen.openudon.dev/phase":     "create",
+	}
+	updateLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k09",
+		"ramen.openudon.dev/phase":     "update",
+	}
+	expectedRoleRef := kubernetesParityRoleRef{
+		APIGroup: "rbac.authorization.k8s.io",
+		Kind:     "Role",
+		Name:     "ramen-parity-k09-role",
+	}
+	for _, observation := range observations {
+		if !observation.AfterApply.Exists {
+			t.Fatalf("%s namespace after_apply does not exist", observation.Runtime)
+		}
+		if !strings.HasPrefix(observation.Namespace, "ramen-parity-k09-") {
+			t.Fatalf("%s namespace = %q", observation.Runtime, observation.Namespace)
+		}
+		if observation.RoleBindingName != "ramen-parity-k09-role-binding" {
+			t.Fatalf("%s role_binding_name = %q", observation.Runtime, observation.RoleBindingName)
+		}
+		expectedSubjects := []kubernetesParityRoleBindingSubject{{
+			Kind:      "ServiceAccount",
+			Name:      "ramen-parity-k09-service-account",
+			Namespace: observation.Namespace,
+		}}
+		assertKubernetesRoleBindingObservation(t, observation.Runtime+" role_binding_after_apply", observation.RoleBindingAfterApply, observation.Namespace, observation.RoleBindingName, createLabels, expectedRoleRef, expectedSubjects)
+		assertKubernetesRoleBindingObservation(t, observation.Runtime+" role_binding_after_update", observation.RoleBindingAfterUpdate, observation.Namespace, observation.RoleBindingName, updateLabels, expectedRoleRef, expectedSubjects)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.RoleBindingAfterDestroy == nil || observation.RoleBindingAfterDestroy.Exists {
+			t.Fatalf("%s role_binding_after_destroy still exists: %#v", observation.Runtime, observation.RoleBindingAfterDestroy)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.namespace", "metadata.labels", "roleRef.apiGroup", "roleRef.kind", "roleRef.name", "subjects.kind", "subjects.name", "subjects.namespace", "update.metadata.labels", "no-op", "destroy.absent"},
+	}
+}
+
 func compareKubernetesClusterRoleParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
 	t.Helper()
 	if len(observations) != 3 {
@@ -2273,6 +2972,144 @@ func compareKubernetesClusterRoleParityObservations(t *testing.T, observations [
 	return kubernetesParityObservationComparison{
 		Matched: true,
 		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.labels", "rules.apiGroups", "rules.nonResourceURLs", "rules.resourceNames", "rules.resources", "rules.verbs", "no-op", "destroy.absent"},
+	}
+}
+
+func compareKubernetesClusterRoleUpdateParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	createLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k10",
+		"ramen.openudon.dev/phase":     "create",
+	}
+	updateLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k10",
+		"ramen.openudon.dev/phase":     "update",
+	}
+	createRules := []kubernetesParityPolicyRule{{
+		APIGroups:       []string{""},
+		NonResourceURLs: nil,
+		ResourceNames:   nil,
+		Resources:       []string{"configmaps", "secrets"},
+		Verbs:           []string{"get", "list", "watch"},
+	}}
+	updateRules := []kubernetesParityPolicyRule{{
+		APIGroups:       []string{""},
+		NonResourceURLs: nil,
+		ResourceNames:   nil,
+		Resources:       []string{"configmaps", "pods", "secrets"},
+		Verbs:           []string{"get", "list", "watch"},
+	}}
+	for _, observation := range observations {
+		if observation.Namespace != "" {
+			t.Fatalf("%s namespace = %q, want empty for ClusterRole", observation.Runtime, observation.Namespace)
+		}
+		if observation.ClusterRoleName != "ramen-parity-k10-cluster-role" {
+			t.Fatalf("%s cluster_role_name = %q", observation.Runtime, observation.ClusterRoleName)
+		}
+		assertKubernetesClusterRoleObservation(t, observation.Runtime+" cluster_role_after_apply", observation.ClusterRoleAfterApply, observation.ClusterRoleName, createLabels, createRules)
+		assertKubernetesClusterRoleObservation(t, observation.Runtime+" cluster_role_after_update", observation.ClusterRoleAfterUpdate, observation.ClusterRoleName, updateLabels, updateRules)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.ClusterRoleAfterDestroy == nil || observation.ClusterRoleAfterDestroy.Exists {
+			t.Fatalf("%s cluster_role_after_destroy still exists: %#v", observation.Runtime, observation.ClusterRoleAfterDestroy)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.labels", "rules.apiGroups", "rules.nonResourceURLs", "rules.resourceNames", "rules.resources", "rules.verbs", "update.metadata.labels", "update.rules.resources", "no-op", "destroy.absent"},
+	}
+}
+
+func compareKubernetesClusterRoleBindingParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	expectedLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k12",
+	}
+	expectedRoleRef := kubernetesParityRoleRef{
+		APIGroup: "rbac.authorization.k8s.io",
+		Kind:     "ClusterRole",
+		Name:     "ramen-parity-k12-cluster-role",
+	}
+	expectedSubjects := []kubernetesParityRoleBindingSubject{{
+		Kind:      "ServiceAccount",
+		Name:      "ramen-parity-k12-service-account",
+		Namespace: "ramen-parity-k12-subjects",
+	}}
+	for _, observation := range observations {
+		if observation.Namespace != "" {
+			t.Fatalf("%s namespace = %q, want empty for ClusterRoleBinding", observation.Runtime, observation.Namespace)
+		}
+		if observation.ClusterRoleBindingName != "ramen-parity-k12-cluster-role-binding" {
+			t.Fatalf("%s cluster_role_binding_name = %q", observation.Runtime, observation.ClusterRoleBindingName)
+		}
+		assertKubernetesClusterRoleBindingObservation(t, observation.Runtime+" cluster_role_binding_after_apply", observation.ClusterRoleBindingAfterApply, observation.ClusterRoleBindingName, expectedLabels, expectedRoleRef, expectedSubjects)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.ClusterRoleBindingAfterDestroy == nil || observation.ClusterRoleBindingAfterDestroy.Exists {
+			t.Fatalf("%s cluster_role_binding_after_destroy still exists: %#v", observation.Runtime, observation.ClusterRoleBindingAfterDestroy)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.labels", "roleRef.apiGroup", "roleRef.kind", "roleRef.name", "subjects.kind", "subjects.name", "subjects.namespace", "no-op", "destroy.absent"},
+	}
+}
+
+func compareKubernetesClusterRoleBindingUpdateParityObservations(t *testing.T, observations []kubernetesParityRuntimeObservation) kubernetesParityObservationComparison {
+	t.Helper()
+	if len(observations) != 3 {
+		t.Fatalf("expected 3 runtime observations, got %d", len(observations))
+	}
+	createLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k13",
+		"ramen.openudon.dev/phase":     "create",
+	}
+	updateLabels := map[string]string{
+		"app.kubernetes.io/managed-by": "ramen-parity",
+		"ramen.openudon.dev/lane":      "k13",
+		"ramen.openudon.dev/phase":     "update",
+	}
+	expectedRoleRef := kubernetesParityRoleRef{
+		APIGroup: "rbac.authorization.k8s.io",
+		Kind:     "ClusterRole",
+		Name:     "ramen-parity-k13-cluster-role",
+	}
+	expectedSubjects := []kubernetesParityRoleBindingSubject{{
+		Kind:      "ServiceAccount",
+		Name:      "ramen-parity-k13-service-account",
+		Namespace: "ramen-parity-k13-subjects",
+	}}
+	for _, observation := range observations {
+		if observation.Namespace != "" {
+			t.Fatalf("%s namespace = %q, want empty for ClusterRoleBinding", observation.Runtime, observation.Namespace)
+		}
+		if observation.ClusterRoleBindingName != "ramen-parity-k13-cluster-role-binding" {
+			t.Fatalf("%s cluster_role_binding_name = %q", observation.Runtime, observation.ClusterRoleBindingName)
+		}
+		assertKubernetesClusterRoleBindingObservation(t, observation.Runtime+" cluster_role_binding_after_apply", observation.ClusterRoleBindingAfterApply, observation.ClusterRoleBindingName, createLabels, expectedRoleRef, expectedSubjects)
+		assertKubernetesClusterRoleBindingObservation(t, observation.Runtime+" cluster_role_binding_after_update", observation.ClusterRoleBindingAfterUpdate, observation.ClusterRoleBindingName, updateLabels, expectedRoleRef, expectedSubjects)
+		if observation.NoOpPlan == nil || !observation.NoOpPlan.NoOp {
+			t.Fatalf("%s no-op plan = %#v", observation.Runtime, observation.NoOpPlan)
+		}
+		if observation.ClusterRoleBindingAfterDestroy == nil || observation.ClusterRoleBindingAfterDestroy.Exists {
+			t.Fatalf("%s cluster_role_binding_after_destroy still exists: %#v", observation.Runtime, observation.ClusterRoleBindingAfterDestroy)
+		}
+	}
+	return kubernetesParityObservationComparison{
+		Matched: true,
+		Fields:  []string{"apiVersion", "kind", "metadata.name", "metadata.labels", "roleRef.apiGroup", "roleRef.kind", "roleRef.name", "subjects.kind", "subjects.name", "subjects.namespace", "update.metadata.labels", "no-op", "destroy.absent"},
 	}
 }
 
@@ -2430,6 +3267,31 @@ func assertKubernetesClusterRoleObservation(t *testing.T, label string, observat
 	}
 	if !reflect.DeepEqual(observation.Rules, rules) {
 		t.Fatalf("%s rules = %#v, want %#v", label, observation.Rules, rules)
+	}
+}
+
+func assertKubernetesClusterRoleBindingObservation(t *testing.T, label string, observation *kubernetesParityClusterRoleBindingObservation, name string, labels map[string]string, roleRef kubernetesParityRoleRef, subjects []kubernetesParityRoleBindingSubject) {
+	t.Helper()
+	if observation == nil || !observation.Exists {
+		t.Fatalf("%s = %#v, want existing ClusterRoleBinding", label, observation)
+	}
+	if observation.APIVersion != "rbac.authorization.k8s.io/v1" {
+		t.Fatalf("%s apiVersion = %q, want rbac.authorization.k8s.io/v1", label, observation.APIVersion)
+	}
+	if observation.Kind != "ClusterRoleBinding" {
+		t.Fatalf("%s kind = %q, want ClusterRoleBinding", label, observation.Kind)
+	}
+	if observation.Name != name {
+		t.Fatalf("%s name = %q, want %q", label, observation.Name, name)
+	}
+	if !reflect.DeepEqual(observation.Labels, labels) {
+		t.Fatalf("%s labels = %#v, want %#v", label, observation.Labels, labels)
+	}
+	if observation.RoleRef != roleRef {
+		t.Fatalf("%s roleRef = %#v, want %#v", label, observation.RoleRef, roleRef)
+	}
+	if !reflect.DeepEqual(observation.Subjects, normalizeKubernetesParityRoleBindingSubjects(subjects)) {
+		t.Fatalf("%s subjects = %#v, want %#v", label, observation.Subjects, subjects)
 	}
 }
 
@@ -2600,13 +3462,32 @@ func deleteKubernetesParityRoleBindingIfExists(ctx context.Context, env kubernet
 }
 
 func deleteKubernetesParityClusterRoleIfExists(ctx context.Context, env kubernetesParityLiveEnv, name string) error {
-	if err := validateKubernetesParityClusterRoleName(name, "k08"); err != nil {
+	return deleteKubernetesParityClusterRoleForLaneIfExists(ctx, env, name, "k08")
+}
+
+func deleteKubernetesParityClusterRoleForLaneIfExists(ctx context.Context, env kubernetesParityLiveEnv, name, lane string) error {
+	if err := validateKubernetesParityClusterRoleName(name, lane); err != nil {
 		return err
 	}
 	if _, err := runKubernetesParityKubectl(ctx, env, "delete", "clusterrole", name, "--ignore-not-found=true", "--wait=true", "--timeout=30s"); err != nil {
 		return err
 	}
-	_, err := observeKubernetesParityClusterRoleAbsent(ctx, env, name)
+	_, err := observeKubernetesParityClusterRoleForLaneAbsent(ctx, env, name, lane)
+	return err
+}
+
+func deleteKubernetesParityClusterRoleBindingIfExists(ctx context.Context, env kubernetesParityLiveEnv, name string) error {
+	return deleteKubernetesParityClusterRoleBindingForLaneIfExists(ctx, env, name, "k12")
+}
+
+func deleteKubernetesParityClusterRoleBindingForLaneIfExists(ctx context.Context, env kubernetesParityLiveEnv, name, lane string) error {
+	if err := validateKubernetesParityClusterRoleBindingName(name, lane); err != nil {
+		return err
+	}
+	if _, err := runKubernetesParityKubectl(ctx, env, "delete", "clusterrolebinding", name, "--ignore-not-found=true", "--wait=true", "--timeout=30s"); err != nil {
+		return err
+	}
+	_, err := observeKubernetesParityClusterRoleBindingForLaneAbsent(ctx, env, name, lane)
 	return err
 }
 
@@ -2759,6 +3640,26 @@ func validateKubernetesParityClusterRoleName(name, lane string) error {
 	return nil
 }
 
+func validateKubernetesParityClusterRoleBindingName(name, lane string) error {
+	prefix := "ramen-parity-" + lane + "-"
+	if !strings.HasPrefix(name, prefix) {
+		return fmt.Errorf("ClusterRoleBinding name must use %s prefix", prefix)
+	}
+	if len(name) > 253 {
+		return fmt.Errorf("ClusterRoleBinding name is too long")
+	}
+	for i, r := range name {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '.' {
+			continue
+		}
+		return fmt.Errorf("ClusterRoleBinding name contains invalid character %q at offset %d", r, i)
+	}
+	if strings.HasPrefix(name, "-") || strings.HasSuffix(name, "-") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, ".") {
+		return fmt.Errorf("ClusterRoleBinding name must not start or end with '-' or '.'")
+	}
+	return nil
+}
+
 func validateKubernetesParitySecretName(name, lane string) error {
 	prefix := "ramen-parity-" + lane + "-"
 	if !strings.HasPrefix(name, prefix) {
@@ -2887,6 +3788,24 @@ func renderKubernetesParityProject(src, dst, namespace, sourcePath string) error
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err
+	}
+	return os.WriteFile(dst, []byte(rendered), 0o644)
+}
+
+func renderKubernetesParityProjectPhase(src, dst, namespace, sourcePath, phase string) error {
+	if phase != "create" && phase != "update" {
+		return fmt.Errorf("unsupported Kubernetes parity project phase %q", phase)
+	}
+	if err := renderKubernetesParityProject(src, dst, namespace, sourcePath); err != nil {
+		return err
+	}
+	data, err := os.ReadFile(dst)
+	if err != nil {
+		return err
+	}
+	rendered := strings.ReplaceAll(string(data), "ramen.openudon.dev/phase: update", "ramen.openudon.dev/phase: "+phase)
+	if phase == "create" {
+		rendered = strings.ReplaceAll(rendered, "                    - pods\n", "")
 	}
 	return os.WriteFile(dst, []byte(rendered), 0o644)
 }
@@ -3053,6 +3972,100 @@ func assertKubernetesK08HCLFixture(t *testing.T) {
 	}
 }
 
+func assertKubernetesK09NativeProjectFixture(t *testing.T) {
+	t.Helper()
+	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
+		ProjectPath: filepath.Join(kubernetesParityFixtureRoot, "k09", "ramen"),
+	})
+	if err != nil {
+		t.Fatalf("validate K09 native Ramen project fixture: %v", err)
+	}
+	if !result.Valid {
+		t.Fatalf("K09 native Ramen project fixture did not validate: %#v", result.Diagnostics)
+	}
+	if result.Summary.Diagnostics != 0 {
+		t.Fatalf("K09 native Ramen project fixture diagnostics = %#v", result.Summary)
+	}
+}
+
+func assertKubernetesK09HCLFixture(t *testing.T) {
+	t.Helper()
+	doc, err := tfconfig.LoadDir(filepath.Join(kubernetesParityFixtureRoot, "k09", "hcl"))
+	if err != nil {
+		t.Fatalf("load K09 HCL fixture: %v", err)
+	}
+	if len(doc.Diagnostics) != 0 {
+		t.Fatalf("K09 HCL fixture diagnostics: %#v", doc.Diagnostics)
+	}
+	if len(doc.Modules) != 1 {
+		t.Fatalf("K09 HCL fixture module count = %d, want 1", len(doc.Modules))
+	}
+	module := doc.Modules[0]
+	if len(module.Resources) != 1 {
+		t.Fatalf("K09 HCL fixture resource count = %d, want 1", len(module.Resources))
+	}
+	resource := module.Resources[0]
+	if resource.Address != "kubernetes_role_binding_v1.k09_role_binding" || resource.Type != "kubernetes_role_binding_v1" {
+		t.Fatalf("K09 HCL fixture resource = %#v", resource)
+	}
+	var foundProvider bool
+	for _, req := range module.RequiredProviders {
+		if req.LocalName == "kubernetes" && req.Source == "hashicorp/kubernetes" && slices.Contains(req.VersionConstraints, "3.1.0") {
+			foundProvider = true
+		}
+	}
+	if !foundProvider {
+		t.Fatalf("K09 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
+	}
+}
+
+func assertKubernetesK10NativeProjectFixture(t *testing.T) {
+	t.Helper()
+	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
+		ProjectPath: filepath.Join(kubernetesParityFixtureRoot, "k10", "ramen"),
+	})
+	if err != nil {
+		t.Fatalf("validate K10 native Ramen project fixture: %v", err)
+	}
+	if !result.Valid {
+		t.Fatalf("K10 native Ramen project fixture did not validate: %#v", result.Diagnostics)
+	}
+	if result.Summary.Diagnostics != 0 {
+		t.Fatalf("K10 native Ramen project fixture diagnostics = %#v", result.Summary)
+	}
+}
+
+func assertKubernetesK10HCLFixture(t *testing.T) {
+	t.Helper()
+	doc, err := tfconfig.LoadDir(filepath.Join(kubernetesParityFixtureRoot, "k10", "hcl"))
+	if err != nil {
+		t.Fatalf("load K10 HCL fixture: %v", err)
+	}
+	if len(doc.Diagnostics) != 0 {
+		t.Fatalf("K10 HCL fixture diagnostics: %#v", doc.Diagnostics)
+	}
+	if len(doc.Modules) != 1 {
+		t.Fatalf("K10 HCL fixture module count = %d, want 1", len(doc.Modules))
+	}
+	module := doc.Modules[0]
+	if len(module.Resources) != 1 {
+		t.Fatalf("K10 HCL fixture resource count = %d, want 1", len(module.Resources))
+	}
+	resource := module.Resources[0]
+	if resource.Address != "kubernetes_cluster_role_v1.k10_cluster_role" || resource.Type != "kubernetes_cluster_role_v1" {
+		t.Fatalf("K10 HCL fixture resource = %#v", resource)
+	}
+	var foundProvider bool
+	for _, req := range module.RequiredProviders {
+		if req.LocalName == "kubernetes" && req.Source == "hashicorp/kubernetes" && slices.Contains(req.VersionConstraints, "3.1.0") {
+			foundProvider = true
+		}
+	}
+	if !foundProvider {
+		t.Fatalf("K10 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
+	}
+}
+
 func assertKubernetesK12NativeProjectFixture(t *testing.T) {
 	t.Helper()
 	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
@@ -3097,6 +4110,53 @@ func assertKubernetesK12HCLFixture(t *testing.T) {
 	}
 	if !foundProvider {
 		t.Fatalf("K12 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
+	}
+}
+
+func assertKubernetesK13NativeProjectFixture(t *testing.T) {
+	t.Helper()
+	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
+		ProjectPath: filepath.Join(kubernetesParityFixtureRoot, "k13", "ramen"),
+	})
+	if err != nil {
+		t.Fatalf("validate K13 native Ramen project fixture: %v", err)
+	}
+	if !result.Valid {
+		t.Fatalf("K13 native Ramen project fixture did not validate: %#v", result.Diagnostics)
+	}
+	if result.Summary.Diagnostics != 0 {
+		t.Fatalf("K13 native Ramen project fixture diagnostics = %#v", result.Summary)
+	}
+}
+
+func assertKubernetesK13HCLFixture(t *testing.T) {
+	t.Helper()
+	doc, err := tfconfig.LoadDir(filepath.Join(kubernetesParityFixtureRoot, "k13", "hcl"))
+	if err != nil {
+		t.Fatalf("load K13 HCL fixture: %v", err)
+	}
+	if len(doc.Diagnostics) != 0 {
+		t.Fatalf("K13 HCL fixture diagnostics: %#v", doc.Diagnostics)
+	}
+	if len(doc.Modules) != 1 {
+		t.Fatalf("K13 HCL fixture module count = %d, want 1", len(doc.Modules))
+	}
+	module := doc.Modules[0]
+	if len(module.Resources) != 1 {
+		t.Fatalf("K13 HCL fixture resource count = %d, want 1", len(module.Resources))
+	}
+	resource := module.Resources[0]
+	if resource.Address != "kubernetes_cluster_role_binding_v1.k13_cluster_role_binding" || resource.Type != "kubernetes_cluster_role_binding_v1" {
+		t.Fatalf("K13 HCL fixture resource = %#v", resource)
+	}
+	var foundProvider bool
+	for _, req := range module.RequiredProviders {
+		if req.LocalName == "kubernetes" && req.Source == "hashicorp/kubernetes" && slices.Contains(req.VersionConstraints, "3.1.0") {
+			foundProvider = true
+		}
+	}
+	if !foundProvider {
+		t.Fatalf("K13 HCL fixture required providers = %#v, want hashicorp/kubernetes 3.1.0", module.RequiredProviders)
 	}
 }
 

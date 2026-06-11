@@ -772,6 +772,102 @@
       }
     },
     {
+      "id": "gold-k09",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a RoleBinding using `role_binding_name` `${var.role_binding_name}` and `namespace_name` `${var.namespace_name}`, binds `role_name` `${var.role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}`, and tracks the parity phase label.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/kubernetes/k09/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/kubernetes/k09/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/kubernetes/k09/hcl/main.tf",
+      "provider": "kubernetes",
+      "service": "rbac",
+      "resource_types": [
+        "kubernetes_role_binding_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "rbac",
+          "path": "testdata/parity/kubernetes/k09/openapi/rbac.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "K09",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "K09",
+        "project_name": "k09_role_binding_update"
+      }
+    },
+    {
+      "id": "gold-k10",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a ClusterRole using `cluster_role_name` `${var.cluster_role_name}`, grants `get`, `list`, and `watch` on ConfigMaps and Secrets, can add Pods during update, and tracks the parity phase label.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/kubernetes/k10/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/kubernetes/k10/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/kubernetes/k10/hcl/main.tf",
+      "provider": "kubernetes",
+      "service": "rbac",
+      "resource_types": [
+        "kubernetes_cluster_role_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "rbac",
+          "path": "testdata/parity/kubernetes/k10/openapi/rbac.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "K10",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "K10",
+        "project_name": "k10_cluster_role_update"
+      }
+    },
+    {
       "id": "gold-k12",
       "tier": "gold",
       "confidence": 1,
@@ -817,6 +913,54 @@
       "metadata": {
         "parity_row": "K12",
         "project_name": "k12_cluster_role_binding"
+      }
+    },
+    {
+      "id": "gold-k13",
+      "tier": "gold",
+      "confidence": 1,
+      "parity_backed": true,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Kubernetes RBAC API that creates, reads, updates, and deletes a ClusterRoleBinding using `cluster_role_binding_name` `${var.cluster_role_binding_name}`, binds ClusterRole `cluster_role_name` `${var.cluster_role_name}` to ServiceAccount `service_account_name` `${var.service_account_name}` in namespace `service_account_namespace` `${var.service_account_namespace}`, and tracks the parity phase label.",
+        "goal_source": "curated"
+      },
+      "workflow_paths": [
+        "testdata/parity/kubernetes/k13/ramen/project.uws.yaml"
+      ],
+      "primary_workflow_path": "testdata/parity/kubernetes/k13/ramen/project.uws.yaml",
+      "hcl_path": "testdata/parity/kubernetes/k13/hcl/main.tf",
+      "provider": "kubernetes",
+      "service": "rbac",
+      "resource_types": [
+        "kubernetes_cluster_role_binding_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "rbac",
+          "path": "testdata/parity/kubernetes/k13/openapi/rbac.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "github.com/OpenUdon/ramen",
+        "source_path": "K13",
+        "source_doc": "docs/parity_nl.md"
+      },
+      "conversion": {
+        "status": "parity-reviewed"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      },
+      "metadata": {
+        "parity_row": "K13",
+        "project_name": "k13_cluster_role_binding_update"
       }
     },
     {
@@ -8779,6 +8923,52 @@
         "source_path": "examples/example_1.tf",
         "source_doc": "testdata/corpus/kubernetes/core/example_1/meta.json",
         "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/example_1/input --api-source openapi:core=../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/example_1/regen"
+      },
+      "conversion": {
+        "status": "clean"
+      },
+      "validation": {
+        "status": "valid",
+        "strict": true,
+        "summary": {
+          "errors": 0,
+          "warnings": 0,
+          "diagnostics": 0
+        }
+      }
+    },
+    {
+      "id": "silver-kubernetes-core-resources-cluster-role-binding-v1-example-1",
+      "tier": "silver",
+      "confidence": 0.72,
+      "parity_backed": false,
+      "natural_language": {
+        "goal": "Create a Ramen workflow over the Kubernetes core API that creates `kubernetes_cluster_role_binding_v1.k12_cluster_role_binding` using converted attributes `metadata`, `role_ref`, `subject`.",
+        "goal_source": "generated"
+      },
+      "workflow_paths": [
+        "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/project.uws.yaml",
+        "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/project.uws.hcl"
+      ],
+      "primary_workflow_path": "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/project.uws.yaml",
+      "hcl_path": "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/input/main.tf",
+      "provider": "kubernetes",
+      "service": "core",
+      "resource_types": [
+        "kubernetes_cluster_role_binding_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "rbac",
+          "path": "testdata/parity/kubernetes/k12/openapi/rbac.json"
+        }
+      ],
+      "provenance": {
+        "source_repo": "ramen",
+        "source_path": "testdata/parity/kubernetes/k12/hcl/main.tf",
+        "source_doc": "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/meta.json",
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/input --api-source openapi:rbac=testdata/parity/kubernetes/k12/openapi/rbac.json --action create --out testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/regen"
       },
       "conversion": {
         "status": "clean"

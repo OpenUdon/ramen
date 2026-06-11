@@ -56,6 +56,7 @@ func TestDefaultRegistrySupportedTypes(t *testing.T) {
 		{Provider: "github", Type: "github_repository", Kinds: []string{"resource"}},
 		{Provider: "github", Type: "github_repository_file", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_cluster_role_binding_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
@@ -102,6 +103,7 @@ func TestRegistrySupportedTypesHonorsProviderOverrides(t *testing.T) {
 		{Provider: "github", Type: "github_repository", Kinds: []string{"resource"}},
 		{Provider: "github", Type: "github_repository_file", Kinds: []string{"resource"}},
 		{Provider: "google", Type: "google_storage_bucket", Kinds: []string{"resource", "data_source"}},
+		{Provider: "kubernetes", Type: "kubernetes_cluster_role_binding_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_cluster_role_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_config_map_v1", Kinds: []string{"resource", "data_source"}},
 		{Provider: "kubernetes", Type: "kubernetes_namespace", Kinds: []string{"resource", "data_source"}},
@@ -341,10 +343,16 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 		{name: "role delete", obj: Object{Kind: "resource", Type: "kubernetes_role_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1NamespacedRole"},
 		{name: "rolebinding create", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1NamespacedRoleBinding"},
 		{name: "rolebinding read", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1NamespacedRoleBinding"},
+		{name: "rolebinding update", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "update", action: "update", operation: "replaceRbacAuthorizationV1NamespacedRoleBinding"},
 		{name: "rolebinding delete", obj: Object{Kind: "resource", Type: "kubernetes_role_binding_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1NamespacedRoleBinding"},
 		{name: "clusterrole create", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1ClusterRole"},
 		{name: "clusterrole read", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1ClusterRole"},
+		{name: "clusterrole update", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "update", action: "update", operation: "replaceRbacAuthorizationV1ClusterRole"},
 		{name: "clusterrole delete", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1ClusterRole"},
+		{name: "clusterrolebinding create", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1"}, purpose: "create", action: "create", operation: "createRbacAuthorizationV1ClusterRoleBinding"},
+		{name: "clusterrolebinding read", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1"}, purpose: "read", action: "read", operation: "readRbacAuthorizationV1ClusterRoleBinding"},
+		{name: "clusterrolebinding update", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1"}, purpose: "update", action: "update", operation: "replaceRbacAuthorizationV1ClusterRoleBinding"},
+		{name: "clusterrolebinding delete", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1"}, purpose: "delete", action: "delete", operation: "deleteRbacAuthorizationV1ClusterRoleBinding"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -372,7 +380,6 @@ func TestDefaultRegistryDiagnostics(t *testing.T) {
 		{name: "type", obj: Object{Kind: "resource", Type: "aws_instance", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedType},
 		{name: "action", obj: Object{Kind: "resource", Type: "aws_iam_role", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedAction},
 		{name: "cloudflare d1 database update", obj: Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, purpose: "update", action: "update", want: DiagnosticCodeUnsupportedAction},
-		{name: "clusterrole update", obj: Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, purpose: "update", action: "update", want: DiagnosticCodeUnsupportedAction},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -505,6 +512,14 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	if len(keys) != 1 || keys[0] != "namespace" {
 		t.Fatalf("unexpected Kubernetes RoleBinding read namespace request keys: %#v", keys)
 	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1NamespacedRoleBinding", "metadata.name")
+	if len(keys) != 2 || keys[0] != "name" || keys[1] != "metadata.name" {
+		t.Fatalf("unexpected Kubernetes RoleBinding replace name request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1NamespacedRoleBinding", "subject")
+	if len(keys) != 1 || keys[0] != "subjects" {
+		t.Fatalf("unexpected Kubernetes RoleBinding replace subject request keys: %#v", keys)
+	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1ClusterRole", "rule")
 	if len(keys) != 1 || keys[0] != "rules" {
 		t.Fatalf("unexpected Kubernetes ClusterRole rules request keys: %#v", keys)
@@ -516,6 +531,38 @@ func TestDefaultRegistryRequestHints(t *testing.T) {
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "readRbacAuthorizationV1ClusterRole", "metadata.name")
 	if len(keys) != 1 || keys[0] != "name" {
 		t.Fatalf("unexpected Kubernetes ClusterRole read name request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1ClusterRole", "rule")
+	if len(keys) != 1 || keys[0] != "rules" {
+		t.Fatalf("unexpected Kubernetes ClusterRole replace rules request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1ClusterRole", "metadata.name")
+	if len(keys) != 2 || keys[0] != "name" || keys[1] != "metadata.name" {
+		t.Fatalf("unexpected Kubernetes ClusterRole replace name request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1ClusterRoleBinding", "role_ref")
+	if len(keys) != 1 || keys[0] != "roleRef" {
+		t.Fatalf("unexpected Kubernetes ClusterRoleBinding roleRef request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "createRbacAuthorizationV1ClusterRoleBinding", "subject")
+	if len(keys) != 1 || keys[0] != "subjects" {
+		t.Fatalf("unexpected Kubernetes ClusterRoleBinding subject request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "readRbacAuthorizationV1ClusterRoleBinding", "metadata.name")
+	if len(keys) != 1 || keys[0] != "name" {
+		t.Fatalf("unexpected Kubernetes ClusterRoleBinding read name request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1ClusterRoleBinding", "metadata.name")
+	if len(keys) != 2 || keys[0] != "name" || keys[1] != "metadata.name" {
+		t.Fatalf("unexpected Kubernetes ClusterRoleBinding replace name request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1ClusterRoleBinding", "role_ref")
+	if len(keys) != 1 || keys[0] != "roleRef" {
+		t.Fatalf("unexpected Kubernetes ClusterRoleBinding replace roleRef request keys: %#v", keys)
+	}
+	keys = registry.RequestKeys(Object{Kind: "resource", Type: "kubernetes_cluster_role_binding_v1", Provider: "provider.kubernetes"}, APISourceKindOpenAPI, "replaceRbacAuthorizationV1ClusterRoleBinding", "subject")
+	if len(keys) != 1 || keys[0] != "subjects" {
+		t.Fatalf("unexpected Kubernetes ClusterRoleBinding replace subject request keys: %#v", keys)
 	}
 	keys = registry.RequestKeys(Object{Kind: "resource", Type: "cloudflare_r2_bucket", Provider: "provider.cloudflare"}, APISourceKindOpenAPI, "r2-create-bucket", "name")
 	if len(keys) != 1 || keys[0] != "name" {

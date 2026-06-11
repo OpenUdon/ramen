@@ -172,6 +172,75 @@ func TestAPILifecycleResourceAliasesGooglePathParametersToNameIdentity(t *testin
 	}
 }
 
+func TestAPILifecycleResourcePrefersKubernetesRBACReplaceUpdate(t *testing.T) {
+	ctx := promptcontext.Context{
+		Sources: []promptcontext.SourceDocument{{ID: "rbac", Kind: "openapi", URI: "rbac.json"}},
+		Operations: []promptcontext.OperationCandidate{
+			{
+				ID:              "rbac#createRbacAuthorizationV1NamespacedRoleBinding",
+				SourceID:        "rbac",
+				OperationID:     "createRbacAuthorizationV1NamespacedRoleBinding",
+				Verb:            "POST",
+				Path:            "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings",
+				RequestSchemaID: "request:create",
+			},
+			{
+				ID:          "rbac#readRbacAuthorizationV1NamespacedRoleBinding",
+				SourceID:    "rbac",
+				OperationID: "readRbacAuthorizationV1NamespacedRoleBinding",
+				Verb:        "GET",
+				Path:        "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings/{name}",
+			},
+			{
+				ID:              "rbac#patchRbacAuthorizationV1NamespacedRoleBinding",
+				SourceID:        "rbac",
+				OperationID:     "patchRbacAuthorizationV1NamespacedRoleBinding",
+				Verb:            "PATCH",
+				Path:            "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings/{name}",
+				RequestSchemaID: "request:patch",
+			},
+			{
+				ID:              "rbac#replaceRbacAuthorizationV1NamespacedRoleBinding",
+				SourceID:        "rbac",
+				OperationID:     "replaceRbacAuthorizationV1NamespacedRoleBinding",
+				Verb:            "PUT",
+				Path:            "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings/{name}",
+				RequestSchemaID: "request:replace",
+			},
+			{
+				ID:          "rbac#deleteRbacAuthorizationV1NamespacedRoleBinding",
+				SourceID:    "rbac",
+				OperationID: "deleteRbacAuthorizationV1NamespacedRoleBinding",
+				Verb:        "DELETE",
+				Path:        "/apis/rbac.authorization.k8s.io/v1/namespaces/{namespace}/rolebindings/{name}",
+			},
+		},
+		Schemas: []promptcontext.SchemaHint{{
+			ID:       "request:create",
+			Required: []string{"metadata", "roleRef", "subjects"},
+			Fields: []promptcontext.FieldHint{
+				{Name: "metadata", Type: "object", Required: true},
+				{Name: "metadata.name", Type: "string", Required: true},
+				{Name: "roleRef", Type: "object", Required: true},
+				{Name: "subjects", Type: "array", Required: true},
+			},
+		}, {
+			ID:       "request:replace",
+			Required: []string{"metadata", "roleRef", "subjects"},
+			Fields: []promptcontext.FieldHint{
+				{Name: "metadata", Type: "object", Required: true},
+				{Name: "metadata.name", Type: "string", Required: true},
+				{Name: "roleRef", Type: "object", Required: true},
+				{Name: "subjects", Type: "array", Required: true},
+			},
+		}},
+	}
+	resource := APILifecycleResource(ctx, ctx.Operations[0], "Create, read, update, and delete the Kubernetes RoleBinding.", "k09_role_binding_update")
+	if got := resource.Operations["update"].OperationID; got != "replaceRbacAuthorizationV1NamespacedRoleBinding" {
+		t.Fatalf("update operation = %q, want replaceRbacAuthorizationV1NamespacedRoleBinding", got)
+	}
+}
+
 func TestAPILifecycleResourcePreservesCloudflareAccountScopeAndAliasesDatabaseID(t *testing.T) {
 	ctx := promptcontext.Context{
 		Sources: []promptcontext.SourceDocument{{ID: "cloudflare", Kind: "openapi", URI: "cloudflare.json"}},

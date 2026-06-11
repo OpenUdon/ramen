@@ -1,0 +1,250 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K09",
+  "scenario": "role_binding_update_lifecycle",
+  "recorded_at": "2026-06-11T21:49:39Z",
+  "context": "kind-ramen-m21",
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "namespace": "ramen-parity-k09-opentofu",
+      "role_binding_name": "ramen-parity-k09-role-binding",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k09-opentofu",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "found no differences, so no changes are needed."
+      },
+      "role_binding_after_apply": {
+        "exists": true,
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "namespace": "ramen-parity-k09-opentofu",
+        "name": "ramen-parity-k09-role-binding",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09",
+          "ramen.openudon.dev/phase": "create"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "ramen-parity-k09-role"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "ramen-parity-k09-service-account",
+            "namespace": "ramen-parity-k09-opentofu"
+          }
+        ]
+      },
+      "role_binding_after_update": {
+        "exists": true,
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "namespace": "ramen-parity-k09-opentofu",
+        "name": "ramen-parity-k09-role-binding",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09",
+          "ramen.openudon.dev/phase": "update"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "ramen-parity-k09-role"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "ramen-parity-k09-service-account",
+            "namespace": "ramen-parity-k09-opentofu"
+          }
+        ]
+      },
+      "role_binding_after_destroy": {
+        "exists": false,
+        "roleRef": {
+          "apiGroup": "",
+          "kind": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "runtime": "terraform",
+      "namespace": "ramen-parity-k09-terraform",
+      "role_binding_name": "ramen-parity-k09-role-binding",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k09-terraform",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "and found no differences, so no changes are needed."
+      },
+      "role_binding_after_apply": {
+        "exists": true,
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "namespace": "ramen-parity-k09-terraform",
+        "name": "ramen-parity-k09-role-binding",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09",
+          "ramen.openudon.dev/phase": "create"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "ramen-parity-k09-role"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "ramen-parity-k09-service-account",
+            "namespace": "ramen-parity-k09-terraform"
+          }
+        ]
+      },
+      "role_binding_after_update": {
+        "exists": true,
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "namespace": "ramen-parity-k09-terraform",
+        "name": "ramen-parity-k09-role-binding",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09",
+          "ramen.openudon.dev/phase": "update"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "ramen-parity-k09-role"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "ramen-parity-k09-service-account",
+            "namespace": "ramen-parity-k09-terraform"
+          }
+        ]
+      },
+      "role_binding_after_destroy": {
+        "exists": false,
+        "roleRef": {
+          "apiGroup": "",
+          "kind": "",
+          "name": ""
+        }
+      }
+    },
+    {
+      "runtime": "ramen",
+      "namespace": "ramen-parity-k09-ramen",
+      "role_binding_name": "ramen-parity-k09-role-binding",
+      "after_apply": {
+        "exists": true,
+        "name": "ramen-parity-k09-ramen",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09"
+        },
+        "phase": "Active"
+      },
+      "no_op_plan": {
+        "no_op": true,
+        "summary": "{Create:0 Update:0 Delete:0 Post:0 Put:0 Patch:0 Replace:0 NoOp:1 Read:0 Diagnostics:0}"
+      },
+      "role_binding_after_apply": {
+        "exists": true,
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "namespace": "ramen-parity-k09-ramen",
+        "name": "ramen-parity-k09-role-binding",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09",
+          "ramen.openudon.dev/phase": "create"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "ramen-parity-k09-role"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "ramen-parity-k09-service-account",
+            "namespace": "ramen-parity-k09-ramen"
+          }
+        ]
+      },
+      "role_binding_after_update": {
+        "exists": true,
+        "apiVersion": "rbac.authorization.k8s.io/v1",
+        "kind": "RoleBinding",
+        "namespace": "ramen-parity-k09-ramen",
+        "name": "ramen-parity-k09-role-binding",
+        "labels": {
+          "app.kubernetes.io/managed-by": "ramen-parity",
+          "ramen.openudon.dev/lane": "k09",
+          "ramen.openudon.dev/phase": "update"
+        },
+        "roleRef": {
+          "apiGroup": "rbac.authorization.k8s.io",
+          "kind": "Role",
+          "name": "ramen-parity-k09-role"
+        },
+        "subjects": [
+          {
+            "kind": "ServiceAccount",
+            "name": "ramen-parity-k09-service-account",
+            "namespace": "ramen-parity-k09-ramen"
+          }
+        ]
+      },
+      "role_binding_after_destroy": {
+        "exists": false,
+        "roleRef": {
+          "apiGroup": "",
+          "kind": "",
+          "name": ""
+        }
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "apiVersion",
+      "kind",
+      "metadata.name",
+      "metadata.namespace",
+      "metadata.labels",
+      "roleRef.apiGroup",
+      "roleRef.kind",
+      "roleRef.name",
+      "subjects.kind",
+      "subjects.name",
+      "subjects.namespace",
+      "update.metadata.labels",
+      "no-op",
+      "destroy.absent"
+    ]
+  }
+}

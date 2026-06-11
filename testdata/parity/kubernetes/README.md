@@ -25,18 +25,18 @@ Committed focused OpenAPI subsets should be added under this tree before a K
 scenario moves from `planned` to `recorded`, so default tests never depend on
 the sibling `../apitools` checkout.
 
-## Parked Updates
+## Recorded Update Lanes
 
-RoleBinding and ClusterRole update are intentionally unsupported in the public
-mapping registry. K07 and K08 recorded create/read/no-op/destroy behavior only;
-they did not record update-specific API-visible parity. A future K-lane must
-add focused update fixtures, committed replay or sanitized live observations,
-and mapping evidence before `kubernetes_role_binding_v1` or
-`kubernetes_cluster_role_v1` update can be advertised.
+K09, K10, and K13 record update-specific API-visible parity for
+`kubernetes_role_binding_v1`, `kubernetes_cluster_role_v1`, and
+`kubernetes_cluster_role_binding_v1`. Their committed artifacts prove
+create/update/read/no-op/destroy behavior across OpenTofu, Terraform, and
+Ramen+udon before the public mapping registry advertises the corresponding
+replace operation.
 
-## Next Static Candidate
+## Recorded ClusterRoleBinding Lane
 
-K12 is the static evidence-first Kubernetes lane for
-`kubernetes_cluster_role_binding_v1` create/read/delete. Mapping advertisement
-and live recording remain parked until recorded parity evidence and a
-follow-on mapping gate exist.
+K12 records `kubernetes_cluster_role_binding_v1` create/read/no-op/destroy
+parity across OpenTofu, Terraform, and Ramen+udon. The public mapping registry
+advertises create/read/delete from K12 evidence, while K13 separately records
+and gates the update mapping.

@@ -1,0 +1,64 @@
+{
+  "version": "ramen.kubernetes.provider-parity.v1",
+  "lane": "K10",
+  "status": "recorded",
+  "provider": {
+    "source": "hashicorp/kubernetes",
+    "version": "3.1.0",
+    "published": "2026-04-16",
+    "registry_latest": true
+  },
+  "openapi": {
+    "source_path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json",
+    "fixture": "testdata/parity/kubernetes/k10/openapi/rbac.json"
+  },
+  "safety": {
+    "live_env": "RAMEN_K8S_PARITY",
+    "record_update_env": "RAMEN_K8S_PARITY_RECORD_UPDATE",
+    "context_prefix": "kind-",
+    "resource_prefix": "ramen-parity-k10-"
+  },
+  "runtimes": [
+    "opentofu",
+    "terraform",
+    "ramen"
+  ],
+  "scenarios": [
+    {
+      "name": "cluster_role_update_lifecycle",
+      "resource_type": "kubernetes_cluster_role_v1",
+      "fixture_paths": [
+        "testdata/parity/kubernetes/k10/hcl/main.tf",
+        "testdata/parity/kubernetes/k10/openapi/rbac.json",
+        "testdata/parity/kubernetes/k10/ramen/project.uws.yaml"
+      ],
+      "observed_fields": [
+        "metadata.name",
+        "metadata.labels",
+        "apiVersion",
+        "kind",
+        "rules.apiGroups",
+        "rules.nonResourceURLs",
+        "rules.resourceNames",
+        "rules.resources",
+        "rules.verbs"
+      ],
+      "expected_transitions": [
+        "create",
+        "update",
+        "read",
+        "no-op",
+        "destroy"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/kubernetes/k10/live.observations.json"
+      ]
+    }
+  ],
+  "recorded_at": "2026-06-11T21:50:37Z",
+  "recordings_source": "RAMEN_K8S_PARITY=1 RAMEN_K8S_PARITY_RECORD_UPDATE=1 RAMEN_K8S_PARITY_LANE=k10 with OpenTofu v1.13.0-dev built from ../opentofu, Terraform from .ramen/k08-tools/terraform, Ramen+udon via kubectl proxy, context kind-ramen-m21",
+  "notes": [
+    "K10 records ClusterRole label and rule update parity across OpenTofu, Terraform, and Ramen+udon.",
+    "Mapping update advertisement is bounded to replaceRbacAuthorizationV1ClusterRole."
+  ]
+}
