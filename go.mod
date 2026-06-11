@@ -10,7 +10,7 @@ require (
 	github.com/OpenUdon/authoring v0.0.0-20260607172625-3aa69a0e0cdd
 	github.com/OpenUdon/evidence v0.0.0
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
-	github.com/OpenUdon/uws v0.0.0-20260530135301-b9c9a4efac74
+	github.com/OpenUdon/uws v0.0.0-20260611103646-81f4ffe2607f
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/zclconf/go-cty v1.18.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -56,5 +56,3 @@ require (
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )
-
-replace github.com/OpenUdon/uws => ../uws
