@@ -147,6 +147,36 @@ func TestCloudflareProviderParityReplayArtifacts(t *testing.T) {
 	}
 }
 
+func TestCloudflareD1UpdateRemainsParkedWithoutSourceOperation(t *testing.T) {
+	artifact := loadCloudflareParityArtifact(t, filepath.Join(cloudflareParityFixtureRoot, "c05", "observations.json"))
+	var d1Scenario *cloudflareParityScenario
+	for i := range artifact.Scenarios {
+		if artifact.Scenarios[i].ResourceType == "cloudflare_d1_database" {
+			d1Scenario = &artifact.Scenarios[i]
+			break
+		}
+	}
+	if d1Scenario == nil {
+		t.Fatal("C05 artifact missing cloudflare_d1_database scenario")
+	}
+	for _, operationID := range d1Scenario.OperationIDs {
+		if strings.Contains(strings.ToLower(operationID), "update") {
+			t.Fatalf("C05 D1 scenario unexpectedly advertises update operation %q", operationID)
+		}
+	}
+	notes := strings.ToLower(strings.Join(artifact.Notes, "\n"))
+	if !strings.Contains(notes, "d1 update is intentionally unsupported") {
+		t.Fatalf("C05 notes must keep D1 update parking explicit: %#v", artifact.Notes)
+	}
+	source, err := os.ReadFile(artifact.OpenAPI.SourcePath)
+	if err != nil {
+		t.Fatalf("read Cloudflare OpenAPI source: %v", err)
+	}
+	if strings.Contains(strings.ToLower(string(source)), "d1-update") {
+		t.Fatalf("focused Cloudflare source unexpectedly contains d1-update operation")
+	}
+}
+
 func loadCloudflareParityArtifact(t *testing.T, path string) cloudflareParityArtifact {
 	t.Helper()
 	data, err := os.ReadFile(path)

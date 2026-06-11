@@ -30,6 +30,9 @@ every resource they create before any recording update is accepted.
 See `LIVE.md` for the current live guardrail contract. Z01, Z02, Z04, and Z05
 are live-enabled by metadata and have committed sanitized recordings.
 Additional recording updates still require an explicit operator-scoped run.
+Z07 records broader Azure follow-up work as parked until a specific low-risk
+candidate, focused ARM fixture, cleanup policy, and default credential-free
+checks are selected.
 
 Live mutation tests are excluded from regular test suites. They require the
 `azurelive` build tag and a specific `go test -run` selection.

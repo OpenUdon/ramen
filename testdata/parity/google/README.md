@@ -24,5 +24,8 @@ per runtime and records metadata-only observations.
 New Google live recordings are committed only after explicit
 `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1` promotion, cleanup verification, and
 sanitization review.
+Y07 records broader Google Cloud follow-up work as parked until a specific
+GCS drift/update or new-resource candidate is selected with focused Discovery
+fixtures, cleanup policy, and default credential-free checks.
 
 See `LIVE.md` for the current live guardrail contract.

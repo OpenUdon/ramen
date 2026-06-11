@@ -44,6 +44,11 @@ retry/read-waiter behavior, read-confirmed delete semantics, and
 Ramen-orchestrated pre-delete settle metadata for native resources with read
 roles.
 
+M47 records the current Ramen-side state of this item as parked and
+OpenUdon-led. Ramen can contribute reviewed contract input, but should not
+start an implementation milestone, import OpenUdon product packages, or extract
+a shared module until OpenUdon has a concrete approval/governance proposal.
+
 ## Next Moves
 
 1. Compare Ramen `governance` artifacts with OpenUdon approval and

@@ -93,6 +93,12 @@ planning, refresh, import, apply, and destroy consume them in the later command
 tracks, and live-behavior claims remain parked until recorded or live
 equivalence evidence exists.
 
+M46 keeps the remaining escape hatches parked behind evidence: identity-changing
+update planning, arbitrary custom diff behavior, opaque import ID parsers, and
+automatic async resume/resubmit. These should become narrow metadata or command
+features only after a specific fixture or recorded/live equivalence case proves
+the behavior is needed.
+
 V03 carries the first consumer slice: native project resources can now declare
 `schema`, `request_bindings`, `response_bindings`, `normalizers`,
 `mapping_lifecycle`, and `required_operations`, and `ramen validate` enforces

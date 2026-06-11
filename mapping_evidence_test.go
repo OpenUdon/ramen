@@ -64,6 +64,14 @@ func TestKubernetesRoleBindingMappingIsGatedByK07Evidence(t *testing.T) {
 			t.Fatalf("%s operation IDs = %#v, want first %q", tt.purpose, mapping.Target.OperationIDs, tt.want)
 		}
 	}
+
+	mapping := registry.MapObject(tfmapping.Object{Kind: "resource", Type: "kubernetes_role_binding_v1", Provider: "provider.kubernetes"}, "update", "update")
+	if len(mapping.Diagnostics) != 1 {
+		t.Fatalf("role binding update diagnostics = %#v, want one", mapping.Diagnostics)
+	}
+	if mapping.Diagnostics[0].Code != tfmapping.DiagnosticCodeUnsupportedAction {
+		t.Fatalf("role binding update diagnostic = %q, want %q", mapping.Diagnostics[0].Code, tfmapping.DiagnosticCodeUnsupportedAction)
+	}
 }
 
 func TestKubernetesClusterRoleMappingIsGatedByK08Evidence(t *testing.T) {

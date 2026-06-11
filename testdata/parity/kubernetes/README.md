@@ -24,3 +24,12 @@ The planning baseline uses the local source artifact:
 Committed focused OpenAPI subsets should be added under this tree before a K
 scenario moves from `planned` to `recorded`, so default tests never depend on
 the sibling `../apitools` checkout.
+
+## Parked Updates
+
+RoleBinding and ClusterRole update are intentionally unsupported in the public
+mapping registry. K07 and K08 recorded create/read/no-op/destroy behavior only;
+they did not record update-specific API-visible parity. A future K-lane must
+add focused update fixtures, committed replay or sanitized live observations,
+and mapping evidence before `kubernetes_role_binding_v1` or
+`kubernetes_cluster_role_v1` update can be advertised.
