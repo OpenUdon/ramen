@@ -36,3 +36,9 @@ func runGoogleParityY06Live(ctx context.Context, t *testing.T, artifact googlePa
 	t.Skip("build with -tags 'googlelive udon' to run the Y06 live runner")
 	return googleParityLiveRecording{}
 }
+
+func runGoogleParityY08Live(ctx context.Context, t *testing.T, artifact googleParityArtifact) googleParityLiveRecording {
+	t.Helper()
+	t.Skip("build with -tags 'googlelive udon' to run the Y08 live runner")
+	return googleParityLiveRecording{}
+}

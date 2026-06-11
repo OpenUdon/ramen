@@ -50,6 +50,8 @@ func TestGoogleProviderParityLive(t *testing.T) {
 		recording = runGoogleParityY05Live(ctx, t, artifact)
 	case "y06":
 		recording = runGoogleParityY06Live(ctx, t, artifact)
+	case "y08":
+		recording = runGoogleParityY08Live(ctx, t, artifact)
 	default:
 		t.Fatalf("%s=%s is marked live-enabled but has no live runner implementation", googleParityLaneEnv, selectedLane)
 	}
@@ -106,8 +108,18 @@ func runGoogleParityY02OpenTofuRuntime(ctx context.Context, t *testing.T, bucket
 
 func runGoogleParityY03OpenTofuRuntime(ctx context.Context, t *testing.T, bucketName string) googleParityRuntimeResult {
 	t.Helper()
+	return runGoogleParityBucketLabelOpenTofuRuntime(ctx, t, bucketName, "y03")
+}
+
+func runGoogleParityY08OpenTofuRuntime(ctx context.Context, t *testing.T, bucketName string) googleParityRuntimeResult {
+	t.Helper()
+	return runGoogleParityBucketLabelOpenTofuRuntime(ctx, t, bucketName, "y08")
+}
+
+func runGoogleParityBucketLabelOpenTofuRuntime(ctx context.Context, t *testing.T, bucketName, lane string) googleParityRuntimeResult {
+	t.Helper()
 	runtimeName := "opentofu"
-	if err := validateGoogleParityDisposableBucketName(bucketName, "y03"); err != nil {
+	if err := validateGoogleParityDisposableBucketName(bucketName, lane); err != nil {
 		return googleParityFailure(runtimeName, "safety", err)
 	}
 	if observed, err := observeGoogleParityBucket(ctx, bucketName); err != nil {
@@ -116,17 +128,17 @@ func runGoogleParityY03OpenTofuRuntime(ctx context.Context, t *testing.T, bucket
 		return googleParityFailure(runtimeName, "safety", fmt.Errorf("disposable bucket %s already exists", bucketName))
 	}
 	t.Cleanup(func() {
-		if err := deleteGoogleParityBucketIfExists(context.Background(), bucketName, "y03"); err != nil {
+		if err := deleteGoogleParityBucketIfExists(context.Background(), bucketName, lane); err != nil {
 			t.Logf("cleanup Google Cloud Storage bucket %s: %v", bucketName, err)
 		}
 	})
 	workDir := filepath.Join(t.TempDir(), runtimeName)
-	if err := copyGoogleParityFixtureFile(filepath.Join(googleParityFixtureRoot, "y03", "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
+	if err := copyGoogleParityFixtureFile(filepath.Join(googleParityFixtureRoot, lane, "hcl", "main.tf"), filepath.Join(workDir, "main.tf")); err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
 	env := append(os.Environ(), googleParityEnvForTools()...)
 	tool := os.Getenv(googleParityTofuEnv)
-	if err := writeGoogleParityY03TFVars(workDir, bucketName, "create"); err != nil {
+	if err := writeGoogleParityBucketLabelTFVars(workDir, bucketName, "create"); err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
 	if err := runGoogleParityCommand(ctx, workDir, env, tool, "init", "-input=false", "-no-color"); err != nil {
@@ -143,7 +155,7 @@ func runGoogleParityY03OpenTofuRuntime(ctx context.Context, t *testing.T, bucket
 	if err != nil {
 		return googleParityFailure(runtimeName, "plan", err)
 	}
-	if err := writeGoogleParityY03TFVars(workDir, bucketName, "update"); err != nil {
+	if err := writeGoogleParityBucketLabelTFVars(workDir, bucketName, "update"); err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
 	if err := runGoogleParityCommand(ctx, workDir, env, tool, "apply", "-input=false", "-no-color", "-auto-approve"); err != nil {
@@ -329,6 +341,10 @@ func runGoogleParityY06OpenTofuRuntime(ctx context.Context, t *testing.T, bucket
 }
 
 func writeGoogleParityY03TFVars(dir, bucketName, phase string) error {
+	return writeGoogleParityBucketLabelTFVars(dir, bucketName, phase)
+}
+
+func writeGoogleParityBucketLabelTFVars(dir, bucketName, phase string) error {
 	return writeGoogleParityJSONFile(filepath.Join(dir, "terraform.tfvars.json"), map[string]string{
 		"project":      googleParityProject(),
 		"bucket_name":  bucketName,

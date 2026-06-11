@@ -24,10 +24,10 @@ per runtime and records metadata-only observations.
 New Google live recordings are committed only after explicit
 `RAMEN_GOOGLE_PARITY_RECORD_UPDATE=1` promotion, cleanup verification, and
 sanitization review.
-Y07 records broader Google Cloud follow-up work as parked until a specific
-GCS drift/update or new-resource candidate is selected with focused Discovery
-fixtures, cleanup policy, and default credential-free checks.
-Y08 is the static-first follow-up for bucket label/metadata drift. It must
-remain credential-free until a later explicit live promotion.
+Y07 records the broader Google Cloud follow-up review that selected Y08 for
+GCS bucket label/metadata drift. No separate new-resource lane is active from
+that review.
+Y08 records bucket label/metadata drift using empty disposable
+`ramen-parity-y08-*` buckets and committed sanitized live observations.
 
 See `LIVE.md` for the current live guardrail contract.

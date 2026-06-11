@@ -28,7 +28,7 @@ const (
 )
 
 var googleParityLanes = []string{"y01", "y02", "y03", "y04", "y05", "y06", "y08"}
-var googleParityLiveRunnerLanes = []string{"y02", "y03", "y04", "y05", "y06"}
+var googleParityLiveRunnerLanes = []string{"y02", "y03", "y04", "y05", "y06", "y08"}
 
 type googleParityArtifact struct {
 	Version          string                 `json:"version"`
@@ -283,7 +283,7 @@ func assertGoogleParityLiveRecording(t *testing.T, lane string, artifact googleP
 		}
 	}
 	switch lane {
-	case "y02", "y03", "y04", "y05", "y06":
+	case "y02", "y03", "y04", "y05", "y06", "y08":
 		want := compareGoogleParityObservations(recording.Observations, recording.Comparison.Fields)
 		if !reflect.DeepEqual(recording.Comparison, want) {
 			t.Fatalf("%s recording comparison = %#v, want %#v", wantLane, recording.Comparison, want)
@@ -399,10 +399,10 @@ func assertGoogleParitySafetyContract(t *testing.T, lane string, safety googlePa
 			}
 		}
 	case "y08":
-		if safety.LiveEnabled {
-			t.Fatalf("Y08 must remain live-disabled while metadata drift evidence is static")
+		if !safety.LiveEnabled {
+			t.Fatalf("Y08 must be live-enabled after metadata drift live guardrails are approved")
 		}
-		for _, guardrail := range []string{"static drift first", "empty bucket only if live-approved later", "delete bucket before recording"} {
+		for _, guardrail := range []string{"one disposable bucket at a time", "empty bucket only", "delete bucket before recording"} {
 			if !slices.Contains(safety.CostGuardrails, guardrail) {
 				t.Fatalf("Y08 cost guardrails = %#v, missing %q", safety.CostGuardrails, guardrail)
 			}

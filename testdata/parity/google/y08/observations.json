@@ -1,7 +1,7 @@
 {
   "version": "ramen.google.provider-parity.v1",
   "lane": "Y08",
-  "status": "planned",
+  "status": "recorded",
   "provider": {
     "source": "hashicorp/google",
     "version_constraint": "~> 6.0"
@@ -18,7 +18,7 @@
     "credential_binding": "google_oauth2",
     "resource_prefix": "ramen-parity-y08-",
     "requires_explicit_lane": true,
-    "live_enabled": false,
+    "live_enabled": true,
     "cleanup_fallback": "gcloud storage rm --recursive gs://<ramen-parity-y08-*> --quiet, then gcloud storage buckets describe gs://<name> to verify absence",
     "required_env": [
       "RAMEN_GOOGLE_TOFU",
@@ -26,11 +26,11 @@
       "RAMEN_GOOGLE_PROJECT"
     ],
     "cost_guardrails": [
-      "static drift first",
-      "empty bucket only if live-approved later",
+      "one disposable bucket at a time",
+      "empty bucket only",
       "delete bucket before recording"
     ],
-    "promotion": "parked until Y08 static drift fixtures are reviewed and live GCP cleanup is explicitly approved"
+    "promotion": "recorded after explicit live GCP cleanup approval"
   },
   "runtimes": [
     "opentofu",
@@ -59,16 +59,21 @@
         "labels.ramen_parity_phase"
       ],
       "expected_transitions": [
-        "static-create-plan",
-        "static-read-plan",
-        "static-update-plan",
-        "static-delete-plan",
-        "live-recording-parked"
+        "create",
+        "read",
+        "update",
+        "delete",
+        "post-delete-missing"
+      ],
+      "observation_artifacts": [
+        "testdata/parity/google/y08/live.observations.json"
       ]
     }
   ],
+  "recorded_at": "2026-06-11T22:57:02Z",
+  "recordings_source": "opt-in Y08 Google Cloud Storage bucket metadata drift live parity run",
   "notes": [
-    "Y08 is static-first evidence for GCS bucket label/metadata drift.",
-    "Live recording is intentionally parked until an operator approves GCP credentials, global bucket naming, and cleanup."
+    "Y08 records GCS bucket label/metadata drift using one empty disposable bucket per runtime.",
+    "Live execution creates no objects, IAM bindings, retention locks, requester-pays settings, public ACLs, or long-lived buckets."
   ]
 }

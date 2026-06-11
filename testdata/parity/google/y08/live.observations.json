@@ -1,0 +1,48 @@
+{
+  "version": "ramen.google.provider-parity.v1",
+  "lane": "Y08",
+  "scenario": "storage_bucket_metadata_drift_static",
+  "recorded_at": "2026-06-11T22:57:02Z",
+  "duration_ms": 34136,
+  "observations": [
+    {
+      "runtime": "opentofu",
+      "resource": "ramen-parity-y08-opentofu-18b828de",
+      "duration_ms": 15963,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.name_present": true,
+        "after_destroy.exists": false,
+        "after_update.exists": true,
+        "exists": true,
+        "labels.ramen_parity_phase_update_observable": true,
+        "no_op": true
+      }
+    },
+    {
+      "runtime": "ramen",
+      "resource": "ramen-parity-y08-ramen-18b828de",
+      "duration_ms": 18173,
+      "fields": {
+        "after_create.exists": true,
+        "after_create.name_present": true,
+        "after_destroy.exists": false,
+        "after_update.exists": true,
+        "exists": true,
+        "labels.ramen_parity_phase_update_observable": true,
+        "no_op": true
+      }
+    }
+  ],
+  "comparison": {
+    "matched": true,
+    "fields": [
+      "exists",
+      "after_create.exists",
+      "after_update.exists",
+      "labels.ramen_parity_phase_update_observable",
+      "no_op",
+      "after_destroy.exists"
+    ]
+  }
+}

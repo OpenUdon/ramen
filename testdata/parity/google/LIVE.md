@@ -99,3 +99,19 @@ If normal cleanup fails:
 gcloud storage rm --recursive gs://<ramen-parity-y05-*> --quiet
 gcloud storage buckets describe gs://<name> --format=json
 ```
+
+## Y08 Bucket Metadata Drift
+
+Y08 creates bucket names with the `ramen-parity-y08-*` prefix. It creates one
+empty bucket per runtime, applies a label-only metadata update, reads the
+bucket, deletes it, and verifies post-delete absence before preserving a
+sanitized recording.
+
+Y08 must not create objects, IAM bindings, retention locks, requester-pays
+settings, public ACLs, or long-lived buckets. If normal cleanup fails, use the
+same explicit bucket cleanup fallback:
+
+```bash
+gcloud storage rm --recursive gs://<name> --quiet
+gcloud storage buckets describe gs://<name> --format=json
+```

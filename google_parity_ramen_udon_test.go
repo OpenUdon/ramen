@@ -92,6 +92,53 @@ func TestGoogleParityY03Render(t *testing.T) {
 	}
 }
 
+func TestGoogleParityY08Render(t *testing.T) {
+	workDir := t.TempDir()
+	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
+	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	if err != nil {
+		t.Fatalf("resolve Google Discovery path: %v", err)
+	}
+	if err := renderGoogleParityProject(filepath.Join(googleParityFixtureRoot, "y08", "ramen", "project.uws.yaml"), projectPath, "ramen-parity-y08-render", "ramen-parity-render-project", "/tmp/google-service-account.json", discoveryPath, "update"); err != nil {
+		t.Fatalf("render Y08 project: %v", err)
+	}
+	assertRenderedGoogleParityProject(t, projectPath, []string{"ramen-parity-y08-render", "ramen-parity-render-project", "google_service_account_file", "storage.buckets.insert", "storage.buckets.patch"})
+	for _, tc := range []struct {
+		action      string
+		operationID string
+		summary     string
+		seed        bool
+	}{
+		{action: "create", operationID: "storage.buckets.insert", summary: "create"},
+		{action: "read", operationID: "storage.buckets.get", summary: "read"},
+		{action: "create", operationID: "storage.buckets.patch", summary: "update", seed: true},
+		{action: "delete", operationID: "storage.buckets.delete", summary: "delete", seed: true},
+	} {
+		statePath := filepath.Join(workDir, tc.action+tc.operationID+".db")
+		if tc.seed {
+			seedGoogleParityState(t, "y08", statePath)
+		}
+		result, err := tfplan.Build(context.Background(), tfplan.Options{
+			ProjectPath: projectPath,
+			StatePath:   statePath,
+			Action:      tc.action,
+		})
+		if err != nil {
+			t.Fatalf("build rendered Y08 %s plan: %v", tc.action, err)
+		}
+		if result.Plan.Errored || len(result.Plan.Resources) != 1 {
+			t.Fatalf("rendered Y08 %s plan unusable: %#v", tc.action, result.Plan)
+		}
+		resource := result.Plan.Resources[0]
+		if resource.Mapping == nil || resource.Mapping.OperationID != tc.operationID {
+			t.Fatalf("rendered Y08 %s operation = %#v, want %s", tc.action, resource.Mapping, tc.operationID)
+		}
+		if !googleParitySummaryHasOne(result.Plan.Summary, tc.summary) {
+			t.Fatalf("rendered Y08 %s summary = %#v, want one %s action", tc.action, result.Plan.Summary, tc.summary)
+		}
+	}
+}
+
 func TestGoogleParityY04Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
@@ -328,19 +375,29 @@ func runGoogleParityY02Live(ctx context.Context, t *testing.T, artifact googlePa
 
 func runGoogleParityY03Live(ctx context.Context, t *testing.T, artifact googleParityArtifact) googleParityLiveRecording {
 	t.Helper()
+	return runGoogleParityBucketLabelLive(ctx, t, artifact, "y03", runGoogleParityY03OpenTofuRuntime, runGoogleParityY03RamenRuntime)
+}
+
+func runGoogleParityY08Live(ctx context.Context, t *testing.T, artifact googleParityArtifact) googleParityLiveRecording {
+	t.Helper()
+	return runGoogleParityBucketLabelLive(ctx, t, artifact, "y08", runGoogleParityY08OpenTofuRuntime, runGoogleParityY08RamenRuntime)
+}
+
+func runGoogleParityBucketLabelLive(ctx context.Context, t *testing.T, artifact googleParityArtifact, lane string, openTofuRun, ramenRun func(context.Context, *testing.T, string) googleParityRuntimeResult) googleParityLiveRecording {
+	t.Helper()
 	started := time.Now()
 	suffix := googleParityY03RunSuffix()
 	runs := []struct {
 		runtime string
 		run     func(context.Context, *testing.T, string) googleParityRuntimeResult
 	}{
-		{runtime: "opentofu", run: runGoogleParityY03OpenTofuRuntime},
-		{runtime: "ramen", run: runGoogleParityY03RamenRuntime},
+		{runtime: "opentofu", run: openTofuRun},
+		{runtime: "ramen", run: ramenRun},
 	}
 	var observations []googleParityRuntimeObservation
 	var failures []googleParityRuntimeFailure
 	for _, run := range runs {
-		bucketName := googleParityY03BucketName(run.runtime, suffix)
+		bucketName := googleParityBucketName(lane, run.runtime, suffix)
 		result := timedGoogleParityRuntime(run.runtime, func() googleParityRuntimeResult {
 			return run.run(ctx, t, bucketName)
 		})
@@ -354,16 +411,16 @@ func runGoogleParityY03Live(ctx context.Context, t *testing.T, artifact googlePa
 		for _, failure := range failures {
 			t.Logf("%s Google parity failure [%s]: %s", failure.Runtime, failure.Class, failure.Message)
 		}
-		t.Fatalf("Y03 Google provider parity did not complete for all runtimes")
+		t.Fatalf("%s Google provider parity did not complete for all runtimes", strings.ToUpper(lane))
 	}
 	fields := []string{"exists", "after_create.exists", "after_update.exists", "labels.ramen_parity_phase_update_observable", "no_op", "after_destroy.exists"}
 	comparison := compareGoogleParityObservations(observations, fields)
 	if !comparison.Matched {
-		t.Fatalf("Y03 Google provider parity observations did not match: %#v", observations)
+		t.Fatalf("%s Google provider parity observations did not match: %#v", strings.ToUpper(lane), observations)
 	}
 	return googleParityLiveRecording{
 		Version:      googleParityArtifactV1,
-		Lane:         "Y03",
+		Lane:         strings.ToUpper(lane),
 		Scenario:     artifact.Scenarios[0].Name,
 		RecordedAt:   time.Now().UTC().Format(time.RFC3339),
 		DurationMS:   time.Since(started).Milliseconds(),
@@ -552,8 +609,18 @@ func runGoogleParityY02RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 
 func runGoogleParityY03RamenRuntime(ctx context.Context, t *testing.T, bucketName string) googleParityRuntimeResult {
 	t.Helper()
+	return runGoogleParityBucketLabelRamenRuntime(ctx, t, bucketName, "y03")
+}
+
+func runGoogleParityY08RamenRuntime(ctx context.Context, t *testing.T, bucketName string) googleParityRuntimeResult {
+	t.Helper()
+	return runGoogleParityBucketLabelRamenRuntime(ctx, t, bucketName, "y08")
+}
+
+func runGoogleParityBucketLabelRamenRuntime(ctx context.Context, t *testing.T, bucketName, lane string) googleParityRuntimeResult {
+	t.Helper()
 	runtimeName := "ramen"
-	if err := validateGoogleParityDisposableBucketName(bucketName, "y03"); err != nil {
+	if err := validateGoogleParityDisposableBucketName(bucketName, lane); err != nil {
 		return googleParityFailure(runtimeName, "safety", err)
 	}
 	if observed, err := observeGoogleParityBucket(ctx, bucketName); err != nil {
@@ -562,7 +629,7 @@ func runGoogleParityY03RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 		return googleParityFailure(runtimeName, "safety", fmt.Errorf("disposable bucket %s already exists", bucketName))
 	}
 	t.Cleanup(func() {
-		if err := deleteGoogleParityBucketIfExists(context.Background(), bucketName, "y03"); err != nil {
+		if err := deleteGoogleParityBucketIfExists(context.Background(), bucketName, lane); err != nil {
 			t.Logf("cleanup Google Cloud Storage bucket %s: %v", bucketName, err)
 		}
 	})
@@ -572,11 +639,11 @@ func runGoogleParityY03RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
 	createProjectPath := filepath.Join(workDir, "ramen-create", "project.uws.yaml")
-	if err := renderGoogleParityProject(filepath.Join(googleParityFixtureRoot, "y03", "ramen", "project.uws.yaml"), createProjectPath, bucketName, googleParityProject(), os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"), discoveryPath, "create"); err != nil {
+	if err := renderGoogleParityProject(filepath.Join(googleParityFixtureRoot, lane, "ramen", "project.uws.yaml"), createProjectPath, bucketName, googleParityProject(), os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"), discoveryPath, "create"); err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
 	updateProjectPath := filepath.Join(workDir, "ramen-update", "project.uws.yaml")
-	if err := renderGoogleParityProject(filepath.Join(googleParityFixtureRoot, "y03", "ramen", "project.uws.yaml"), updateProjectPath, bucketName, googleParityProject(), os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"), discoveryPath, "update"); err != nil {
+	if err := renderGoogleParityProject(filepath.Join(googleParityFixtureRoot, lane, "ramen", "project.uws.yaml"), updateProjectPath, bucketName, googleParityProject(), os.Getenv("GOOGLE_APPLICATION_CREDENTIALS"), discoveryPath, "update"); err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
 	statePath := filepath.Join(workDir, "state.db")
@@ -942,10 +1009,10 @@ func renderGoogleParityProject(src, dst, bucketName, projectID, serviceAccountFi
 		return fmt.Errorf("Google service account file is required")
 	}
 	out := string(data)
-	for _, placeholder := range []string{"ramen-parity-y02-existing", "ramen-parity-y03-static", "ramen-parity-y04-static", "ramen-parity-y05-static", "ramen-parity-y06-static"} {
+	for _, placeholder := range []string{"ramen-parity-y02-existing", "ramen-parity-y03-static", "ramen-parity-y04-static", "ramen-parity-y05-static", "ramen-parity-y06-static", "ramen-parity-y08-static"} {
 		out = strings.ReplaceAll(out, placeholder, bucketName)
 	}
-	for _, placeholder := range []string{"ramen-parity-y03-fixture-project", "ramen-parity-y04-fixture-project", "ramen-parity-y05-fixture-project", "ramen-parity-y06-fixture-project"} {
+	for _, placeholder := range []string{"ramen-parity-y03-fixture-project", "ramen-parity-y04-fixture-project", "ramen-parity-y05-fixture-project", "ramen-parity-y06-fixture-project", "ramen-parity-y08-fixture-project"} {
 		out = strings.ReplaceAll(out, placeholder, projectID)
 	}
 	if phase != "" {
