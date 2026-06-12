@@ -1,0 +1,39 @@
+{
+  "version": "ramen.tfconvert.conversion.v1",
+  "config_dir": "testdata/manual-corpus/kubernetes/namespace_v1/minimal/input",
+  "action": "create",
+  "strict": false,
+  "objects": [
+    {
+      "Kind": "resource",
+      "Address": "kubernetes_namespace_v1.manual",
+      "ModuleAddress": "",
+      "Type": "kubernetes_namespace_v1",
+      "Name": "manual",
+      "Provider": "",
+      "Binding": "default",
+      "Config": [
+        {
+          "Path": "metadata.name",
+          "Value": "\"ramen-manual-corpus\"",
+          "Sensitive": false,
+          "TodoID": ""
+        }
+      ],
+      "Dependencies": null,
+      "Range": {
+        "source_id": "main.tf",
+        "path": "main.tf",
+        "start": {
+          "line": 1,
+          "column": 1
+        },
+        "end": {
+          "line": 1,
+          "column": 44,
+          "byte": 43
+        }
+      }
+    }
+  ]
+}

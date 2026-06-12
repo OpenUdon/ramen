@@ -51,6 +51,12 @@ Negative cases live separately under `testdata/diagnostic-corpus`. Those tests
 assert expected diagnostics for unsupported, ambiguous, malformed, or incomplete
 conversions without weakening the clean corpus contract.
 
+Hand-curated clean cases that should not be pruned by `cmd/corpusgen` live
+under `testdata/manual-corpus`. M48 starts this root with a minimal Kubernetes
+Namespace fixture and a manifest-driven drift test that re-runs conversion,
+compares the native project and plan key artifacts, and verifies generated HCL
+is structurally equivalent to YAML.
+
 ### Findings that shaped this (verified)
 - Provider: ~266 services, ~580 `aws_*` types. Configs are ~14.3K Go
   `testAcc*Config*` string-builders (need Go execution) + ~3K statically-readable
@@ -147,6 +153,8 @@ compatibility adapter, but it should not be the canonical source model.
   *structurally* equal to the YAML (`HCLToJSON`/`YAMLToJSON` + `DeepEqual`, since
   HCL key order is not stable). CI regression gate.
 - **`testdata/corpus/`** — generated entries + `manifest.json` + `COVERAGE.md`.
+- **`testdata/manual-corpus/`** — hand-curated clean entries that are not owned
+  by `cmd/corpusgen` regeneration.
 
 ### Upstream bug fixes required to produce valid HCL
 - **`../horizon` `dethcl/encoding.go`** — `loopHash` ignored the attribute-vs-block

@@ -1,0 +1,26 @@
+[
+  {
+    "address": "kubernetes_namespace_v1.manual",
+    "kind": "resource",
+    "type": "kubernetes_namespace_v1",
+    "purpose": "create",
+    "action": "create",
+    "source_kind": "openapi",
+    "source_id": "core",
+    "source_path": "openapi/core.json",
+    "operation_id": "createCoreV1Namespace",
+    "identity_attributes": [
+      {
+        "name": "namespace_name",
+        "terraform_path": "metadata.name",
+        "request_keys": [
+          "name"
+        ],
+        "response_paths": [
+          "metadata.name"
+        ],
+        "required": true
+      }
+    ]
+  }
+]

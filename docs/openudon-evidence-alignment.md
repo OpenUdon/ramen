@@ -56,7 +56,8 @@ Ramen confirmation reads as desired-state convergence.
 
 Ramen's executor evidence tests validate generated async records through the
 Evidence async validators and keep convergence assertions out of those shared
-records. M33 rechecked the cross-repo fixture boundary: direct sidecar
-comparison remains deferred until OpenUdon promotes a stable committed sidecar
-fixture, and Ramen keeps using neutral Evidence validators without importing
-OpenUdon.
+records. M48 closes the Ramen-side cross-repo fixture comparison row as a
+boundary result: OpenUdon now owns an `openudon.async-evidence-bundle.v1`
+sidecar wrapper and verifier around neutral Evidence async records, while Ramen
+continues to validate neutral records directly and does not import OpenUdon or
+copy OpenUdon run sidecars into default Ramen tests.

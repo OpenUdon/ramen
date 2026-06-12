@@ -21,6 +21,7 @@ import (
 
 const corpusRoot = "testdata/corpus"
 const diagnosticCorpusRoot = "testdata/diagnostic-corpus"
+const manualCorpusRoot = "testdata/manual-corpus"
 const allowMissingCorpusEnv = "RAMEN_CORPUS_ALLOW_MISSING"
 
 type modelRef struct {
@@ -87,6 +88,19 @@ func loadDiagnosticManifest(t *testing.T) diagnosticManifest {
 	return m
 }
 
+func loadManualManifest(t *testing.T) manifest {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(manualCorpusRoot, "manifest.json"))
+	if err != nil {
+		t.Fatalf("read manual corpus manifest: %v", err)
+	}
+	var m manifest
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("parse manual corpus manifest: %v", err)
+	}
+	return m
+}
+
 func TestCorpusManifestNonEmpty(t *testing.T) {
 	m := loadManifest(t)
 	if len(m.Entries) == 0 {
@@ -144,6 +158,40 @@ func TestCorpusConversionsReproduceGoldens(t *testing.T) {
 	if executed != len(m.Entries) {
 		t.Fatalf("corpus conversion test executed %d of %d entries", executed, len(m.Entries))
 	}
+}
+
+func TestManualCleanCorpusReproducesKeyArtifacts(t *testing.T) {
+	m := loadManualManifest(t)
+	if len(m.Entries) == 0 {
+		t.Fatal("manual corpus manifest has no entries")
+	}
+	executed := 0
+	for _, entry := range m.Entries {
+		entry := entry
+		t.Run(entry.Path, func(t *testing.T) {
+			entryDir := filepath.Join(manualCorpusRoot, filepath.FromSlash(entry.Path))
+			res, err := tfconvert.Convert(context.Background(), tfconvert.Options{
+				ConfigDir:  filepath.Join(entryDir, "input"),
+				APISources: apiSourcesForEntry(t, entry),
+				Action:     "create",
+				OutDir:     t.TempDir(),
+			})
+			if err != nil {
+				t.Fatalf("convert: %v", err)
+			}
+			for _, d := range res.Diagnostics {
+				if d.Severity == "error" {
+					t.Fatalf("conversion produced error diagnostic %s: %s", d.Code, d.Message)
+				}
+			}
+			executed++
+
+			assertSameFile(t, res.NativeProjectPath, filepath.Join(entryDir, "project.uws.yaml"))
+			assertSameFile(t, res.PlanJSONPath, filepath.Join(entryDir, "expected", "plan.json"))
+			assertHCLMatchesYAML(t, res.NativeProjectHCLPath, res.NativeProjectPath)
+		})
+	}
+	assertCorpusExecuted(t, "manual clean corpus", executed, len(m.Entries))
 }
 
 func TestCorpusMissingFixturePolicy(t *testing.T) {

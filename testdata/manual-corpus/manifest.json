@@ -1,0 +1,21 @@
+{
+  "version": "ramen.manual-corpus.v1",
+  "entries": [
+    {
+      "path": "kubernetes/namespace_v1/minimal",
+      "provider": "kubernetes",
+      "service": "core",
+      "resource_types": [
+        "kubernetes_namespace_v1"
+      ],
+      "api_sources": [
+        {
+          "kind": "openapi",
+          "id": "core",
+          "path": "testdata/parity/kubernetes/k01/openapi/core.json"
+        }
+      ],
+      "source": "manual"
+    }
+  ]
+}
