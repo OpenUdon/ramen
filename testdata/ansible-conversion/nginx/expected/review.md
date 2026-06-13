@@ -5,7 +5,12 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 ## Conversion Summary
 
 - Playbook: `../../testdata/ansible-conversion/nginx/input/playbook.yml`
+- Project directory: `../../testdata/ansible-conversion/nginx/input`
 - Argspec documents: `1`
+- Roles paths: `none`
+- Collections paths: `none`
+- Inventory inputs: `none`
+- Extra vars: `none`
 - Lowered operations: `3`
 - Diagnostics: `1`
 - Strict failures: `0`
@@ -30,6 +35,6 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 
 - `info`: `1`
 
-## Strict Gate
+## Unsupported Gate
 
 Status: `pass`. No strict-failure diagnostics were emitted.

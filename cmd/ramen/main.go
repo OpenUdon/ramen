@@ -2410,7 +2410,7 @@ func runConvertCommand(ctx context.Context, args []string) {
 
 func convertUsage(out *os.File, command string) {
 	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n", command)
-	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--out DIR] [--strict]\n\n", command)
+	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--out DIR] [--ignore-unsupported]\n\n", command)
 	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
 }
 
@@ -2418,12 +2418,22 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("ramen convert ansible", flag.ExitOnError)
 	playbook := fs.String("playbook", "", "Ansible playbook YAML file")
 	outDir := fs.String("out", ".ramen/convert-ansible", "Output directory for converted artifacts")
-	strict := fs.Bool("strict", false, "Exit non-zero when strict-failure diagnostics are present")
+	projectDir := fs.String("project-dir", "", "Static Ansible project root (defaults to the playbook directory)")
+	strict := fs.Bool("strict", false, "Deprecated for Ansible conversion; unsupported constructs fail by default")
+	ignoreUnsupported := fs.Bool("ignore-unsupported", false, "Write a partial workflow that omits unsupported Ansible constructs")
 	var argspecs repeatedStringFlag
+	var rolesPaths repeatedStringFlag
+	var collectionsPaths repeatedStringFlag
+	var inventoryPaths repeatedStringFlag
+	var extraVars repeatedStringFlag
 	fs.Var(&argspecs, "argspec", "Collection argspec document as ID=PATH (repeatable; uws.ansible.1.0 shape)")
+	fs.Var(&rolesPaths, "roles-path", "Static Ansible roles search path (repeatable; recorded for conversion provenance)")
+	fs.Var(&collectionsPaths, "collections-path", "Static Ansible collections search path (repeatable; recorded for conversion provenance)")
+	fs.Var(&inventoryPaths, "inventory", "Inventory file or directory (repeatable; recorded for conversion provenance)")
+	fs.Var(&extraVars, "extra-var", "Static extra variable NAME=VALUE or @file (repeatable; recorded for conversion provenance)")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--out DIR] [--strict]\n\n")
-		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS 1.6 workflow bound to ansible-module sources. Tier-3 constructs (complex Jinja2, dynamic includes, unknown modules) become diagnostics, not guesses.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--out DIR] [--ignore-unsupported]\n\n")
+		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS 1.6 workflow bound to ansible-module sources. Unsupported constructs are reported explicitly and fail the command unless --ignore-unsupported is set.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -2443,10 +2453,16 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 		specs = append(specs, ansibleconvert.ArgspecInput{ID: strings.TrimSpace(id), Path: strings.TrimSpace(path)})
 	}
 	result, err := ansibleconvert.Convert(ctx, ansibleconvert.Options{
-		PlaybookPath: *playbook,
-		Argspecs:     specs,
-		OutDir:       *outDir,
-		Strict:       *strict,
+		PlaybookPath:      *playbook,
+		Argspecs:          specs,
+		OutDir:            *outDir,
+		Strict:            *strict,
+		ProjectDir:        *projectDir,
+		RolesPaths:        []string(rolesPaths),
+		CollectionsPaths:  []string(collectionsPaths),
+		InventoryPaths:    []string(inventoryPaths),
+		ExtraVars:         []string(extraVars),
+		IgnoreUnsupported: *ignoreUnsupported,
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -2456,11 +2472,23 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	if result.UWSPath != "" {
 		fmt.Printf("UWS document: %s\n", result.UWSPath)
 	} else {
-		fmt.Println("UWS document: not written (no tasks could be lowered; see diagnostics)")
+		fmt.Println("UWS document: not written (unsupported features or no lowerable tasks; see diagnostics)")
 	}
 	fmt.Printf("Diagnostics: %s (%d total, %d strict)\n", result.DiagnosticsJSON, len(result.Diagnostics), result.StrictFailures)
 	fmt.Printf("Review: %s\n", result.ReviewMD)
-	if *strict && result.StrictFailures > 0 {
+	if result.StrictFailures > 0 && !*ignoreUnsupported {
+		fmt.Fprintf(os.Stderr, "ramen convert ansible: unsupported Ansible features found (%d strict diagnostics); workflow artifacts were not written\n", result.StrictFailures)
+		for _, diag := range result.Diagnostics {
+			if !diag.StrictFailure {
+				continue
+			}
+			task := diag.Task
+			if task == "" {
+				task = "-"
+			}
+			fmt.Fprintf(os.Stderr, "- %s task=%q: %s\n", diag.Code, task, diag.Message)
+		}
+		fmt.Fprintln(os.Stderr, "rerun with --ignore-unsupported to write a partial workflow that omits unsupported constructs")
 		os.Exit(3)
 	}
 }

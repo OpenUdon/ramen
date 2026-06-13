@@ -11,11 +11,12 @@ import (
 
 // loweredTask pairs a parsed task with its assigned identifiers.
 type loweredTask struct {
-	task      *Task
-	stepID    string
-	opID      string
-	isHandler bool
-	skipped   bool
+	task       *Task
+	stepID     string
+	opID       string
+	isHandler  bool
+	hostFanOut bool
+	skipped    bool
 }
 
 type lowerer struct {
@@ -32,9 +33,16 @@ type lowerer struct {
 }
 
 // LowerPlaybook converts the parsed playbook into a UWS 1.6 document plus
-// review diagnostics. The document may be incomplete when strict diagnostics
-// are present; it remains schema-valid for review.
+// review diagnostics using default lowering options. The document may be
+// incomplete when strict diagnostics are present; it remains schema-valid for
+// review.
 func LowerPlaybook(pb *Playbook, idx *ArgspecIndex) (*uws1.Document, []Diagnostic) {
+	return LowerPlaybookWithOptions(pb, idx, LowerOptions{})
+}
+
+// LowerPlaybookWithOptions converts the parsed playbook into a UWS 1.6
+// document plus review diagnostics.
+func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions) (*uws1.Document, []Diagnostic) {
 	lw := &lowerer{
 		idx:           idx,
 		usedIDs:       map[string]bool{},
@@ -65,9 +73,14 @@ func LowerPlaybook(pb *Playbook, idx *ArgspecIndex) (*uws1.Document, []Diagnosti
 			variables[name] = value
 			lw.vars[name] = true
 		}
-		if hosts := strings.TrimSpace(play.Hosts); hosts != "" && hosts != "localhost" && hosts != "127.0.0.1" {
-			lw.addDiag(Diagnostic{Code: CodeHostsRuntimeOwned, Severity: "info",
-				Message: fmt.Sprintf("play %q targets hosts %q; host fan-out and connection are runtime-owned (stage-1 inventory posture)", play.Name, hosts)})
+		if playNeedsHostFanOut(play.Hosts) {
+			if opts.HostFanOut {
+				lw.addDiag(Diagnostic{Code: CodeHostsRuntimeOwned, Severity: "info",
+					Message: fmt.Sprintf("play %q targets hosts %q; task steps fan out over $inputs.hosts and connection details remain runtime-owned", play.Name, strings.TrimSpace(play.Hosts))})
+			} else {
+				lw.addDiag(Diagnostic{Code: CodeHostsRuntimeOwned, Severity: "info",
+					Message: fmt.Sprintf("play %q targets hosts %q; host fan-out and connection are runtime-owned (stage-1 inventory posture)", play.Name, strings.TrimSpace(play.Hosts))})
+			}
 		}
 	}
 
@@ -75,9 +88,20 @@ func LowerPlaybook(pb *Playbook, idx *ArgspecIndex) (*uws1.Document, []Diagnosti
 	// after a producer has successfully lowered, preserving playbook order.
 	var flat []*loweredTask
 	notifiersByHandler := map[string][]*loweredTask{}
+	needsHostsInput := false
 	for _, play := range pb.Plays {
+		hostFanOut := opts.HostFanOut && playNeedsHostFanOut(play.Hosts)
+		if hostFanOut {
+			needsHostsInput = true
+		}
+		for _, task := range play.PreTasks {
+			flat = append(flat, lw.flatten(task, nil, hostFanOut)...)
+		}
 		for _, task := range play.Tasks {
-			flat = append(flat, lw.flatten(task, nil)...)
+			flat = append(flat, lw.flatten(task, nil, hostFanOut)...)
+		}
+		for _, task := range play.PostTasks {
+			flat = append(flat, lw.flatten(task, nil, hostFanOut)...)
 		}
 	}
 
@@ -128,19 +152,32 @@ func LowerPlaybook(pb *Playbook, idx *ArgspecIndex) (*uws1.Document, []Diagnosti
 	lw.applyNeededOutputs()
 
 	if len(variables) > 0 {
-		lw.doc.Components = &uws1.Components{Variables: variables}
+		lw.ensureComponents()
+		for name, value := range variables {
+			lw.doc.Components.Variables[name] = value
+		}
 	}
-	lw.doc.Workflows = []*uws1.Workflow{{
+	workflow := &uws1.Workflow{
 		WorkflowID: "main",
 		Type:       uws1.WorkflowTypeSequence,
 		Steps:      steps,
-	}}
+	}
+	if needsHostsInput {
+		workflow.Inputs = &uws1.ParamSchema{
+			Type:     "object",
+			Required: []string{"hosts"},
+			Properties: map[string]*uws1.ParamSchema{
+				"hosts": {Type: "array", Items: &uws1.ParamSchema{Type: "string"}},
+			},
+		}
+	}
+	lw.doc.Workflows = []*uws1.Workflow{workflow}
 	return lw.doc, lw.diags
 }
 
 // flatten expands block constructs into a linear task list, inheriting the
 // block-level when onto children that have none.
-func (lw *lowerer) flatten(task *Task, inheritedWhen []string) []*loweredTask {
+func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) []*loweredTask {
 	if task.DynamicInclude != "" {
 		lw.addDiag(Diagnostic{Code: CodeDynamicInclude, Severity: "error", StrictFailure: true, Task: task.Name,
 			Message: fmt.Sprintf("%s cannot be statically lowered; inline the tasks or convert them separately", task.DynamicInclude)})
@@ -182,7 +219,7 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string) []*loweredTask {
 		}
 		var out []*loweredTask
 		for _, child := range task.Block {
-			out = append(out, lw.flatten(child, when)...)
+			out = append(out, lw.flatten(child, when, hostFanOut)...)
 		}
 		return out
 	}
@@ -194,7 +231,7 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string) []*loweredTask {
 		base = sanitizeID(shortModuleName(task.Module))
 	}
 	stepID := lw.uniqueID(base)
-	return []*loweredTask{{task: task, stepID: stepID, opID: stepID}}
+	return []*loweredTask{{task: task, stepID: stepID, opID: stepID, hostFanOut: hostFanOut}}
 }
 
 // lowerTask converts one flattened task into an operation plus its workflow
@@ -227,6 +264,16 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 
 	step := &uws1.Step{StepID: lt.stepID, OperationRef: lt.opID}
 	ctx := &exprContext{vars: lw.vars, registered: lw.registered, needOutput: lw.noteNeededOutput}
+	if lt.hostFanOut {
+		if task.Loop != nil {
+			lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "host fan-out and task loop combine into a nested Ansible execution matrix; this converter does not lower both loops on one task"})
+			lt.skipped = true
+			return nil
+		}
+		step.ForEach = "$inputs.hosts"
+		step.Inputs = map[string]any{"host": "$item"}
+	}
 
 	// Loop lowers to forEach on the step; $item becomes available inside.
 	if task.Loop != nil {
@@ -299,6 +346,13 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 // handler operation; switch executes at most one matching case, preserving
 // Ansible's run-once handler semantics without logical OR.
 func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.Step {
+	for _, notifier := range notifiers {
+		if notifier.hostFanOut {
+			lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: handler.Name,
+				Message: "handler notification after host fan-out needs per-host changed evaluation; UWS 1.6 forEach aggregates changed outputs, so the handler was not lowered"})
+			return nil
+		}
+	}
 	// A handler's own when would AND with the notifier gate in Ansible; UWS
 	// core has no logical operators, so the combination fails closed rather
 	// than dropping the handler's guard.
@@ -367,12 +421,7 @@ func (lw *lowerer) lowerLoopItems(task *Task, ctx *exprContext) (string, bool) {
 		if name == "_items" || lw.vars[name] {
 			name = fmt.Sprintf("loop_items_%d", lw.varCounter)
 		}
-		if lw.doc.Components == nil {
-			lw.doc.Components = &uws1.Components{Variables: map[string]any{}}
-		}
-		if lw.doc.Components.Variables == nil {
-			lw.doc.Components.Variables = map[string]any{}
-		}
+		lw.ensureComponents()
 		lw.doc.Components.Variables[name] = loop
 		lw.vars[name] = true
 		return "$variables." + name, true
@@ -466,6 +515,25 @@ func sourceUWSName(sourceID string) string {
 		return name
 	}
 	return "source"
+}
+
+func (lw *lowerer) ensureComponents() {
+	if lw.doc.Components == nil {
+		lw.doc.Components = &uws1.Components{Variables: map[string]any{}}
+	}
+	if lw.doc.Components.Variables == nil {
+		lw.doc.Components.Variables = map[string]any{}
+	}
+}
+
+func playNeedsHostFanOut(hosts string) bool {
+	hosts = strings.TrimSpace(hosts)
+	switch hosts {
+	case "", "localhost", "127.0.0.1":
+		return false
+	default:
+		return true
+	}
 }
 
 func (lw *lowerer) addDiag(d Diagnostic) {

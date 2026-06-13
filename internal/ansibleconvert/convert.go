@@ -18,6 +18,7 @@ import (
 // (YAML + HCL) plus diagnostics (JSON + Markdown). Conversion is static; no
 // Ansible, module, or workflow execution happens here.
 func Convert(_ context.Context, opts Options) (*Result, error) {
+	opts = normalizeOptions(opts)
 	data, err := os.ReadFile(opts.PlaybookPath)
 	if err != nil {
 		return nil, fmt.Errorf("read playbook: %w", err)
@@ -31,7 +32,9 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 
-	doc, lowerDiags := LowerPlaybook(playbook, idx)
+	doc, lowerDiags := LowerPlaybookWithOptions(playbook, idx, LowerOptions{
+		HostFanOut: len(opts.InventoryPaths) > 0,
+	})
 	diags := append(parseDiags, lowerDiags...)
 	if len(doc.Operations) == 0 {
 		diags = append(diags, Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true,
@@ -59,7 +62,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	if err := writeDiagnostics(result, diags); err != nil {
 		return nil, err
 	}
-	if len(doc.Operations) > 0 {
+	if len(doc.Operations) > 0 && (result.StrictFailures == 0 || opts.IgnoreUnsupported) {
 		result.UWSPath = filepath.Join(opts.OutDir, "workflows", "workflow.uws.yaml")
 		result.HCLPath = filepath.Join(opts.OutDir, "workflows", "workflow.hcl")
 		if err := convertcore.WriteDocumentFormats(doc, result.UWSPath, result.HCLPath); err != nil {
@@ -70,6 +73,17 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 		return nil, err
 	}
 	return result, nil
+}
+
+func normalizeOptions(opts Options) Options {
+	if strings.TrimSpace(opts.ProjectDir) == "" {
+		dir := filepath.Dir(opts.PlaybookPath)
+		if dir == "" {
+			dir = "."
+		}
+		opts.ProjectDir = dir
+	}
+	return opts
 }
 
 func sortDiagnostics(diags []Diagnostic) {
@@ -127,7 +141,12 @@ func writeReview(result *Result, doc *uws1.Document, opts Options) error {
 
 	b.WriteString("## Conversion Summary\n\n")
 	fmt.Fprintf(&b, "- Playbook: `%s`\n", opts.PlaybookPath)
+	fmt.Fprintf(&b, "- Project directory: `%s`\n", opts.ProjectDir)
 	fmt.Fprintf(&b, "- Argspec documents: `%d`\n", len(opts.Argspecs))
+	fmt.Fprintf(&b, "- Roles paths: `%s`\n", reviewList(opts.RolesPaths))
+	fmt.Fprintf(&b, "- Collections paths: `%s`\n", reviewList(opts.CollectionsPaths))
+	fmt.Fprintf(&b, "- Inventory inputs: `%s`\n", reviewList(opts.InventoryPaths))
+	fmt.Fprintf(&b, "- Extra vars: `%s`\n", reviewList(opts.ExtraVars))
 	fmt.Fprintf(&b, "- Lowered operations: `%d`\n", len(doc.Operations))
 	fmt.Fprintf(&b, "- Diagnostics: `%d`\n", len(result.Diagnostics))
 	fmt.Fprintf(&b, "- Strict failures: `%d`\n", result.StrictFailures)
@@ -171,16 +190,23 @@ func writeReview(result *Result, doc *uws1.Document, opts Options) error {
 		}
 	}
 
-	b.WriteString("\n## Strict Gate\n\n")
+	b.WriteString("\n## Unsupported Gate\n\n")
 	switch {
 	case result.StrictFailures == 0:
 		b.WriteString("Status: `pass`. No strict-failure diagnostics were emitted.\n")
-	case opts.Strict:
-		fmt.Fprintf(&b, "Status: `fail`. `--strict` was requested and `%d` strict-failure diagnostics were emitted.\n", result.StrictFailures)
+	case !opts.IgnoreUnsupported:
+		fmt.Fprintf(&b, "Status: `fail`. `%d` strict-failure diagnostics were emitted, so workflow artifacts were not written. Rerun with `--ignore-unsupported` to write a partial workflow that omits unsupported constructs.\n", result.StrictFailures)
 	default:
-		fmt.Fprintf(&b, "Status: `not-enforced`. `%d` strict-failure diagnostics were emitted; rerun with `--strict` to make them exit non-zero.\n", result.StrictFailures)
+		fmt.Fprintf(&b, "Status: `ignored`. `%d` strict-failure diagnostics were emitted, but `--ignore-unsupported` allowed partial workflow artifacts to be written without unsupported constructs.\n", result.StrictFailures)
 	}
 	return os.WriteFile(result.ReviewMD, []byte(b.String()), 0o644)
+}
+
+func reviewList(values []string) string {
+	if len(values) == 0 {
+		return "none"
+	}
+	return strings.Join(values, ", ")
 }
 
 func writeArtifactPath(b *strings.Builder, label, path string) {

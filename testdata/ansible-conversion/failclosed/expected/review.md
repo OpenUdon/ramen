@@ -5,7 +5,12 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 ## Conversion Summary
 
 - Playbook: `../../testdata/ansible-conversion/failclosed/input/playbook.yml`
+- Project directory: `../../testdata/ansible-conversion/failclosed/input`
 - Argspec documents: `1`
+- Roles paths: `none`
+- Collections paths: `none`
+- Inventory inputs: `none`
+- Extra vars: `none`
 - Lowered operations: `4`
 - Diagnostics: `7`
 - Strict failures: `7`
@@ -31,6 +36,6 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 
 - `error`: `7`
 
-## Strict Gate
+## Unsupported Gate
 
-Status: `not-enforced`. `7` strict-failure diagnostics were emitted; rerun with `--strict` to make them exit non-zero.
+Status: `ignored`. `7` strict-failure diagnostics were emitted, but `--ignore-unsupported` allowed partial workflow artifacts to be written without unsupported constructs.

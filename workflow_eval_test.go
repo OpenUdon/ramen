@@ -131,7 +131,7 @@ func assertWorkflowEvalReview(t *testing.T, entry workflowEvalEntry) {
 		t.Fatalf("read %s review: %v", entry.ID, err)
 	}
 	text := string(data)
-	for _, want := range []string{"# Ansible Conversion Review", "## Conversion Summary", "## Strict Gate"} {
+	for _, want := range []string{"# Ansible Conversion Review", "## Conversion Summary", "## Unsupported Gate"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("%s review missing %q", entry.ID, want)
 		}

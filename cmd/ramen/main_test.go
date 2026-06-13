@@ -98,7 +98,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
 	}
-	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "ansible-module"} {
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--ignore-unsupported", "ansible-module"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
 		}
@@ -1291,7 +1291,16 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 	outDir := filepath.Join(root, "ansible")
 	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
 	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
-	cmd := helperCommand("convert", "ansible", "--playbook", playbookPath, "--argspec", "builtin="+argspecPath, "--out", outDir)
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "builtin="+argspecPath,
+		"--project-dir", root,
+		"--roles-path", filepath.Join(root, "roles"),
+		"--collections-path", filepath.Join(root, "collections"),
+		"--inventory", filepath.Join(root, "inventory.ini"),
+		"--extra-var", "env=test",
+		"--ignore-unsupported",
+		"--out", outDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("convert ansible failed: %v\n%s", err, output)
@@ -1311,8 +1320,45 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read review: %v", err)
 	}
-	if !strings.Contains(string(review), "## Strict Gate") || !strings.Contains(string(review), "Generated artifacts are static review scaffolding") {
+	reviewText := string(review)
+	for _, expected := range []string{"## Unsupported Gate", "Generated artifacts are static review scaffolding", "Project directory:", "Roles paths:", "Collections paths:", "Inventory inputs:", "Extra vars:", "env=test"} {
+		if !strings.Contains(reviewText, expected) {
+			t.Fatalf("review missing %q:\n%s", expected, review)
+		}
+	}
+	if !strings.Contains(reviewText, filepath.Join(root, "roles")) {
 		t.Fatalf("review missing expected sections:\n%s", review)
+	}
+}
+
+func TestCLIConvertAnsibleUnsupportedExitsByDefault(t *testing.T) {
+	root := t.TempDir()
+	outDir := filepath.Join(root, "ansible")
+	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "tier3", "playbook.yml")
+	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "builtin="+argspecPath,
+		"--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("convert ansible unsupported unexpectedly succeeded:\n%s", output)
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 3 {
+		t.Fatalf("convert ansible exit = %v, want code 3\n%s", err, output)
+	}
+	text := string(output)
+	for _, expected := range []string{"unsupported Ansible features found", "ansible.jinja_unsupported", "rerun with --ignore-unsupported"} {
+		if !strings.Contains(text, expected) {
+			t.Fatalf("unsupported output missing %q:\n%s", expected, output)
+		}
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "workflows", "workflow.uws.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("unsupported conversion should not write workflow, stat err=%v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, "expected", "diagnostics.json")); err != nil {
+		t.Fatalf("unsupported conversion should write diagnostics: %v", err)
 	}
 }
 

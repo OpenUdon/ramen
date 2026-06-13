@@ -6,8 +6,8 @@
 package ansibleconvert
 
 // ArgspecInput names a collection argspec document (uws.ansible.1.0 shape)
-// supplied on the command line as ID=PATH. The ID becomes the UWS
-// sourceDescription name; the path becomes its URL.
+// supplied on the command line as ID=PATH. The ID is the raw argspec lookup
+// source; conversion sanitizes it before emitting a UWS sourceDescription name.
 type ArgspecInput struct {
 	ID   string
 	Path string
@@ -15,10 +15,24 @@ type ArgspecInput struct {
 
 // Options configures a single playbook conversion.
 type Options struct {
-	PlaybookPath string
-	Argspecs     []ArgspecInput
-	OutDir       string
-	Strict       bool
+	PlaybookPath     string
+	Argspecs         []ArgspecInput
+	OutDir           string
+	Strict           bool
+	ProjectDir       string
+	RolesPaths       []string
+	CollectionsPaths []string
+	InventoryPaths   []string
+	ExtraVars        []string
+	// IgnoreUnsupported allows workflow artifacts to be written even when
+	// strict-failure diagnostics were emitted. The resulting workflow omits the
+	// unsupported constructs identified by diagnostics.
+	IgnoreUnsupported bool
+}
+
+// LowerOptions configures static lowering choices after playbook parsing.
+type LowerOptions struct {
+	HostFanOut bool
 }
 
 // Diagnostic codes emitted by the Ansible converter. Catalog entries live in

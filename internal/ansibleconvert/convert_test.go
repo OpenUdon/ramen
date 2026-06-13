@@ -14,13 +14,29 @@ import (
 
 func runConvert(t *testing.T, fixture string) (*Result, *uws1.Document) {
 	t.Helper()
+	return runConvertWithOptions(t, fixture, Options{})
+}
+
+func runConvertWithOptions(t *testing.T, fixture string, opts Options) (*Result, *uws1.Document) {
+	t.Helper()
 	outDir := t.TempDir()
+	opts.PlaybookPath = filepath.Join("testdata", fixture, "playbook.yml")
+	opts.Argspecs = []ArgspecInput{
+		{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+	}
+	opts.OutDir = outDir
+	opts.IgnoreUnsupported = true
 	result, err := Convert(context.Background(), Options{
-		PlaybookPath: filepath.Join("testdata", fixture, "playbook.yml"),
-		Argspecs: []ArgspecInput{
-			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
-		},
-		OutDir: outDir,
+		PlaybookPath:      opts.PlaybookPath,
+		Argspecs:          opts.Argspecs,
+		OutDir:            opts.OutDir,
+		Strict:            opts.Strict,
+		ProjectDir:        opts.ProjectDir,
+		RolesPaths:        opts.RolesPaths,
+		CollectionsPaths:  opts.CollectionsPaths,
+		InventoryPaths:    opts.InventoryPaths,
+		ExtraVars:         opts.ExtraVars,
+		IgnoreUnsupported: opts.IgnoreUnsupported,
 	})
 	if err != nil {
 		t.Fatalf("Convert(%s) failed: %v", fixture, err)
@@ -37,6 +53,36 @@ func runConvert(t *testing.T, fixture string) (*Result, *uws1.Document) {
 		t.Fatalf("emitted UWS document does not validate: %v", err)
 	}
 	return result, &doc
+}
+
+func TestConvertUnsupportedBlocksWorkflowArtifactsByDefault(t *testing.T) {
+	outDir := t.TempDir()
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: filepath.Join("testdata", "tier3", "playbook.yml"),
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir: outDir,
+	})
+	if err != nil {
+		t.Fatalf("Convert(tier3) failed: %v", err)
+	}
+	if result.StrictFailures == 0 {
+		t.Fatalf("expected strict failures: %#v", result.Diagnostics)
+	}
+	if result.UWSPath != "" || result.HCLPath != "" {
+		t.Fatalf("unsupported conversion wrote workflow artifacts: %#v", result)
+	}
+	if _, err := os.Stat(result.DiagnosticsJSON); err != nil {
+		t.Fatalf("diagnostics JSON not written: %v", err)
+	}
+	review, err := os.ReadFile(result.ReviewMD)
+	if err != nil {
+		t.Fatalf("review not written: %v", err)
+	}
+	if !strings.Contains(string(review), "workflow artifacts were not written") {
+		t.Fatalf("review missing fail gate:\n%s", review)
+	}
 }
 
 func findStep(steps []*uws1.Step, stepID string) *uws1.Step {
@@ -101,6 +147,71 @@ func TestConvertNginxPlaybook(t *testing.T) {
 	}
 }
 
+func TestConvertInventoryHostFanOutLowersInputsAndForEach(t *testing.T) {
+	outDir := t.TempDir()
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: filepath.Join("testdata", "hostfanout", "playbook.yml"),
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		InventoryPaths: []string{filepath.Join("testdata", "inventory.ini")},
+		OutDir:         outDir,
+	})
+	if err != nil {
+		t.Fatalf("Convert(hostfanout) failed: %v", err)
+	}
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatalf("read emitted UWS document: %v", err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse emitted UWS document: %v", err)
+	}
+	if err := doc.Validate(); err != nil {
+		t.Fatalf("emitted UWS document does not validate: %v", err)
+	}
+	workflow := doc.Workflows[0]
+	if workflow.Inputs == nil || workflow.Inputs.Properties["hosts"].Type != "array" || workflow.Inputs.Properties["hosts"].Items.Type != "string" {
+		t.Fatalf("workflow inputs = %#v, want hosts string array", workflow.Inputs)
+	}
+	step := findStep(workflow.Steps, "ensure_nginx_is_present")
+	if step == nil {
+		t.Fatalf("host fan-out step missing: %#v", workflow.Steps)
+	}
+	if step.ForEach != "$inputs.hosts" {
+		t.Fatalf("forEach = %q, want $inputs.hosts", step.ForEach)
+	}
+	if step.Inputs["host"] != "$item" {
+		t.Fatalf("step inputs = %#v, want host bound to $item", step.Inputs)
+	}
+}
+
+func TestConvertInventoryHostFanOutWithHandlerFailsClosed(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "nginx", Options{
+		InventoryPaths: []string{filepath.Join("testdata", "inventory.ini")},
+	})
+
+	if step := findStep(doc.Workflows[0].Steps, "install_nginx"); step == nil || step.ForEach != "$inputs.hosts" {
+		t.Fatalf("install step did not fan out over hosts: %#v", step)
+	}
+	if step := findStep(doc.Workflows[0].Steps, "restart_nginx"); step != nil {
+		t.Fatalf("host fan-out handler should fail closed, got %#v", step)
+	}
+	var sawHandlerDiagnostic bool
+	for _, d := range result.Diagnostics {
+		if d.Code == CodePlaybookShape && d.Task == "restart nginx" && d.StrictFailure && strings.Contains(d.Message, "per-host changed") {
+			sawHandlerDiagnostic = true
+		}
+	}
+	if !sawHandlerDiagnostic {
+		t.Fatalf("missing host fan-out handler diagnostic: %#v", result.Diagnostics)
+	}
+}
+
 func TestConvertSanitizesDottedArgspecSourceID(t *testing.T) {
 	// The natural argspec ID is the collection FQCN (e.g. "ansible.builtin"),
 	// but UWS sourceDescription names forbid dots. Conversion must sanitize the
@@ -139,6 +250,25 @@ func TestConvertSanitizesDottedArgspecSourceID(t *testing.T) {
 		if op.SourceOperationID != "" && !strings.HasPrefix(op.SourceOperationID, "ansible.builtin.") {
 			t.Fatalf("operation %q sourceOperationId = %q, want module FQCN preserved", op.OperationID, op.SourceOperationID)
 		}
+	}
+}
+
+func TestLoadArgspecsRejectsSanitizedSourceNameCollision(t *testing.T) {
+	root := t.TempDir()
+	first := filepath.Join(root, "first.json")
+	second := filepath.Join(root, "second.json")
+	if err := os.WriteFile(first, []byte(`{"argspec":"uws.ansible.1.0","collection":"acme.one","modules":{"acme.one.first":{"parameters":{}}}}`), 0o644); err != nil {
+		t.Fatalf("write first argspec: %v", err)
+	}
+	if err := os.WriteFile(second, []byte(`{"argspec":"uws.ansible.1.0","collection":"acme.two","modules":{"acme.two.second":{"parameters":{}}}}`), 0o644); err != nil {
+		t.Fatalf("write second argspec: %v", err)
+	}
+	_, err := LoadArgspecs([]ArgspecInput{
+		{ID: "acme.one", Path: first},
+		{ID: "acme-one", Path: second},
+	})
+	if err == nil || !strings.Contains(err.Error(), "sanitized source name") {
+		t.Fatalf("LoadArgspecs error = %v, want sanitized source collision", err)
 	}
 }
 
@@ -323,16 +453,26 @@ func TestConvertFailClosedGuardsAndTargets(t *testing.T) {
 	}
 }
 
-func TestConvertPlayLevelSectionsAreStrictDiagnostics(t *testing.T) {
+func TestConvertPlayLevelPreAndPostTasksLowerWithRolesDiagnostic(t *testing.T) {
 	result, doc := runConvert(t, "playsections")
 
 	if findOperation(doc, "main_task") == nil {
 		t.Fatalf("main task should still be present for review")
 	}
-	if findOperation(doc, "pre_task_omitted") != nil || findOperation(doc, "post_task_omitted") != nil {
-		t.Fatalf("unsupported play-level sections should not lower silently: %#v", doc.Operations)
+	for _, id := range []string{"pre_task_omitted", "main_task", "post_task_omitted"} {
+		if findOperation(doc, id) == nil {
+			t.Fatalf("%s should be present for review: %#v", id, doc.Operations)
+		}
 	}
-	wantSections := map[string]bool{"pre_tasks": false, "post_tasks": false, "roles": false}
+	var gotOrder []string
+	for _, step := range doc.Workflows[0].Steps {
+		gotOrder = append(gotOrder, step.OperationRef)
+	}
+	wantOrder := []string{"pre_task_omitted", "main_task", "post_task_omitted"}
+	if !slices.Equal(gotOrder, wantOrder) {
+		t.Fatalf("step order = %v, want %v", gotOrder, wantOrder)
+	}
+	wantSections := map[string]bool{"roles": false}
 	for _, d := range result.Diagnostics {
 		for section := range wantSections {
 			if d.Code == CodePlaybookShape && d.StrictFailure && strings.Contains(d.Message, `"`+section+`"`) {
@@ -414,7 +554,8 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 				Argspecs: []ArgspecInput{
 					{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
 				},
-				OutDir: outDir,
+				OutDir:            outDir,
+				IgnoreUnsupported: true,
 			})
 			if err != nil {
 				t.Fatalf("Convert(%s) failed: %v", name, err)

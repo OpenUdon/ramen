@@ -16,11 +16,13 @@ type Playbook struct {
 
 // Play holds one play's target, variables, tasks, and handlers.
 type Play struct {
-	Name     string
-	Hosts    string
-	Vars     map[string]any
-	Tasks    []*Task
-	Handlers []*Task
+	Name      string
+	Hosts     string
+	Vars      map[string]any
+	PreTasks  []*Task
+	Tasks     []*Task
+	PostTasks []*Task
+	Handlers  []*Task
 }
 
 // Task is one task (or handler) entry. Exactly one of Module or Block is set
@@ -82,9 +84,17 @@ func ParsePlaybook(data []byte) (*Playbook, []Diagnostic, error) {
 		}
 		recordUnsupportedPlaySections(rawPlay, play.Name, &diags)
 		var perr error
+		play.PreTasks, perr = parseTaskList(rawPlay["pre_tasks"], &diags)
+		if perr != nil {
+			return nil, diags, fmt.Errorf("play %q pre_tasks: %w", play.Name, perr)
+		}
 		play.Tasks, perr = parseTaskList(rawPlay["tasks"], &diags)
 		if perr != nil {
 			return nil, diags, fmt.Errorf("play %q tasks: %w", play.Name, perr)
+		}
+		play.PostTasks, perr = parseTaskList(rawPlay["post_tasks"], &diags)
+		if perr != nil {
+			return nil, diags, fmt.Errorf("play %q post_tasks: %w", play.Name, perr)
 		}
 		play.Handlers, perr = parseTaskList(rawPlay["handlers"], &diags)
 		if perr != nil {
@@ -96,7 +106,7 @@ func ParsePlaybook(data []byte) (*Playbook, []Diagnostic, error) {
 }
 
 func recordUnsupportedPlaySections(rawPlay map[string]any, playName string, diags *[]Diagnostic) {
-	for _, section := range []string{"pre_tasks", "post_tasks", "roles"} {
+	for _, section := range []string{"roles"} {
 		if !hasNonEmptyYAMLValue(rawPlay[section]) {
 			continue
 		}

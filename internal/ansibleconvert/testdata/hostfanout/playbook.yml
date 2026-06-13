@@ -1,0 +1,7 @@
+- name: Configure remote hosts
+  hosts: webservers
+  tasks:
+    - name: Ensure nginx is present
+      ansible.builtin.apt:
+        name: nginx
+        state: present
