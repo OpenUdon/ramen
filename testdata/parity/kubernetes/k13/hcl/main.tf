@@ -55,6 +55,10 @@ resource "kubernetes_cluster_role_binding_v1" "k13_cluster_role_binding" {
     }
   }
 
+  # role_ref/subject intentionally reference an externally-managed ClusterRole
+  # and ServiceAccount; this lane asserts the binding object's own fields
+  # (roleRef, subjects, labels) round-trip, not referential integrity.
+  # Kubernetes permits a ClusterRoleBinding to bind not-yet-existing identities.
   role_ref {
     api_group = "rbac.authorization.k8s.io"
     kind      = "ClusterRole"
