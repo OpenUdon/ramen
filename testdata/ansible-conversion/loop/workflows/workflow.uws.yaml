@@ -19,6 +19,14 @@ operations:
       sourceOperationId: ansible.builtin.file
       successCriteria:
         - condition: $response.body.failed != true
+      x-ansible:
+        column: 7
+        line: 4
+        play: Create application directories
+        section: tasks
+        sourceFile: ../../testdata/ansible-conversion/loop/input/playbook.yml
+        task: Create app directories
+        version: ramen.ansible.provenance.v1
 sourceDescriptions:
     - name: builtin
       type: ansible-module
@@ -29,5 +37,13 @@ workflows:
         - forEach: $variables.create_app_directories_items
           operationRef: create_app_directories
           stepId: create_app_directories
+          x-ansible:
+            column: 7
+            line: 4
+            play: Create application directories
+            section: tasks
+            sourceFile: ../../testdata/ansible-conversion/loop/input/playbook.yml
+            task: Create app directories
+            version: ramen.ansible.provenance.v1
       type: sequence
       workflowId: main

@@ -11,9 +11,9 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 - Collections paths: `none`
 - Inventory inputs: `none`
 - Extra vars: `none`
-- Lowered operations: `4`
-- Diagnostics: `7`
-- Strict failures: `7`
+- Lowered operations: `6`
+- Diagnostics: `5`
+- Strict failures: `5`
 
 ## Artifact Paths
 
@@ -27,15 +27,17 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 
 | Operation | Source | Module | Workflow Steps |
 |---|---|---|---|
+| `doubly_guarded_child` | `builtin` | `ansible.builtin.service` | doubly_guarded_child |
 | `singly_guarded_child` | `builtin` | `ansible.builtin.service` | singly_guarded_child |
 | `consumer_of_skipped_producer` | `builtin` | `ansible.builtin.shell` | consumer_of_skipped_producer |
 | `consumer_before_future_producer` | `builtin` | `ansible.builtin.shell` | consumer_before_future_producer |
 | `future_producer` | `builtin` | `ansible.builtin.shell` | future_producer |
+| `guarded_restart` | `builtin` | `ansible.builtin.service` | guarded_restart |
 
 ## Diagnostics Summary
 
-- `error`: `7`
+- `error`: `5`
 
 ## Unsupported Gate
 
-Status: `ignored`. `7` strict-failure diagnostics were emitted, but `--ignore-unsupported` allowed partial workflow artifacts to be written without unsupported constructs.
+Status: `ignored`. `5` strict-failure diagnostics were emitted, but `--ignore-unsupported` allowed partial workflow artifacts to be written without unsupported constructs.

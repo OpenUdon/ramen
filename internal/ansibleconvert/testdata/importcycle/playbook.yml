@@ -1,0 +1,5 @@
+- name: Import cycle
+  hosts: localhost
+  tasks:
+    - name: Import a
+      import_tasks: tasks/a.yml

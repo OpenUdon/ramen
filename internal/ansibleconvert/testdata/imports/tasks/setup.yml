@@ -1,0 +1,5 @@
+- name: First imported
+  ansible.builtin.shell:
+    cmd: echo first
+- name: Import nested tasks
+  import_tasks: nested.yml

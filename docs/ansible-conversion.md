@@ -1,7 +1,9 @@
 # Ansible Conversion
 
 `ramen convert ansible` statically converts a supported subset of Ansible
-playbooks into reviewable UWS 1.6 workflow artifacts:
+playbooks into reviewable UWS 1.6 workflow artifacts. The converter emits UWS
+1.6 or older constructs only; features that need newer UWS semantics are strict
+diagnostics rather than approximations:
 
 ```bash
 ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --out DIR --ignore-unsupported
@@ -22,11 +24,15 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   resolution. It defaults to the playbook directory.
 - `--roles-path DIR`, `--collections-path DIR`, `--inventory FILE`, and
   `--extra-var NAME=VALUE` are repeatable static-resolution inputs. The
-  converter records them in review artifacts. When at least one `--inventory`
-  input is supplied, non-local plays lower host-targeted task steps as UWS
-  stage-1 host fan-out over `$inputs.hosts`, with each step binding
-  `inputs.host` to `$item`. The converter does not parse inventory files or
-  lower connection details; those remain runtime-owned.
+  converter records them in review artifacts. Literal `import_tasks` paths are
+  resolved relative to the file containing the import. Play-level `roles` and
+  task-level `import_role` resolve through `--roles-path` or, when no roles
+  path is supplied, `PROJECT/roles`; FQCN collection roles resolve under
+  `--collections-path DIR/ansible_collections/NAMESPACE/COLLECTION/roles/ROLE`.
+  When at least one `--inventory` input is supplied, non-local plays lower
+  host-targeted task steps as UWS stage-1 host fan-out over `$inputs.hosts`,
+  with each step binding `inputs.host` to `$item`. The converter does not parse
+  inventory files or lower connection details; those remain runtime-owned.
 - Argspec documents must use the `uws.ansible.1.0` shape:
   - top-level `argspec: uws.ansible.1.0`
   - collection name, such as `ansible.builtin`
@@ -66,26 +72,55 @@ unsupported tasks, handlers, or control-flow constructs omitted.
 ## Supported Subset
 
 The current subset is intentionally fail-closed. It can lower simple static
-tasks, literal and variable-backed arguments, simple loops, simple `when`
-comparisons, registers that refer to already-lowered producers, and notified
+tasks, literal and variable-backed arguments, simple loops, `when` comparisons
+and condition lists, block/task guard combinations through nested `switch`
+steps, registers that refer to already-lowered producers, and notified
 handlers. Static `pre_tasks`, `tasks`, and `post_tasks` lower in play order.
-With `--inventory`, non-local task steps lower to UWS stage-1 host fan-out
-using `$inputs.hosts`.
+Literal `import_tasks` files are expanded in place, including nested imports.
+Static roles load `tasks/main.yml`, `handlers/main.yml`, `defaults/main.yml`,
+and `vars/main.yml`; missing role tasks, missing imported files, cycles,
+ambiguous role matches, and templated paths are strict diagnostics. Handler
+`listen` aliases can be notified by name, and duplicate handler names or
+aliases in one resolved play are strict diagnostics. Static play `vars`,
+`vars_files`, role defaults, and role vars are emitted as
+`components.variables` only when each source is a YAML map; conflicting values
+fail closed instead of approximating Ansible precedence. Static task-local
+`vars` lower into the task step's `inputs` and are visible to that task's
+expression lowering as `$inputs.<name>`. With `--inventory`, non-local task
+steps lower to UWS stage-1 host fan-out using `$inputs.hosts`.
+
+When statically expressible, a single `changed_when` replaces the default
+`changed` output expression, a single mechanically invertible `failed_when`
+replaces the default module failure criterion, and
+`until`/`retries`/`delay` lower to existing UWS `successCriteria` plus
+`onFailure: retry`. `retries` maps to `retryLimit: retries - 1`, and `delay`
+maps to `retryAfter` only when a retry action is emitted. `retries` or `delay`
+without `until`, and `throttle` without host fan-out, emit non-strict
+diagnostics and no control policy. `ignore_errors: true`, unsupported
+host-fan-out `throttle`, multi-condition `changed_when`, and non-invertible or
+multi-condition `failed_when` are strict diagnostics. `any_errors_fatal: true`
+matches UWS 1.6 fail-fast behavior and emits no field.
+
+Lowered operations and steps carry provenance-only `x-ansible` extensions with
+the source file, line, column, play, section, task name, optional role, optional
+import stack, and optional tags. These extensions are review/debug metadata and
+do not define execution semantics.
 
 Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:
 
 - complex Jinja2 expressions, filters, and runtime facts
-- dynamic includes
+- dynamic includes, including `include_tasks`, `include_role`, and
+  `include_vars`
 - unknown modules or modules missing from supplied argspecs
 - `delegate_to`, `run_once`, and target-changing directives
 - block `rescue` or `always`
-- combined block-level and task-level `when` guards
-- multiple `when` conditions that require logical AND
-- handlers with their own `when` guard
-- notified handlers after `--inventory` host fan-out, because UWS 1.6
-  aggregates `forEach` outputs and does not expose per-host changed gating
-- play-level `roles`
+- non-static task-local `vars`
+- `ignore_errors: true`
+- unsupported `throttle`, multi-condition `changed_when`, and non-invertible
+  or multi-condition `failed_when`
+- notified handlers after `--inventory` host fan-out, because the current
+  conversion does not lower per-host changed gates for handler execution
 - inventory file expansion and connection behavior
 
 This boundary keeps conversion review-first: unsupported behavior is visible in

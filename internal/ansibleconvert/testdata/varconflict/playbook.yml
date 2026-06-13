@@ -1,0 +1,10 @@
+- name: Variable conflict
+  hosts: localhost
+  vars:
+    app_pkg: nginx
+  vars_files:
+    - vars/conflict.yml
+  tasks:
+    - name: Still lowerable
+      ansible.builtin.shell:
+        cmd: echo ok

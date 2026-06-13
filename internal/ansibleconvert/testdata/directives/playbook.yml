@@ -1,0 +1,33 @@
+- name: Strict directives
+  hosts: web
+  tasks:
+    - name: Retry command
+      ansible.builtin.shell:
+        cmd: echo retry
+      until: retry_result.rc == 0
+      retries: 3
+      delay: 1
+      register: retry_result
+    - name: Retry metadata without until
+      ansible.builtin.shell:
+        cmd: echo no until
+      retries: 2
+      delay: 1
+    - name: Task local vars
+      ansible.builtin.shell:
+        cmd: echo vars
+      vars:
+        local_value: yes
+    - name: Runtime metadata stays informational
+      ansible.builtin.shell:
+        cmd: echo info
+      become: true
+    - name: Ignore errors command
+      ansible.builtin.shell:
+        cmd: echo ignore
+      ignore_errors: true
+    - name: Fatal fanout command
+      ansible.builtin.shell:
+        cmd: echo fatal
+      any_errors_fatal: true
+      throttle: 2

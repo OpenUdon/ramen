@@ -1,0 +1,54 @@
+- name: Invalid directives
+  hosts: web
+  tasks:
+    - name: Valid command
+      ansible.builtin.shell:
+        cmd: echo valid
+    - name: Templated retries
+      ansible.builtin.shell:
+        cmd: echo bad
+      until: retry_result.rc == 0
+      retries: "{{ retry_count }}"
+      register: retry_result
+    - name: Invalid retries
+      ansible.builtin.shell:
+        cmd: echo bad
+      until: retry_result.rc == 0
+      retries: 0
+      register: retry_result
+    - name: Invalid delay
+      ansible.builtin.shell:
+        cmd: echo bad
+      until: retry_result.rc == 0
+      delay: 1s
+      register: retry_result
+    - name: Negative delay
+      ansible.builtin.shell:
+        cmd: echo bad
+      until: retry_result.rc == 0
+      delay: -1
+      register: retry_result
+    - name: Templated throttle
+      ansible.builtin.shell:
+        cmd: echo bad
+      throttle: "{{ throttle_limit }}"
+    - name: Invalid throttle
+      ansible.builtin.shell:
+        cmd: echo bad
+      throttle: 0
+    - name: Templated ignore errors
+      ansible.builtin.shell:
+        cmd: echo bad
+      ignore_errors: "{{ ignore_errors }}"
+    - name: Invalid ignore errors
+      ansible.builtin.shell:
+        cmd: echo bad
+      ignore_errors: sometimes
+    - name: Templated any errors fatal
+      ansible.builtin.shell:
+        cmd: echo bad
+      any_errors_fatal: "{{ fatal }}"
+    - name: Invalid any errors fatal
+      ansible.builtin.shell:
+        cmd: echo bad
+      any_errors_fatal: maybe

@@ -2,6 +2,7 @@ package ansibleconvert
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -66,9 +67,10 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 	variables := map[string]any{}
 	for _, play := range pb.Plays {
 		for name, value := range play.Vars {
-			if _, dup := variables[name]; dup {
-				lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "warning",
-					Message: fmt.Sprintf("variable %q is defined by more than one play; the last definition wins", name)})
+			if existing, dup := variables[name]; dup && !reflect.DeepEqual(existing, value) {
+				lw.addDiag(Diagnostic{Code: CodeVariableConflict, Severity: "error", StrictFailure: true,
+					Message: fmt.Sprintf("variable %q has conflicting static values across plays; Ansible precedence was not approximated", name)})
+				continue
 			}
 			variables[name] = value
 			lw.vars[name] = true
@@ -130,8 +132,13 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 
 	// Handlers: declared order, only when notified.
 	for _, play := range pb.Plays {
+		handlerRefs := lw.handlerRefs(play)
 		for _, handler := range play.Handlers {
-			notifiers := notifiersByHandler[handler.Name]
+			refs := handlerRefs[handler]
+			var notifiers []*loweredTask
+			for _, ref := range refs {
+				notifiers = append(notifiers, notifiersByHandler[ref]...)
+			}
 			if len(notifiers) == 0 {
 				lw.addDiag(Diagnostic{Code: CodeHandlerUnnotified, Severity: "info", Task: handler.Name,
 					Message: fmt.Sprintf("handler %q is never notified and was not lowered", handler.Name)})
@@ -140,7 +147,9 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 			if step := lw.lowerHandler(handler, notifiers); step != nil {
 				steps = append(steps, step)
 			}
-			delete(notifiersByHandler, handler.Name)
+			for _, ref := range refs {
+				delete(notifiersByHandler, ref)
+			}
 		}
 	}
 	for handlerName := range notifiersByHandler {
@@ -183,13 +192,6 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) 
 			Message: fmt.Sprintf("%s cannot be statically lowered; inline the tasks or convert them separately", task.DynamicInclude)})
 		return nil
 	}
-	// A guard at this level and an inherited guard would AND in Ansible; UWS
-	// core has no logical operators, so the combination fails closed.
-	if len(task.When) > 0 && len(inheritedWhen) > 0 {
-		lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: task.Name,
-			Message: "a block-level when and a task-level when combine with AND in Ansible; UWS core supports a single comparison — the guarded task was not lowered"})
-		return nil
-	}
 	if task.Block != nil {
 		// delegate_to / run_once on a block apply to every task inside it.
 		if len(task.HardDirectives) > 0 {
@@ -199,10 +201,8 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) 
 			}
 			return nil
 		}
-		when := task.When
-		if len(when) == 0 {
-			when = inheritedWhen
-		}
+		when := append([]string(nil), inheritedWhen...)
+		when = append(when, task.When...)
 		unsupportedBlockFlow := false
 		if len(task.Rescue) > 0 {
 			lw.addDiag(Diagnostic{Code: CodeRescueTodo, Severity: "error", StrictFailure: true, Task: task.Name,
@@ -225,6 +225,8 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) 
 	}
 	if len(task.When) == 0 {
 		task.When = inheritedWhen
+	} else if len(inheritedWhen) > 0 {
+		task.When = append(append([]string(nil), inheritedWhen...), task.When...)
 	}
 	base := sanitizeID(task.Name)
 	if base == "" {
@@ -253,9 +255,18 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		lt.skipped = true
 		return nil
 	}
+	if len(task.StrictDirectiveDiagnostics) > 0 {
+		for _, diag := range task.StrictDirectiveDiagnostics {
+			lw.addDiag(diag)
+		}
+		lt.skipped = true
+		return nil
+	}
 	for _, directive := range task.TodoDirectives {
-		lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "warning", Task: task.Name,
-			Message: fmt.Sprintf("directive %q is recorded for review and not lowered", directive)})
+		lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+			Message: fmt.Sprintf("directive %q changes Ansible task semantics and is not lowered; the task was not lowered", directive)})
+		lt.skipped = true
+		return nil
 	}
 	for _, directive := range task.InfoDirectives {
 		lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "info", Task: task.Name,
@@ -263,7 +274,15 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	}
 
 	step := &uws1.Step{StepID: lt.stepID, OperationRef: lt.opID}
-	ctx := &exprContext{vars: lw.vars, registered: lw.registered, needOutput: lw.noteNeededOutput}
+	taskVars, ok := lw.lowerTaskVars(task)
+	if !ok {
+		lt.skipped = true
+		return nil
+	}
+	if len(taskVars) > 0 {
+		step.Inputs = taskVars
+	}
+	ctx := &exprContext{vars: lw.vars, registered: lw.registered, taskVars: boolKeys(taskVars), currentRegister: task.Register, needOutput: lw.noteNeededOutput}
 	if lt.hostFanOut {
 		if task.Loop != nil {
 			lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: task.Name,
@@ -272,7 +291,10 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 			return nil
 		}
 		step.ForEach = "$inputs.hosts"
-		step.Inputs = map[string]any{"host": "$item"}
+		if step.Inputs == nil {
+			step.Inputs = map[string]any{}
+		}
+		step.Inputs["host"] = "$item"
 	}
 
 	// Loop lowers to forEach on the step; $item becomes available inside.
@@ -286,24 +308,14 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		ctx.inLoop = true
 	}
 
-	// when: a single condition lowers; multiple conditions are AND in Ansible
-	// and UWS core has no logical operators. A guard that cannot be lowered
-	// fails closed: emitting the step without its guard would turn a
-	// conditional side effect into an unconditional one.
-	if len(task.When) == 1 {
-		lowered, ok, reason := lowerWhen(task.When[0], ctx)
+	var guardParts []string
+	if !lt.isHandler && len(task.When) > 0 {
+		lowered, ok := lw.lowerConditionParts(task.Name, task.When, ctx, "guarded task")
 		if !ok {
-			lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: task.Name,
-				Message: fmt.Sprintf("%s; the guarded task was not lowered", reason)})
 			lt.skipped = true
 			return nil
 		}
-		step.When = lowered
-	} else if len(task.When) > 1 {
-		lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: task.Name,
-			Message: "multiple when conditions are AND-combined in Ansible; UWS core supports a single comparison — the guarded task was not lowered"})
-		lt.skipped = true
-		return nil
+		guardParts = lowered
 	}
 
 	op := &uws1.Operation{
@@ -313,9 +325,89 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		Outputs:           map[string]string{"changed": "$response.body.changed"},
 		SuccessCriteria:   []*uws1.Criterion{{Condition: "$response.body.failed != true"}},
 	}
+	if len(task.ChangedWhen) > 0 {
+		if len(task.ChangedWhen) != 1 {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "changed_when with multiple conditions needs boolean conjunction semantics; the task was not lowered"})
+			lt.skipped = true
+			return nil
+		}
+		lowered, ok := lw.lowerSingleCondition(task.Name, task.ChangedWhen[0], ctx, "changed_when")
+		if !ok {
+			lt.skipped = true
+			return nil
+		}
+		op.Outputs["changed"] = lowered
+	}
+	if len(task.FailedWhen) > 0 {
+		if len(task.FailedWhen) != 1 {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "failed_when with multiple conditions needs boolean conjunction semantics; the task was not lowered"})
+			lt.skipped = true
+			return nil
+		}
+		lowered, ok := lw.lowerSingleCondition(task.Name, task.FailedWhen[0], ctx, "failed_when")
+		if !ok {
+			lt.skipped = true
+			return nil
+		}
+		inverted, ok := invertPre16Comparison(lowered)
+		if !ok {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "failed_when could not be inverted into UWS 1.6 comparison syntax; the task was not lowered"})
+			lt.skipped = true
+			return nil
+		}
+		op.SuccessCriteria = []*uws1.Criterion{{Condition: inverted}}
+	}
+	if len(task.Until) > 0 {
+		lowered, ok := lw.lowerConditionParts(task.Name, task.Until, ctx, "until")
+		if !ok {
+			lt.skipped = true
+			return nil
+		}
+		for _, condition := range lowered {
+			op.SuccessCriteria = append(op.SuccessCriteria, &uws1.Criterion{Condition: condition})
+		}
+		retryLimit := 0
+		if task.Retries != nil {
+			retryLimit = *task.Retries - 1
+		}
+		if retryLimit > 0 {
+			action := &uws1.FailureAction{Name: "retry_until", Type: "retry", RetryLimit: retryLimit}
+			if task.Delay != nil {
+				action.RetryAfter = *task.Delay
+			}
+			op.OnFailure = append(op.OnFailure, action)
+		}
+	} else if task.Retries != nil || task.Delay != nil {
+		lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "warning", Task: task.Name,
+			Message: "retries/delay without until do not define a UWS retry condition; no retry action was emitted"})
+	}
+	if task.IgnoreErrors {
+		lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+			Message: "ignore_errors: true needs continue-on-error semantics outside UWS 1.6; the task was not lowered"})
+		lt.skipped = true
+		return nil
+	}
+	if task.AnyErrorsFatal {
+		// UWS 1.6 sequence execution already fails fast, so no field is emitted.
+	}
+	if task.Throttle != nil {
+		if lt.hostFanOut && *task.Throttle != 1 {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "throttle greater than 1 needs host fan-out concurrency semantics outside UWS 1.6; the task was not lowered"})
+			lt.skipped = true
+			return nil
+		} else if !lt.hostFanOut {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "warning", Task: task.Name,
+				Message: "throttle only affects lowered host fan-out; no concurrency limit was emitted"})
+		}
+	}
 	if task.Name != "" {
 		op.Description = task.Name
 	}
+	attachAnsibleProvenance(op, step, task)
 
 	args := task.Args
 	if task.FreeForm != "" {
@@ -337,7 +429,7 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	lw.sourcesUsed[sourceID] = true
 	lw.ensureSourceDescription(sourceID)
 	lw.doc.Operations = append(lw.doc.Operations, op)
-	return step
+	return lw.wrapGuardedStep(step, guardParts, task)
 }
 
 // lowerHandler lowers a notified handler. One notifier gates the handler step
@@ -352,14 +444,6 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 				Message: "handler notification after host fan-out needs per-host changed evaluation; UWS 1.6 forEach aggregates changed outputs, so the handler was not lowered"})
 			return nil
 		}
-	}
-	// A handler's own when would AND with the notifier gate in Ansible; UWS
-	// core has no logical operators, so the combination fails closed rather
-	// than dropping the handler's guard.
-	if len(handler.When) > 0 {
-		lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: handler.Name,
-			Message: "a handler-level when combines with the notifier changed gate using AND; UWS core supports a single comparison — the handler was not lowered"})
-		return nil
 	}
 	base := sanitizeID(handler.Name)
 	if base == "" {
@@ -381,24 +465,191 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 		return nil
 	}
 	if len(active) == 1 {
-		step.When = fmt.Sprintf("$steps.%s.outputs.changed == true", active[0].stepID)
-		return step
+		conditions, ok := lw.handlerGateConditions(handler, fmt.Sprintf("$steps.%s.outputs.changed == true", active[0].stepID))
+		if !ok {
+			return nil
+		}
+		return lw.wrapGuardedStep(step, conditions, handler)
 	}
 	wrapper := &uws1.Step{
 		StepID: lw.uniqueID(stepID + "_notify"),
 		Type:   uws1.WorkflowTypeSwitch,
+		Extensions: map[string]any{
+			"x-ansible": ansibleProvenance(handler),
+		},
 	}
 	for i, notifier := range active {
 		inner := &uws1.Step{
 			StepID:       lw.uniqueID(fmt.Sprintf("%s_run_%d", stepID, i+1)),
 			OperationRef: lt.opID,
+			Inputs:       cloneMapAny(step.Inputs),
+			Extensions: map[string]any{
+				"x-ansible": ansibleProvenance(handler),
+			},
 		}
 		c := &uws1.Case{Steps: []*uws1.Step{inner}}
 		c.Name = fmt.Sprintf("notified_by_%s", notifier.stepID)
-		c.When = fmt.Sprintf("$steps.%s.outputs.changed == true", notifier.stepID)
+		conditions, ok := lw.handlerGateConditions(handler, fmt.Sprintf("$steps.%s.outputs.changed == true", notifier.stepID))
+		if !ok {
+			return nil
+		}
+		if len(conditions) == 0 {
+			wrapper.Cases = append(wrapper.Cases, c)
+			continue
+		}
+		c.When = conditions[0]
+		if len(conditions) > 1 {
+			c.Steps = []*uws1.Step{lw.wrapGuardedStep(inner, conditions[1:], handler)}
+		}
 		wrapper.Cases = append(wrapper.Cases, c)
 	}
 	return wrapper
+}
+
+func (lw *lowerer) handlerGateConditions(handler *Task, notifierGate string) ([]string, bool) {
+	if len(handler.When) == 0 {
+		return []string{notifierGate}, true
+	}
+	ctx := &exprContext{vars: lw.vars, registered: lw.registered, taskVars: boolKeys(handler.Vars), currentRegister: handler.Register, needOutput: lw.noteNeededOutput}
+	guard, ok := lw.lowerConditionParts(handler.Name, handler.When, ctx, "handler guard")
+	if !ok {
+		return nil, false
+	}
+	return append([]string{notifierGate}, guard...), true
+}
+
+func (lw *lowerer) lowerConditionParts(taskName string, conditions []string, ctx *exprContext, label string) ([]string, bool) {
+	var parts []string
+	for _, condition := range conditions {
+		lowered, ok, reason := lowerWhen(condition, ctx)
+		if !ok {
+			lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: taskName,
+				Message: fmt.Sprintf("%s: %s; the task was not lowered", label, reason)})
+			return nil, false
+		}
+		parts = append(parts, lowered)
+	}
+	return parts, true
+}
+
+func (lw *lowerer) lowerSingleCondition(taskName, condition string, ctx *exprContext, label string) (string, bool) {
+	parts, ok := lw.lowerConditionParts(taskName, []string{condition}, ctx, label)
+	if !ok || len(parts) == 0 {
+		return "", ok
+	}
+	return parts[0], true
+}
+
+func (lw *lowerer) wrapGuardedStep(step *uws1.Step, conditions []string, task *Task) *uws1.Step {
+	switch len(conditions) {
+	case 0:
+		return step
+	case 1:
+		step.When = conditions[0]
+		return step
+	}
+	inner := step
+	for i := len(conditions) - 1; i >= 0; i-- {
+		wrapper := &uws1.Step{
+			StepID: lw.uniqueID(fmt.Sprintf("%s_guard_%d", step.StepID, i+1)),
+			Type:   uws1.WorkflowTypeSwitch,
+			Cases: []*uws1.Case{{
+				CaseFields: uws1.CaseFields{
+					Name: fmt.Sprintf("condition_%d", i+1),
+					When: conditions[i],
+				},
+				Steps: []*uws1.Step{inner},
+			}},
+			Extensions: map[string]any{
+				"x-ansible": ansibleProvenance(task),
+			},
+		}
+		inner = wrapper
+	}
+	return inner
+}
+
+func invertPre16Comparison(condition string) (string, bool) {
+	m := whenCompareRE.FindStringSubmatch(strings.TrimSpace(condition))
+	if m == nil {
+		return "", false
+	}
+	var op string
+	switch m[2] {
+	case "==":
+		op = "!="
+	case "!=":
+		op = "=="
+	case "<":
+		op = ">="
+	case "<=":
+		op = ">"
+	case ">":
+		op = "<="
+	case ">=":
+		op = "<"
+	default:
+		return "", false
+	}
+	return fmt.Sprintf("%s %s %s", strings.TrimSpace(m[1]), op, strings.TrimSpace(m[3])), true
+}
+
+func (lw *lowerer) lowerTaskVars(task *Task) (map[string]any, bool) {
+	if len(task.Vars) == 0 {
+		return nil, true
+	}
+	out := make(map[string]any, len(task.Vars))
+	for name, value := range task.Vars {
+		if !isStaticAnsibleValue(value) {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: fmt.Sprintf("task-local var %q is not static; the task was not lowered", name)})
+			return nil, false
+		}
+		out[name] = value
+	}
+	return out, true
+}
+
+func isStaticAnsibleValue(value any) bool {
+	switch v := value.(type) {
+	case string:
+		return !strings.Contains(v, "{{") && !strings.Contains(v, "{%")
+	case []any:
+		for _, item := range v {
+			if !isStaticAnsibleValue(item) {
+				return false
+			}
+		}
+	case map[string]any:
+		for _, item := range v {
+			if !isStaticAnsibleValue(item) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+func boolKeys(values map[string]any) map[string]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(values))
+	for key := range values {
+		out[key] = true
+	}
+	return out
+}
+
+func cloneMapAny(values map[string]any) map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
 }
 
 // lowerLoopItems lowers a task loop into a forEach expression. List literals
@@ -524,6 +775,61 @@ func (lw *lowerer) ensureComponents() {
 	if lw.doc.Components.Variables == nil {
 		lw.doc.Components.Variables = map[string]any{}
 	}
+}
+
+func (lw *lowerer) handlerRefs(play *Play) map[*Task][]string {
+	refsByHandler := map[*Task][]string{}
+	seen := map[string]*Task{}
+	for _, handler := range play.Handlers {
+		var refs []string
+		if strings.TrimSpace(handler.Name) != "" {
+			refs = append(refs, strings.TrimSpace(handler.Name))
+		}
+		for _, listen := range handler.Listen {
+			if strings.TrimSpace(listen) != "" {
+				refs = append(refs, strings.TrimSpace(listen))
+			}
+		}
+		refs = compactSorted(refs)
+		refsByHandler[handler] = refs
+		for _, ref := range refs {
+			if existing := seen[ref]; existing != nil {
+				lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: handler.Name,
+					Message: fmt.Sprintf("handler name/listen alias %q is duplicated in play %q", ref, play.Name)})
+				continue
+			}
+			seen[ref] = handler
+		}
+	}
+	return refsByHandler
+}
+
+func attachAnsibleProvenance(op *uws1.Operation, step *uws1.Step, task *Task) {
+	prov := ansibleProvenance(task)
+	op.Extensions = map[string]any{"x-ansible": prov}
+	step.Extensions = map[string]any{"x-ansible": prov}
+}
+
+func ansibleProvenance(task *Task) map[string]any {
+	prov := map[string]any{
+		"version":    "ramen.ansible.provenance.v1",
+		"sourceFile": task.SourceFile,
+		"line":       task.Line,
+		"column":     task.Column,
+		"play":       task.PlayName,
+		"section":    task.Section,
+		"task":       task.Name,
+	}
+	if task.Role != "" {
+		prov["role"] = task.Role
+	}
+	if len(task.ImportStack) > 0 {
+		prov["importStack"] = append([]string(nil), task.ImportStack...)
+	}
+	if len(task.Tags) > 0 {
+		prov["tags"] = append([]string(nil), task.Tags...)
+	}
+	return prov
 }
 
 func playNeedsHostFanOut(hosts string) bool {

@@ -23,12 +23,34 @@
     successCriterion {
       condition = "$response.body.failed != true"
     }
+    extensions {
+      x-ansible {
+        version = "ramen.ansible.provenance.v1"
+        column = 7
+        line = 4
+        play = "Create application directories"
+        section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/loop/input/playbook.yml"
+        task = "Create app directories"
+      }
+    }
   }
   workflow "main" {
     type = "sequence"
     step "create_app_directories" {
       operationRef = "create_app_directories"
       forEach      = "$variables.create_app_directories_items"
+      extensions {
+        x-ansible {
+          task = "Create app directories"
+          version = "ramen.ansible.provenance.v1"
+          column = 7
+          line = 4
+          play = "Create application directories"
+          section = "tasks"
+          sourceFile = "../../testdata/ansible-conversion/loop/input/playbook.yml"
+        }
+      }
     }
   }
   components {

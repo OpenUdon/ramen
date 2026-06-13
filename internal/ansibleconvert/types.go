@@ -50,6 +50,8 @@ const (
 	CodeHostsRuntimeOwned   = "ansible.hosts_runtime_owned"
 	CodeHandlerUnnotified   = "ansible.handler_unnotified"
 	CodePlaybookShape       = "ansible.playbook_shape"
+	CodeStaticResolution    = "ansible.static_resolution"
+	CodeVariableConflict    = "ansible.variable_conflict"
 )
 
 // Diagnostic is a single review finding produced during conversion.

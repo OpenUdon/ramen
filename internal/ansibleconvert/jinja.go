@@ -14,6 +14,10 @@ type exprContext struct {
 	vars map[string]bool
 	// registered maps a register variable name to the producing step ID.
 	registered map[string]string
+	// currentRegister is the register name of the task currently being lowered.
+	currentRegister string
+	// taskVars are task-local static variables, addressed as $inputs.<name>.
+	taskVars map[string]bool
 	// inLoop is true while lowering values inside a forEach scope.
 	inLoop bool
 	// needOutput records that the producing step must expose a response path
@@ -62,6 +66,9 @@ func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 		}
 		return "$index", true, ""
 	case identRE.MatchString(inner):
+		if ctx.taskVars[inner] {
+			return "$inputs." + inner, true, ""
+		}
 		if ctx.vars[inner] {
 			return "$variables." + inner, true, ""
 		}
@@ -82,8 +89,14 @@ func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 			}
 			return fmt.Sprintf("$steps.%s.outputs.%s", stepID, outputName), true, ""
 		}
+		if ctx.currentRegister != "" && head == ctx.currentRegister {
+			return "$response.body." + rest, true, ""
+		}
+		if ctx.taskVars[head] {
+			return "$inputs." + inner, true, ""
+		}
 		if ctx.vars[head] {
-			return "", false, fmt.Sprintf("nested access into variable %q is not part of UWS core expressions", head)
+			return "$variables." + inner, true, ""
 		}
 		return "", false, fmt.Sprintf("unknown dotted reference %q", inner)
 	default:
@@ -107,7 +120,7 @@ func lowerWhen(cond string, ctx *exprContext) (string, bool, string) {
 		if !ok {
 			return "", false, reason
 		}
-		operand, ok, reason := lowerWhenOperand(m[3])
+		operand, ok, reason := lowerWhenOperand(m[3], ctx)
 		if !ok {
 			return "", false, reason
 		}
@@ -121,7 +134,7 @@ func lowerWhen(cond string, ctx *exprContext) (string, bool, string) {
 }
 
 // lowerWhenOperand lowers a comparison right-hand side to a JSON literal.
-func lowerWhenOperand(s string) (string, bool, string) {
+func lowerWhenOperand(s string, ctx *exprContext) (string, bool, string) {
 	s = strings.TrimSpace(s)
 	switch {
 	case s == "true" || s == "True":
@@ -139,6 +152,11 @@ func lowerWhenOperand(s string) (string, bool, string) {
 	}
 	if _, err := strconv.ParseFloat(s, 64); err == nil {
 		return s, true, ""
+	}
+	if ref, ok, reason := lowerReference(stripTemplateBraces(s), ctx); ok && strings.HasPrefix(ref, "$") {
+		return ref, true, ""
+	} else if reason != "" && (identRE.MatchString(s) || dottedRE.MatchString(s)) {
+		return "", false, reason
 	}
 	return "", false, fmt.Sprintf("comparison operand %q is not a JSON literal", s)
 }

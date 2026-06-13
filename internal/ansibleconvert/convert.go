@@ -23,10 +23,11 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read playbook: %w", err)
 	}
-	playbook, parseDiags, err := ParsePlaybook(data)
+	playbook, parseDiags, err := parsePlaybookFile(data, opts.PlaybookPath)
 	if err != nil {
 		return nil, fmt.Errorf("parse playbook: %w", err)
 	}
+	resolveDiags := resolveStatic(playbook, opts)
 	idx, err := LoadArgspecs(opts.Argspecs)
 	if err != nil {
 		return nil, err
@@ -35,7 +36,8 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	doc, lowerDiags := LowerPlaybookWithOptions(playbook, idx, LowerOptions{
 		HostFanOut: len(opts.InventoryPaths) > 0,
 	})
-	diags := append(parseDiags, lowerDiags...)
+	diags := append(parseDiags, resolveDiags...)
+	diags = append(diags, lowerDiags...)
 	if len(doc.Operations) == 0 {
 		diags = append(diags, Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true,
 			Message: "no tasks could be lowered; no UWS document was written — see the diagnostics above for each skipped task"})

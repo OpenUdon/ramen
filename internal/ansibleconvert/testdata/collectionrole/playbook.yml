@@ -1,0 +1,4 @@
+- name: Collection role expansion
+  hosts: localhost
+  roles:
+    - acme.platform.tool

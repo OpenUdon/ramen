@@ -5,6 +5,26 @@ info:
     title: Fail closed cases
     version: 1.0.0
 operations:
+    - description: Doubly guarded child
+      operationId: doubly_guarded_child
+      outputs:
+        changed: $response.body.changed
+      request:
+        body:
+            name: nginx
+            state: stopped
+      sourceDescription: builtin
+      sourceOperationId: ansible.builtin.service
+      successCriteria:
+        - condition: $response.body.failed != true
+      x-ansible:
+        column: 11
+        line: 17
+        play: Fail closed cases
+        section: tasks
+        sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+        task: Doubly guarded child
+        version: ramen.ansible.provenance.v1
     - description: Singly guarded child
       operationId: singly_guarded_child
       outputs:
@@ -17,6 +37,14 @@ operations:
       sourceOperationId: ansible.builtin.service
       successCriteria:
         - condition: $response.body.failed != true
+      x-ansible:
+        column: 11
+        line: 22
+        play: Fail closed cases
+        section: tasks
+        sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+        task: Singly guarded child
+        version: ramen.ansible.provenance.v1
     - description: Consumer of skipped producer
       operationId: consumer_of_skipped_producer
       outputs:
@@ -28,6 +56,14 @@ operations:
       sourceOperationId: ansible.builtin.shell
       successCriteria:
         - condition: $response.body.failed != true
+      x-ansible:
+        column: 7
+        line: 33
+        play: Fail closed cases
+        section: tasks
+        sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+        task: Consumer of skipped producer
+        version: ramen.ansible.provenance.v1
     - description: Consumer before future producer
       operationId: consumer_before_future_producer
       outputs:
@@ -39,6 +75,14 @@ operations:
       sourceOperationId: ansible.builtin.shell
       successCriteria:
         - condition: $response.body.failed != true
+      x-ansible:
+        column: 7
+        line: 38
+        play: Fail closed cases
+        section: tasks
+        sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+        task: Consumer before future producer
+        version: ramen.ansible.provenance.v1
     - description: Future producer
       operationId: future_producer
       outputs:
@@ -50,6 +94,34 @@ operations:
       sourceOperationId: ansible.builtin.shell
       successCriteria:
         - condition: $response.body.failed != true
+      x-ansible:
+        column: 7
+        line: 42
+        play: Fail closed cases
+        section: tasks
+        sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+        task: Future producer
+        version: ramen.ansible.provenance.v1
+    - description: guarded restart
+      operationId: guarded_restart
+      outputs:
+        changed: $response.body.changed
+      request:
+        body:
+            name: nginx
+            state: restarted
+      sourceDescription: builtin
+      sourceOperationId: ansible.builtin.service
+      successCriteria:
+        - condition: $response.body.failed != true
+      x-ansible:
+        column: 7
+        line: 58
+        play: Fail closed cases
+        section: handlers
+        sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+        task: guarded restart
+        version: ramen.ansible.provenance.v1
 sourceDescriptions:
     - name: builtin
       type: ansible-module
@@ -57,14 +129,122 @@ sourceDescriptions:
 uws: 1.6.0
 workflows:
     - steps:
+        - cases:
+            - name: condition_1
+              steps:
+                - cases:
+                    - name: condition_2
+                      steps:
+                        - operationRef: doubly_guarded_child
+                          stepId: doubly_guarded_child
+                          x-ansible:
+                            column: 11
+                            line: 17
+                            play: Fail closed cases
+                            section: tasks
+                            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+                            task: Doubly guarded child
+                            version: ramen.ansible.provenance.v1
+                      when: $variables.env == "prod"
+                  stepId: doubly_guarded_child_guard_2
+                  type: switch
+                  x-ansible:
+                    column: 11
+                    line: 17
+                    play: Fail closed cases
+                    section: tasks
+                    sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+                    task: Doubly guarded child
+                    version: ramen.ansible.provenance.v1
+              when: $variables.env == "prod"
+          stepId: doubly_guarded_child_guard_1
+          type: switch
+          x-ansible:
+            column: 11
+            line: 17
+            play: Fail closed cases
+            section: tasks
+            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+            task: Doubly guarded child
+            version: ramen.ansible.provenance.v1
         - operationRef: singly_guarded_child
           stepId: singly_guarded_child
           when: $variables.env == "prod"
+          x-ansible:
+            column: 11
+            line: 22
+            play: Fail closed cases
+            section: tasks
+            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+            task: Singly guarded child
+            version: ramen.ansible.provenance.v1
         - operationRef: consumer_of_skipped_producer
           stepId: consumer_of_skipped_producer
+          x-ansible:
+            column: 7
+            line: 33
+            play: Fail closed cases
+            section: tasks
+            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+            task: Consumer of skipped producer
+            version: ramen.ansible.provenance.v1
         - operationRef: consumer_before_future_producer
           stepId: consumer_before_future_producer
+          x-ansible:
+            column: 7
+            line: 38
+            play: Fail closed cases
+            section: tasks
+            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+            task: Consumer before future producer
+            version: ramen.ansible.provenance.v1
         - operationRef: future_producer
           stepId: future_producer
+          x-ansible:
+            column: 7
+            line: 42
+            play: Fail closed cases
+            section: tasks
+            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+            task: Future producer
+            version: ramen.ansible.provenance.v1
+        - cases:
+            - name: condition_1
+              steps:
+                - cases:
+                    - name: condition_2
+                      steps:
+                        - operationRef: guarded_restart
+                          stepId: guarded_restart
+                          x-ansible:
+                            column: 7
+                            line: 58
+                            play: Fail closed cases
+                            section: handlers
+                            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+                            task: guarded restart
+                            version: ramen.ansible.provenance.v1
+                      when: $variables.env == "prod"
+                  stepId: guarded_restart_guard_2
+                  type: switch
+                  x-ansible:
+                    column: 7
+                    line: 58
+                    play: Fail closed cases
+                    section: handlers
+                    sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+                    task: guarded restart
+                    version: ramen.ansible.provenance.v1
+              when: $steps.consumer_of_skipped_producer.outputs.changed == true
+          stepId: guarded_restart_guard_1
+          type: switch
+          x-ansible:
+            column: 7
+            line: 58
+            play: Fail closed cases
+            section: handlers
+            sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
+            task: guarded restart
+            version: ramen.ansible.provenance.v1
       type: sequence
       workflowId: main

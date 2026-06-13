@@ -1,0 +1,10 @@
+- name: Role expansion
+  hosts: localhost
+  vars_files:
+    - vars/play.yml
+  roles:
+    - web
+  tasks:
+    - name: Task imports extra role
+      import_role:
+        name: extra

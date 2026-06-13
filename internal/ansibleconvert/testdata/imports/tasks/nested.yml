@@ -1,0 +1,3 @@
+- name: Nested imported
+  ansible.builtin.shell:
+    cmd: echo nested

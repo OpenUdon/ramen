@@ -10,7 +10,7 @@
       "hcl_path": "testdata/ansible-conversion/failclosed/workflows/workflow.hcl",
       "diagnostics_path": "testdata/ansible-conversion/failclosed/expected/diagnostics.json",
       "review_path": "testdata/ansible-conversion/failclosed/expected/review.md",
-      "strict_failures": 7
+      "strict_failures": 5
     },
     {
       "id": "ansible-loop",

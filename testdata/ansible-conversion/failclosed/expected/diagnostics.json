@@ -25,22 +25,8 @@
     {
       "code": "ansible.jinja_unsupported",
       "severity": "error",
-      "message": "a block-level when and a task-level when combine with AND in Ansible; UWS core supports a single comparison — the guarded task was not lowered",
-      "task": "Doubly guarded child",
-      "strict_failure": true
-    },
-    {
-      "code": "ansible.jinja_unsupported",
-      "severity": "error",
-      "message": "expression \"ansible_facts['os_family']\" uses Jinja2 features (filters, lookups, math, or indexing) outside UWS core; the guarded task was not lowered",
+      "message": "guarded task: expression \"ansible_facts['os_family']\" uses Jinja2 features (filters, lookups, math, or indexing) outside UWS core; the task was not lowered",
       "task": "Guarded producer",
-      "strict_failure": true
-    },
-    {
-      "code": "ansible.jinja_unsupported",
-      "severity": "error",
-      "message": "a handler-level when combines with the notifier changed gate using AND; UWS core supports a single comparison — the handler was not lowered",
-      "task": "guarded restart",
       "strict_failure": true
     },
     {

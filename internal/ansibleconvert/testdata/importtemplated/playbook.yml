@@ -1,0 +1,5 @@
+- name: Templated import
+  hosts: localhost
+  tasks:
+    - name: Import dynamic path
+      import_tasks: "{{ task_file }}"

@@ -87,7 +87,32 @@ func TestConvertUnsupportedBlocksWorkflowArtifactsByDefault(t *testing.T) {
 
 func findStep(steps []*uws1.Step, stepID string) *uws1.Step {
 	for _, step := range steps {
+		if step == nil {
+			continue
+		}
 		if step.StepID == stepID {
+			return step
+		}
+		if found := findStep(step.Steps, stepID); found != nil {
+			return found
+		}
+		for _, c := range step.Cases {
+			if c != nil {
+				if found := findStep(c.Steps, stepID); found != nil {
+					return found
+				}
+			}
+		}
+		if found := findStep(step.Default, stepID); found != nil {
+			return found
+		}
+	}
+	return nil
+}
+
+func findTopStep(steps []*uws1.Step, stepID string) *uws1.Step {
+	for _, step := range steps {
+		if step != nil && step.StepID == stepID {
 			return step
 		}
 	}
@@ -295,9 +320,17 @@ func TestConvertMultiNotifyLowersSwitch(t *testing.T) {
 		if len(c.Steps) != 1 || c.Steps[0].OperationRef != "restart_nginx" {
 			t.Fatalf("switch case does not reference the handler operation: %#v", c)
 		}
+		if c.Steps[0].Inputs["service_name"] != "nginx" {
+			t.Fatalf("multi-notify handler step lost task-local vars: %#v", c.Steps[0])
+		}
 	}
 	if switchStep.Cases[0].When == switchStep.Cases[1].When {
 		t.Fatalf("switch cases gate on the same notifier: %q", switchStep.Cases[0].When)
+	}
+	op := findOperation(doc, "restart_nginx")
+	body, _ := op.Request["body"].(map[string]any)
+	if body["name"] != "$inputs.service_name" {
+		t.Fatalf("handler operation did not lower task-local var reference: %#v", body)
 	}
 }
 
@@ -393,11 +426,20 @@ func TestConvertFailClosedGuardsAndTargets(t *testing.T) {
 	if op := findOperation(doc, "inside_delegated_block"); op != nil {
 		t.Fatalf("block delegate_to leaked a runnable child task: %#v", op)
 	}
-	// A block when plus a child when (AND in Ansible) must skip the child...
-	if op := findOperation(doc, "doubly_guarded_child"); op != nil {
-		t.Fatalf("block+task when combination leaked an under-guarded task: %#v", op)
+	// A block when plus a child when (AND in Ansible) lowers through nested
+	// UWS 1.6 switches, keeping the original task step ID inside the wrapper.
+	doubleWrapper := findTopStep(doc.Workflows[0].Steps, "doubly_guarded_child_guard_1")
+	if doubleWrapper == nil || doubleWrapper.Type != uws1.WorkflowTypeSwitch || len(doubleWrapper.Cases) != 1 {
+		t.Fatalf("doubly guarded child should use a switch wrapper, got %#v", doubleWrapper)
 	}
-	// ...while a child relying only on the block guard inherits it.
+	if doubleWrapper.Cases[0].When != `$variables.env == "prod"` {
+		t.Fatalf("outer guard = %q", doubleWrapper.Cases[0].When)
+	}
+	double := findStep(doc.Workflows[0].Steps, "doubly_guarded_child")
+	if double == nil || double.OperationRef != "doubly_guarded_child" || double.When != "" {
+		t.Fatalf("doubly guarded child original step should stay inside wrapper, got %#v", double)
+	}
+	// A child relying only on the block guard inherits it.
 	single := findStep(doc.Workflows[0].Steps, "singly_guarded_child")
 	if single == nil || single.When != `$variables.env == "prod"` {
 		t.Fatalf("singly guarded child should inherit the block guard, got %#v", single)
@@ -435,21 +477,19 @@ func TestConvertFailClosedGuardsAndTargets(t *testing.T) {
 	if op := findOperation(doc, "main_inside_rescue_block"); op != nil {
 		t.Fatalf("block with rescue leaked its body without rescue semantics: %#v", op)
 	}
-	// A handler with its own when must not lower with its guard dropped.
-	if op := findOperation(doc, "guarded_restart"); op != nil {
-		t.Fatalf("handler with its own when leaked without the guard: %#v", op)
+	handlerWrapper := findTopStep(doc.Workflows[0].Steps, "guarded_restart_guard_1")
+	if handlerWrapper == nil || handlerWrapper.Type != uws1.WorkflowTypeSwitch || len(handlerWrapper.Cases) != 1 {
+		t.Fatalf("handler with its own when should use switch guard wrapper, got %#v", handlerWrapper)
 	}
-	var handlerDiag bool
-	for _, d := range result.Diagnostics {
-		if d.Code == CodeJinjaUnsupported && d.Task == "guarded restart" && d.StrictFailure {
-			handlerDiag = true
-		}
+	if handlerWrapper.Cases[0].When != "$steps.consumer_of_skipped_producer.outputs.changed == true" {
+		t.Fatalf("handler notifier guard = %q", handlerWrapper.Cases[0].When)
 	}
-	if !handlerDiag {
-		t.Fatalf("missing handler-when diagnostic: %#v", result.Diagnostics)
+	handler := findStep(doc.Workflows[0].Steps, "guarded_restart")
+	if handler == nil || handler.OperationRef != "guarded_restart" || handler.When != "" {
+		t.Fatalf("handler original step should stay inside guard wrapper, got %#v", handler)
 	}
-	if result.StrictFailures < 7 {
-		t.Fatalf("expected at least 7 strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	if result.StrictFailures < 5 {
+		t.Fatalf("expected at least 5 strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
 	}
 }
 
@@ -472,21 +512,293 @@ func TestConvertPlayLevelPreAndPostTasksLowerWithRolesDiagnostic(t *testing.T) {
 	if !slices.Equal(gotOrder, wantOrder) {
 		t.Fatalf("step order = %v, want %v", gotOrder, wantOrder)
 	}
-	wantSections := map[string]bool{"roles": false}
+	var sawMissingRole bool
 	for _, d := range result.Diagnostics {
-		for section := range wantSections {
-			if d.Code == CodePlaybookShape && d.StrictFailure && strings.Contains(d.Message, `"`+section+`"`) {
-				wantSections[section] = true
+		if d.Code == CodeStaticResolution && d.StrictFailure && strings.Contains(d.Message, `role "nginx" was not found`) {
+			sawMissingRole = true
+		}
+	}
+	if !sawMissingRole {
+		t.Fatalf("missing strict diagnostic for unresolved role: %#v", result.Diagnostics)
+	}
+	if result.StrictFailures < 1 {
+		t.Fatalf("strict failures = %d, want at least 1: %#v", result.StrictFailures, result.Diagnostics)
+	}
+}
+
+func TestConvertStaticImportTasksLowersInOrderWithProvenance(t *testing.T) {
+	result, doc := runConvert(t, "imports")
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	var got []string
+	for _, step := range doc.Workflows[0].Steps {
+		got = append(got, step.OperationRef)
+	}
+	want := []string{"first_imported", "nested_imported", "final_task"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("step order = %v, want %v", got, want)
+	}
+	for _, id := range []string{"first_imported", "nested_imported"} {
+		step := findStep(doc.Workflows[0].Steps, id)
+		if step == nil || step.When != `$variables.env == "prod"` {
+			t.Fatalf("imported task %q did not inherit import when guard: %#v", id, step)
+		}
+		op := findOperation(doc, id)
+		prov, _ := op.Extensions["x-ansible"].(map[string]any)
+		if !slices.Contains(asStringSlice(prov["tags"]), "setup") {
+			t.Fatalf("imported task %q did not inherit import tags: %#v", id, prov)
+		}
+	}
+	op := findOperation(doc, "nested_imported")
+	prov, _ := op.Extensions["x-ansible"].(map[string]any)
+	if prov["sourceFile"] == "" || prov["line"] == nil || len(asStringSlice(prov["importStack"])) == 0 {
+		t.Fatalf("nested provenance missing source/import stack: %#v", prov)
+	}
+	hclData, err := os.ReadFile(result.HCLPath)
+	if err != nil {
+		t.Fatalf("read HCL output: %v", err)
+	}
+	var hclDoc uws1.Document
+	if err := convert.UnmarshalHCL(hclData, &hclDoc); err != nil {
+		t.Fatalf("parse HCL output: %v", err)
+	}
+	hclOp := findOperation(&hclDoc, "nested_imported")
+	if hclOp == nil || hclOp.Extensions["x-ansible"] == nil {
+		t.Fatalf("HCL round-trip lost x-ansible provenance: %#v", hclOp)
+	}
+}
+
+func TestConvertStaticImportTasksRejectsCyclesAndTemplates(t *testing.T) {
+	for _, fixture := range []string{"importcycle", "importtemplated"} {
+		t.Run(fixture, func(t *testing.T) {
+			outDir := t.TempDir()
+			result, err := Convert(context.Background(), Options{
+				PlaybookPath: filepath.Join("testdata", fixture, "playbook.yml"),
+				Argspecs: []ArgspecInput{
+					{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+				},
+				OutDir: outDir,
+			})
+			if err != nil {
+				t.Fatalf("Convert(%s) failed: %v", fixture, err)
 			}
+			if result.StrictFailures == 0 {
+				t.Fatalf("expected strict failures: %#v", result.Diagnostics)
+			}
+			var saw bool
+			for _, d := range result.Diagnostics {
+				if d.Code == CodeStaticResolution && d.StrictFailure {
+					saw = true
+				}
+			}
+			if !saw {
+				t.Fatalf("missing static-resolution diagnostic: %#v", result.Diagnostics)
+			}
+		})
+	}
+}
+
+func TestConvertStaticRolesVarsHandlersAndListenAliases(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "staticroles", Options{
+		ProjectDir: filepath.Join("testdata", "staticroles"),
+	})
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	for _, name := range []string{"app_pkg", "web_service", "web_enabled"} {
+		if _, ok := doc.Components.Variables[name]; !ok {
+			t.Fatalf("missing variable %q in %#v", name, doc.Components.Variables)
 		}
 	}
-	for section, seen := range wantSections {
-		if !seen {
-			t.Fatalf("missing strict diagnostic for %s: %#v", section, result.Diagnostics)
+	var got []string
+	for _, step := range doc.Workflows[0].Steps {
+		got = append(got, step.OperationRef)
+	}
+	want := []string{"install_role_package", "deploy_role_config", "extra_role_task", "restart_role_service"}
+	if !slices.Equal(got, want) {
+		t.Fatalf("step order = %v, want %v", got, want)
+	}
+	restart := findStep(doc.Workflows[0].Steps, "restart_role_service")
+	if restart == nil || restart.When != "$steps.deploy_role_config.outputs.changed == true" {
+		t.Fatalf("handler listen alias did not gate on notifier: %#v", restart)
+	}
+	op := findOperation(doc, "install_role_package")
+	prov, _ := op.Extensions["x-ansible"].(map[string]any)
+	if prov["role"] != "web" {
+		t.Fatalf("role provenance = %#v", prov)
+	}
+}
+
+func TestConvertFQCNCollectionRoleResolution(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "collectionrole", Options{
+		ProjectDir:        filepath.Join("testdata", "collectionrole"),
+		CollectionsPaths:  []string{filepath.Join("testdata", "collectionrole", "collections")},
+		IgnoreUnsupported: true,
+	})
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	if findOperation(doc, "collection_role_task") == nil {
+		t.Fatalf("collection role task was not lowered: %#v", doc.Operations)
+	}
+}
+
+func TestConvertStaticVariableConflictFailsClosed(t *testing.T) {
+	result, _ := runConvertWithOptions(t, "varconflict", Options{
+		ProjectDir: filepath.Join("testdata", "varconflict"),
+	})
+	if result.StrictFailures == 0 {
+		t.Fatalf("expected variable conflict strict failure: %#v", result.Diagnostics)
+	}
+	var saw bool
+	for _, d := range result.Diagnostics {
+		if d.Code == CodeVariableConflict && d.StrictFailure {
+			saw = true
 		}
 	}
-	if result.StrictFailures < len(wantSections) {
-		t.Fatalf("strict failures = %d, want at least %d: %#v", result.StrictFailures, len(wantSections), result.Diagnostics)
+	if !saw {
+		t.Fatalf("missing variable conflict diagnostic: %#v", result.Diagnostics)
+	}
+}
+
+func TestConvertSemanticDirectivesLowerWhenStaticButRuntimeMetadataIsInfo(t *testing.T) {
+	result, doc := runConvert(t, "directives")
+	if doc.UWS != "1.6.0" {
+		t.Fatalf("semantic directives should stay on UWS 1.6.0, got %q", doc.UWS)
+	}
+	retryOp := findOperation(doc, "retry_command")
+	if retryOp == nil || len(retryOp.SuccessCriteria) != 2 || retryOp.SuccessCriteria[1].Condition != "$response.body.rc == 0" {
+		t.Fatalf("retry command did not lower until into successCriteria: %#v", retryOp)
+	}
+	if len(retryOp.OnFailure) != 1 || retryOp.OnFailure[0].Type != "retry" || retryOp.OnFailure[0].RetryLimit != 2 || retryOp.OnFailure[0].RetryAfter != 1 {
+		t.Fatalf("retry command did not lower retries/delay into onFailure retry: %#v", retryOp.OnFailure)
+	}
+	varsStep := findStep(doc.Workflows[0].Steps, "task_local_vars")
+	if varsStep == nil || varsStep.Inputs["local_value"] != "yes" {
+		t.Fatalf("task-local vars did not lower to step inputs: %#v", varsStep)
+	}
+	if ignoreStep := findStep(doc.Workflows[0].Steps, "ignore_errors_command"); ignoreStep != nil {
+		t.Fatalf("ignore_errors task should fail closed without UWS continue-on-error semantics: %#v", ignoreStep)
+	}
+	fatalStep := findStep(doc.Workflows[0].Steps, "fatal_fanout_command")
+	if fatalStep == nil {
+		t.Fatalf("any_errors_fatal true should use default fail-fast behavior and still lower")
+	}
+	if findOperation(doc, "runtime_metadata_stays_informational") == nil {
+		t.Fatalf("runtime-owned metadata task should still lower")
+	}
+	var sawInfo, sawIgnore bool
+	for _, d := range result.Diagnostics {
+		if d.Code == CodeDirectiveTodo && d.Severity == "info" && strings.Contains(d.Message, "runtime-owned") {
+			sawInfo = true
+		}
+		if d.Code == CodeDirectiveTodo && d.Task == "Ignore errors command" && d.StrictFailure && strings.Contains(d.Message, "ignore_errors") {
+			sawIgnore = true
+		}
+	}
+	if result.StrictFailures != 1 || !sawInfo || !sawIgnore {
+		t.Fatalf("directive diagnostics missing clean/info posture: %#v", result.Diagnostics)
+	}
+}
+
+func TestConvertInvalidControlDirectivesFailClosed(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "directives_invalid", Options{
+		IgnoreUnsupported: true,
+	})
+	wantTasks := map[string]string{
+		"Templated retries":          "retries",
+		"Invalid retries":            "retries",
+		"Invalid delay":              "delay",
+		"Negative delay":             "delay",
+		"Templated throttle":         "throttle",
+		"Invalid throttle":           "throttle",
+		"Templated ignore errors":    "ignore_errors",
+		"Invalid ignore errors":      "ignore_errors",
+		"Templated any errors fatal": "any_errors_fatal",
+		"Invalid any errors fatal":   "any_errors_fatal",
+	}
+	seen := map[string]bool{}
+	for _, d := range result.Diagnostics {
+		directive, tracked := wantTasks[d.Task]
+		if !tracked {
+			continue
+		}
+		if d.Code == CodeDirectiveTodo && d.StrictFailure && strings.Contains(d.Message, directive) && strings.Contains(d.Message, "task was not lowered") {
+			seen[d.Task] = true
+		}
+	}
+	for taskName := range wantTasks {
+		if !seen[taskName] {
+			t.Fatalf("missing strict directive diagnostic for %q: %#v", taskName, result.Diagnostics)
+		}
+	}
+	if result.StrictFailures != len(wantTasks) {
+		t.Fatalf("strict failures = %d, want %d: %#v", result.StrictFailures, len(wantTasks), result.Diagnostics)
+	}
+	if findOperation(doc, "valid_command") == nil {
+		t.Fatalf("valid task was not lowered: %#v", doc.Operations)
+	}
+	for _, id := range []string{
+		"templated_retries",
+		"invalid_retries",
+		"invalid_delay",
+		"negative_delay",
+		"templated_throttle",
+		"invalid_throttle",
+		"templated_ignore_errors",
+		"invalid_ignore_errors",
+		"templated_any_errors_fatal",
+		"invalid_any_errors_fatal",
+	} {
+		if findOperation(doc, id) != nil {
+			t.Fatalf("invalid directive task %q was lowered", id)
+		}
+	}
+}
+
+func TestConvertRetriesDelayWithoutUntilStaysWarning(t *testing.T) {
+	result, doc := runConvert(t, "directives")
+	if result.StrictFailures != 1 {
+		t.Fatalf("expected only ignore_errors strict failure, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	op := findOperation(doc, "retry_metadata_without_until")
+	if op == nil {
+		t.Fatalf("expected retries/delay without until task to lower")
+	}
+	if len(op.OnFailure) != 0 {
+		t.Fatalf("retries/delay without until should not emit retry action: %#v", op.OnFailure)
+	}
+	var sawWarning bool
+	for _, d := range result.Diagnostics {
+		if d.Code == CodeDirectiveTodo && d.Task == "Retry metadata without until" && d.Severity == "warning" && !d.StrictFailure && strings.Contains(d.Message, "retries/delay without until") {
+			sawWarning = true
+		}
+	}
+	if !sawWarning {
+		t.Fatalf("missing retries/delay without until warning: %#v", result.Diagnostics)
+	}
+}
+
+func TestConvertThrottleGreaterThanOneFailsForInventoryHostFanOut(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "directives", Options{
+		InventoryPaths: []string{filepath.Join("testdata", "inventory.ini")},
+	})
+	if result.StrictFailures < 2 {
+		t.Fatalf("expected strict failures for ignore_errors and throttle, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	step := findStep(doc.Workflows[0].Steps, "fatal_fanout_command")
+	if step != nil {
+		t.Fatalf("throttle > 1 with host fan-out should fail closed, got %#v", step)
+	}
+	var sawThrottle bool
+	for _, d := range result.Diagnostics {
+		if d.Code == CodeDirectiveTodo && d.Task == "Fatal fanout command" && d.StrictFailure && strings.Contains(d.Message, "throttle") {
+			sawThrottle = true
+		}
+	}
+	if !sawThrottle {
+		t.Fatalf("missing throttle strict diagnostic: %#v", result.Diagnostics)
 	}
 }
 
@@ -597,6 +909,23 @@ func sortedMapKeys(m map[string]string) []string {
 	}
 	slices.Sort(keys)
 	return keys
+}
+
+func asStringSlice(value any) []string {
+	switch v := value.(type) {
+	case []string:
+		return v
+	case []any:
+		out := make([]string, 0, len(v))
+		for _, item := range v {
+			if s, ok := item.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	default:
+		return nil
+	}
 }
 
 func normalizeReviewForCorpus(data []byte, outDir, corpusDir string) []byte {

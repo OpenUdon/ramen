@@ -1,0 +1,12 @@
+- name: Import expansion
+  hosts: localhost
+  vars:
+    env: prod
+  tasks:
+    - name: Import setup tasks
+      import_tasks: tasks/setup.yml
+      when: env == "prod"
+      tags: [setup]
+    - name: Final task
+      ansible.builtin.shell:
+        cmd: echo final

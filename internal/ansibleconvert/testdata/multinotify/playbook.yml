@@ -16,5 +16,7 @@
   handlers:
     - name: restart nginx
       ansible.builtin.service:
-        name: nginx
+        name: "{{ service_name }}"
         state: restarted
+      vars:
+        service_name: nginx

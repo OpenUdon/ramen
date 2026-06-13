@@ -1,0 +1,5 @@
+- name: Restart role service
+  listen: restart web
+  ansible.builtin.service:
+    name: "{{ web_service }}"
+    state: restarted
