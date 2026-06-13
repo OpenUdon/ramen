@@ -241,6 +241,69 @@ func TestAPILifecycleResourcePrefersKubernetesRBACReplaceUpdate(t *testing.T) {
 	}
 }
 
+func TestAPILifecycleResourceDoesNotRewriteNonKubernetesPatchUpdate(t *testing.T) {
+	ctx := promptcontext.Context{
+		Sources: []promptcontext.SourceDocument{{ID: "widgets", Kind: "openapi", URI: "widgets.json"}},
+		Operations: []promptcontext.OperationCandidate{
+			{
+				ID:              "widgets#createWidget",
+				SourceID:        "widgets",
+				OperationID:     "createWidget",
+				Verb:            "POST",
+				Path:            "/widgets",
+				RequestSchemaID: "request:create",
+			},
+			{
+				ID:          "widgets#readWidget",
+				SourceID:    "widgets",
+				OperationID: "readWidget",
+				Verb:        "GET",
+				Path:        "/widgets/{name}",
+			},
+			{
+				ID:              "widgets#patchWidget",
+				SourceID:        "widgets",
+				OperationID:     "patchWidget",
+				Verb:            "PATCH",
+				Path:            "/widgets/{name}",
+				RequestSchemaID: "request:update",
+			},
+			{
+				ID:              "widgets#replaceWidget",
+				SourceID:        "widgets",
+				OperationID:     "replaceWidget",
+				Verb:            "PUT",
+				Path:            "/widgets/{name}",
+				RequestSchemaID: "request:update",
+			},
+			{
+				ID:          "widgets#deleteWidget",
+				SourceID:    "widgets",
+				OperationID: "deleteWidget",
+				Verb:        "DELETE",
+				Path:        "/widgets/{name}",
+			},
+		},
+		Schemas: []promptcontext.SchemaHint{{
+			ID:       "request:create",
+			Required: []string{"name"},
+			Fields: []promptcontext.FieldHint{
+				{Name: "name", Type: "string", Required: true},
+			},
+		}, {
+			ID:       "request:update",
+			Required: []string{"name"},
+			Fields: []promptcontext.FieldHint{
+				{Name: "name", Type: "string", Required: true},
+			},
+		}},
+	}
+	resource := APILifecycleResource(ctx, ctx.Operations[0], "Create, read, update, and delete the widget.", "widget")
+	if got := resource.Operations["update"].OperationID; got != "patchWidget" {
+		t.Fatalf("update operation = %q, want patchWidget", got)
+	}
+}
+
 func TestAPILifecycleResourcePreservesCloudflareAccountScopeAndAliasesDatabaseID(t *testing.T) {
 	ctx := promptcontext.Context{
 		Sources: []promptcontext.SourceDocument{{ID: "cloudflare", Kind: "openapi", URI: "cloudflare.json"}},
