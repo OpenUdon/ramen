@@ -1,6 +1,9 @@
 package tfmapping
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDefaultRegistryNativeSourcePreferences(t *testing.T) {
 	registry := DefaultRegistry()
@@ -371,16 +374,17 @@ func TestDefaultRegistryInitialResourceOperationTargets(t *testing.T) {
 func TestDefaultRegistryDiagnostics(t *testing.T) {
 	registry := DefaultRegistry()
 	tests := []struct {
-		name    string
-		obj     Object
-		purpose string
-		action  string
-		want    DiagnosticCode
+		name                string
+		obj                 Object
+		purpose             string
+		action              string
+		want                DiagnosticCode
+		wantMessageContains string
 	}{
 		{name: "provider", obj: Object{Kind: "resource", Type: "example_resource", Provider: "provider.example"}, want: DiagnosticCodeUnsupportedProvider},
 		{name: "type", obj: Object{Kind: "resource", Type: "aws_instance", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedType},
 		{name: "action", obj: Object{Kind: "resource", Type: "aws_iam_role", Provider: "provider.aws"}, want: DiagnosticCodeUnsupportedAction},
-		{name: "cloudflare d1 database delete", obj: Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, purpose: "delete", action: "delete", want: DiagnosticCodeUnsupportedAction},
+		{name: "cloudflare d1 database delete", obj: Object{Kind: "resource", Type: "cloudflare_d1_database", Provider: "provider.cloudflare"}, purpose: "delete", action: "delete", want: DiagnosticCodeUnsupportedAction, wantMessageContains: "response-derived UUID delete mapping"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -394,6 +398,9 @@ func TestDefaultRegistryDiagnostics(t *testing.T) {
 			}
 			if got := mapping.Diagnostics[0].Code; got != tt.want {
 				t.Fatalf("diagnostic code = %q, want %q", got, tt.want)
+			}
+			if tt.wantMessageContains != "" && !strings.Contains(mapping.Diagnostics[0].Message, tt.wantMessageContains) {
+				t.Fatalf("diagnostic message = %q, want substring %q", mapping.Diagnostics[0].Message, tt.wantMessageContains)
 			}
 		})
 	}

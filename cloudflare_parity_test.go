@@ -298,6 +298,15 @@ func assertCloudflareParityRecordingArtifacts(t *testing.T, lane string, artifac
 	}
 }
 
+// cloudflareParityRequiredFieldValues pins exact observed field values that
+// cross-runtime equality cannot catch on its own. A lane whose point is that an
+// update actually changes a field (e.g. C06 toggling D1 read replication to
+// "auto") would otherwise pass on a uniform no-op across all runtimes. Add an
+// entry whenever a lane asserts a specific post-mutation value.
+var cloudflareParityRequiredFieldValues = map[string]map[string]any{
+	"C06": {"after_update.read_replication_mode": "auto"},
+}
+
 func assertCloudflareParityLiveRecording(t *testing.T, lane string, artifact cloudflareParityArtifact, scenario cloudflareParityScenario, recording cloudflareParityLiveRecording) {
 	t.Helper()
 	wantLane := strings.ToUpper(lane)
@@ -330,6 +339,13 @@ func assertCloudflareParityLiveRecording(t *testing.T, lane string, artifact clo
 	}
 	if !recording.Comparison.Matched {
 		t.Fatalf("%s recording comparison did not match", wantLane)
+	}
+	for field, wantValue := range cloudflareParityRequiredFieldValues[wantLane] {
+		for _, observation := range recording.Observations {
+			if observation.Fields[field] != wantValue {
+				t.Fatalf("%s recording runtime %q field %q = %#v, want %#v", wantLane, observation.Runtime, field, observation.Fields[field], wantValue)
+			}
+		}
 	}
 }
 
@@ -749,6 +765,12 @@ func compareCloudflareParityObservations(observations []cloudflareParityRuntimeO
 			if observation.Fields[field] != first[field] {
 				matched = false
 			}
+		}
+		// Mirror compareGoogleParityObservations: cross-runtime agreement alone
+		// is satisfied by a uniformly-wrong recording (e.g. every runtime failed
+		// to create), so require the resource to actually exist after create.
+		if observation.Fields["after_create.exists"] != true {
+			matched = false
 		}
 	}
 	return cloudflareParityObservationComparison{Matched: matched, Fields: fields}

@@ -1175,7 +1175,7 @@ func (cloudflareMapper) MapObject(obj Object, purpose, action string) Mapping {
 			mapping.Target = cloudflareOpenAPIOperationTarget("d1_database", "d1-update-database")
 			return mapping
 		}
-		return unsupportedActionMapping(mapping, "Cloudflare D1 database mapping supports read, create, and read_replication update; delete requires response-derived database UUID handling")
+		return unsupportedActionMapping(mapping, "Cloudflare D1 database mapping supports read, create, and read_replication update; delete requires response-derived UUID delete mapping before public conversion support")
 	default:
 		return unsupportedTypeMapping(mapping, "Cloudflare")
 	}
