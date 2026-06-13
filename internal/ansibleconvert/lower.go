@@ -261,7 +261,7 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 
 	op := &uws1.Operation{
 		OperationID:       lt.opID,
-		SourceDescription: sourceID,
+		SourceDescription: sourceUWSName(sourceID),
 		SourceOperationID: task.Module,
 		Outputs:           map[string]string{"changed": "$response.body.changed"},
 		SuccessCriteria:   []*uws1.Criterion{{Condition: "$response.body.failed != true"}},
@@ -443,17 +443,29 @@ func (lw *lowerer) applyNeededOutputs() {
 }
 
 func (lw *lowerer) ensureSourceDescription(sourceID string) {
+	name := sourceUWSName(sourceID)
 	for _, sd := range lw.doc.SourceDescriptions {
-		if sd.Name == sourceID {
+		if sd.Name == name {
 			return
 		}
 	}
 	input, _ := lw.idx.Source(sourceID)
 	lw.doc.SourceDescriptions = append(lw.doc.SourceDescriptions, &uws1.SourceDescription{
-		Name: sourceID,
+		Name: name,
 		URL:  input.Path,
 		Type: uws1.SourceDescriptionTypeAnsibleModule,
 	})
+}
+
+// sourceUWSName converts an argspec source ID (often an Ansible collection FQCN
+// such as "ansible.builtin") into a UWS sourceDescription name, which must match
+// ^[A-Za-z0-9_-]+$. The raw ID stays the argspec lookup key; only the emitted
+// name is sanitized so a dotted collection ID does not fail UWS validation.
+func sourceUWSName(sourceID string) string {
+	if name := sanitizeID(sourceID); name != "" {
+		return name
+	}
+	return "source"
 }
 
 func (lw *lowerer) addDiag(d Diagnostic) {

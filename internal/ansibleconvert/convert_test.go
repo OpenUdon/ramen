@@ -101,6 +101,47 @@ func TestConvertNginxPlaybook(t *testing.T) {
 	}
 }
 
+func TestConvertSanitizesDottedArgspecSourceID(t *testing.T) {
+	// The natural argspec ID is the collection FQCN (e.g. "ansible.builtin"),
+	// but UWS sourceDescription names forbid dots. Conversion must sanitize the
+	// emitted name rather than fail UWS validation with an internal error.
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: filepath.Join("testdata", "nginx", "playbook.yml"),
+		Argspecs: []ArgspecInput{
+			{ID: "ansible.builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("Convert with dotted argspec ID failed: %v", err)
+	}
+	if result.UWSPath == "" {
+		t.Fatalf("expected a UWS document to be written: %#v", result)
+	}
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatalf("read emitted UWS document: %v", err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse emitted UWS document: %v", err)
+	}
+	if err := doc.Validate(); err != nil {
+		t.Fatalf("emitted UWS document does not validate: %v", err)
+	}
+	if len(doc.SourceDescriptions) != 1 || doc.SourceDescriptions[0].Name != "ansible_builtin" {
+		t.Fatalf("source name = %#v, want ansible_builtin", doc.SourceDescriptions)
+	}
+	for _, op := range doc.Operations {
+		if op.SourceDescription != "ansible_builtin" {
+			t.Fatalf("operation %q sourceDescription = %q, want ansible_builtin", op.OperationID, op.SourceDescription)
+		}
+		if op.SourceOperationID != "" && !strings.HasPrefix(op.SourceOperationID, "ansible.builtin.") {
+			t.Fatalf("operation %q sourceOperationId = %q, want module FQCN preserved", op.OperationID, op.SourceOperationID)
+		}
+	}
+}
+
 func TestConvertMultiNotifyLowersSwitch(t *testing.T) {
 	result, doc := runConvert(t, "multinotify")
 	if result.StrictFailures != 0 {
