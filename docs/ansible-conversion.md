@@ -107,6 +107,41 @@ host-fan-out `throttle`, multi-condition `changed_when`, and non-invertible or
 multi-condition `failed_when` are strict diagnostics. `any_errors_fatal: true`
 matches UWS 1.6 fail-fast behavior and emits no field.
 
+## Lowering Contract
+
+Ramen owns Ansible playbook lowering. UWS owns the resulting orchestration
+objects and the bound runtime owns Ansible module execution. The UWS 1.6 and
+UWS 1.5 targets share the same orchestration lowering; only the module leaf
+binding differs.
+
+| Ansible construct | Ramen lowering |
+| --- | --- |
+| Ordered `pre_tasks`, `tasks`, `post_tasks` | One UWS `sequence` workflow preserving resolved play order. |
+| Module task | One UWS operation plus one operation step. UWS 1.6 binds to `sourceDescriptions[].type: ansible-module`; UWS 1.5 uses `uws.ansible-module-call.1.0`. |
+| Literal or whole-reference args | `request.body` values, with `{{ var }}` lowered to `$variables.*`, `$inputs.*`, `$item`, or `$steps.*.outputs.*` when safe. |
+| `when: expr` | Step `when` for one condition; nested `switch` guards for conjunctions that need more than one condition. |
+| `when: a and b` | DNF conjunction lowered as nested `switch` guards so both conditions must pass. |
+| `when: a or b` | DNF disjunction lowered as a `switch` with one case per disjunct when the task does not need a stable original step output for `register` or `notify`. |
+| `not`, `is defined`, `is not defined` | Lowered to simple UWS comparisons when the operand is a lowerable reference. |
+| `loop` / `with_items` | Step `forEach`; literal lists are hoisted to `components.variables`, and `$item` / `$index` are available inside the task. |
+| `register` field reads | Later references like `result.rc` become `$steps.<producer>.outputs.rc`; the producer operation exposes the requested response path. |
+| `changed_when` | A single lowerable condition replaces the operation's `outputs.changed`. |
+| `failed_when` | A single mechanically invertible condition replaces the default failure criterion in `successCriteria`. |
+| `until` + `retries` + `delay` | The `until` conditions append to `successCriteria`; static `retries` emits `onFailure` retry with `retryLimit: retries - 1`; static `delay` becomes `retryAfter`. |
+| `notify` / handlers | One notifier gates the handler step on `$steps.<notifier>.outputs.changed == true`; multiple notifiers lower to one `switch` that runs the handler at most once. |
+| Static `import_tasks` / `import_role` | Resolved before lowering; wrapper `when`, tags, task vars, retry directives, and condition directives are inherited when they do not conflict. |
+| `--inventory` host fan-out | Non-local tasks get `forEach: $inputs.hosts` and `inputs.host: $item`; inventory parsing and connection details stay runtime-owned. |
+
+## Support Matrix
+
+| Category | Constructs | Behavior |
+| --- | --- | --- |
+| Supported | Static module tasks, simple args, simple `when`, `and`/`or`/`not`, `loop`, `register` field reads, handlers, static imports, static roles, `changed_when`, `failed_when`, `until`/`retries`/`delay` | Lowered into UWS core workflow objects and validated argspec-bound module leaves. |
+| Partially supported | OR-guarded tasks, host fan-out, `throttle`, retries without `until`, static variables and role vars | Lowered only when a stable UWS meaning exists; otherwise emits diagnostics. |
+| Runtime-owned | `become`, `become_user`, `become_method`, `environment`, `no_log`, inventory connection behavior, module invocation, credentials | Recorded as informational diagnostics or provenance; not emitted as UWS execution policy. |
+| Review-only | `x-ansible` provenance, argspec references, project/role/collection/inventory inputs, extra-vars inputs | Included for review and reproducibility; they do not define UWS execution semantics. |
+| Unsupported / fail-closed | Complex Jinja2, runtime facts, dynamic includes, unknown modules, `delegate_to`, `run_once`, `rescue`, `always`, non-static task vars, `ignore_errors`, unsafe handler/host fan-out combinations | Emits strict diagnostics and omits the affected task/handler unless `--ignore-unsupported` allows a partial artifact. |
+
 Lowered operations and steps carry provenance-only `x-ansible` extensions with
 the source file, line, column, play, section, task name, optional role, optional
 import stack, and optional tags. These extensions are review/debug metadata and

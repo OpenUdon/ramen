@@ -14,6 +14,11 @@
         cmd: echo or
       when: env == "prod" or missing_flag
 
+    - name: Nested condition
+      ansible.builtin.shell:
+        cmd: echo nested
+      when: (env == "prod" and enabled) or missing_flag
+
     - name: Not condition
       ansible.builtin.shell:
         cmd: echo not

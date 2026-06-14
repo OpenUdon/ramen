@@ -564,6 +564,20 @@ func TestConvertPortableConditionCombinations(t *testing.T) {
 		}
 	}
 
+	nestedWrapper := findTopStep(doc.Workflows[0].Steps, "nested_condition_guard_or")
+	if nestedWrapper == nil || nestedWrapper.Type != uws1.WorkflowTypeSwitch || len(nestedWrapper.Cases) != 2 {
+		t.Fatalf("nested OR/AND condition should lower to switch cases, got %#v", nestedWrapper)
+	}
+	if nestedWrapper.Cases[0].When != `$variables.env == "prod"` {
+		t.Fatalf("nested first case guard = %q", nestedWrapper.Cases[0].When)
+	}
+	if len(nestedWrapper.Cases[0].Steps) != 1 || nestedWrapper.Cases[0].Steps[0].When != "$variables.enabled == true" {
+		t.Fatalf("nested AND branch missing second guard: %#v", nestedWrapper.Cases[0].Steps)
+	}
+	if nestedWrapper.Cases[1].When != "$inputs.missing_flag == true" {
+		t.Fatalf("nested OR second case = %q", nestedWrapper.Cases[1].When)
+	}
+
 	notStep := findStep(doc.Workflows[0].Steps, "not_condition")
 	if notStep == nil || notStep.When != "$inputs.missing_flag != true" {
 		t.Fatalf("not condition step = %#v", notStep)
@@ -638,6 +652,122 @@ func TestConvertORNotifyTaskFailsClosed(t *testing.T) {
 	}
 	if safe := findStep(doc.Workflows[0].Steps, "safe_task"); safe == nil {
 		t.Fatalf("unrelated safe task should still lower: %#v", doc.Workflows[0].Steps)
+	}
+}
+
+func TestConvertChangedFailedWhenUseCurrentResponseAndInvertComparisons(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	if err := os.WriteFile(playbookPath, []byte(`- name: condition outputs
+  hosts: localhost
+  tasks:
+    - name: Changed from response
+      ansible.builtin.shell:
+        cmd: echo changed
+      register: changed_result
+      changed_when: changed_result.rc == 0
+
+    - name: Failed eq
+      ansible.builtin.shell:
+        cmd: echo eq
+      register: eq_result
+      failed_when: eq_result.rc == 1
+
+    - name: Failed ne
+      ansible.builtin.shell:
+        cmd: echo ne
+      register: ne_result
+      failed_when: ne_result.rc != 1
+
+    - name: Failed lt
+      ansible.builtin.shell:
+        cmd: echo lt
+      register: lt_result
+      failed_when: lt_result.rc < 1
+
+    - name: Failed le
+      ansible.builtin.shell:
+        cmd: echo le
+      register: le_result
+      failed_when: le_result.rc <= 1
+
+    - name: Failed gt
+      ansible.builtin.shell:
+        cmd: echo gt
+      register: gt_result
+      failed_when: gt_result.rc > 1
+
+    - name: Failed ge
+      ansible.builtin.shell:
+        cmd: echo ge
+      register: ge_result
+      failed_when: ge_result.rc >= 1
+`), 0o644); err != nil {
+		t.Fatalf("write playbook: %v", err)
+	}
+
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbookPath,
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir: t.TempDir(),
+	})
+	if err != nil {
+		t.Fatalf("Convert failed: %v", err)
+	}
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatalf("read emitted UWS document: %v", err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse emitted UWS document: %v", err)
+	}
+	changed := findOperation(&doc, "changed_from_response")
+	if changed == nil || changed.Outputs["changed"] != "$response.body.rc == 0" {
+		t.Fatalf("changed_when did not use current response: %#v", changed)
+	}
+	wantCriteria := map[string]string{
+		"failed_eq": "$response.body.rc != 1",
+		"failed_ne": "$response.body.rc == 1",
+		"failed_lt": "$response.body.rc >= 1",
+		"failed_le": "$response.body.rc > 1",
+		"failed_gt": "$response.body.rc <= 1",
+		"failed_ge": "$response.body.rc < 1",
+	}
+	for opID, want := range wantCriteria {
+		op := findOperation(&doc, opID)
+		if op == nil || len(op.SuccessCriteria) != 1 || op.SuccessCriteria[0].Condition != want {
+			t.Fatalf("%s successCriteria = %#v, want %q", opID, op, want)
+		}
+	}
+}
+
+func TestConvertStaticImportInheritsSemanticDirectives(t *testing.T) {
+	result, doc := runConvert(t, "importdirectives")
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	step := findStep(doc.Workflows[0].Steps, "imported_semantic_task")
+	if step == nil || step.When != `$variables.env == "prod"` {
+		t.Fatalf("imported task should inherit wrapper when as step guard, got %#v", step)
+	}
+	op := findOperation(doc, "imported_semantic_task")
+	if op == nil {
+		t.Fatalf("imported operation missing")
+	}
+	if op.Outputs["changed"] != "$inputs.changed_flag == true" {
+		t.Fatalf("changed_when inheritance = %#v", op.Outputs)
+	}
+	if len(op.SuccessCriteria) != 2 || op.SuccessCriteria[0].Condition != "$inputs.failed_flag != true" || op.SuccessCriteria[1].Condition != "$inputs.ready_flag == true" {
+		t.Fatalf("failed_when/until inheritance criteria = %#v", op.SuccessCriteria)
+	}
+	if len(op.OnFailure) != 1 || op.OnFailure[0].Type != "retry" || op.OnFailure[0].RetryLimit != 3 || op.OnFailure[0].RetryAfter != 2 {
+		t.Fatalf("retry inheritance = %#v", op.OnFailure)
 	}
 }
 

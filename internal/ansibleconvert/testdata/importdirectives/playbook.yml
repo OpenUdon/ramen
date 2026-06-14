@@ -1,0 +1,13 @@
+- name: Import semantic directive inheritance
+  hosts: localhost
+  vars:
+    env: prod
+  tasks:
+    - name: Import semantic task
+      import_tasks: tasks/semantic.yml
+      when: env == "prod"
+      changed_when: changed_flag
+      failed_when: failed_flag
+      until: ready_flag
+      retries: 4
+      delay: 2

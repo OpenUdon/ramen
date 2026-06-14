@@ -1,0 +1,3 @@
+- name: Imported semantic task
+  ansible.builtin.shell:
+    cmd: echo imported semantic
