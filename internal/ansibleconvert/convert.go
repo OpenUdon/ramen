@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/OpenUdon/ramen/internal/convertcore"
+	"github.com/OpenUdon/uws/ansiblemodulecall"
 	"github.com/OpenUdon/uws/uws1"
 )
 
@@ -176,10 +177,11 @@ func writeReview(result *Result, doc *uws1.Document, opts Options) error {
 			if len(refs) == 0 {
 				refs = []string{"-"}
 			}
+			source, module := operationReviewBinding(op)
 			fmt.Fprintf(&b, "| `%s` | `%s` | `%s` | %s |\n",
 				escapeTable(op.OperationID),
-				escapeTable(op.SourceDescription),
-				escapeTable(op.SourceOperationID),
+				escapeTable(source),
+				escapeTable(module),
 				escapeTable(strings.Join(refs, ", ")))
 		}
 	}
@@ -233,6 +235,23 @@ func operationStepRefs(doc *uws1.Document) map[string][]string {
 		sort.Strings(refs[operationID])
 	}
 	return refs
+}
+
+func operationReviewBinding(op *uws1.Operation) (source, module string) {
+	source = op.SourceDescription
+	module = op.SourceOperationID
+	if source != "" || module != "" {
+		return source, module
+	}
+	payload, ok, err := ansiblemodulecall.ReadOperationExtension(op.Extensions)
+	if err != nil || !ok || payload == nil {
+		return source, module
+	}
+	module = payload.Module
+	if payload.Argspec != nil {
+		source = payload.Argspec.SourceID
+	}
+	return source, module
 }
 
 func collectStepRefs(refs map[string][]string, steps []*uws1.Step) {

@@ -209,6 +209,16 @@ func TestConvertNginxPlaybookTargetUWS15UsesExtensionOwnedLeaves(t *testing.T) {
 	if install.Outputs["changed"] != "$response.body.changed" {
 		t.Fatalf("outputs changed in compatibility mode: %#v", install.Outputs)
 	}
+	review, err := os.ReadFile(result.ReviewMD)
+	if err != nil {
+		t.Fatalf("read review: %v", err)
+	}
+	reviewText := string(review)
+	for _, want := range []string{"`install_nginx`", "`builtin`", "`ansible.builtin.apt`"} {
+		if !strings.Contains(reviewText, want) {
+			t.Fatalf("1.5 review missing %q:\n%s", want, review)
+		}
+	}
 }
 
 func TestConvertInventoryHostFanOutLowersInputsAndForEach(t *testing.T) {
@@ -652,6 +662,196 @@ func TestConvertORNotifyTaskFailsClosed(t *testing.T) {
 	}
 	if safe := findStep(doc.Workflows[0].Steps, "safe_task"); safe == nil {
 		t.Fatalf("unrelated safe task should still lower: %#v", doc.Workflows[0].Steps)
+	}
+}
+
+func TestConvertWrappedGuardRegisterAndNotifyFailClosed(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	if err := os.WriteFile(playbookPath, []byte(`- name: wrapped guard producer case
+  hosts: localhost
+  vars:
+    env: prod
+    enabled: true
+  tasks:
+    - name: Safe task
+      ansible.builtin.shell:
+        cmd: echo safe
+
+    - name: Producer
+      ansible.builtin.shell:
+        cmd: echo producer
+      when:
+        - env == "prod"
+        - enabled
+      register: produced
+
+    - name: Consumer
+      ansible.builtin.shell:
+        cmd: "{{ produced.rc }}"
+
+    - name: Deploy config
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+      when:
+        - env == "prod"
+        - enabled
+      notify: restart nginx
+  handlers:
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+`), 0o644); err != nil {
+		t.Fatalf("write playbook: %v", err)
+	}
+
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbookPath,
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir:            filepath.Join(root, "out"),
+		IgnoreUnsupported: true,
+	})
+	if err != nil {
+		t.Fatalf("Convert failed: %v", err)
+	}
+	if result.StrictFailures < 2 {
+		t.Fatalf("expected register and notify strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	var sawRegister, sawNotify bool
+	for _, d := range result.Diagnostics {
+		switch {
+		case d.Code == CodeDirectiveTodo && d.Task == "Producer" && d.StrictFailure && strings.Contains(d.Message, "registered task"):
+			sawRegister = true
+		case d.Code == CodeDirectiveTodo && d.Task == "Deploy config" && d.StrictFailure && strings.Contains(d.Message, "notifying task"):
+			sawNotify = true
+		}
+	}
+	if !sawRegister || !sawNotify {
+		t.Fatalf("missing wrapped-guard diagnostics register=%v notify=%v: %#v", sawRegister, sawNotify, result.Diagnostics)
+	}
+
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatalf("read emitted UWS document: %v", err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse emitted UWS document: %v", err)
+	}
+	if err := doc.Validate(); err != nil {
+		t.Fatalf("emitted UWS document does not validate: %v", err)
+	}
+	for _, leaked := range []string{"producer", "deploy_config", "restart_nginx"} {
+		if findOperation(&doc, leaked) != nil || findStep(doc.Workflows[0].Steps, leaked) != nil {
+			t.Fatalf("wrapped-guard task %q leaked into document: %#v", leaked, doc.Workflows[0].Steps)
+		}
+	}
+	consumer := findOperation(&doc, "consumer")
+	if consumer == nil {
+		t.Fatalf("consumer task missing")
+	}
+	body, _ := consumer.Request["body"].(map[string]any)
+	cmd, _ := body["cmd"].(string)
+	if strings.Contains(cmd, "$steps.producer") {
+		t.Fatalf("consumer references skipped wrapped producer: %q", cmd)
+	}
+	if !strings.HasPrefix(cmd, "UWS-TODO") {
+		t.Fatalf("consumer arg should be a TODO placeholder, got %q", cmd)
+	}
+	if safe := findStep(doc.Workflows[0].Steps, "safe_task"); safe == nil {
+		t.Fatalf("unrelated safe task should still lower: %#v", doc.Workflows[0].Steps)
+	}
+}
+
+func TestConvertBadTaskShapesWriteDiagnosticsAndPartialArtifacts(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	if err := os.WriteFile(playbookPath, []byte(`- name: bad task shapes
+  hosts: localhost
+  tasks:
+    - name: Safe task
+      ansible.builtin.shell:
+        cmd: echo safe
+
+    - name: Missing module
+      tags: bad
+
+    - name: Multiple modules
+      ansible.builtin.shell:
+        cmd: echo one
+      ansible.builtin.service:
+        name: nginx
+        state: started
+
+    - name: Bad arg shape
+      ansible.builtin.shell:
+        - echo bad
+
+    - name: Unsupported legacy loop
+      ansible.builtin.shell:
+        cmd: echo bad
+      with_dict:
+        key: value
+`), 0o644); err != nil {
+		t.Fatalf("write playbook: %v", err)
+	}
+
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbookPath,
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir:            filepath.Join(root, "out"),
+		IgnoreUnsupported: true,
+	})
+	if err != nil {
+		t.Fatalf("Convert should not abort on task-shape diagnostics: %v", err)
+	}
+	if result.UWSPath == "" {
+		t.Fatalf("partial workflow should be written when a safe task lowers: %#v", result)
+	}
+	for _, path := range []string{result.DiagnosticsJSON, result.DiagnosticsMD, result.ReviewMD, result.UWSPath} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("expected artifact %s: %v", path, err)
+		}
+	}
+	if result.StrictFailures < 4 {
+		t.Fatalf("expected strict diagnostics for bad shapes and legacy loop, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	for _, want := range []string{"no module invocation", "multiple module keys", "unsupported argument shape", "with_dict"} {
+		var found bool
+		for _, d := range result.Diagnostics {
+			if d.StrictFailure && strings.Contains(d.Message, want) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing diagnostic containing %q: %#v", want, result.Diagnostics)
+		}
+	}
+
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatalf("read emitted UWS document: %v", err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse emitted UWS document: %v", err)
+	}
+	if err := doc.Validate(); err != nil {
+		t.Fatalf("emitted UWS document does not validate: %v", err)
+	}
+	if findOperation(&doc, "safe_task") == nil {
+		t.Fatalf("safe task did not lower: %#v", doc.Operations)
+	}
+	for _, skipped := range []string{"missing_module", "multiple_modules", "bad_arg_shape", "unsupported_legacy_loop"} {
+		if findOperation(&doc, skipped) != nil || findStep(doc.Workflows[0].Steps, skipped) != nil {
+			t.Fatalf("bad task %q leaked into partial workflow", skipped)
+		}
 	}
 }
 

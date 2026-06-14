@@ -220,6 +220,9 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 	} else if loop := m.value("with_items"); loop != nil {
 		task.Loop = loop
 	}
+	for _, directive := range unsupportedWithDirectives(m) {
+		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, directive, "uses a legacy loop form that is not lowered; use loop or with_items for static item lists", ""))
+	}
 	if m.has("retries") {
 		value, ok, reason := staticIntDirective(m.value("retries"), true)
 		if ok {
@@ -308,7 +311,7 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 	// The remaining non-directive key is the module invocation.
 	var moduleKeys []string
 	for key := range m.values {
-		if !taskDirectives[key] && task.DynamicInclude == "" {
+		if !isTaskDirectiveKey(key) && task.DynamicInclude == "" {
 			moduleKeys = append(moduleKeys, key)
 		}
 	}
@@ -317,10 +320,12 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 		return task, nil
 	}
 	if len(moduleKeys) == 0 {
-		return nil, fmt.Errorf("task %q has no module invocation", task.Name)
+		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, taskShapeDiagnostic(task.Name, "has no module invocation"))
+		return task, nil
 	}
 	if len(moduleKeys) > 1 {
-		return nil, fmt.Errorf("task %q has multiple module keys: %v", task.Name, moduleKeys)
+		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, taskShapeDiagnostic(task.Name, fmt.Sprintf("has multiple module keys: %v", moduleKeys)))
+		return task, nil
 	}
 	task.Module = normalizeFQCN(moduleKeys[0])
 	switch args := m.value(moduleKeys[0]).(type) {
@@ -331,7 +336,8 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 	case nil:
 		task.Args = map[string]any{}
 	default:
-		return nil, fmt.Errorf("task %q module %s has unsupported argument shape %T", task.Name, task.Module, args)
+		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, taskShapeDiagnostic(task.Name, fmt.Sprintf("module %s has unsupported argument shape %T", task.Module, args)))
+		return task, nil
 	}
 	if extra := mapValue(m.value("args")); extra != nil {
 		if task.Args == nil {
@@ -342,6 +348,21 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 		}
 	}
 	return task, nil
+}
+
+func isTaskDirectiveKey(key string) bool {
+	return taskDirectives[key] || strings.HasPrefix(key, "with_")
+}
+
+func unsupportedWithDirectives(m nodeMap) []string {
+	var directives []string
+	for key := range m.values {
+		if strings.HasPrefix(key, "with_") && key != "with_items" {
+			directives = append(directives, key)
+		}
+	}
+	sort.Strings(directives)
+	return directives
 }
 
 type nodeMap struct {
@@ -498,46 +519,6 @@ func mapValue(v any) map[string]any {
 	return nil
 }
 
-func intPointerValue(v any) *int {
-	switch x := v.(type) {
-	case int:
-		return &x
-	case int64:
-		i := int(x)
-		return &i
-	case float64:
-		i := int(x)
-		if float64(i) == x {
-			return &i
-		}
-	case string:
-		var i int
-		if _, err := fmt.Sscanf(strings.TrimSpace(x), "%d", &i); err == nil {
-			return &i
-		}
-	}
-	return nil
-}
-
-func floatPointerValue(v any) *float64 {
-	switch x := v.(type) {
-	case int:
-		f := float64(x)
-		return &f
-	case int64:
-		f := float64(x)
-		return &f
-	case float64:
-		return &x
-	case string:
-		var f float64
-		if _, err := fmt.Sscanf(strings.TrimSpace(x), "%f", &f); err == nil {
-			return &f
-		}
-	}
-	return nil
-}
-
 func staticIntDirective(v any, positive bool) (int, bool, string) {
 	var value int
 	switch x := v.(type) {
@@ -640,17 +621,7 @@ func strictDirectiveDiagnostic(taskName, directive, requirement, reason string) 
 	return Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: taskName, Message: message}
 }
 
-func boolValue(v any) (bool, bool) {
-	switch x := v.(type) {
-	case bool:
-		return x, true
-	case string:
-		switch strings.ToLower(strings.TrimSpace(x)) {
-		case "true", "yes", "on", "1":
-			return true, true
-		case "false", "no", "off", "0":
-			return false, true
-		}
-	}
-	return false, false
+func taskShapeDiagnostic(taskName, message string) Diagnostic {
+	return Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: taskName,
+		Message: fmt.Sprintf("task %q %s; the task was not lowered", taskName, message)}
 }

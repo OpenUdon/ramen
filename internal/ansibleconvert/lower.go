@@ -243,6 +243,17 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) 
 // step. Returns nil when the task is skipped with a strict diagnostic.
 func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	task := lt.task
+	if len(task.StrictDirectiveDiagnostics) > 0 {
+		for _, diag := range task.StrictDirectiveDiagnostics {
+			lw.addDiag(diag)
+		}
+		lt.skipped = true
+		return nil
+	}
+	if task.Module == "" {
+		lt.skipped = true
+		return nil
+	}
 	sourceID, _, known := lw.idx.Lookup(task.Module)
 	if !known {
 		lw.addDiag(Diagnostic{Code: CodeModuleUnknown, Severity: "error", StrictFailure: true, Task: task.Name,
@@ -254,13 +265,6 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		for _, directive := range task.HardDirectives {
 			lw.addDiag(Diagnostic{Code: CodeDelegateUnsupported, Severity: "error", StrictFailure: true, Task: task.Name,
 				Message: fmt.Sprintf("directive %q changes the execution target; the task was not lowered", directive)})
-		}
-		lt.skipped = true
-		return nil
-	}
-	if len(task.StrictDirectiveDiagnostics) > 0 {
-		for _, diag := range task.StrictDirectiveDiagnostics {
-			lw.addDiag(diag)
 		}
 		lt.skipped = true
 		return nil
@@ -318,15 +322,15 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 			lt.skipped = true
 			return nil
 		}
-		if len(lowered) > 1 && task.Register != "" {
+		if conditionDNFWrapsStep(lowered) && task.Register != "" {
 			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
-				Message: "when with OR semantics on a registered task cannot expose a stable UWS step output; the task was not lowered"})
+				Message: "when guard would wrap a registered task and cannot expose a stable UWS step output; the task was not lowered"})
 			lt.skipped = true
 			return nil
 		}
-		if len(lowered) > 1 && len(task.Notify) > 0 {
+		if conditionDNFWrapsStep(lowered) && len(task.Notify) > 0 {
 			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
-				Message: "when with OR semantics on a notifying task cannot expose a stable changed output for handler gates; the task was not lowered"})
+				Message: "when guard would wrap a notifying task and cannot expose a stable changed output for handler gates; the task was not lowered"})
 			lt.skipped = true
 			return nil
 		}

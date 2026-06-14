@@ -106,6 +106,13 @@ func (lw *lowerer) wrapGuardedStepDNF(step *uws1.Step, dnf conditionDNF, task *T
 	return wrapper
 }
 
+func conditionDNFWrapsStep(dnf conditionDNF) bool {
+	if len(dnf) > 1 {
+		return true
+	}
+	return len(dnf) == 1 && len(dnf[0]) > 1
+}
+
 func cloneStepForGuardCase(step *uws1.Step, stepID string) *uws1.Step {
 	if step == nil {
 		return nil

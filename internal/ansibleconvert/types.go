@@ -22,9 +22,11 @@ type ArgspecInput struct {
 
 // Options configures a single playbook conversion.
 type Options struct {
-	PlaybookPath     string
-	Argspecs         []ArgspecInput
-	OutDir           string
+	PlaybookPath string
+	Argspecs     []ArgspecInput
+	OutDir       string
+	// Strict is accepted for CLI compatibility but is not used by Ansible
+	// conversion. Unsupported constructs always emit strict-failure diagnostics.
 	Strict           bool
 	ProjectDir       string
 	RolesPaths       []string
