@@ -2428,10 +2428,10 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	var inventoryPaths repeatedStringFlag
 	var extraVars repeatedStringFlag
 	fs.Var(&argspecs, "argspec", "Collection argspec document as ID=PATH (repeatable; uws.ansible.1.0 shape)")
-	fs.Var(&rolesPaths, "roles-path", "Static Ansible roles search path (repeatable; recorded for conversion provenance)")
-	fs.Var(&collectionsPaths, "collections-path", "Static Ansible collections search path (repeatable; recorded for conversion provenance)")
-	fs.Var(&inventoryPaths, "inventory", "Inventory file or directory (repeatable; recorded for conversion provenance)")
-	fs.Var(&extraVars, "extra-var", "Static extra variable NAME=VALUE or @file (repeatable; recorded for conversion provenance)")
+	fs.Var(&rolesPaths, "roles-path", "Static Ansible roles search path for resolving play roles/import_role (repeatable)")
+	fs.Var(&collectionsPaths, "collections-path", "Static Ansible collections search path for resolving FQCN collection roles (repeatable)")
+	fs.Var(&inventoryPaths, "inventory", "Inventory file or directory input; when supplied, non-local plays lower as host fan-out over $inputs.hosts (repeatable)")
+	fs.Var(&extraVars, "extra-var", "Static extra variable NAME=VALUE or @file (repeatable; recorded for review, not used for static expression lowering)")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.6|1.5] [--out DIR] [--ignore-unsupported]\n\n")
 		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. The default target is UWS 1.6 bound to ansible-module sources; --target-uws 1.5 emits extension-owned Ansible module-call leaves. Unsupported constructs are reported explicitly and fail the command unless --ignore-unsupported is set.\n\n")

@@ -24,17 +24,21 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   sanitization. `PATH` is recorded as that source URL.
 - `--project-dir DIR` records the static project root used for file
   resolution. It defaults to the playbook directory.
-- `--roles-path DIR`, `--collections-path DIR`, `--inventory FILE`, and
-  `--extra-var NAME=VALUE` are repeatable static-resolution inputs. The
-  converter records them in review artifacts. Literal `import_tasks` paths are
-  resolved relative to the file containing the import. Play-level `roles` and
-  task-level `import_role` resolve through `--roles-path` or, when no roles
-  path is supplied, `PROJECT/roles`; FQCN collection roles resolve under
+- `--roles-path DIR` and `--collections-path DIR` are repeatable static
+  resolution inputs for play-level `roles` and task-level `import_role`.
+  Literal `import_tasks` paths are resolved relative to the file containing the
+  import. Play-level `roles` and task-level `import_role` resolve through
+  `--roles-path` or, when no roles path is supplied, `PROJECT/roles`; FQCN
+  collection roles resolve under
   `--collections-path DIR/ansible_collections/NAMESPACE/COLLECTION/roles/ROLE`.
-  When at least one `--inventory` input is supplied, non-local plays lower
-  host-targeted task steps as UWS stage-1 host fan-out over `$inputs.hosts`,
-  with each step binding `inputs.host` to `$item`. The converter does not parse
-  inventory files or lower connection details; those remain runtime-owned.
+- `--inventory FILE` is repeatable and changes lowering posture: when at least
+  one inventory input is supplied, non-local plays lower host-targeted task
+  steps as UWS stage-1 host fan-out over `$inputs.hosts`, with each step
+  binding `inputs.host` to `$item`. The converter does not parse inventory
+  files or lower connection details; those remain runtime-owned.
+- `--extra-var NAME=VALUE` or `--extra-var @file` is repeatable and recorded in
+  review artifacts for provenance. It is not currently consumed for static
+  variable precedence or expression lowering.
 - Argspec documents must use the `uws.ansible.1.0` shape:
   - top-level `argspec: uws.ansible.1.0`
   - collection name, such as `ansible.builtin`
