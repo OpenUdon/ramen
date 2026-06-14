@@ -2410,7 +2410,7 @@ func runConvertCommand(ctx context.Context, args []string) {
 
 func convertUsage(out *os.File, command string) {
 	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n", command)
-	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--out DIR] [--ignore-unsupported]\n\n", command)
+	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.6|1.5] [--out DIR] [--ignore-unsupported]\n\n", command)
 	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
 }
 
@@ -2421,6 +2421,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	projectDir := fs.String("project-dir", "", "Static Ansible project root (defaults to the playbook directory)")
 	strict := fs.Bool("strict", false, "Deprecated for Ansible conversion; unsupported constructs fail by default")
 	ignoreUnsupported := fs.Bool("ignore-unsupported", false, "Write a partial workflow that omits unsupported Ansible constructs")
+	targetUWS := fs.String("target-uws", "1.6", "Target UWS output version shape: 1.6 for ansible-module sources, or 1.5 for extension-owned module calls")
 	var argspecs repeatedStringFlag
 	var rolesPaths repeatedStringFlag
 	var collectionsPaths repeatedStringFlag
@@ -2432,8 +2433,8 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	fs.Var(&inventoryPaths, "inventory", "Inventory file or directory (repeatable; recorded for conversion provenance)")
 	fs.Var(&extraVars, "extra-var", "Static extra variable NAME=VALUE or @file (repeatable; recorded for conversion provenance)")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--out DIR] [--ignore-unsupported]\n\n")
-		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS 1.6 workflow bound to ansible-module sources. Unsupported constructs are reported explicitly and fail the command unless --ignore-unsupported is set.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.6|1.5] [--out DIR] [--ignore-unsupported]\n\n")
+		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. The default target is UWS 1.6 bound to ansible-module sources; --target-uws 1.5 emits extension-owned Ansible module-call leaves. Unsupported constructs are reported explicitly and fail the command unless --ignore-unsupported is set.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -2441,6 +2442,11 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	}
 	if strings.TrimSpace(*playbook) == "" {
 		fmt.Fprintln(os.Stderr, "ramen convert ansible: --playbook is required")
+		os.Exit(2)
+	}
+	target := strings.TrimSpace(*targetUWS)
+	if target != "" && target != ansibleconvert.TargetUWS16 && target != ansibleconvert.TargetUWS16+".0" && target != ansibleconvert.TargetUWS15 && target != ansibleconvert.TargetUWS15+".0" {
+		fmt.Fprintf(os.Stderr, "ramen convert ansible: unsupported --target-uws %q (want 1.6 or 1.5)\n", *targetUWS)
 		os.Exit(2)
 	}
 	specs := make([]ansibleconvert.ArgspecInput, 0, len(argspecs))
@@ -2462,6 +2468,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 		CollectionsPaths:  []string(collectionsPaths),
 		InventoryPaths:    []string(inventoryPaths),
 		ExtraVars:         []string(extraVars),
+		TargetUWS:         target,
 		IgnoreUnsupported: *ignoreUnsupported,
 	})
 	if err != nil {

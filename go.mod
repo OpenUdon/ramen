@@ -5,6 +5,9 @@ go 1.26.3
 // Shared trust/evidence primitives. Local path until the module is published.
 replace github.com/OpenUdon/evidence => ../evidence
 
+// Ansible module-call supplement. Local path until the module is published.
+replace github.com/OpenUdon/uws => ../uws
+
 require (
 	github.com/OpenUdon/apitools v0.0.0-20260607192205-ae9d40a53ce6
 	github.com/OpenUdon/authoring v0.0.0-20260607172625-3aa69a0e0cdd

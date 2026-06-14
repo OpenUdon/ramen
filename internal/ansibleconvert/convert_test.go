@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/uws/ansiblemodulecall"
 	"github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -36,6 +37,7 @@ func runConvertWithOptions(t *testing.T, fixture string, opts Options) (*Result,
 		CollectionsPaths:  opts.CollectionsPaths,
 		InventoryPaths:    opts.InventoryPaths,
 		ExtraVars:         opts.ExtraVars,
+		TargetUWS:         opts.TargetUWS,
 		IgnoreUnsupported: opts.IgnoreUnsupported,
 	})
 	if err != nil {
@@ -169,6 +171,43 @@ func TestConvertNginxPlaybook(t *testing.T) {
 	}
 	if restart.OperationRef != "restart_nginx" {
 		t.Fatalf("handler operationRef = %q", restart.OperationRef)
+	}
+}
+
+func TestConvertNginxPlaybookTargetUWS15UsesExtensionOwnedLeaves(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "nginx", Options{TargetUWS: TargetUWS15})
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+	if doc.UWS != "1.5.0" {
+		t.Fatalf("uws = %q, want 1.5.0", doc.UWS)
+	}
+	if len(doc.SourceDescriptions) != 0 {
+		t.Fatalf("UWS 1.5 compatibility output should not emit ansible sourceDescriptions: %#v", doc.SourceDescriptions)
+	}
+
+	install := findOperation(doc, "install_nginx")
+	if install == nil {
+		t.Fatalf("install_nginx operation missing")
+	}
+	if install.SourceDescription != "" || install.SourceOperationID != "" || install.SourceOperationRef != "" {
+		t.Fatalf("UWS 1.5 compatibility operation should be extension-owned: %#v", install)
+	}
+	if install.Extensions[uws1.ExtensionOperationProfile] != ansiblemodulecall.ProfileName {
+		t.Fatalf("operation profile = %#v, want %s", install.Extensions[uws1.ExtensionOperationProfile], ansiblemodulecall.ProfileName)
+	}
+	payload, ok, err := ansiblemodulecall.ReadOperationExtension(install.Extensions)
+	if err != nil || !ok {
+		t.Fatalf("read ansible module extension ok=%v err=%v extensions=%#v", ok, err, install.Extensions)
+	}
+	if payload.Module != "ansible.builtin.apt" || payload.Argspec == nil || payload.Argspec.SourceID != "builtin" || payload.Argspec.Collection != "ansible.builtin" {
+		t.Fatalf("ansible module payload = %#v", payload)
+	}
+	if body, _ := install.Request["body"].(map[string]any); body["name"] != "$variables.pkg" {
+		t.Fatalf("request body changed in compatibility mode: %#v", install.Request)
+	}
+	if install.Outputs["changed"] != "$response.body.changed" {
+		t.Fatalf("outputs changed in compatibility mode: %#v", install.Outputs)
 	}
 }
 
@@ -490,6 +529,115 @@ func TestConvertFailClosedGuardsAndTargets(t *testing.T) {
 	}
 	if result.StrictFailures < 5 {
 		t.Fatalf("expected at least 5 strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+}
+
+func TestConvertPortableConditionCombinations(t *testing.T) {
+	result, doc := runConvert(t, "conditions")
+	if result.StrictFailures != 0 {
+		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+	}
+
+	andWrapper := findTopStep(doc.Workflows[0].Steps, "and_condition_guard_1")
+	if andWrapper == nil || andWrapper.Type != uws1.WorkflowTypeSwitch || len(andWrapper.Cases) != 1 {
+		t.Fatalf("AND condition should lower to nested switch guard, got %#v", andWrapper)
+	}
+	if andWrapper.Cases[0].When != `$variables.env == "prod"` {
+		t.Fatalf("AND first guard = %q", andWrapper.Cases[0].When)
+	}
+	if inner := findStep(andWrapper.Cases[0].Steps, "and_condition_guard_2"); inner == nil || inner.Cases[0].When != "$variables.enabled == true" {
+		t.Fatalf("AND second guard missing: %#v", andWrapper)
+	}
+
+	orWrapper := findTopStep(doc.Workflows[0].Steps, "or_condition_guard_or")
+	if orWrapper == nil || orWrapper.Type != uws1.WorkflowTypeSwitch || len(orWrapper.Cases) != 2 {
+		t.Fatalf("OR condition should lower to switch cases, got %#v", orWrapper)
+	}
+	gotOR := []string{orWrapper.Cases[0].When, orWrapper.Cases[1].When}
+	wantOR := []string{`$variables.env == "prod"`, "$inputs.missing_flag == true"}
+	if !slices.Equal(gotOR, wantOR) {
+		t.Fatalf("OR guards = %v, want %v", gotOR, wantOR)
+	}
+	for _, c := range orWrapper.Cases {
+		if len(c.Steps) != 1 || c.Steps[0].OperationRef != "or_condition" {
+			t.Fatalf("OR case should reference operation once: %#v", c)
+		}
+	}
+
+	notStep := findStep(doc.Workflows[0].Steps, "not_condition")
+	if notStep == nil || notStep.When != "$inputs.missing_flag != true" {
+		t.Fatalf("not condition step = %#v", notStep)
+	}
+	definedStep := findStep(doc.Workflows[0].Steps, "defined_condition")
+	if definedStep == nil || definedStep.When != "$inputs.missing_flag == null" {
+		t.Fatalf("defined condition step = %#v", definedStep)
+	}
+}
+
+func TestConvertORNotifyTaskFailsClosed(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	if err := os.WriteFile(playbookPath, []byte(`- name: OR notify case
+  hosts: localhost
+  vars:
+    env: prod
+  tasks:
+    - name: Safe task
+      ansible.builtin.shell:
+        cmd: echo safe
+
+    - name: Deploy config
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+      when: env == "prod" or force_deploy
+      notify: restart nginx
+  handlers:
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted
+`), 0o644); err != nil {
+		t.Fatalf("write playbook: %v", err)
+	}
+
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbookPath,
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir:            filepath.Join(root, "out"),
+		IgnoreUnsupported: true,
+	})
+	if err != nil {
+		t.Fatalf("Convert failed: %v", err)
+	}
+	if result.StrictFailures == 0 {
+		t.Fatalf("expected OR notify strict failure: %#v", result.Diagnostics)
+	}
+	var sawORNotify bool
+	for _, d := range result.Diagnostics {
+		if d.Code == CodeDirectiveTodo && d.Task == "Deploy config" && d.StrictFailure && strings.Contains(d.Message, "notifying task") {
+			sawORNotify = true
+		}
+	}
+	if !sawORNotify {
+		t.Fatalf("missing OR notify diagnostic: %#v", result.Diagnostics)
+	}
+
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatalf("read emitted UWS document: %v", err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse emitted UWS document: %v", err)
+	}
+	if findStep(doc.Workflows[0].Steps, "deploy_config") != nil || findStep(doc.Workflows[0].Steps, "restart_nginx") != nil {
+		t.Fatalf("OR notify task or handler leaked into document: %#v", doc.Workflows[0].Steps)
+	}
+	if safe := findStep(doc.Workflows[0].Steps, "safe_task"); safe == nil {
+		t.Fatalf("unrelated safe task should still lower: %#v", doc.Workflows[0].Steps)
 	}
 }
 

@@ -1,9 +1,16 @@
-// Package ansibleconvert converts Ansible playbooks into reviewable UWS 1.6
-// workflow artifacts bound to ansible-module sources. Conversion is
-// review-first and fail-closed: constructs that cannot be faithfully lowered
-// (complex Jinja2, dynamic includes, unknown modules) become diagnostics, not
-// guesses. The converter never executes Ansible, modules, or UWS workflows.
+// Package ansibleconvert converts Ansible playbooks into reviewable UWS
+// workflow artifacts. UWS 1.6 output binds module operations to ansible-module
+// sources; UWS 1.5 compatibility output emits extension-owned module calls.
+// Conversion is review-first and fail-closed: constructs that cannot be
+// faithfully lowered (complex Jinja2, dynamic includes, unknown modules)
+// become diagnostics, not guesses. The converter never executes Ansible,
+// modules, or UWS workflows.
 package ansibleconvert
+
+const (
+	TargetUWS16 = "1.6"
+	TargetUWS15 = "1.5"
+)
 
 // ArgspecInput names a collection argspec document (uws.ansible.1.0 shape)
 // supplied on the command line as ID=PATH. The ID is the raw argspec lookup
@@ -24,6 +31,9 @@ type Options struct {
 	CollectionsPaths []string
 	InventoryPaths   []string
 	ExtraVars        []string
+	// TargetUWS selects the emitted document shape. Empty defaults to "1.6".
+	// Target "1.5" emits extension-owned Ansible module leaves.
+	TargetUWS string
 	// IgnoreUnsupported allows workflow artifacts to be written even when
 	// strict-failure diagnostics were emitted. The resulting workflow omits the
 	// unsupported constructs identified by diagnostics.
@@ -33,6 +43,7 @@ type Options struct {
 // LowerOptions configures static lowering choices after playbook parsing.
 type LowerOptions struct {
 	HostFanOut bool
+	TargetUWS  string
 }
 
 // Diagnostic codes emitted by the Ansible converter. Catalog entries live in

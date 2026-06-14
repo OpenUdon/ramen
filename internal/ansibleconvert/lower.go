@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/OpenUdon/uws/ansiblemodulecall"
 	"github.com/OpenUdon/uws/uws1"
 )
 
@@ -31,19 +32,20 @@ type lowerer struct {
 	neededOutputs map[string]map[string]string
 	sourcesUsed   map[string]bool
 	varCounter    int
+	targetUWS     string
 }
 
-// LowerPlaybook converts the parsed playbook into a UWS 1.6 document plus
-// review diagnostics using default lowering options. The document may be
-// incomplete when strict diagnostics are present; it remains schema-valid for
-// review.
+// LowerPlaybook converts the parsed playbook into a UWS document plus review
+// diagnostics using default lowering options. The document may be incomplete
+// when strict diagnostics are present; it remains schema-valid for review.
 func LowerPlaybook(pb *Playbook, idx *ArgspecIndex) (*uws1.Document, []Diagnostic) {
 	return LowerPlaybookWithOptions(pb, idx, LowerOptions{})
 }
 
-// LowerPlaybookWithOptions converts the parsed playbook into a UWS 1.6
-// document plus review diagnostics.
+// LowerPlaybookWithOptions converts the parsed playbook into a UWS document
+// plus review diagnostics.
 func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions) (*uws1.Document, []Diagnostic) {
+	targetUWS := normalizeTargetUWS(opts.TargetUWS)
 	lw := &lowerer{
 		idx:           idx,
 		usedIDs:       map[string]bool{},
@@ -51,6 +53,7 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 		vars:          map[string]bool{},
 		neededOutputs: map[string]map[string]string{},
 		sourcesUsed:   map[string]bool{},
+		targetUWS:     targetUWS,
 	}
 	title := pb.Plays[0].Name
 	if len(pb.Plays) > 1 {
@@ -59,7 +62,7 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 			Message: fmt.Sprintf("playbook has %d plays; all tasks were lowered into one sequence workflow", len(pb.Plays))})
 	}
 	lw.doc = &uws1.Document{
-		UWS:  "1.6.0",
+		UWS:  targetUWSDocumentVersion(targetUWS),
 		Info: &uws1.Info{Title: title, Version: "1.0.0"},
 	}
 
@@ -308,23 +311,34 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		ctx.inLoop = true
 	}
 
-	var guardParts []string
+	var guardDNF conditionDNF
 	if !lt.isHandler && len(task.When) > 0 {
-		lowered, ok := lw.lowerConditionParts(task.Name, task.When, ctx, "guarded task")
+		lowered, ok := lw.lowerConditionDNF(task.Name, task.When, ctx, "guarded task")
 		if !ok {
 			lt.skipped = true
 			return nil
 		}
-		guardParts = lowered
+		if len(lowered) > 1 && task.Register != "" {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "when with OR semantics on a registered task cannot expose a stable UWS step output; the task was not lowered"})
+			lt.skipped = true
+			return nil
+		}
+		if len(lowered) > 1 && len(task.Notify) > 0 {
+			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "when with OR semantics on a notifying task cannot expose a stable changed output for handler gates; the task was not lowered"})
+			lt.skipped = true
+			return nil
+		}
+		guardDNF = lowered
 	}
 
 	op := &uws1.Operation{
-		OperationID:       lt.opID,
-		SourceDescription: sourceUWSName(sourceID),
-		SourceOperationID: task.Module,
-		Outputs:           map[string]string{"changed": "$response.body.changed"},
-		SuccessCriteria:   []*uws1.Criterion{{Condition: "$response.body.failed != true"}},
+		OperationID:     lt.opID,
+		Outputs:         map[string]string{"changed": "$response.body.changed"},
+		SuccessCriteria: []*uws1.Criterion{{Condition: "$response.body.failed != true"}},
 	}
+	lw.bindAnsibleOperation(op, sourceID, task.Module)
 	if len(task.ChangedWhen) > 0 {
 		if len(task.ChangedWhen) != 1 {
 			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
@@ -426,10 +440,50 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	}
 	lw.diags = append(lw.diags, lw.idx.ValidateArgs(task.Name, task.Module, body)...)
 
-	lw.sourcesUsed[sourceID] = true
-	lw.ensureSourceDescription(sourceID)
+	if lw.targetUWS == TargetUWS16 {
+		lw.sourcesUsed[sourceID] = true
+		lw.ensureSourceDescription(sourceID)
+	}
 	lw.doc.Operations = append(lw.doc.Operations, op)
-	return lw.wrapGuardedStep(step, guardParts, task)
+	return lw.wrapGuardedStepDNF(step, guardDNF, task)
+}
+
+func normalizeTargetUWS(target string) string {
+	switch strings.TrimSpace(target) {
+	case "", "1.6", "1.6.0":
+		return TargetUWS16
+	case "1.5", "1.5.0":
+		return TargetUWS15
+	default:
+		return strings.TrimSpace(target)
+	}
+}
+
+func targetUWSDocumentVersion(target string) string {
+	if target == TargetUWS15 {
+		return "1.5.0"
+	}
+	return "1.6.0"
+}
+
+func (lw *lowerer) bindAnsibleOperation(op *uws1.Operation, sourceID, module string) {
+	if lw.targetUWS == TargetUWS15 {
+		op.Extensions = map[string]any{
+			uws1.ExtensionOperationProfile: ansiblemodulecall.ProfileName,
+		}
+		input, _ := lw.idx.Source(sourceID)
+		_ = ansiblemodulecall.SetOperationExtension(&op.Extensions, &ansiblemodulecall.OperationAnsibleModule{
+			Module: module,
+			Argspec: &ansiblemodulecall.ArgspecReference{
+				SourceID:   sourceID,
+				URL:        input.Path,
+				Collection: lw.idx.Collection(sourceID),
+			},
+		})
+		return
+	}
+	op.SourceDescription = sourceUWSName(sourceID)
+	op.SourceOperationID = module
 }
 
 // lowerHandler lowers a notified handler. One notifier gates the handler step
@@ -469,7 +523,7 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 		if !ok {
 			return nil
 		}
-		return lw.wrapGuardedStep(step, conditions, handler)
+		return lw.wrapGuardedStepDNF(step, conditions, handler)
 	}
 	wrapper := &uws1.Step{
 		StepID: lw.uniqueID(stepID + "_notify"),
@@ -493,43 +547,67 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 		if !ok {
 			return nil
 		}
-		if len(conditions) == 0 {
+		if len(conditions) == 0 || len(conditions) > 1 {
+			if len(conditions) > 1 {
+				lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: handler.Name,
+					Message: "handler when with OR semantics cannot be combined with multi-notifier handler lowering; the handler was not lowered"})
+				return nil
+			}
 			wrapper.Cases = append(wrapper.Cases, c)
 			continue
 		}
-		c.When = conditions[0]
-		if len(conditions) > 1 {
-			c.Steps = []*uws1.Step{lw.wrapGuardedStep(inner, conditions[1:], handler)}
+		c.When = conditions[0][0]
+		if len(conditions[0]) > 1 {
+			c.Steps = []*uws1.Step{lw.wrapGuardedStep(inner, conditions[0][1:], handler)}
 		}
 		wrapper.Cases = append(wrapper.Cases, c)
 	}
 	return wrapper
 }
 
-func (lw *lowerer) handlerGateConditions(handler *Task, notifierGate string) ([]string, bool) {
+func (lw *lowerer) handlerGateConditions(handler *Task, notifierGate string) (conditionDNF, bool) {
 	if len(handler.When) == 0 {
-		return []string{notifierGate}, true
+		return conditionDNF{{notifierGate}}, true
 	}
 	ctx := &exprContext{vars: lw.vars, registered: lw.registered, taskVars: boolKeys(handler.Vars), currentRegister: handler.Register, needOutput: lw.noteNeededOutput}
-	guard, ok := lw.lowerConditionParts(handler.Name, handler.When, ctx, "handler guard")
+	guard, ok := lw.lowerConditionDNF(handler.Name, handler.When, ctx, "handler guard")
 	if !ok {
 		return nil, false
 	}
-	return append([]string{notifierGate}, guard...), true
+	out := make(conditionDNF, 0, len(guard))
+	for _, group := range guard {
+		combined := []string{notifierGate}
+		combined = append(combined, group...)
+		out = append(out, combined)
+	}
+	return out, true
 }
 
 func (lw *lowerer) lowerConditionParts(taskName string, conditions []string, ctx *exprContext, label string) ([]string, bool) {
-	var parts []string
+	dnf, ok := lw.lowerConditionDNF(taskName, conditions, ctx, label)
+	if !ok {
+		return nil, false
+	}
+	if len(dnf) != 1 {
+		lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: taskName,
+			Message: fmt.Sprintf("%s: OR-style condition cannot be lowered into success criteria; the task was not lowered", label)})
+		return nil, false
+	}
+	return dnf[0], true
+}
+
+func (lw *lowerer) lowerConditionDNF(taskName string, conditions []string, ctx *exprContext, label string) (conditionDNF, bool) {
+	var dnf conditionDNF = conditionDNF{{}}
 	for _, condition := range conditions {
-		lowered, ok, reason := lowerWhen(condition, ctx)
+		lowered, ok, reason := lowerWhenDNF(condition, ctx)
 		if !ok {
 			lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: taskName,
 				Message: fmt.Sprintf("%s: %s; the task was not lowered", label, reason)})
 			return nil, false
 		}
-		parts = append(parts, lowered)
+		dnf = andDNF(dnf, lowered)
 	}
-	return parts, true
+	return dnf, true
 }
 
 func (lw *lowerer) lowerSingleCondition(taskName, condition string, ctx *exprContext, label string) (string, bool) {
@@ -567,6 +645,56 @@ func (lw *lowerer) wrapGuardedStep(step *uws1.Step, conditions []string, task *T
 		inner = wrapper
 	}
 	return inner
+}
+
+func (lw *lowerer) wrapGuardedStepDNF(step *uws1.Step, dnf conditionDNF, task *Task) *uws1.Step {
+	if len(dnf) == 0 {
+		return step
+	}
+	if len(dnf) == 1 {
+		return lw.wrapGuardedStep(step, dnf[0], task)
+	}
+	wrapper := &uws1.Step{
+		StepID: lw.uniqueID(step.StepID + "_guard_or"),
+		Type:   uws1.WorkflowTypeSwitch,
+		Extensions: map[string]any{
+			"x-ansible": ansibleProvenance(task),
+		},
+	}
+	for i, group := range dnf {
+		inner := cloneStepForGuardCase(step, lw.uniqueID(fmt.Sprintf("%s_or_%d", step.StepID, i+1)))
+		c := &uws1.Case{
+			CaseFields: uws1.CaseFields{
+				Name: fmt.Sprintf("condition_%d", i+1),
+			},
+			Steps: []*uws1.Step{inner},
+		}
+		switch len(group) {
+		case 0:
+		case 1:
+			c.When = group[0]
+		default:
+			c.When = group[0]
+			c.Steps = []*uws1.Step{lw.wrapGuardedStep(inner, group[1:], task)}
+		}
+		wrapper.Cases = append(wrapper.Cases, c)
+	}
+	return wrapper
+}
+
+func cloneStepForGuardCase(step *uws1.Step, stepID string) *uws1.Step {
+	if step == nil {
+		return nil
+	}
+	clone := *step
+	clone.StepID = stepID
+	clone.Inputs = cloneMapAny(step.Inputs)
+	clone.DependsOn = append([]string(nil), step.DependsOn...)
+	clone.Extensions = cloneMapAny(step.Extensions)
+	clone.Steps = nil
+	clone.Cases = nil
+	clone.Default = nil
+	return &clone
 }
 
 func invertPre16Comparison(condition string) (string, bool) {
@@ -806,7 +934,10 @@ func (lw *lowerer) handlerRefs(play *Play) map[*Task][]string {
 
 func attachAnsibleProvenance(op *uws1.Operation, step *uws1.Step, task *Task) {
 	prov := ansibleProvenance(task)
-	op.Extensions = map[string]any{"x-ansible": prov}
+	if op.Extensions == nil {
+		op.Extensions = map[string]any{}
+	}
+	op.Extensions["x-ansible"] = prov
 	step.Extensions = map[string]any{"x-ansible": prov}
 }
 

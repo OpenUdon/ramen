@@ -1,12 +1,14 @@
 # Ansible Conversion
 
 `ramen convert ansible` statically converts a supported subset of Ansible
-playbooks into reviewable UWS 1.6 workflow artifacts. The converter emits UWS
-1.6 or older constructs only; features that need newer UWS semantics are strict
-diagnostics rather than approximations:
+playbooks into reviewable UWS workflow artifacts. The default output is UWS 1.6
+with `ansible-module` source binding. Use `--target-uws 1.5` to emit
+extension-owned Ansible module-call leaves for UWS 1.5 compatibility. Features
+that need unsupported semantics are strict diagnostics rather than
+approximations:
 
 ```bash
-ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --out DIR --ignore-unsupported
+ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.6 --out DIR --ignore-unsupported
 ```
 
 The command does not execute Ansible, modules, inventory connections, API
@@ -38,6 +40,10 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   - collection name, such as `ansible.builtin`
   - module entries keyed by FQCN, such as `ansible.builtin.file`
   - argument metadata for required fields and accepted enum values
+- `--target-uws 1.6|1.5` selects the emitted operation binding shape. `1.6`
+  emits first-class `sourceDescriptions[].type: ansible-module`; `1.5` emits
+  extension-owned operations with `x-uws-operation-profile:
+  uws.ansible-module-call.1.0` and `x-uws-ansible-module`.
 
 ## Outputs
 
@@ -105,6 +111,12 @@ Lowered operations and steps carry provenance-only `x-ansible` extensions with
 the source file, line, column, play, section, task name, optional role, optional
 import stack, and optional tags. These extensions are review/debug metadata and
 do not define execution semantics.
+
+For `--target-uws 1.5`, Ansible module calls are not source-bound. The emitted
+operation keeps the same `request.body`, `outputs`, `successCriteria`, retries,
+handlers, and workflow structure, but the module FQCN and argspec review
+reference live under `x-uws-ansible-module`. UWS still owns orchestration; the
+bound runtime owns module execution.
 
 Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:

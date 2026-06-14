@@ -98,7 +98,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
 	}
-	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--ignore-unsupported", "ansible-module"} {
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--ignore-unsupported", "ansible-module"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
 		}
@@ -1329,6 +1329,73 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 	if !strings.Contains(reviewText, filepath.Join(root, "roles")) {
 		t.Fatalf("review missing expected sections:\n%s", review)
 	}
+}
+
+func TestCLIConvertAnsibleTargetUWS15WritesCompatibilityDocument(t *testing.T) {
+	root := t.TempDir()
+	outDir := filepath.Join(root, "ansible")
+	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
+	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "builtin="+argspecPath,
+		"--target-uws", "1.5",
+		"--ignore-unsupported",
+		"--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("convert ansible --target-uws 1.5 failed: %v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(outDir, "workflows", "workflow.uws.yaml"))
+	if err != nil {
+		t.Fatalf("read UWS output: %v", err)
+	}
+	var doc uws1.Document
+	if err := uwsconvert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse UWS output: %v", err)
+	}
+	if doc.UWS != "1.5.0" {
+		t.Fatalf("uws = %q, want 1.5.0", doc.UWS)
+	}
+	if len(doc.SourceDescriptions) != 0 {
+		t.Fatalf("compatibility document should not emit ansible source descriptions: %#v", doc.SourceDescriptions)
+	}
+	op := findOperationInDoc(&doc, "install_nginx")
+	if op == nil || op.Extensions[uws1.ExtensionOperationProfile] != "uws.ansible-module-call.1.0" {
+		t.Fatalf("install operation missing compatibility profile: %#v", op)
+	}
+}
+
+func TestCLIConvertAnsibleRejectsInvalidTargetUWS(t *testing.T) {
+	root := t.TempDir()
+	outDir := filepath.Join(root, "ansible")
+	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
+	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "builtin="+argspecPath,
+		"--target-uws", "1.4",
+		"--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("convert ansible accepted invalid target:\n%s", output)
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 2 {
+		t.Fatalf("convert ansible exit = %v, want code 2\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "unsupported --target-uws") {
+		t.Fatalf("invalid target output missing diagnostic:\n%s", output)
+	}
+}
+
+func findOperationInDoc(doc *uws1.Document, operationID string) *uws1.Operation {
+	for _, op := range doc.Operations {
+		if op != nil && op.OperationID == operationID {
+			return op
+		}
+	}
+	return nil
 }
 
 func TestCLIConvertAnsibleUnsupportedExitsByDefault(t *testing.T) {

@@ -1,0 +1,25 @@
+- name: Portable condition lowering
+  hosts: localhost
+  vars:
+    env: prod
+    enabled: true
+  tasks:
+    - name: And condition
+      ansible.builtin.shell:
+        cmd: echo and
+      when: env == "prod" and enabled
+
+    - name: Or condition
+      ansible.builtin.shell:
+        cmd: echo or
+      when: env == "prod" or missing_flag
+
+    - name: Not condition
+      ansible.builtin.shell:
+        cmd: echo not
+      when: not missing_flag
+
+    - name: Defined condition
+      ansible.builtin.shell:
+        cmd: echo defined
+      when: missing_flag is not defined

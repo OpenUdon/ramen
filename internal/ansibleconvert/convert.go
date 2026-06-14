@@ -14,11 +14,14 @@ import (
 )
 
 // Convert parses the playbook, lowers it against the supplied argspec
-// documents, and writes review artifacts: a validated UWS 1.6 document
-// (YAML + HCL) plus diagnostics (JSON + Markdown). Conversion is static; no
-// Ansible, module, or workflow execution happens here.
+// documents, and writes review artifacts: a validated UWS document (YAML +
+// HCL) plus diagnostics (JSON + Markdown). Conversion is static; no Ansible,
+// module, or workflow execution happens here.
 func Convert(_ context.Context, opts Options) (*Result, error) {
 	opts = normalizeOptions(opts)
+	if opts.TargetUWS != TargetUWS16 && opts.TargetUWS != TargetUWS15 {
+		return nil, fmt.Errorf("unsupported Ansible conversion target UWS %q (want 1.6 or 1.5)", opts.TargetUWS)
+	}
 	data, err := os.ReadFile(opts.PlaybookPath)
 	if err != nil {
 		return nil, fmt.Errorf("read playbook: %w", err)
@@ -35,6 +38,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 
 	doc, lowerDiags := LowerPlaybookWithOptions(playbook, idx, LowerOptions{
 		HostFanOut: len(opts.InventoryPaths) > 0,
+		TargetUWS:  opts.TargetUWS,
 	})
 	diags := append(parseDiags, resolveDiags...)
 	diags = append(diags, lowerDiags...)
@@ -78,6 +82,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 }
 
 func normalizeOptions(opts Options) Options {
+	opts.TargetUWS = normalizeTargetUWS(opts.TargetUWS)
 	if strings.TrimSpace(opts.ProjectDir) == "" {
 		dir := filepath.Dir(opts.PlaybookPath)
 		if dir == "" {

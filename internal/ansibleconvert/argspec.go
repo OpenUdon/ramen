@@ -31,8 +31,9 @@ type argspecParameter struct {
 
 // ArgspecIndex resolves module FQCNs across all supplied argspec documents.
 type ArgspecIndex struct {
-	bySource map[string]ArgspecInput
-	byFQCN   map[string]moduleRef
+	bySource     map[string]ArgspecInput
+	byCollection map[string]string
+	byFQCN       map[string]moduleRef
 }
 
 type moduleRef struct {
@@ -42,7 +43,7 @@ type moduleRef struct {
 
 // LoadArgspecs reads and indexes the supplied uws.ansible.1.0 documents.
 func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
-	idx := &ArgspecIndex{bySource: map[string]ArgspecInput{}, byFQCN: map[string]moduleRef{}}
+	idx := &ArgspecIndex{bySource: map[string]ArgspecInput{}, byCollection: map[string]string{}, byFQCN: map[string]moduleRef{}}
 	byUWSName := map[string]string{}
 	for _, input := range inputs {
 		data, err := os.ReadFile(input.Path)
@@ -65,6 +66,7 @@ func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 		}
 		byUWSName[uwsName] = input.ID
 		idx.bySource[input.ID] = input
+		idx.byCollection[input.ID] = doc.Collection
 		for fqcn, module := range doc.Modules {
 			if existing, dup := idx.byFQCN[fqcn]; dup {
 				return nil, fmt.Errorf("module %s declared by both %s and %s", fqcn, existing.SourceID, input.ID)
@@ -85,6 +87,11 @@ func (idx *ArgspecIndex) Lookup(fqcn string) (string, argspecModule, bool) {
 func (idx *ArgspecIndex) Source(id string) (ArgspecInput, bool) {
 	input, ok := idx.bySource[id]
 	return input, ok
+}
+
+// Collection returns the collection name declared by a source ID.
+func (idx *ArgspecIndex) Collection(id string) string {
+	return idx.byCollection[id]
 }
 
 // ValidateArgs checks lowered module arguments against the module's parameter

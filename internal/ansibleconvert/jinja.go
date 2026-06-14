@@ -51,7 +51,7 @@ func lowerValue(s string, ctx *exprContext) (string, bool, string) {
 // lowerReference lowers a bare Jinja2 reference (no surrounding braces).
 func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 	inner = strings.TrimSpace(inner)
-	if strings.ContainsAny(inner, "|(+-*/%['\"") {
+	if strings.ContainsAny(inner, "|+-*/%['\"") {
 		return "", false, fmt.Sprintf("expression %q uses Jinja2 features (filters, lookups, math, or indexing) outside UWS core", inner)
 	}
 	switch {
@@ -104,16 +104,81 @@ func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 	}
 }
 
-// lowerWhen lowers one Ansible `when:` condition (Jinja2 without braces) into
-// a UWS core boolean expression: a single binary comparison, or a bare truthy
-// reference lowered to `<expr> == true`.
-func lowerWhen(cond string, ctx *exprContext) (string, bool, string) {
+// conditionDNF is a disjunction of conjunction groups. Each inner slice is a
+// set of UWS core comparisons that must all pass.
+type conditionDNF [][]string
+
+// lowerWhenDNF lowers one Ansible `when:` condition into portable UWS guard
+// groups. It accepts simple boolean composition only when every leaf lowers to
+// a UWS core comparison.
+func lowerWhenDNF(cond string, ctx *exprContext) (conditionDNF, bool, string) {
 	cond = strings.TrimSpace(cond)
-	lower := strings.ToLower(cond)
-	for _, kw := range []string{" and ", " or ", " not ", " is ", " in "} {
-		if strings.Contains(lower, kw) {
-			return "", false, fmt.Sprintf("when condition %q uses %q; UWS core supports a single binary comparison", cond, strings.TrimSpace(kw))
+	if cond == "" {
+		return nil, false, "empty condition"
+	}
+	cond = trimOuterParens(cond)
+	if left, right, ok := splitTopLevelKeyword(cond, "or"); ok {
+		leftDNF, ok, reason := lowerWhenDNF(left, ctx)
+		if !ok {
+			return nil, false, reason
 		}
+		rightDNF, ok, reason := lowerWhenDNF(right, ctx)
+		if !ok {
+			return nil, false, reason
+		}
+		return append(leftDNF, rightDNF...), true, ""
+	}
+	if left, right, ok := splitTopLevelKeyword(cond, "and"); ok {
+		leftDNF, ok, reason := lowerWhenDNF(left, ctx)
+		if !ok {
+			return nil, false, reason
+		}
+		rightDNF, ok, reason := lowerWhenDNF(right, ctx)
+		if !ok {
+			return nil, false, reason
+		}
+		return andDNF(leftDNF, rightDNF), true, ""
+	}
+	if rest, ok := trimKeywordPrefix(cond, "not"); ok {
+		lowered, ok, reason := lowerNegatedWhenLeaf(rest, ctx)
+		if !ok {
+			return nil, false, reason
+		}
+		return conditionDNF{{lowered}}, true, ""
+	}
+	lowered, ok, reason := lowerWhenLeaf(cond, ctx)
+	if !ok {
+		return nil, false, reason
+	}
+	return conditionDNF{{lowered}}, true, ""
+}
+
+func andDNF(left, right conditionDNF) conditionDNF {
+	var out conditionDNF
+	for _, l := range left {
+		for _, r := range right {
+			group := append([]string(nil), l...)
+			group = append(group, r...)
+			out = append(out, group)
+		}
+	}
+	return out
+}
+
+// lowerWhenLeaf lowers one non-composite Ansible condition into a UWS core
+// boolean expression: a single binary comparison, an `is defined` check, or a
+// bare truthy reference lowered to `<expr> == true`.
+func lowerWhenLeaf(cond string, ctx *exprContext) (string, bool, string) {
+	cond = strings.TrimSpace(cond)
+	if refText, negated, ok := parseDefinedTest(cond); ok {
+		ref, ok, reason := lowerReference(stripTemplateBraces(refText), ctx)
+		if !ok {
+			return "", false, reason
+		}
+		if negated {
+			return ref + " == null", true, ""
+		}
+		return ref + " != null", true, ""
 	}
 	if m := whenCompareRE.FindStringSubmatch(cond); m != nil {
 		left, ok, reason := lowerReference(stripTemplateBraces(m[1]), ctx)
@@ -131,6 +196,147 @@ func lowerWhen(cond string, ctx *exprContext) (string, bool, string) {
 		return "", false, reason
 	}
 	return ref + " == true", true, ""
+}
+
+func lowerNegatedWhenLeaf(cond string, ctx *exprContext) (string, bool, string) {
+	cond = trimOuterParens(strings.TrimSpace(cond))
+	if strings.ContainsAny(strings.ToLower(cond), "()") {
+		return "", false, fmt.Sprintf("negated condition %q is not a simple lowerable leaf", cond)
+	}
+	if refText, negated, ok := parseDefinedTest(cond); ok {
+		ref, ok, reason := lowerReference(stripTemplateBraces(refText), ctx)
+		if !ok {
+			return "", false, reason
+		}
+		if negated {
+			return ref + " != null", true, ""
+		}
+		return ref + " == null", true, ""
+	}
+	if m := whenCompareRE.FindStringSubmatch(cond); m != nil {
+		lowered, ok, reason := lowerWhenLeaf(cond, ctx)
+		if !ok {
+			return "", false, reason
+		}
+		inverted, ok := invertPre16Comparison(lowered)
+		if !ok {
+			return "", false, fmt.Sprintf("condition %q could not be inverted into UWS comparison syntax", cond)
+		}
+		return inverted, true, ""
+	}
+	ref, ok, reason := lowerReference(stripTemplateBraces(cond), ctx)
+	if !ok {
+		return "", false, reason
+	}
+	return ref + " != true", true, ""
+}
+
+func parseDefinedTest(cond string) (ref string, negated bool, ok bool) {
+	parts := strings.Fields(cond)
+	if len(parts) == 3 && parts[1] == "is" && parts[2] == "defined" {
+		return parts[0], false, true
+	}
+	if len(parts) == 4 && parts[1] == "is" && parts[2] == "not" && parts[3] == "defined" {
+		return parts[0], true, true
+	}
+	return "", false, false
+}
+
+func trimOuterParens(s string) string {
+	for {
+		s = strings.TrimSpace(s)
+		if !strings.HasPrefix(s, "(") || !strings.HasSuffix(s, ")") || !outerParensWrapWhole(s) {
+			return s
+		}
+		s = strings.TrimSpace(s[1 : len(s)-1])
+	}
+}
+
+func outerParensWrapWhole(s string) bool {
+	depth := 0
+	quote := rune(0)
+	for i, r := range s {
+		if quote != 0 {
+			if r == quote {
+				quote = 0
+			}
+			continue
+		}
+		if r == '\'' || r == '"' {
+			quote = r
+			continue
+		}
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 && i != len(s)-1 {
+				return false
+			}
+			if depth < 0 {
+				return false
+			}
+		}
+	}
+	return depth == 0
+}
+
+func splitTopLevelKeyword(s, keyword string) (string, string, bool) {
+	lower := strings.ToLower(s)
+	depth := 0
+	quote := byte(0)
+	for i := 0; i < len(s); i++ {
+		ch := s[i]
+		if quote != 0 {
+			if ch == quote {
+				quote = 0
+			}
+			continue
+		}
+		if ch == '\'' || ch == '"' {
+			quote = ch
+			continue
+		}
+		switch ch {
+		case '(':
+			depth++
+			continue
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+			continue
+		}
+		if depth != 0 || !keywordAt(lower, i, keyword) {
+			continue
+		}
+		return strings.TrimSpace(s[:i]), strings.TrimSpace(s[i+len(keyword):]), true
+	}
+	return "", "", false
+}
+
+func keywordAt(s string, i int, keyword string) bool {
+	if i < 0 || i+len(keyword) > len(s) || s[i:i+len(keyword)] != keyword {
+		return false
+	}
+	beforeOK := i == 0 || isKeywordBoundary(s[i-1])
+	after := i + len(keyword)
+	afterOK := after == len(s) || isKeywordBoundary(s[after])
+	return beforeOK && afterOK
+}
+
+func trimKeywordPrefix(s, keyword string) (string, bool) {
+	s = strings.TrimSpace(s)
+	lower := strings.ToLower(s)
+	if !keywordAt(lower, 0, keyword) {
+		return "", false
+	}
+	return strings.TrimSpace(s[len(keyword):]), true
+}
+
+func isKeywordBoundary(ch byte) bool {
+	return ch == ' ' || ch == '\t' || ch == '\n' || ch == '\r' || ch == '(' || ch == ')'
 }
 
 // lowerWhenOperand lowers a comparison right-hand side to a JSON literal.
