@@ -4,7 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"reflect"
+	"sort"
 	"strings"
+
+	"github.com/OpenUdon/uws/validation"
+	"github.com/OpenUdon/uws/versions"
 )
 
 // argspecDocument is the uws.ansible.1.0 wire shape (versions/ansible.1.0.json
@@ -46,6 +52,10 @@ func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 	idx := &ArgspecIndex{bySource: map[string]ArgspecInput{}, byCollection: map[string]string{}, byFQCN: map[string]moduleRef{}}
 	byUWSName := map[string]string{}
 	for _, input := range inputs {
+		schemaPath := versions.PathForAnsibleSourceProfile(filepath.Dir(input.Path), "")
+		if err := validation.ValidateFile(schemaPath, input.Path); err != nil {
+			return nil, fmt.Errorf("argspec %s: schema validation failed: %w", input.ID, err)
+		}
 		data, err := os.ReadFile(input.Path)
 		if err != nil {
 			return nil, fmt.Errorf("argspec %s: %w", input.ID, err)
@@ -68,6 +78,12 @@ func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 		idx.bySource[input.ID] = input
 		idx.byCollection[input.ID] = doc.Collection
 		for fqcn, module := range doc.Modules {
+			if !strings.HasPrefix(fqcn, doc.Collection+".") {
+				return nil, fmt.Errorf("argspec %s: module %s does not belong to declared collection %s", input.ID, fqcn, doc.Collection)
+			}
+			if err := validateParameterAliasOwnership(fqcn, module); err != nil {
+				return nil, fmt.Errorf("argspec %s: %w", input.ID, err)
+			}
 			if existing, dup := idx.byFQCN[fqcn]; dup {
 				return nil, fmt.Errorf("module %s declared by both %s and %s", fqcn, existing.SourceID, input.ID)
 			}
@@ -94,23 +110,26 @@ func (idx *ArgspecIndex) Collection(id string) string {
 	return idx.byCollection[id]
 }
 
-// ValidateArgs checks lowered module arguments against the module's parameter
-// specification. UWS runtime expressions are opaque to choices validation.
-func (idx *ArgspecIndex) ValidateArgs(taskName, fqcn string, args map[string]any) []Diagnostic {
+// NormalizeAndValidateArgs normalizes aliases to canonical parameter names and
+// checks lowered module arguments against the module's parameter specification.
+// UWS runtime expressions are opaque to choices validation.
+func (idx *ArgspecIndex) NormalizeAndValidateArgs(taskName, fqcn string, args map[string]any) (map[string]any, []Diagnostic) {
 	_, module, ok := idx.Lookup(fqcn)
 	if !ok {
-		return nil
+		return args, nil
 	}
-	canonical := map[string]string{}
-	for name, param := range module.Parameters {
-		canonical[name] = name
-		for _, alias := range param.Aliases {
-			canonical[alias] = name
-		}
-	}
+	canonical := canonicalParameterNames(module)
 	var diags []Diagnostic
 	seen := map[string]bool{}
-	for name, value := range args {
+	normalized := make(map[string]any, len(args))
+	originalName := map[string]string{}
+	names := make([]string, 0, len(args))
+	for name := range args {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		value := args[name]
 		paramName, known := canonical[name]
 		if !known {
 			diags = append(diags, Diagnostic{
@@ -119,6 +138,17 @@ func (idx *ArgspecIndex) ValidateArgs(taskName, fqcn string, args map[string]any
 			})
 			continue
 		}
+		if existing, duplicate := normalized[paramName]; duplicate {
+			if !reflect.DeepEqual(existing, value) {
+				diags = append(diags, Diagnostic{
+					Code: CodeArgspecViolation, Severity: "error", StrictFailure: true, Task: taskName,
+					Message: fmt.Sprintf("module %s parameter %q has conflicting values through spellings %q and %q", fqcn, paramName, originalName[paramName], name),
+				})
+			}
+			continue
+		}
+		normalized[paramName] = value
+		originalName[paramName] = name
 		seen[paramName] = true
 		param := module.Parameters[paramName]
 		if param.NoLog {
@@ -147,7 +177,37 @@ func (idx *ArgspecIndex) ValidateArgs(taskName, fqcn string, args map[string]any
 			})
 		}
 	}
-	return diags
+	return normalized, diags
+}
+
+func validateParameterAliasOwnership(fqcn string, module argspecModule) error {
+	owners := map[string]string{}
+	names := make([]string, 0, len(module.Parameters))
+	for name := range module.Parameters {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		spellings := append([]string{name}, module.Parameters[name].Aliases...)
+		for _, spelling := range spellings {
+			if owner, exists := owners[spelling]; exists && owner != name {
+				return fmt.Errorf("module %s parameter spelling %q is owned by both %q and %q", fqcn, spelling, owner, name)
+			}
+			owners[spelling] = name
+		}
+	}
+	return nil
+}
+
+func canonicalParameterNames(module argspecModule) map[string]string {
+	canonical := map[string]string{}
+	for name, param := range module.Parameters {
+		canonical[name] = name
+		for _, alias := range param.Aliases {
+			canonical[alias] = name
+		}
+	}
+	return canonical
 }
 
 func choiceAllowed(choices []any, value string) bool {

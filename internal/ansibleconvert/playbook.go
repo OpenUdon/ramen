@@ -215,7 +215,14 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 		Line:        node.Line,
 		Column:      node.Column,
 	}
-	if loop := m.value("loop"); loop != nil {
+	if m.has("loop") && m.has("with_items") {
+		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(
+			task.Name,
+			"loop/with_items",
+			"cannot be specified together because their precedence is ambiguous",
+			"",
+		))
+	} else if loop := m.value("loop"); loop != nil {
 		task.Loop = loop
 	} else if loop := m.value("with_items"); loop != nil {
 		task.Loop = loop

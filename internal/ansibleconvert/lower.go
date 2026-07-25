@@ -426,10 +426,15 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		}
 	}
 	body := lw.lowerArgs(task.Name, args, ctx)
+	body, argspecDiags := lw.idx.NormalizeAndValidateArgs(task.Name, task.Module, body)
+	lw.diags = append(lw.diags, argspecDiags...)
+	if hasStrictFailure(argspecDiags) {
+		lt.skipped = true
+		return nil
+	}
 	if len(body) > 0 {
 		op.Request = map[string]any{"body": body}
 	}
-	lw.diags = append(lw.diags, lw.idx.ValidateArgs(task.Name, task.Module, body)...)
 
 	if lw.targetUWS == TargetUWS16 {
 		lw.sourcesUsed[sourceID] = true
@@ -437,6 +442,15 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	}
 	lw.doc.Operations = append(lw.doc.Operations, op)
 	return lw.wrapGuardedStepDNF(step, guardDNF, task)
+}
+
+func hasStrictFailure(diags []Diagnostic) bool {
+	for _, diag := range diags {
+		if diag.StrictFailure {
+			return true
+		}
+	}
+	return false
 }
 
 func normalizeTargetUWS(target string) string {

@@ -1429,6 +1429,130 @@ func TestCLIConvertAnsibleUnsupportedExitsByDefault(t *testing.T) {
 	}
 }
 
+func TestCLIConvertAnsibleArgspecIngestionFailureExitsOneWithoutArtifacts(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	argspecPath := filepath.Join(root, "argspec.json")
+	outDir := filepath.Join(root, "out")
+	if err := os.WriteFile(playbookPath, []byte(`- name: invalid argspec
+  hosts: localhost
+  tasks:
+    - name: Safe task
+      acme.tools.file:
+        path: /tmp/safe
+`), 0o644); err != nil {
+		t.Fatalf("write playbook: %v", err)
+	}
+	if err := os.WriteFile(argspecPath, []byte(`{
+  "argspec": "uws.ansible.1.0",
+  "collection": "acme.tools",
+  "modules": {
+    "acme.tools.file": {
+      "parameters": {"path": {"type": "path"}},
+      "unknown": true
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatalf("write argspec: %v", err)
+	}
+
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "tools="+argspecPath,
+		"--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("invalid argspec unexpectedly succeeded:\n%s", output)
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("convert ansible exit = %v, want code 1\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "schema validation failed") {
+		t.Fatalf("invalid argspec output missing schema failure:\n%s", output)
+	}
+	if _, err := os.Stat(outDir); !os.IsNotExist(err) {
+		t.Fatalf("argspec ingestion failure wrote conversion artifacts, stat err=%v", err)
+	}
+}
+
+func TestCLIConvertAnsibleArgspecConflictExitsThreeAndPartialOutputOmitsTask(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	argspecPath := filepath.Join(root, "argspec.json")
+	if err := os.WriteFile(playbookPath, []byte(`- name: aliases
+  hosts: localhost
+  tasks:
+    - name: Conflicting task
+      acme.tools.file:
+        path: /tmp/one
+        dest: /tmp/two
+    - name: Safe task
+      acme.tools.file:
+        path: /tmp/safe
+`), 0o644); err != nil {
+		t.Fatalf("write playbook: %v", err)
+	}
+	if err := os.WriteFile(argspecPath, []byte(`{
+  "argspec": "uws.ansible.1.0",
+  "collection": "acme.tools",
+  "modules": {
+    "acme.tools.file": {
+      "parameters": {
+        "path": {"type": "path", "required": true, "aliases": ["dest"]}
+      }
+    }
+  }
+}`), 0o644); err != nil {
+		t.Fatalf("write argspec: %v", err)
+	}
+
+	strictOut := filepath.Join(root, "strict")
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "tools="+argspecPath,
+		"--out", strictOut)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("conflicting aliases unexpectedly succeeded:\n%s", output)
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 3 {
+		t.Fatalf("convert ansible exit = %v, want code 3\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "ansible.argspec_violation") {
+		t.Fatalf("strict output missing argspec diagnostic:\n%s", output)
+	}
+	if _, err := os.Stat(filepath.Join(strictOut, "workflows", "workflow.uws.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("strict conversion wrote workflow, stat err=%v", err)
+	}
+
+	partialOut := filepath.Join(root, "partial")
+	cmd = helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "tools="+argspecPath,
+		"--ignore-unsupported",
+		"--out", partialOut)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("partial conversion failed: %v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(partialOut, "workflows", "workflow.uws.yaml"))
+	if err != nil {
+		t.Fatalf("read partial workflow: %v", err)
+	}
+	var doc uws1.Document
+	if err := uwsconvert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse partial workflow: %v", err)
+	}
+	if findOperationInDoc(&doc, "conflicting_task") != nil {
+		t.Fatalf("conflicting task leaked into partial workflow: %#v", doc.Operations)
+	}
+	if findOperationInDoc(&doc, "safe_task") == nil {
+		t.Fatalf("safe task missing from partial workflow: %#v", doc.Operations)
+	}
+}
+
 func TestCLIInitAndPlanWritesStaticPlan(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
