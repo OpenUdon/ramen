@@ -2,18 +2,12 @@ module github.com/OpenUdon/ramen
 
 go 1.26.3
 
-// Shared trust/evidence primitives. Local path until the module is published.
-replace github.com/OpenUdon/evidence => ../evidence
-
-// Ansible module-call supplement. Local path until the module is published.
-replace github.com/OpenUdon/uws => ../uws
-
 require (
 	github.com/OpenUdon/apitools v0.0.0-20260607192205-ae9d40a53ce6
 	github.com/OpenUdon/authoring v0.0.0-20260607172625-3aa69a0e0cdd
-	github.com/OpenUdon/evidence v0.0.0
+	github.com/OpenUdon/evidence v0.0.0-20260603102736-08a9c38b00b7
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
-	github.com/OpenUdon/uws v0.0.0-20260611103646-81f4ffe2607f
+	github.com/OpenUdon/uws v0.0.0-20260725145128-d428f54e728c
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/zclconf/go-cty v1.18.1
 	gopkg.in/yaml.v3 v3.0.1

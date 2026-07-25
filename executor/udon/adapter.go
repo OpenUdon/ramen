@@ -26,6 +26,8 @@ type Executor struct {
 	CredentialResolvers map[string]func(context.Context) (string, error)
 }
 
+var _ executor.Executor = Executor{}
+
 func (e Executor) Capabilities() executor.CapabilityDescriptor {
 	return executor.CapabilityDescriptor{
 		Protocols:   []string{"aws-smithy", "openapi", "google-discovery"},

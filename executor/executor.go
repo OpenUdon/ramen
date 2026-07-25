@@ -134,8 +134,10 @@ type Result struct {
 	FinishedAt time.Time      `json:"finished_at,omitempty"`
 }
 
-// Executor executes one approved action document.
+// Executor executes one approved action document and declares the capabilities
+// that Ramen must verify before handing the action across the trust boundary.
 type Executor interface {
+	Capable
 	Execute(context.Context, Request) (Result, error)
 }
 
@@ -143,11 +145,7 @@ func EnsureSupported(exec Executor, req Request) error {
 	if exec == nil {
 		return fmt.Errorf("executor is nil")
 	}
-	capable, ok := exec.(Capable)
-	if !ok {
-		return fmt.Errorf("executor capability descriptor is required for %s %s", req.Action.Action, req.Action.Address)
-	}
-	caps := capable.Capabilities()
+	caps := exec.Capabilities()
 	if req.Capabilities.Protocol != "" && !contains(caps.Protocols, req.Capabilities.Protocol) {
 		return fmt.Errorf("executor capability unsupported protocol %q for %s", req.Capabilities.Protocol, req.Action.Address)
 	}
@@ -227,6 +225,8 @@ type MockExecutor struct {
 	Results   map[string]Result
 	ExecuteFn func(context.Context, Request) (Result, error)
 }
+
+var _ Executor = (*MockExecutor)(nil)
 
 func (m *MockExecutor) Capabilities() CapabilityDescriptor {
 	return CapabilityDescriptor{
@@ -322,6 +322,8 @@ type RecordedExecutor struct {
 	Calls    []RecordedCall
 }
 
+var _ Executor = (*RecordedExecutor)(nil)
+
 func NewRecordedExecutor(calls []RecordedCall) *RecordedExecutor {
 	records := map[string]RecordedCall{}
 	for _, call := range calls {
@@ -363,9 +365,7 @@ func (r *RecordedExecutor) Save(path string) error {
 
 func (r *RecordedExecutor) Capabilities() CapabilityDescriptor {
 	if r != nil && r.Recorder != nil {
-		if capable, ok := r.Recorder.(Capable); ok {
-			return capable.Capabilities()
-		}
+		return r.Recorder.Capabilities()
 	}
 	return (&MockExecutor{}).Capabilities()
 }

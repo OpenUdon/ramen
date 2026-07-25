@@ -1,0 +1,33 @@
+# v0.1 Compatibility Contract
+
+Ramen's v0.1 compatibility boundary is deliberately smaller than its exported
+repository surface.
+
+## Stable During v0.1.x
+
+- Native UWS/Ramen project loading through `project`.
+- Provider-free validation and graph construction through `validate` and
+  `graph`.
+- Deterministic plan and approved apply orchestration through `plan` and
+  `apply`.
+- Local state and reconciliation through `state` and `reconcile`.
+- The in-process trusted execution contract in `executor`.
+- Existing native-core `*.v1` artifact shapes and CLI diagnostic codes.
+
+Additive fields and methods may be introduced in v0.1.x. Existing fields,
+accepted inputs, and behavior will not intentionally be removed or redefined.
+Readers fail closed on unknown future artifact versions. SQLite state migrates
+forward and rejects databases created by a newer unsupported schema; downgrade
+compatibility is not promised.
+
+## Experimental Before v1
+
+Authoring, iCoT, Terraform/OpenTofu conversion, Ansible conversion, static
+governance helpers, imperative runbooks, and provider-specific mapping breadth
+may evolve between pre-1.0 releases. They remain bounded adapters into Ramen's
+native model and do not imply Terraform/OpenTofu, Ansible, provider, backend,
+or plan-file runtime compatibility.
+
+Public binaries remain mock-backed for execution. Live mutations require a
+separately trusted executor implementation and are outside the v0.1 release
+contract.

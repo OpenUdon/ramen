@@ -98,8 +98,11 @@ func readNotFoundText(text string) bool {
 		return false
 	}
 	normalized := strings.NewReplacer("_", " ", "-", " ", ".", " ", ":", " ").Replace(text)
+	compact := strings.ReplaceAll(normalized, " ", "")
 	switch {
 	case strings.Contains(text, "notfound"):
+		return true
+	case strings.Contains(compact, "nosuchentity"):
 		return true
 	case strings.Contains(normalized, "not found"):
 		return true

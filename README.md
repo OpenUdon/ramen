@@ -1,16 +1,15 @@
 # Ramen
 
-Ramen is a public API-source desired-state engine. Its native project
-format is a UWS project plus Ramen reconciliation metadata for resource
-identity, lifecycle, operation roles, hashes, state matching, and redaction
-policy. Terraform/OpenTofu HCL remains an optional authoring and migration
-input through `ramen convert`, which uses `github.com/OpenUdon/tfconfig` to
-produce native Ramen/UWS project artifacts.
-
-Ramen maps desired API resources to operations from sources such as AWS Smithy
-JSON, Google Discovery, and OpenAPI, computes desired-state plans, records
-SQLite state history, and hands approved UWS execution documents to an
+Ramen is the stateful reconciliation engine that turns API-source-backed
+desired resources into deterministic, reviewable UWS plans. It records local
+SQLite state and history, then hands only approved action documents to an
 explicit trusted executor boundary.
+
+The native source of truth is a UWS project plus Ramen metadata for identity,
+lifecycle, operation roles, hashes, state matching, and redaction. OpenAPI,
+AWS Smithy JSON, and Google Discovery describe the available operations.
+Terraform/OpenTofu and Ansible conversion plus AI-assisted authoring are
+optional on-ramps into that native model, not alternative runtimes.
 
 ## Why Ramen
 
@@ -29,8 +28,8 @@ Ramen differs from adjacent tools in a narrow way:
 - Generic workflow runners execute steps; Ramen adds identity matching,
   dependency graphs, deterministic plans, import, refresh evidence, state
   history, and approval-artifact checks.
-- Generated SDKs and CLIs (like az, gcloud etc.) provide imperative API calls; Ramen provides operator
-  workflows and durable desired-state records.
+- Generated SDKs and CLIs such as `az` and `gcloud` provide imperative API
+  calls; Ramen provides operator workflows and durable desired-state records.
 
 ## Adoption Readiness
 
@@ -41,49 +40,94 @@ approval artifacts, redacted SQLite state history, reproducible plans, explicit
 trusted executor boundaries, no credential value storage, and future policy
 integration points.
 
-Ready now: provider-free native validation, graphing, planning, HCL conversion
-scaffolding, local state history, mock-backed apply/refresh flows,
-plan approval metadata, read-only show/state inspection, and documented safety
-boundaries. The first `ramen author` wrapper can also draft a native project
-from prompt-safe API operation context without provider execution. `ramen icot`
-adds the interactive local-metadata path for drafting API-method projects,
-including read/list, DELETE, POST, PUT, and PATCH actions, from local API
-source documents. Still
-experimental: broader resource mappings, live executor
-adapters, policy hooks, parameterization ergonomics, release packaging, and
-operational support contracts.
+Ready in v0.1: provider-free native validation, graphing and planning; local
+state history; digest-bound approval artifacts; mock-backed apply and refresh;
+read-only state inspection; a supported in-process executor contract; and a
+credential-free native example.
+
+Experimental before v1: broader resource mappings, live executor adapters,
+policy integrations, authoring and conversion adapters, imperative runbooks,
+and parameterization ergonomics. See [SUPPORT.md](SUPPORT.md) and
+[the compatibility contract](docs/compatibility.md) for the exact boundary.
 
 See [docs/evidence-index.md](docs/evidence-index.md) for the current
 credential-free, recorded replay, and sanitized live evidence that backs these
 claims.
 
-## Commands
+## Installation
 
-Implemented public commands:
+Install the CLI with Go:
 
 ```bash
-ramen author --context context.json --goal "Manage widgets"
-ramen icot --goal "List all Azure resources" --api-source openapi:azure=azure.json --no-llm --validate --graph
-ramen convert
+go install github.com/OpenUdon/ramen/cmd/ramen@v0.1.0
+ramen version --json
+```
+
+Linux, macOS, and Windows archives for amd64 and arm64 are attached to the
+GitHub v0.1.0 release with a `SHA256SUMS` file. Ramen requires the Go version
+declared in `go.mod` when used as a library.
+
+## Native Quick Start
+
+The local widget example uses only a checked-in OpenAPI document and the mock
+executor. It performs no network calls and needs no credentials:
+
+```bash
+ramen init \
+  --project ./examples/widget \
+  --state /tmp/ramen-widget-state.db
+ramen validate --project ./examples/widget
+ramen graph --project ./examples/widget
+ramen plan \
+  --project ./examples/widget \
+  --state /tmp/ramen-widget-state.db \
+  --out /tmp/ramen-widget-plan.json
+ramen apply \
+  --plan /tmp/ramen-widget-plan.json \
+  --state /tmp/ramen-widget-state.db \
+  --auto-approve \
+  --mock \
+  --out /tmp/ramen-widget-apply
+ramen state list --state /tmp/ramen-widget-state.db
+```
+
+See [examples/widget](examples/widget) for the project, API source, and
+annotated workflow.
+
+## Commands
+
+The native desired-state lifecycle is:
+
+```bash
 ramen init
 ramen validate --project DIR --json
 ramen graph --project DIR --format json
-ramen force-unlock LOCK_HOLDER --state PATH
 ramen plan --project DIR --target ADDRESS --exclude ADDRESS --replace ADDRESS
 ramen plan --project DIR --out plan.json
 ramen apply --plan plan.json --auto-approve --mock
 ramen refresh --mock
 ramen import
+ramen show plan.json
+ramen state list
+ramen force-unlock LOCK_HOLDER --state PATH
 ramen version --json
 ```
 
-The current implementation supports native UWS/Ramen project input through
-`--project`, while preserving the HCL-derived lifecycle path from the first
-milestones as transitional compatibility. `ramen convert` writes
-`project.uws.yaml` in that native format. The first lifecycle surface is
-mock-backed in default public builds where execution is required. Live executor
-wiring remains opt-in behind trusted adapters. `ramen version --json` reports
-local build metadata without network checks.
+Experimental on-ramps create or convert native artifacts:
+
+```bash
+ramen author --context context.json --goal "Manage widgets"
+ramen icot --goal "List resources" --api-source openapi:api=api.json --no-llm --validate --graph
+ramen convert
+ramen convert ansible --playbook playbook.yml --argspec-dir argspecs
+```
+
+`ramen run` is an adjacent imperative UWS runbook command; it does not create
+desired-state resources. Default release builds include mock execution only.
+Platform teams integrate a trusted runtime through the supported
+[`executor.Executor`](https://pkg.go.dev/github.com/OpenUdon/ramen/executor)
+interface. `ramen version --json` reports local build metadata without network
+checks or telemetry.
 
 ### Azure API-First Example
 
@@ -150,19 +194,15 @@ guardrails, and a verified cleanup command.
 
 ## Development Checks
 
-Harness/documentation check:
-
 ```bash
-git -C ../tofu diff --check -- ramen
-```
-
-Planned public module checks once Go code exists:
-
-```bash
-go test ./...
-go vet ./...
+GOWORK=off go mod download
+GOWORK=off go test ./... -count=1 -timeout=10m
+GOWORK=off go vet ./...
 git diff --check
 ```
+
+The canonical memory bank is tracked under `../tofu/ramen` in a sibling
+development checkout, but public builds and tests do not require that checkout.
 
 Optional udon adapter check when the private sibling checkout is available:
 

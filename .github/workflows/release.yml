@@ -1,0 +1,127 @@
+name: release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Verify public module
+        run: |
+          GOWORK=off go mod download
+          GOWORK=off go vet ./...
+          GOWORK=off go test ./... -count=1 -timeout=10m
+          git diff --check
+
+  build:
+    needs: verify
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            archive: tar.gz
+            binary: ramen
+          - goos: linux
+            goarch: arm64
+            archive: tar.gz
+            binary: ramen
+          - goos: darwin
+            goarch: amd64
+            archive: tar.gz
+            binary: ramen
+          - goos: darwin
+            goarch: arm64
+            archive: tar.gz
+            binary: ramen
+          - goos: windows
+            goarch: amd64
+            archive: zip
+            binary: ramen.exe
+          - goos: windows
+            goarch: arm64
+            archive: zip
+            binary: ramen.exe
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build archive
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          ARCHIVE: ${{ matrix.archive }}
+          BINARY: ${{ matrix.binary }}
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          NAME="ramen_${VERSION}_${GOOS}_${GOARCH}"
+          mkdir -p "dist/${NAME}"
+          GOWORK=off CGO_ENABLED=0 go build \
+            -trimpath \
+            -ldflags="-s -w -X main.version=${VERSION}" \
+            -o "dist/${NAME}/${BINARY}" \
+            ./cmd/ramen
+          cp LICENSE README.md "dist/${NAME}/"
+          if [ "$GOOS" = "linux" ] && [ "$GOARCH" = "amd64" ]; then
+            "dist/${NAME}/${BINARY}" version --json |
+              grep -F "\"version\": \"${VERSION}\""
+          fi
+          if [ "$ARCHIVE" = "zip" ]; then
+            (cd dist && zip -qr "${NAME}.zip" "${NAME}")
+          else
+            tar -C dist -czf "dist/${NAME}.tar.gz" "${NAME}"
+          fi
+
+      - name: Upload archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: ramen-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: dist/ramen_*.${{ matrix.archive }}
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download archives
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Write checksums
+        run: |
+          cd dist
+          sha256sum ramen_* > SHA256SUMS
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "$GITHUB_REF_NAME" dist/* --generate-notes --verify-tag

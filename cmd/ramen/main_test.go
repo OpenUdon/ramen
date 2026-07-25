@@ -865,6 +865,65 @@ func TestCLIVersionOutputsPlainTextJSONAndHelp(t *testing.T) {
 	}
 }
 
+func TestCollectVersionInfoUsesInjectedReleaseVersion(t *testing.T) {
+	previous := version
+	version = "0.1.0"
+	t.Cleanup(func() {
+		version = previous
+	})
+
+	info := collectVersionInfo()
+	if info.Version != "0.1.0" {
+		t.Fatalf("version = %q, want 0.1.0", info.Version)
+	}
+	if info.Module != "github.com/OpenUdon/ramen" {
+		t.Fatalf("module = %q, want github.com/OpenUdon/ramen", info.Module)
+	}
+}
+
+func TestCLINativeWidgetExampleGoldenPath(t *testing.T) {
+	projectPath, err := filepath.Abs("../../examples/widget")
+	if err != nil {
+		t.Fatal(err)
+	}
+	root := t.TempDir()
+	statePath := filepath.Join(root, "state.db")
+	graphPath := filepath.Join(root, "graph.json")
+	planPath := filepath.Join(root, "plan.json")
+	applyDir := filepath.Join(root, "apply")
+
+	run := func(args ...string) []byte {
+		t.Helper()
+		output, runErr := helperCommand(args...).CombinedOutput()
+		if runErr != nil {
+			t.Fatalf("ramen %s failed: %v\n%s", strings.Join(args, " "), runErr, output)
+		}
+		return output
+	}
+
+	run("init", "--project", projectPath, "--state", statePath)
+	if output := run("validate", "--project", projectPath, "--json"); !bytes.Contains(output, []byte(`"valid": true`)) {
+		t.Fatalf("validate output did not report a valid project:\n%s", output)
+	}
+	run("graph", "--project", projectPath, "--format", "json", "--out", graphPath)
+	run("plan", "--project", projectPath, "--state", statePath, "--out", planPath)
+	run("apply", "--plan", planPath, "--state", statePath, "--auto-approve", "--mock", "--out", applyDir)
+
+	var resources []state.ResourceSnapshot
+	output := run("state", "list", "--state", statePath, "--json")
+	if err := json.Unmarshal(output, &resources); err != nil {
+		t.Fatalf("state list JSON is not parseable: %v\n%s", err, output)
+	}
+	if len(resources) != 1 || resources[0].Address != "widget.example" || resources[0].Status != "managed" {
+		t.Fatalf("state resources = %#v", resources)
+	}
+	for _, path := range []string{graphPath, planPath, filepath.Join(applyDir, "actions", "widget_example.uws.json")} {
+		if _, err := os.Stat(path); err != nil {
+			t.Fatalf("golden-path artifact %s: %v", path, err)
+		}
+	}
+}
+
 func TestCLIValidateOutputsHumanJSONAndHelp(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := filepath.Join(root, "api.yaml")

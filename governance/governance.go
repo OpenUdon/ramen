@@ -33,14 +33,14 @@ type Resource struct {
 }
 
 type Policy struct {
-	Version                  string   `json:"version,omitempty"`
-	Name                     string   `json:"name,omitempty"`
-	DenyActions              []string `json:"deny_actions,omitempty"`
-	WarnActions              []string `json:"warn_actions,omitempty"`
-	RequireApprovalActions   []string `json:"require_approval_actions,omitempty"`
-	RequireApprovalAddresses []string `json:"require_approval_addresses,omitempty"`
-	MaxDeletes               int      `json:"max_deletes,omitempty"`
-	RequiredApproverRoles    []string `json:"required_approver_roles,omitempty"`
+	Version                  string   `json:"version,omitempty" yaml:"version,omitempty"`
+	Name                     string   `json:"name,omitempty" yaml:"name,omitempty"`
+	DenyActions              []string `json:"deny_actions,omitempty" yaml:"deny_actions,omitempty"`
+	WarnActions              []string `json:"warn_actions,omitempty" yaml:"warn_actions,omitempty"`
+	RequireApprovalActions   []string `json:"require_approval_actions,omitempty" yaml:"require_approval_actions,omitempty"`
+	RequireApprovalAddresses []string `json:"require_approval_addresses,omitempty" yaml:"require_approval_addresses,omitempty"`
+	MaxDeletes               int      `json:"max_deletes,omitempty" yaml:"max_deletes,omitempty"`
+	RequiredApproverRoles    []string `json:"required_approver_roles,omitempty" yaml:"required_approver_roles,omitempty"`
 }
 
 type PolicyRef struct {

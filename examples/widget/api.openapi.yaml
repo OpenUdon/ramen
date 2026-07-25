@@ -1,0 +1,64 @@
+openapi: 3.0.3
+info:
+  title: Local Widget API
+  version: 1.0.0
+servers:
+  - url: https://widgets.invalid
+paths:
+  /widgets/{name}:
+    parameters:
+      - name: name
+        in: path
+        required: true
+        schema:
+          type: string
+    put:
+      operationId: putWidget
+      summary: Create or update a widget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+      responses:
+        "200":
+          description: Widget created or updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+    get:
+      operationId: getWidget
+      summary: Read a widget
+      responses:
+        "200":
+          description: Widget found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Widget"
+        "404":
+          description: Widget not found
+    delete:
+      operationId: deleteWidget
+      summary: Delete a widget
+      responses:
+        "204":
+          description: Widget deleted
+components:
+  schemas:
+    Widget:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+        status:
+          type: string

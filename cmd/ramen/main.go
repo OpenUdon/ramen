@@ -41,7 +41,9 @@ import (
 	"github.com/OpenUdon/tfconfig"
 )
 
-const version = "0.1.0"
+// version is replaced in release archives with -ldflags. Module-installed
+// binaries fall back to debug.BuildInfo's main module version.
+var version = "devel"
 
 const (
 	defaultICOTLLMProvider  = "copilot-api"
@@ -1863,13 +1865,17 @@ func runVersionCommand(args []string) {
 
 func collectVersionInfo() versionInfo {
 	info := versionInfo{
-		Version: version,
+		Version: strings.TrimSpace(version),
 		Module:  "github.com/OpenUdon/ramen",
 	}
 	if build, ok := debug.ReadBuildInfo(); ok {
 		info.GoVersion = build.GoVersion
 		if build.Main.Path != "" {
 			info.MainPath = build.Main.Path
+		}
+		if (info.Version == "" || info.Version == "devel") &&
+			build.Main.Version != "" && build.Main.Version != "(devel)" {
+			info.Version = strings.TrimPrefix(build.Main.Version, "v")
 		}
 		settings := make(map[string]string)
 		for _, setting := range build.Settings {
@@ -1887,6 +1893,9 @@ func collectVersionInfo() versionInfo {
 		if len(settings) > 0 {
 			info.Settings = settings
 		}
+	}
+	if info.Version == "" {
+		info.Version = "devel"
 	}
 	return info
 }

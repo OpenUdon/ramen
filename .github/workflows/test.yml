@@ -1,0 +1,77 @@
+name: test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  public-module:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Reject local module replacements
+        run: |
+          if grep -Eq '^[[:space:]]*replace[[:space:]]' go.mod; then
+            echo "public go.mod must not contain replace directives" >&2
+            exit 1
+          fi
+
+      - name: Download public dependencies
+        run: GOWORK=off go mod download
+
+      - name: Vet public module
+        run: GOWORK=off go vet ./...
+
+      - name: Test public module
+        run: GOWORK=off go test ./... -count=1 -timeout=10m
+
+      - name: Check whitespace
+        run: git diff --check
+
+  release-builds:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - linux-amd64
+          - linux-arm64
+          - darwin-amd64
+          - darwin-arm64
+          - windows-amd64
+          - windows-arm64
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Cross-compile public CLI
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          GOOS="${TARGET%-*}"
+          GOARCH="${TARGET#*-}"
+          OUTPUT="/tmp/ramen-${TARGET}"
+          if [ "$GOOS" = "windows" ]; then
+            OUTPUT="${OUTPUT}.exe"
+          fi
+          GOWORK=off CGO_ENABLED=0 GOOS="$GOOS" GOARCH="$GOARCH" \
+            go build -trimpath -o "$OUTPUT" ./cmd/ramen

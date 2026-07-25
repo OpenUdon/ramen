@@ -1,0 +1,126 @@
+uws: 1.4.0
+info:
+  title: Ramen local widget example
+  version: 1.0.0
+sourceDescriptions:
+  - name: widget-api
+    type: openapi
+    url: api.openapi.yaml
+operations:
+  - operationId: put_widget
+    description: Create or update the desired widget.
+    sourceDescription: widget-api
+    sourceOperationId: putWidget
+  - operationId: read_widget
+    description: Read the desired widget.
+    sourceDescription: widget-api
+    sourceOperationId: getWidget
+  - operationId: delete_widget
+    description: Delete the desired widget.
+    sourceDescription: widget-api
+    sourceOperationId: deleteWidget
+workflows:
+  - workflowId: review
+    type: sequence
+    description: Review the widget lifecycle operations.
+    steps:
+      - stepId: put
+        operationRef: put_widget
+      - stepId: read
+        operationRef: read_widget
+      - stepId: delete
+        operationRef: delete_widget
+x-ramen-desired-state:
+  version: ramen.project.v1
+  api_sources:
+    - kind: openapi
+      id: widget-api
+      path: api.openapi.yaml
+  resources:
+    - address: widget.example
+      kind: resource
+      type: widget
+      name: example
+      attributes:
+        name: example
+        status: ready
+      operations:
+        put:
+          purpose: put
+          method: PUT
+          source_kind: openapi
+          source_id: widget-api
+          source_path: api.openapi.yaml
+          operation_id: putWidget
+        read:
+          purpose: read
+          method: GET
+          source_kind: openapi
+          source_id: widget-api
+          source_path: api.openapi.yaml
+          operation_id: getWidget
+        delete:
+          purpose: delete
+          method: DELETE
+          source_kind: openapi
+          source_id: widget-api
+          source_path: api.openapi.yaml
+          operation_id: deleteWidget
+      identity_attributes:
+        - name: name
+          path: name
+          request_keys:
+            - name
+          required: true
+      request_bindings:
+        - operation_role: put
+          operation_id: putWidget
+          path: name
+          request_path: name
+          location: path
+          required: true
+          identity: true
+        - operation_role: put
+          operation_id: putWidget
+          path: status
+          request_path: status
+          location: body
+          required: true
+        - operation_role: read
+          operation_id: getWidget
+          path: name
+          request_path: name
+          location: path
+          required: true
+          identity: true
+        - operation_role: delete
+          operation_id: deleteWidget
+          path: name
+          request_path: name
+          location: path
+          required: true
+          identity: true
+      response_bindings:
+        - operation_role: put
+          operation_id: putWidget
+          response_path: name
+          state_path: name
+          identity: true
+        - operation_role: read
+          operation_id: getWidget
+          response_path: name
+          state_path: name
+          identity: true
+        - operation_role: read
+          operation_id: getWidget
+          response_path: status
+          state_path: status
+          computed: true
+      required_operations:
+        - put
+        - read
+        - delete
+      redaction: {}
+  redaction: {}
+  metadata:
+    scope: credential-free-public-example
