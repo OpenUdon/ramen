@@ -28,7 +28,7 @@ operations:
 sourceDescriptions:
   - name: storage
     type: google-discovery
-    url: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+    url: ../../../../api-sources/google-cloud-storage-discovery-v1.json
 uws: 1.4.0
 workflows:
   - description: Static workflow for Google Cloud Storage Bucket read replay.
@@ -41,7 +41,7 @@ x-ramen-desired-state:
   api_sources:
     - id: storage
       kind: google-discovery
-      path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+      path: ../../../../api-sources/google-cloud-storage-discovery-v1.json
   metadata:
     action: read
     source: Y02 Google Cloud provider read-only parity fixture
@@ -75,7 +75,7 @@ x-ramen-desired-state:
           purpose: read
           source_id: storage
           source_kind: google-discovery
-          source_path: ../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json
+          source_path: ../../../../api-sources/google-cloud-storage-discovery-v1.json
       redaction: {}
       request_bindings:
         - operation_id: storage.buckets.get

@@ -7,7 +7,7 @@
     "version_constraint": "~> 4.0"
   },
   "openapi": {
-    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json",
+    "source_path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json",
     "fixture": "testdata/parity/azure/z02/openapi/cosmos.json"
   },
   "safety": {

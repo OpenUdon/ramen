@@ -17,12 +17,12 @@ inventory/status note.
 
 Current provider inputs:
 
-- AWS: `../terraform-provider-aws` + local AWS Smithy models under
-  `../apitools/catalog-openapi-cache/aws-smithy`.
-- Google: `../terraform-provider-google` + local Google Discovery documents
-  under `../apitools/catalog-openapi-cache/google-discovery`.
-- AzureRM: `../terraform-provider-azurerm` + local Azure OpenAPI documents
-  under `../apitools/catalog-openapi-cache/openapi`.
+- AWS: `../terraform-provider-aws` + immutable AWS Smithy regression fixtures
+  under `testdata/api-sources`.
+- Google: `../terraform-provider-google` + the immutable Google Cloud Storage
+  Discovery regression fixture under `testdata/api-sources`.
+- AzureRM: `../terraform-provider-azurerm` + the immutable Azure Cosmos DB
+  Resource Manager OpenAPI regression fixture under `testdata/api-sources`.
 - Cloudflare: `../terraform-provider-cloudflare` + a checked-in reduced
   Cloudflare OpenAPI fixture for the mapped R2/D1 operations under
   `testdata/api-sources/cloudflare-r2-d1-openapi.json`. The full cached
@@ -30,8 +30,7 @@ Current provider inputs:
   read limit, so the corpus uses the focused fixture instead of copying or
   requiring the full document.
 - Kubernetes: `../terraform-provider-kubernetes` examples + the pinned
-  Kubernetes Swagger artifact under
-  `../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json`.
+  Kubernetes Swagger regression fixture under `testdata/api-sources`.
 - OpenTofu: optional static Terraform docs/examples under `../opentofu`,
   currently contributing only examples that map to supported provider/API
   source pairs and pass the same clean corpus gates.
@@ -62,9 +61,9 @@ is structurally equivalent to YAML.
   `testAcc*Config*` string-builders (need Go execution) + ~3K statically-readable
   files (2,492 `main_gen.tf`, 402 `.tf`, 592 `.gtpl`). Layout:
   `internal/service/<svc>/<resource>_test.go`; configs name `resource "aws_<svc>_<resource>"`.
-- Smithy corpus: **29 real models** at
-  `../apitools/catalog-openapi-cache/aws-smithy/aws-<svc>-smithy-model.json`.
-  `apitools` reads supplied paths only (no fetch).
+- Smithy corpus regeneration can consume a larger maintainer-supplied model
+  directory, while the committed strict gate carries the IAM, Lambda, and S3
+  models needed by current mappings under `testdata/api-sources`.
 - `tfmapping` maps 10 managed AWS types today (s3_bucket,
   s3_bucket_accelerate_configuration, s3_bucket_public_access_block,
   s3_bucket_versioning, iam_role, iam_role_policy, iam_user, lambda_function,
@@ -88,7 +87,7 @@ is structurally equivalent to YAML.
   `../terraform-provider-kubernetes/examples`. Current Kubernetes mapping
   coverage includes Namespace, ConfigMap, ServiceAccount, Secret, Role,
   RoleBinding, and ClusterRole resource/data-source types, backed by the pinned
-  Kubernetes Swagger artifact in `../apitools`.
+  Kubernetes Swagger regression fixture.
 - Cloudflare fixtures are static Terraform files under
   `../terraform-provider-cloudflare/internal/services/<service>/testdata`.
   Current Cloudflare mapping coverage is `cloudflare_r2_bucket` and
@@ -101,14 +100,12 @@ is structurally equivalent to YAML.
   and AzureRM raw Terraform snippets from Go acceptance tests where no static
   testdata is available; Kubernetes static provider examples; Cloudflare static
   service testdata; optional strict-valid OpenTofu static docs/examples.
-- **API source scope:** only local API source documents; for AWS this means the
-  existing 29 Smithy models, and for Google this currently means the local
-  Discovery documents in `../apitools`; for AzureRM this currently means local
-  OpenAPI documents in `../apitools`; for Kubernetes this currently uses the
-  pinned `../apitools` Kubernetes Swagger artifact copied from the sibling
-  provider fixture; for Cloudflare this currently uses a
-  focused checked-in OpenAPI subset because the full cached Cloudflare OpenAPI
-  document exceeds the default local source read limit.
+- **API source scope:** only local API source documents. The committed strict
+  gate uses immutable AWS, Google, Azure, Kubernetes, and Cloudflare fixtures
+  under `testdata/api-sources`; maintainers may override the generator's source
+  directories when expanding coverage. The focused Cloudflare subset remains
+  necessary because the full cached document exceeds the default local source
+  read limit.
 - **Output:** clean and strict-valid conversions only (drop
   fallback/unsupported, native validation failures, and HCL round-trip
   failures).

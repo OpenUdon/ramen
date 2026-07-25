@@ -18,12 +18,11 @@ kubectl context, and updates committed observations only when
 The planning baseline uses the local source artifact:
 
 ```text
-../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json
+testdata/api-sources/kubernetes-v1-19-2-swagger.json
 ```
 
 Committed focused OpenAPI subsets should be added under this tree before a K
-scenario moves from `planned` to `recorded`, so default tests never depend on
-the sibling `../apitools` checkout.
+scenario moves from `planned` to `recorded`.
 
 ## Recorded Update Lanes
 

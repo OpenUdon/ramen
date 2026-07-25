@@ -7,7 +7,7 @@
     "version_constraint": "~> 4.0"
   },
   "openapi": {
-    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-sql-database-openapi.json",
+    "source_path": "testdata/parity/azure/z05/openapi/sql.json",
     "fixture": "testdata/parity/azure/z05/openapi/sql.json"
   },
   "safety": {

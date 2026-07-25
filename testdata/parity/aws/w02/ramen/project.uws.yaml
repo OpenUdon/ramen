@@ -35,7 +35,7 @@ operations:
 sourceDescriptions:
   - name: iam
     type: aws-smithy
-    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+    url: ../../../../api-sources/aws-iam-smithy-model.json
 uws: 1.4.0
 workflows:
   - description: Static workflow for IAM Role mapping replay.
@@ -54,7 +54,7 @@ x-ramen-desired-state:
   api_sources:
     - id: iam
       kind: aws-smithy
-      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+      path: ../../../../api-sources/aws-iam-smithy-model.json
   metadata:
     action: create
     source: W02 AWS provider parity fixture
@@ -93,7 +93,7 @@ x-ramen-desired-state:
           purpose: create
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
         read:
           credential_bindings:
             - aws_hmac
@@ -101,7 +101,7 @@ x-ramen-desired-state:
           purpose: read
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
         update:
           credential_bindings:
             - aws_hmac
@@ -109,7 +109,7 @@ x-ramen-desired-state:
           purpose: update
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
         delete:
           credential_bindings:
             - aws_hmac
@@ -117,7 +117,7 @@ x-ramen-desired-state:
           purpose: delete
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
       redaction: {}
       request_bindings:
         - operation_id: CreateRole

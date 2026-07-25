@@ -20,7 +20,7 @@ import (
 func TestAWSParityW01Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	smithyPath, err := filepath.Abs("../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json")
+	smithyPath, err := filepath.Abs("testdata/api-sources/aws-iam-smithy-model.json")
 	if err != nil {
 		t.Fatalf("resolve IAM Smithy path: %v", err)
 	}
@@ -142,7 +142,7 @@ func runAWSParityW01RamenRuntime(ctx context.Context, t *testing.T, userName str
 	})
 	workDir := filepath.Join(t.TempDir(), runtimeName)
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	smithyPath, err := filepath.Abs("../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json")
+	smithyPath, err := filepath.Abs("testdata/api-sources/aws-iam-smithy-model.json")
 	if err != nil {
 		return awsParityFailure(runtimeName, "fixture", err)
 	}
@@ -241,7 +241,7 @@ func renderAWSParityW01Project(src, dst, userName, smithyPath string) error {
 	}
 	out := strings.ReplaceAll(string(data), "ramen-parity-w01-static", userName)
 	if strings.TrimSpace(smithyPath) != "" {
-		out = strings.ReplaceAll(out, "../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json", filepath.ToSlash(smithyPath))
+		out = strings.ReplaceAll(out, "../../../../api-sources/aws-iam-smithy-model.json", filepath.ToSlash(smithyPath))
 	}
 	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
 		return err

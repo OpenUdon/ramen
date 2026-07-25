@@ -9,7 +9,7 @@
     "registry_latest": true
   },
   "openapi": {
-    "source_path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json",
+    "source_path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json",
     "fixture": "testdata/parity/kubernetes/k03/openapi/core.json"
   },
   "safety": {

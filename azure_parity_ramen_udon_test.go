@@ -854,7 +854,7 @@ func runAzureParityRamenRuntime(ctx context.Context, t *testing.T, _ string) azu
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
 	deleteProjectPath := filepath.Join(workDir, "ramen", "project.delete.uws.yaml")
 	openAPIPath := filepath.Join(workDir, "ramen", "openapi", "sql.json")
-	if err := copyFixtureFile("../azure-rest-api-specs/specification/sql/resource-manager/Microsoft.Sql/SQL/preview/2023-08-01-preview/Databases.json", openAPIPath); err != nil {
+	if err := copyFixtureFile(filepath.Join(azureParityFixtureRoot, "z01", "openapi", "sql.json"), openAPIPath); err != nil {
 		return azureParityFailure(runtimeName, "fixture", err)
 	}
 	if err := renderAzureParityZ01Project(filepath.Join(azureParityFixtureRoot, "z01", "ramen", "project.uws.yaml"), projectPath, databaseName, false); err != nil {

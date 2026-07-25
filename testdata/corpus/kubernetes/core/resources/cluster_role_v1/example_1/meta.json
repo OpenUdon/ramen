@@ -9,7 +9,7 @@
     {
       "kind": "openapi",
       "id": "core",
-      "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+      "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
     }
   ],
   "source_dir": "examples/resources/cluster_role_v1/example_1.tf",

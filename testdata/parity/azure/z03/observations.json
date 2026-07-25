@@ -7,7 +7,7 @@
     "version_constraint": "~> 4.0"
   },
   "openapi": {
-    "source_path": "../apitools/catalog-openapi-cache/openapi/azure-resources-resource-manager-openapi.json",
+    "source_path": "testdata/parity/azure/z03/openapi/resources.json",
     "fixture": "testdata/parity/azure/z03/openapi/resources.json"
   },
   "safety": {

@@ -24,7 +24,7 @@ import (
 func TestGoogleParityY02Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		t.Fatalf("resolve Google Discovery path: %v", err)
 	}
@@ -48,7 +48,7 @@ func TestGoogleParityY02Render(t *testing.T) {
 func TestGoogleParityY03Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		t.Fatalf("resolve Google Discovery path: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestGoogleParityY03Render(t *testing.T) {
 func TestGoogleParityY08Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		t.Fatalf("resolve Google Discovery path: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestGoogleParityY08Render(t *testing.T) {
 func TestGoogleParityY04Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		t.Fatalf("resolve Google Discovery path: %v", err)
 	}
@@ -160,7 +160,7 @@ func TestGoogleParityY04Render(t *testing.T) {
 func TestGoogleParityY05Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		t.Fatalf("resolve Google Discovery path: %v", err)
 	}
@@ -264,7 +264,7 @@ func assertRenderedGoogleParityY05ActionDocument(t *testing.T, projectPath, work
 func TestGoogleParityY06Render(t *testing.T) {
 	workDir := t.TempDir()
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		t.Fatalf("resolve Google Discovery path: %v", err)
 	}
@@ -584,7 +584,7 @@ func runGoogleParityY02RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 	}
 	workDir := filepath.Join(t.TempDir(), runtimeName)
 	projectPath := filepath.Join(workDir, "ramen", "project.uws.yaml")
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
@@ -634,7 +634,7 @@ func runGoogleParityBucketLabelRamenRuntime(ctx context.Context, t *testing.T, b
 		}
 	})
 	workDir := filepath.Join(t.TempDir(), runtimeName)
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
@@ -701,7 +701,7 @@ func runGoogleParityY04RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 		}
 	})
 	workDir := filepath.Join(t.TempDir(), runtimeName)
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
@@ -757,7 +757,7 @@ func runGoogleParityY05RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 		}
 	})
 	workDir := filepath.Join(t.TempDir(), runtimeName)
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
@@ -809,7 +809,7 @@ func runGoogleParityY06RamenRuntime(ctx context.Context, t *testing.T, bucketNam
 		}
 	})
 	workDir := filepath.Join(t.TempDir(), runtimeName)
-	discoveryPath, err := filepath.Abs("../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json")
+	discoveryPath, err := filepath.Abs("testdata/api-sources/google-cloud-storage-discovery-v1.json")
 	if err != nil {
 		return googleParityFailure(runtimeName, "fixture", err)
 	}
@@ -1019,7 +1019,7 @@ func renderGoogleParityProject(src, dst, bucketName, projectID, serviceAccountFi
 		out = strings.ReplaceAll(out, "ramen_parity_phase: create", "ramen_parity_phase: "+phase)
 	}
 	if strings.TrimSpace(discoveryPath) != "" {
-		out = strings.ReplaceAll(out, "../../../../../../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json", filepath.ToSlash(discoveryPath))
+		out = strings.ReplaceAll(out, "../../../../api-sources/google-cloud-storage-discovery-v1.json", filepath.ToSlash(discoveryPath))
 	}
 	appendix := "serverUrl: https://storage.googleapis.com/storage/v1\n    appendices:\n      google_service_account_file: " + strconv.Quote(filepath.ToSlash(serviceAccountFile))
 	out = strings.Replace(out, "serverUrl: https://storage.googleapis.com/storage/v1", appendix, 1)

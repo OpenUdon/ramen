@@ -434,7 +434,7 @@ func assertKubernetesParityArtifact(t *testing.T, lane string, artifact kubernet
 	if !artifact.Provider.RegistryLatest {
 		t.Fatalf("provider registry_latest must be true for the pinned planning baseline")
 	}
-	if artifact.OpenAPI.SourcePath != "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json" {
+	if artifact.OpenAPI.SourcePath != "testdata/api-sources/kubernetes-v1-19-2-swagger.json" {
 		t.Fatalf("openapi source path = %q", artifact.OpenAPI.SourcePath)
 	}
 	if artifact.OpenAPI.Fixture == "" {

@@ -14,7 +14,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/basic",
@@ -33,7 +33,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/basic_v5.100.0",
@@ -52,7 +52,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/basic_v6.0.0",
@@ -71,7 +71,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/list_basic",
@@ -90,7 +90,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/list_include_resource",
@@ -109,7 +109,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/tags",
@@ -128,7 +128,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/tags_defaults",
@@ -147,7 +147,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/Role/tags_ignore",
@@ -167,7 +167,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/RolePolicy/basic",
@@ -187,7 +187,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/RolePolicy/basic_v6.0.0",
@@ -204,7 +204,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/RolePolicy/list_basic",
@@ -221,7 +221,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource",
@@ -237,7 +237,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/basic",
@@ -253,7 +253,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/basic_v6.35.1",
@@ -269,7 +269,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/list_basic",
@@ -285,7 +285,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/list_include_resource",
@@ -301,7 +301,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/list_path_prefix",
@@ -317,7 +317,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/tags",
@@ -333,7 +333,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/tags_defaults",
@@ -349,7 +349,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/tags_ignore",
@@ -368,7 +368,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/tmpl/role_basic.gtpl",
@@ -388,7 +388,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/tmpl/role_policy_basic.gtpl",
@@ -404,7 +404,7 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/iam/testdata/tmpl/user_basic.gtpl",
@@ -425,11 +425,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/basic",
@@ -450,11 +450,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/basic_v6.7.0",
@@ -475,11 +475,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/basic_v6.8.0",
@@ -500,11 +500,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/list_basic",
@@ -525,11 +525,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/list_include_resource",
@@ -550,11 +550,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/list_region_override",
@@ -575,11 +575,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/region_override",
@@ -600,11 +600,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/tags",
@@ -625,11 +625,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/tags_defaults",
@@ -650,11 +650,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Function/tags_ignore",
@@ -672,11 +672,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Permission/basic",
@@ -694,11 +694,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Permission/basic_v6.9.0",
@@ -716,11 +716,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Permission/list_basic",
@@ -738,11 +738,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Permission/list_include_resource",
@@ -760,11 +760,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Permission/list_region_override",
@@ -782,11 +782,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/Permission/region_override",
@@ -807,11 +807,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/tmpl/function_basic.gtpl",
@@ -829,11 +829,11 @@
       "smithy_models": [
         {
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/lambda/testdata/tmpl/permission_basic.gtpl",
@@ -849,7 +849,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/basic",
@@ -865,7 +865,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/basic_v5.100.0",
@@ -881,7 +881,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/basic_v6.0.0",
@@ -897,7 +897,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/list_basic",
@@ -913,7 +913,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/list_include_resource",
@@ -929,7 +929,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/list_region_override",
@@ -945,7 +945,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_generated",
@@ -961,7 +961,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_prefix",
@@ -977,7 +977,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/namespace_global",
@@ -993,7 +993,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/region_override",
@@ -1009,7 +1009,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/tags",
@@ -1025,7 +1025,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/tags_defaults",
@@ -1041,7 +1041,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/tags_ignore",
@@ -1058,7 +1058,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic",
@@ -1075,7 +1075,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/basic_v6.9.0",
@@ -1092,7 +1092,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_basic",
@@ -1109,7 +1109,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_region_override",
@@ -1126,7 +1126,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override",
@@ -1143,7 +1143,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/basic",
@@ -1160,7 +1160,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.30.0",
@@ -1177,7 +1177,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.9.0",
@@ -1194,7 +1194,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/list_basic",
@@ -1211,7 +1211,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource",
@@ -1228,7 +1228,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/list_region_override",
@@ -1245,7 +1245,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/region_override",
@@ -1261,7 +1261,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/tmpl/bucket_basic.gtpl",
@@ -1278,7 +1278,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/tmpl/bucket_public_access_block_basic.gtpl",
@@ -1295,7 +1295,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "internal/service/s3/testdata/tmpl/bucket_versioning_basic.gtpl",
@@ -1312,7 +1312,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
@@ -1329,7 +1329,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
@@ -1346,7 +1346,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
@@ -1363,7 +1363,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
@@ -1380,7 +1380,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
@@ -1397,7 +1397,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
@@ -1414,7 +1414,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1431,7 +1431,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1448,7 +1448,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1465,7 +1465,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1482,7 +1482,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1499,7 +1499,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1516,7 +1516,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1533,7 +1533,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1550,7 +1550,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1567,7 +1567,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1584,7 +1584,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1601,7 +1601,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1618,7 +1618,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1635,7 +1635,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1652,7 +1652,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1669,7 +1669,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1686,7 +1686,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1703,7 +1703,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1720,7 +1720,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1737,7 +1737,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1754,7 +1754,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1771,7 +1771,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1788,7 +1788,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1805,7 +1805,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_account_resource_test.go",
@@ -1822,7 +1822,7 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "source_dir": "internal/services/cosmos/cosmosdb_sql_dedicated_gateway_resource_test.go",
@@ -1995,7 +1995,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go",
@@ -2015,7 +2015,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/data_source_google_storage_bucket_test.go",
@@ -2032,7 +2032,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/list_google_storage_bucket_test.go",
@@ -2049,7 +2049,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_object_test.go",
@@ -2066,7 +2066,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2083,7 +2083,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2100,7 +2100,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2117,7 +2117,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2134,7 +2134,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2151,7 +2151,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2168,7 +2168,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2185,7 +2185,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2202,7 +2202,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2219,7 +2219,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2236,7 +2236,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2253,7 +2253,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2270,7 +2270,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2287,7 +2287,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2304,7 +2304,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2321,7 +2321,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2338,7 +2338,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2355,7 +2355,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2372,7 +2372,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2389,7 +2389,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2406,7 +2406,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2423,7 +2423,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2440,7 +2440,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2457,7 +2457,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2474,7 +2474,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2491,7 +2491,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2508,7 +2508,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2525,7 +2525,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2542,7 +2542,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2559,7 +2559,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2576,7 +2576,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2593,7 +2593,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2610,7 +2610,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2627,7 +2627,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2644,7 +2644,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2661,7 +2661,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2678,7 +2678,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2695,7 +2695,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2712,7 +2712,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2729,7 +2729,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_bucket_test.go",
@@ -2746,7 +2746,7 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "source_dir": "google/services/storage/resource_storage_folder_test.go",
@@ -2763,7 +2763,7 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "source_dir": "examples/example_1.tf",
@@ -2780,7 +2780,7 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "source_dir": "examples/resources/cluster_role_v1/example_1.tf",
@@ -2814,7 +2814,7 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "source_dir": "examples/resources/namespace/example_1.tf",
@@ -2831,7 +2831,7 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "source_dir": "examples/resources/namespace_v1/example_1.tf",
@@ -2847,7 +2847,7 @@
       "smithy_models": [
         {
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "source_dir": "website/docs/cli/commands/test/examples/offline/main.tf",

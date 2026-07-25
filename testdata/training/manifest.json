@@ -1710,14 +1710,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/basic",
         "source_doc": "testdata/corpus/aws/iam/Role/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -1759,14 +1759,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/basic_v5.100.0",
         "source_doc": "testdata/corpus/aws/iam/Role/basic_v5.100.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/basic_v5.100.0/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/basic_v5.100.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/basic_v5.100.0/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/basic_v5.100.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -1808,14 +1808,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/basic_v6.0.0",
         "source_doc": "testdata/corpus/aws/iam/Role/basic_v6.0.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/basic_v6.0.0/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/basic_v6.0.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/basic_v6.0.0/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/basic_v6.0.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -1857,14 +1857,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/list_basic",
         "source_doc": "testdata/corpus/aws/iam/Role/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/list_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/list_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -1906,14 +1906,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/list_include_resource",
         "source_doc": "testdata/corpus/aws/iam/Role/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/list_include_resource/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/list_include_resource/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -1955,14 +1955,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/tags",
         "source_doc": "testdata/corpus/aws/iam/Role/tags/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/tags/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/tags/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/tags/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/tags/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2004,14 +2004,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/tags_defaults",
         "source_doc": "testdata/corpus/aws/iam/Role/tags_defaults/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/tags_defaults/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/tags_defaults/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/tags_defaults/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/tags_defaults/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2053,14 +2053,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/Role/tags_ignore",
         "source_doc": "testdata/corpus/aws/iam/Role/tags_ignore/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/tags_ignore/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/tags_ignore/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/Role/tags_ignore/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/Role/tags_ignore/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2103,14 +2103,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/RolePolicy/basic",
         "source_doc": "testdata/corpus/aws/iam/RolePolicy/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2153,14 +2153,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/RolePolicy/basic_v6.0.0",
         "source_doc": "testdata/corpus/aws/iam/RolePolicy/basic_v6.0.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/basic_v6.0.0/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/basic_v6.0.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/basic_v6.0.0/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/basic_v6.0.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2200,14 +2200,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/RolePolicy/list_basic",
         "source_doc": "testdata/corpus/aws/iam/RolePolicy/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/list_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/list_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2247,14 +2247,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/RolePolicy/list_include_resource",
         "source_doc": "testdata/corpus/aws/iam/RolePolicy/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/list_include_resource/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/RolePolicy/list_include_resource/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/RolePolicy/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2296,14 +2296,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/tmpl/role_basic.gtpl",
         "source_doc": "testdata/corpus/aws/iam/tmpl/role_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/tmpl/role_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/tmpl/role_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/tmpl/role_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/tmpl/role_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2346,14 +2346,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/tmpl/role_policy_basic.gtpl",
         "source_doc": "testdata/corpus/aws/iam/tmpl/role_policy_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/tmpl/role_policy_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/tmpl/role_policy_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/tmpl/role_policy_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/tmpl/role_policy_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2392,14 +2392,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/tmpl/user_basic.gtpl",
         "source_doc": "testdata/corpus/aws/iam/tmpl/user_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/tmpl/user_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/tmpl/user_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/tmpl/user_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/tmpl/user_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2438,14 +2438,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/basic",
         "source_doc": "testdata/corpus/aws/iam/User/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2484,14 +2484,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/basic_v6.35.1",
         "source_doc": "testdata/corpus/aws/iam/User/basic_v6.35.1/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/basic_v6.35.1/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/basic_v6.35.1/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/basic_v6.35.1/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/basic_v6.35.1/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2530,14 +2530,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/list_basic",
         "source_doc": "testdata/corpus/aws/iam/User/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/list_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/list_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2576,14 +2576,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/list_include_resource",
         "source_doc": "testdata/corpus/aws/iam/User/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/list_include_resource/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/list_include_resource/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2622,14 +2622,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/list_path_prefix",
         "source_doc": "testdata/corpus/aws/iam/User/list_path_prefix/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/list_path_prefix/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/list_path_prefix/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/list_path_prefix/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/list_path_prefix/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2668,14 +2668,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/tags",
         "source_doc": "testdata/corpus/aws/iam/User/tags/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/tags/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/tags/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/tags/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/tags/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2714,14 +2714,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/tags_defaults",
         "source_doc": "testdata/corpus/aws/iam/User/tags_defaults/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/tags_defaults/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/tags_defaults/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/tags_defaults/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/tags_defaults/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2760,14 +2760,14 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/iam/testdata/User/tags_ignore",
         "source_doc": "testdata/corpus/aws/iam/User/tags_ignore/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/tags_ignore/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/tags_ignore/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/iam/User/tags_ignore/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --action create --out testdata/corpus/aws/iam/User/tags_ignore/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2811,19 +2811,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/basic",
         "source_doc": "testdata/corpus/aws/lambda/Function/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2867,19 +2867,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/basic_v6.7.0",
         "source_doc": "testdata/corpus/aws/lambda/Function/basic_v6.7.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/basic_v6.7.0/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/basic_v6.7.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/basic_v6.7.0/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/basic_v6.7.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2923,19 +2923,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/basic_v6.8.0",
         "source_doc": "testdata/corpus/aws/lambda/Function/basic_v6.8.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/basic_v6.8.0/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/basic_v6.8.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/basic_v6.8.0/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/basic_v6.8.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -2979,19 +2979,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/list_basic",
         "source_doc": "testdata/corpus/aws/lambda/Function/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/list_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/list_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3035,19 +3035,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/list_include_resource",
         "source_doc": "testdata/corpus/aws/lambda/Function/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/list_include_resource/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/list_include_resource/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3091,19 +3091,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/list_region_override",
         "source_doc": "testdata/corpus/aws/lambda/Function/list_region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/list_region_override/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/list_region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/list_region_override/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/list_region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3147,19 +3147,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/region_override",
         "source_doc": "testdata/corpus/aws/lambda/Function/region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/region_override/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/region_override/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3203,19 +3203,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/tags",
         "source_doc": "testdata/corpus/aws/lambda/Function/tags/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/tags/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/tags/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/tags/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/tags/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3259,19 +3259,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/tags_defaults",
         "source_doc": "testdata/corpus/aws/lambda/Function/tags_defaults/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/tags_defaults/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/tags_defaults/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/tags_defaults/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/tags_defaults/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3315,19 +3315,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Function/tags_ignore",
         "source_doc": "testdata/corpus/aws/lambda/Function/tags_ignore/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/tags_ignore/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/tags_ignore/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Function/tags_ignore/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Function/tags_ignore/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3368,19 +3368,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Permission/basic",
         "source_doc": "testdata/corpus/aws/lambda/Permission/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3421,19 +3421,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Permission/basic_v6.9.0",
         "source_doc": "testdata/corpus/aws/lambda/Permission/basic_v6.9.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/basic_v6.9.0/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/basic_v6.9.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/basic_v6.9.0/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/basic_v6.9.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3474,19 +3474,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Permission/list_basic",
         "source_doc": "testdata/corpus/aws/lambda/Permission/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/list_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/list_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3527,19 +3527,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Permission/list_include_resource",
         "source_doc": "testdata/corpus/aws/lambda/Permission/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/list_include_resource/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/list_include_resource/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3580,19 +3580,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Permission/list_region_override",
         "source_doc": "testdata/corpus/aws/lambda/Permission/list_region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/list_region_override/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/list_region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/list_region_override/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/list_region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3633,19 +3633,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/Permission/region_override",
         "source_doc": "testdata/corpus/aws/lambda/Permission/region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/region_override/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/Permission/region_override/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/Permission/region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3689,19 +3689,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/tmpl/function_basic.gtpl",
         "source_doc": "testdata/corpus/aws/lambda/tmpl/function_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/tmpl/function_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/tmpl/function_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/tmpl/function_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/tmpl/function_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3742,19 +3742,19 @@
         {
           "kind": "aws-smithy",
           "id": "iam",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+          "path": "testdata/api-sources/aws-iam-smithy-model.json"
         },
         {
           "kind": "aws-smithy",
           "id": "lambda",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json"
+          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/lambda/testdata/tmpl/permission_basic.gtpl",
         "source_doc": "testdata/corpus/aws/lambda/tmpl/permission_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/tmpl/permission_basic/input --api-source aws-smithy:iam=../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json --api-source aws-smithy:lambda=../apitools/catalog-openapi-cache/aws-smithy/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/tmpl/permission_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/lambda/tmpl/permission_basic/input --api-source aws-smithy:iam=testdata/api-sources/aws-iam-smithy-model.json --api-source aws-smithy:lambda=testdata/api-sources/aws-lambda-smithy-model.json --action create --out testdata/corpus/aws/lambda/tmpl/permission_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3793,14 +3793,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/basic",
         "source_doc": "testdata/corpus/aws/s3/Bucket/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3839,14 +3839,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/basic_v5.100.0",
         "source_doc": "testdata/corpus/aws/s3/Bucket/basic_v5.100.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/basic_v5.100.0/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/basic_v5.100.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/basic_v5.100.0/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/basic_v5.100.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3885,14 +3885,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/basic_v6.0.0",
         "source_doc": "testdata/corpus/aws/s3/Bucket/basic_v6.0.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/basic_v6.0.0/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/basic_v6.0.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/basic_v6.0.0/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/basic_v6.0.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3931,14 +3931,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/list_basic",
         "source_doc": "testdata/corpus/aws/s3/Bucket/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/list_basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/list_basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -3977,14 +3977,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/list_include_resource",
         "source_doc": "testdata/corpus/aws/s3/Bucket/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/list_include_resource/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/list_include_resource/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4023,14 +4023,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/list_region_override",
         "source_doc": "testdata/corpus/aws/s3/Bucket/list_region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/list_region_override/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/list_region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/list_region_override/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/list_region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4069,14 +4069,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_generated",
         "source_doc": "testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_generated/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_generated/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_generated/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_generated/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_generated/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4115,14 +4115,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/namespace_account-regional_name_prefix",
         "source_doc": "testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_prefix/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_prefix/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_prefix/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_prefix/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/namespace_account-regional_name_prefix/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4161,14 +4161,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/namespace_global",
         "source_doc": "testdata/corpus/aws/s3/Bucket/namespace_global/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/namespace_global/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/namespace_global/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/namespace_global/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/namespace_global/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4207,14 +4207,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/region_override",
         "source_doc": "testdata/corpus/aws/s3/Bucket/region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/region_override/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/region_override/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4253,14 +4253,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/tags",
         "source_doc": "testdata/corpus/aws/s3/Bucket/tags/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/tags/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/tags/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/tags/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/tags/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4299,14 +4299,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/tags_defaults",
         "source_doc": "testdata/corpus/aws/s3/Bucket/tags_defaults/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/tags_defaults/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/tags_defaults/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/tags_defaults/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/tags_defaults/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4345,14 +4345,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/Bucket/tags_ignore",
         "source_doc": "testdata/corpus/aws/s3/Bucket/tags_ignore/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/tags_ignore/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/tags_ignore/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/Bucket/tags_ignore/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/Bucket/tags_ignore/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4392,14 +4392,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketPublicAccessBlock/basic",
         "source_doc": "testdata/corpus/aws/s3/BucketPublicAccessBlock/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4439,14 +4439,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketPublicAccessBlock/basic_v6.9.0",
         "source_doc": "testdata/corpus/aws/s3/BucketPublicAccessBlock/basic_v6.9.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/basic_v6.9.0/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/basic_v6.9.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/basic_v6.9.0/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/basic_v6.9.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4486,14 +4486,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketPublicAccessBlock/list_basic",
         "source_doc": "testdata/corpus/aws/s3/BucketPublicAccessBlock/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/list_basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/list_basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4533,14 +4533,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketPublicAccessBlock/list_region_override",
         "source_doc": "testdata/corpus/aws/s3/BucketPublicAccessBlock/list_region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/list_region_override/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/list_region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/list_region_override/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/list_region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4580,14 +4580,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketPublicAccessBlock/region_override",
         "source_doc": "testdata/corpus/aws/s3/BucketPublicAccessBlock/region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/region_override/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketPublicAccessBlock/region_override/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketPublicAccessBlock/region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4627,14 +4627,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/basic",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4674,14 +4674,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/basic_v6.30.0",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/basic_v6.30.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/basic_v6.30.0/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/basic_v6.30.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/basic_v6.30.0/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/basic_v6.30.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4721,14 +4721,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/basic_v6.9.0",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/basic_v6.9.0/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/basic_v6.9.0/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/basic_v6.9.0/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/basic_v6.9.0/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/basic_v6.9.0/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4768,14 +4768,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/list_basic",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/list_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/list_basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/list_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/list_basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/list_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4815,14 +4815,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/list_include_resource",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/list_include_resource/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/list_include_resource/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/list_include_resource/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/list_include_resource/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/list_include_resource/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4862,14 +4862,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/list_region_override",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/list_region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/list_region_override/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/list_region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/list_region_override/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/list_region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4909,14 +4909,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/BucketVersioning/region_override",
         "source_doc": "testdata/corpus/aws/s3/BucketVersioning/region_override/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/region_override/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/region_override/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/BucketVersioning/region_override/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/BucketVersioning/region_override/regen"
       },
       "conversion": {
         "status": "clean"
@@ -4955,14 +4955,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/tmpl/bucket_basic.gtpl",
         "source_doc": "testdata/corpus/aws/s3/tmpl/bucket_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/tmpl/bucket_basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/tmpl/bucket_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/tmpl/bucket_basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/tmpl/bucket_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5002,14 +5002,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/tmpl/bucket_public_access_block_basic.gtpl",
         "source_doc": "testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5049,14 +5049,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-aws",
         "source_path": "internal/service/s3/testdata/tmpl/bucket_versioning_basic.gtpl",
         "source_doc": "testdata/corpus/aws/s3/tmpl/bucket_versioning_basic/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/tmpl/bucket_versioning_basic/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/tmpl/bucket_versioning_basic/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/aws/s3/tmpl/bucket_versioning_basic/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/aws/s3/tmpl/bucket_versioning_basic/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5095,14 +5095,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5141,14 +5141,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_002/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5187,14 +5187,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_003/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5233,14 +5233,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_004/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5279,14 +5279,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_005/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5325,14 +5325,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_failover_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_failover_test_006/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5371,14 +5371,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_001/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_001/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5417,14 +5417,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_002/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_002/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_002/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_002/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_002/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5463,14 +5463,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_004/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_004/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_004/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_004/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_004/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5509,14 +5509,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_005/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_005/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_005/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_005/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_005/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5555,14 +5555,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_020/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_020/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_020/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_020/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_020/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5601,14 +5601,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_023/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_023/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_023/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_023/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_023/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5647,14 +5647,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_024/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_024/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_024/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_024/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_024/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5693,14 +5693,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_025/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_025/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_025/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_025/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_025/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5739,14 +5739,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_026/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_026/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_026/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_026/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_026/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5785,14 +5785,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_035/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_035/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_035/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_035/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_035/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5831,14 +5831,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_036/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_036/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_036/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_036/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_036/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5877,14 +5877,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_037/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_037/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_037/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_037/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_037/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5923,14 +5923,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_038/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_038/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_038/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_038/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_038/regen"
       },
       "conversion": {
         "status": "clean"
@@ -5969,14 +5969,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_039/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_039/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_039/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_039/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_039/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6015,14 +6015,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_043/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_043/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_043/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_043/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_043/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6061,14 +6061,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_045/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_045/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_045/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_045/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_045/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6107,14 +6107,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_047/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_047/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_047/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_047/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_047/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6153,14 +6153,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_048/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_048/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_048/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_048/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_048/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6199,14 +6199,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_049/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_049/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_049/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_049/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_049/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6245,14 +6245,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_050/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_050/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_050/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_050/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_050/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6291,14 +6291,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_051/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_051/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_051/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_051/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_051/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6337,14 +6337,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_052/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_052/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_052/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_052/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_052/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6383,14 +6383,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_053/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_053/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_053/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_053/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_053/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6429,14 +6429,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_account_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_055/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_055/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_055/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_055/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_055/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6475,14 +6475,14 @@
         {
           "kind": "openapi",
           "id": "cosmos",
-          "path": "../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json"
+          "path": "testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-azurerm",
         "source_path": "internal/services/cosmos/cosmosdb_sql_dedicated_gateway_resource_test.go",
         "source_doc": "testdata/corpus/azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001/input --api-source openapi:cosmos=../apitools/catalog-openapi-cache/openapi/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001/input --api-source openapi:cosmos=testdata/api-sources/azure-cosmos-db-resource-manager-openapi.json --action create --out testdata/corpus/azurerm/cosmos/go/cosmosdb_sql_dedicated_gateway_resource_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6938,14 +6938,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/data_source_google_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -6987,14 +6987,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/data_source_google_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_002/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_002/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_002/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_002/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_002/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7033,14 +7033,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/list_google_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/list_google_storage_bucket_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/list_google_storage_bucket_test_001/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/list_google_storage_bucket_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/list_google_storage_bucket_test_001/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/list_google_storage_bucket_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7079,14 +7079,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_object_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_object_test_019/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_object_test_019/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_object_test_019/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_object_test_019/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_object_test_019/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7125,14 +7125,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_001/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_001/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7171,14 +7171,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_002/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_002/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_002/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_002/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_002/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7217,14 +7217,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_003/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_003/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_003/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_003/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_003/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7263,14 +7263,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_004/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_004/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_004/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_004/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_004/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7309,14 +7309,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_005/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_005/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_005/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_005/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_005/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7355,14 +7355,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_006/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_006/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_006/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_006/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_006/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7401,14 +7401,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_007/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_007/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_007/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_007/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_007/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7447,14 +7447,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_008/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_008/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_008/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_008/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_008/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7493,14 +7493,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_009/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_009/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_009/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_009/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_009/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7539,14 +7539,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_010/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_010/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_010/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_010/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_010/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7585,14 +7585,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_011/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_011/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_011/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_011/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_011/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7631,14 +7631,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_012/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_012/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_012/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_012/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_012/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7677,14 +7677,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_013/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_013/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_013/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_013/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_013/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7723,14 +7723,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_017/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_017/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_017/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_017/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_017/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7769,14 +7769,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_020/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_020/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_020/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_020/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_020/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7815,14 +7815,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_022/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_022/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_022/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_022/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_022/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7861,14 +7861,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_023/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_023/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_023/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_023/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_023/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7907,14 +7907,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_024/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_024/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_024/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_024/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_024/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7953,14 +7953,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_025/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_025/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_025/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_025/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_025/regen"
       },
       "conversion": {
         "status": "clean"
@@ -7999,14 +7999,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_026/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_026/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_026/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_026/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_026/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8045,14 +8045,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_027/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_027/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_027/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_027/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_027/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8091,14 +8091,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_030/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_030/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_030/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_030/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_030/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8137,14 +8137,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_031/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_031/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_031/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_031/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_031/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8183,14 +8183,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_033/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_033/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_033/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_033/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_033/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8229,14 +8229,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_034/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_034/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_034/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_034/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_034/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8275,14 +8275,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_035/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_035/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_035/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_035/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_035/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8321,14 +8321,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_036/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_036/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_036/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_036/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_036/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8367,14 +8367,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_038/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_038/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_038/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_038/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_038/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8413,14 +8413,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_039/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_039/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_039/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_039/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_039/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8459,14 +8459,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_040/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_040/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_040/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_040/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_040/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8505,14 +8505,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_041/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_041/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_041/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_041/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_041/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8551,14 +8551,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_042/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_042/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_042/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_042/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_042/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8597,14 +8597,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_043/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_043/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_043/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_043/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_043/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8643,14 +8643,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_044/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_044/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_044/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_044/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_044/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8689,14 +8689,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_045/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_045/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_045/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_045/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_045/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8735,14 +8735,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_046/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_046/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_046/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_046/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_046/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8781,14 +8781,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_047/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_047/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_047/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_047/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_047/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8827,14 +8827,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_051/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_051/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_051/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_051/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_051/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8873,14 +8873,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_052/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_052/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_052/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_052/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_052/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8919,14 +8919,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_bucket_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_bucket_test_053/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_053/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_053/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_bucket_test_053/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_bucket_test_053/regen"
       },
       "conversion": {
         "status": "clean"
@@ -8965,14 +8965,14 @@
         {
           "kind": "google-discovery",
           "id": "storage",
-          "path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json"
+          "path": "testdata/api-sources/google-cloud-storage-discovery-v1.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-google",
         "source_path": "google/services/storage/resource_storage_folder_test.go",
         "source_doc": "testdata/corpus/google/storage/go/resource_storage_folder_test_001/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_folder_test_001/input --api-source google-discovery:storage=../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_folder_test_001/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/google/storage/go/resource_storage_folder_test_001/input --api-source google-discovery:storage=testdata/api-sources/google-cloud-storage-discovery-v1.json --action create --out testdata/corpus/google/storage/go/resource_storage_folder_test_001/regen"
       },
       "conversion": {
         "status": "clean"
@@ -9011,14 +9011,14 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-kubernetes",
         "source_path": "examples/example_1.tf",
         "source_doc": "testdata/corpus/kubernetes/core/example_1/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/example_1/input --api-source openapi:core=../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/example_1/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/example_1/input --api-source openapi:core=testdata/api-sources/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/example_1/regen"
       },
       "conversion": {
         "status": "clean"
@@ -9103,14 +9103,14 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-kubernetes",
         "source_path": "examples/resources/cluster_role_v1/example_1.tf",
         "source_doc": "testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/input --api-source openapi:core=../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/input --api-source openapi:core=testdata/api-sources/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/regen"
       },
       "conversion": {
         "status": "clean"
@@ -9149,14 +9149,14 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-kubernetes",
         "source_path": "examples/resources/namespace/example_1.tf",
         "source_doc": "testdata/corpus/kubernetes/core/resources/namespace/example_1/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/namespace/example_1/input --api-source openapi:core=../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/resources/namespace/example_1/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/namespace/example_1/input --api-source openapi:core=testdata/api-sources/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/resources/namespace/example_1/regen"
       },
       "conversion": {
         "status": "clean"
@@ -9195,14 +9195,14 @@
         {
           "kind": "openapi",
           "id": "core",
-          "path": "../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json"
+          "path": "testdata/api-sources/kubernetes-v1-19-2-swagger.json"
         }
       ],
       "provenance": {
         "source_repo": "terraform-provider-kubernetes",
         "source_path": "examples/resources/namespace_v1/example_1.tf",
         "source_doc": "testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/input --api-source openapi:core=../apitools/catalog-openapi-cache/openapi/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/input --api-source openapi:core=testdata/api-sources/kubernetes-v1-19-2-swagger.json --action create --out testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/regen"
       },
       "conversion": {
         "status": "clean"
@@ -9241,14 +9241,14 @@
         {
           "kind": "aws-smithy",
           "id": "s3",
-          "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
         }
       ],
       "provenance": {
         "source_repo": "opentofu",
         "source_path": "website/docs/cli/commands/test/examples/offline/main.tf",
         "source_doc": "testdata/corpus/opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main/meta.json",
-        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main/input --api-source aws-smithy:s3=../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json --action create --out testdata/corpus/opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main/regen"
+        "conversion_command": "go run ./cmd/ramen convert --config-dir testdata/corpus/opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main/input --api-source aws-smithy:s3=testdata/api-sources/aws-s3-smithy-model.json --action create --out testdata/corpus/opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main/regen"
       },
       "conversion": {
         "status": "clean"

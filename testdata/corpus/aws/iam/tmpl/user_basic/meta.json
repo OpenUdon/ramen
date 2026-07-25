@@ -8,7 +8,7 @@
   "smithy_models": [
     {
       "id": "iam",
-      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json"
+      "path": "testdata/api-sources/aws-iam-smithy-model.json"
     }
   ],
   "source_dir": "internal/service/iam/testdata/tmpl/user_basic.gtpl",

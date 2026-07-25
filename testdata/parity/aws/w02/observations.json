@@ -7,7 +7,7 @@
     "version_constraint": "~> 6.0"
   },
   "smithy": {
-    "source_path": "../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json",
+    "source_path": "testdata/api-sources/aws-iam-smithy-model.json",
     "fixture": "testdata/parity/aws/w02/ramen/project.uws.yaml"
   },
   "safety": {

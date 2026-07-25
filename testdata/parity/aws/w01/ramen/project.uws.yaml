@@ -46,7 +46,7 @@ operations:
 sourceDescriptions:
   - name: iam
     type: aws-smithy
-    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+    url: ../../../../api-sources/aws-iam-smithy-model.json
     x-ramen-aws-source:
       default_region: us-east-1
       service: iam
@@ -68,7 +68,7 @@ x-ramen-desired-state:
   api_sources:
     - id: iam
       kind: aws-smithy
-      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+      path: ../../../../api-sources/aws-iam-smithy-model.json
   metadata:
     action: create
     source: W01 AWS provider parity fixture
@@ -108,7 +108,7 @@ x-ramen-desired-state:
               source_path: name
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
         read:
           credential_bindings:
             - aws_hmac
@@ -121,7 +121,7 @@ x-ramen-desired-state:
               source_path: name
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
         delete:
           credential_bindings:
             - aws_hmac
@@ -134,7 +134,7 @@ x-ramen-desired-state:
               source_path: name
           source_id: iam
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-iam-smithy-model.json
+          source_path: ../../../../api-sources/aws-iam-smithy-model.json
       redaction: {}
       request_bindings:
         - operation_id: CreateUser

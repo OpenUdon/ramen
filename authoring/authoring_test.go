@@ -599,7 +599,7 @@ func TestReadOnlyResourceBindsRequiredOperationParameters(t *testing.T) {
 		Sources: []promptcontext.SourceDocument{{
 			ID:   "azure-resources",
 			Kind: "openapi",
-			URI:  "../azure-rest-api-specs/specification/resources/resource-manager/Microsoft.Resources/resources/stable/2025-04-01/resources.json",
+			URI:  "../testdata/parity/azure/z03/openapi/2025-04-01/resources.json",
 		}},
 		Operations: []promptcontext.OperationCandidate{{
 			ID:          "azure-resources#Resources_List",

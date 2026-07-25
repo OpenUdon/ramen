@@ -9,7 +9,7 @@
   "smithy_models": [
     {
       "id": "s3",
-      "path": "../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json"
+      "path": "testdata/api-sources/aws-s3-smithy-model.json"
     }
   ],
   "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.30.0",

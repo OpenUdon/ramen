@@ -230,6 +230,9 @@ func parseTrainingParityRows(t *testing.T) map[string]bool {
 
 func requireTrainingPath(t *testing.T, path string) {
 	t.Helper()
+	if !repositoryLocalTestPath(path) {
+		t.Fatalf("referenced path %s must stay within the repository", path)
+	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("referenced path %s does not exist: %v", path, err)
 	}

@@ -7,7 +7,7 @@
     "version_constraint": "~> 6.0"
   },
   "discovery": {
-    "source_path": "../apitools/catalog-openapi-cache/google-discovery/google-cloud-storage-discovery-v1.json",
+    "source_path": "testdata/api-sources/google-cloud-storage-discovery-v1.json",
     "fixture": "testdata/parity/google/y05/ramen/project.uws.yaml"
   },
   "safety": {

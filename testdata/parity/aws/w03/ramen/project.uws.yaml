@@ -35,7 +35,7 @@ operations:
 sourceDescriptions:
   - name: s3
     type: aws-smithy
-    url: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+    url: ../../../../api-sources/aws-s3-smithy-model.json
 uws: 1.4.0
 workflows:
   - description: Static workflow for S3 Public Access Block mapping replay.
@@ -54,7 +54,7 @@ x-ramen-desired-state:
   api_sources:
     - id: s3
       kind: aws-smithy
-      path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+      path: ../../../../api-sources/aws-s3-smithy-model.json
   metadata:
     action: create
     source: W03 AWS provider parity fixture
@@ -92,7 +92,7 @@ x-ramen-desired-state:
           purpose: create
           source_id: s3
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+          source_path: ../../../../api-sources/aws-s3-smithy-model.json
         read:
           credential_bindings:
             - aws_hmac
@@ -101,7 +101,7 @@ x-ramen-desired-state:
           purpose: read
           source_id: s3
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+          source_path: ../../../../api-sources/aws-s3-smithy-model.json
         put:
           credential_bindings:
             - aws_hmac
@@ -110,7 +110,7 @@ x-ramen-desired-state:
           purpose: put
           source_id: s3
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+          source_path: ../../../../api-sources/aws-s3-smithy-model.json
         delete:
           credential_bindings:
             - aws_hmac
@@ -119,7 +119,7 @@ x-ramen-desired-state:
           purpose: delete
           source_id: s3
           source_kind: aws-smithy
-          source_path: ../../../../../../apitools/catalog-openapi-cache/aws-smithy/aws-s3-smithy-model.json
+          source_path: ../../../../api-sources/aws-s3-smithy-model.json
       redaction: {}
       request_bindings:
         - operation_id: PutPublicAccessBlock

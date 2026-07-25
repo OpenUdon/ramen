@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/OpenUdon/ramen/internal/tfconvert"
@@ -215,11 +216,40 @@ func allowMissingCorpusFixtures() bool {
 
 func requireCorpusFixture(t *testing.T, path, kind string) {
 	t.Helper()
+	if !repositoryLocalTestPath(path) {
+		t.Fatalf("%s must be a repository-local fixture, got %s", kind, path)
+	}
 	if _, err := os.Stat(path); err != nil {
 		if allowMissingCorpusFixtures() {
 			t.Skipf("%s unavailable (%s): %v", kind, path, err)
 		}
 		t.Fatalf("%s unavailable (%s); set %s=1 to skip missing fixtures in partial checkouts: %v", kind, path, allowMissingCorpusEnv, err)
+	}
+}
+
+func repositoryLocalTestPath(path string) bool {
+	clean := filepath.Clean(path)
+	return clean != "." &&
+		!filepath.IsAbs(clean) &&
+		clean != ".." &&
+		!strings.HasPrefix(clean, ".."+string(filepath.Separator))
+}
+
+func TestRepositoryLocalTestPath(t *testing.T) {
+	for _, tt := range []struct {
+		path string
+		want bool
+	}{
+		{path: "testdata/api-sources/source.json", want: true},
+		{path: "testdata/../testdata/api-sources/source.json", want: true},
+		{path: "../apitools/source.json", want: false},
+		{path: "../../source.json", want: false},
+		{path: "/tmp/source.json", want: false},
+		{path: ".", want: false},
+	} {
+		if got := repositoryLocalTestPath(tt.path); got != tt.want {
+			t.Errorf("repositoryLocalTestPath(%q) = %t, want %t", tt.path, got, tt.want)
+		}
 	}
 }
 

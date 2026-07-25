@@ -5,7 +5,8 @@
 // API source document, runs ramen's conversion, and keeps only the conversions
 // that map cleanly (no unsupported/fallback diagnostics). As mapping coverage
 // grows, re-running corpusgen yields more entries with no hand-editing. Large
-// API source documents are referenced by path, not copied.
+// API source documents are read from the repository's immutable regression
+// fixtures so regeneration does not require a sibling apitools checkout.
 package main
 
 import (
@@ -35,15 +36,15 @@ import (
 
 const (
 	defaultAWSProviderDir        = "../terraform-provider-aws"
-	defaultAWSSmithyDir          = "../apitools/catalog-openapi-cache/aws-smithy"
+	defaultAWSSmithyDir          = "testdata/api-sources"
 	defaultGoogleProviderDir     = "../terraform-provider-google"
-	defaultGoogleDiscoveryDir    = "../apitools/catalog-openapi-cache/google-discovery"
+	defaultGoogleDiscoveryDir    = "testdata/api-sources"
 	defaultAzureProviderDir      = "../terraform-provider-azurerm"
-	defaultAzureOpenAPIDir       = "../apitools/catalog-openapi-cache/openapi"
+	defaultAzureOpenAPIDir       = "testdata/api-sources"
 	defaultCloudflareProviderDir = "../terraform-provider-cloudflare"
 	defaultCloudflareOpenAPIDir  = "testdata/api-sources"
 	defaultKubernetesProviderDir = "../terraform-provider-kubernetes"
-	defaultKubernetesOpenAPIDir  = "../apitools/catalog-openapi-cache/openapi"
+	defaultKubernetesOpenAPIDir  = "testdata/api-sources"
 	defaultOpenTofuDir           = "../opentofu"
 	defaultOutDir                = "testdata/corpus"
 )
