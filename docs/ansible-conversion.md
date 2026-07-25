@@ -44,6 +44,12 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   - collection name, such as `ansible.builtin`
   - module entries keyed by FQCN, such as `ansible.builtin.file`
   - argument metadata for required fields and accepted enum values
+
+  Ramen validates each file against the published UWS Ansible source-profile
+  schema before decoding it. Unknown schema fields, missing required fields,
+  module keys outside the declared collection, and parameter aliases claimed
+  by more than one canonical parameter are argspec ingestion errors. The
+  command exits `1` and writes no conversion/review artifacts.
 - `--target-uws 1.6|1.5` selects the emitted operation binding shape. `1.6`
   emits first-class `sourceDescriptions[].type: ansible-module`; `1.5` emits
   extension-owned operations with `x-uws-operation-profile:
@@ -78,6 +84,8 @@ errors exit with code `2`; unexpected converter errors exit with code `1`.
 Use `--ignore-unsupported` only when a partial workflow is acceptable. In that
 mode, Ramen still records diagnostics, but writes UWS/HCL artifacts with the
 unsupported tasks, handlers, or control-flow constructs omitted.
+Task-level argspec and `noLog` failures always omit their affected task from
+partial output. `--ignore-unsupported` does not restore an invalid operation.
 
 ## Supported Subset
 
@@ -110,6 +118,14 @@ diagnostics and no control policy. `ignore_errors: true`, unsupported
 host-fan-out `throttle`, multi-condition `changed_when`, and non-invertible or
 multi-condition `failed_when` are strict diagnostics. `any_errors_fatal: true`
 matches UWS 1.6 fail-fast behavior and emits no field.
+
+Argspec parameter aliases are normalized to their canonical request-body keys
+after value lowering. One alias spelling emits only its canonical key, and
+equal canonical/alias duplicates collapse to one value. Conflicting values
+through canonical and alias spellings emit
+`ansible.argspec_violation` and omit the affected task. Unknown parameters,
+missing required parameters, invalid choices, and literal values for `noLog`
+parameters follow the same task-omission rule.
 
 ## Lowering Contract
 
@@ -170,6 +186,8 @@ workflow behavior, including:
 - `ignore_errors: true`
 - unsupported `throttle`, multi-condition `changed_when`, and non-invertible
   or multi-condition `failed_when`
+- simultaneous `loop` and `with_items`, including when either key has an empty
+  value, because precedence would be ambiguous
 - notified handlers after `--inventory` host fan-out, because the current
   conversion does not lower per-host changed gates for handler execution
 - inventory file expansion and connection behavior
