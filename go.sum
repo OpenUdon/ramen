@@ -32,6 +32,8 @@ github.com/OpenUdon/uws v0.0.0-20260725145128-d428f54e728c h1:CoKWBcq7iA+Iq/3nSZ
 github.com/OpenUdon/uws v0.0.0-20260725145128-d428f54e728c/go.mod h1:e/En8JeLz8PQQVc8XU4cXRu/s0V2hedTdU1VkbrpGhQ=
 github.com/OpenUdon/uws v0.0.0-20260808004843-955a5b290b78 h1:wK1D6zOf0/J7KT8/JcbqWyQ+BuQ+fndihlE6W83JYNg=
 github.com/OpenUdon/uws v0.0.0-20260808004843-955a5b290b78/go.mod h1:e/En8JeLz8PQQVc8XU4cXRu/s0V2hedTdU1VkbrpGhQ=
+github.com/OpenUdon/uws v0.0.0-20260808013611-87644c104195 h1:7OtNWZTBNQgZrsbvNd8Q5HtPCLzvN7IM4cVxz9w+430=
+github.com/OpenUdon/uws v0.0.0-20260808013611-87644c104195/go.mod h1:UhFjfGxPepPDdxpmIF+1GBmjhDWXPjgRggrhqDU5KK8=
 github.com/agext/levenshtein v1.2.1 h1:QmvMAjj2aEICytGiWzmxoE0x2KZvE0fvmqMOfy2tjT8=
 github.com/agext/levenshtein v1.2.1/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/antchfx/xmlquery v1.5.1 h1:T9I4Ns1EXiWHy0IqKupGhnfTQtJwlGrpXtauYOoNv78=
@@ -53,6 +55,8 @@ github.com/genelet/horizon v1.14.3 h1:LslljqzFUCsZ0gp/lTVP/NViiAVgJhxyqx7p2WuwGL
 github.com/genelet/horizon v1.14.3/go.mod h1:2QIiACDXXv32d8NzxuOkES7Q+5fEHG8zbr1CMyY8BCM=
 github.com/genelet/horizon v1.14.4 h1:LDMH255c9nK7EiMNhbXRVDk9uY2vGxorTszJdpXC0+4=
 github.com/genelet/horizon v1.14.4/go.mod h1:2QIiACDXXv32d8NzxuOkES7Q+5fEHG8zbr1CMyY8BCM=
+github.com/genelet/horizon v1.14.5 h1:yYLlzTo+5pyVQOhgfwafIs+BF4LmOwUAX72HDaILkIU=
+github.com/genelet/horizon v1.14.5/go.mod h1:2QIiACDXXv32d8NzxuOkES7Q+5fEHG8zbr1CMyY8BCM=
 github.com/go-test/deep v1.0.3 h1:ZrJSEWsXzPOxaZnFteGEfooLba+ju3FYIbOrS+rQd68=
 github.com/go-test/deep v1.0.3/go.mod h1:wGDj63lr65AM2AQyKZd/NYHGb0R+1RLqB8NKt3aSFNA=
 github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da h1:oI5xCqsCo564l8iNU+DwB5epxmsaqB+rhGL0m5jtYqE=

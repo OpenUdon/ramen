@@ -7,7 +7,7 @@ require (
 	github.com/OpenUdon/authoring v0.0.0-20260607172625-3aa69a0e0cdd
 	github.com/OpenUdon/evidence v0.0.0-20260603102736-08a9c38b00b7
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
-	github.com/OpenUdon/uws v0.0.0-20260808004843-955a5b290b78
+	github.com/OpenUdon/uws v0.0.0-20260808013611-87644c104195
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/zclconf/go-cty v1.18.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -27,7 +27,7 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/genelet/horizon v1.14.4 // indirect
+	github.com/genelet/horizon v1.14.5 // indirect
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
