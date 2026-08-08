@@ -18,6 +18,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
+      x-ansible {
+        column = 7
+        line = 4
+        play = "Configure nginx with multiple notifiers"
+        section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
+        task = "Install nginx"
+        version = "ramen.ansible.provenance.v1"
+      }
       x-uws-ansible-module {
         argspec {
           collection = "ansible.builtin"
@@ -27,15 +36,6 @@
         module = "ansible.builtin.apt"
       }
       x-uws-operation-profile = "uws.ansible-module-call.1.0"
-      x-ansible {
-        sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
-        task = "Install nginx"
-        version = "ramen.ansible.provenance.v1"
-        column = 7
-        line = 4
-        play = "Configure nginx with multiple notifiers"
-        section = "tasks"
-      }
     }
   }
   operation "deploy_nginx_config" {
@@ -53,24 +53,24 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-uws-ansible-module {
-        argspec {
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-        }
-        module = "ansible.builtin.template"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
+        column = 7
+        line = 10
+        play = "Configure nginx with multiple notifiers"
         section = "tasks"
         sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
         task = "Deploy nginx config"
         version = "ramen.ansible.provenance.v1"
-        column = 7
-        line = 10
-        play = "Configure nginx with multiple notifiers"
       }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.template"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   operation "restart_nginx" {
@@ -88,24 +88,24 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-uws-ansible-module {
-        module = "ansible.builtin.service"
-        argspec {
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-        }
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
-        sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
-        task = "restart nginx"
-        version = "ramen.ansible.provenance.v1"
         column = 7
         line = 17
         play = "Configure nginx with multiple notifiers"
         section = "handlers"
+        sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
+        task = "restart nginx"
+        version = "ramen.ansible.provenance.v1"
       }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   workflow "main" {
@@ -114,13 +114,13 @@
       operationRef = "install_nginx"
       extensions {
         x-ansible {
+          column = 7
           line = 4
           play = "Configure nginx with multiple notifiers"
           section = "tasks"
           sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
           task = "Install nginx"
           version = "ramen.ansible.provenance.v1"
-          column = 7
         }
       }
     }
@@ -146,13 +146,13 @@
           operationRef = "restart_nginx"
           extensions {
             x-ansible {
-              task = "restart nginx"
-              version = "ramen.ansible.provenance.v1"
               column = 7
               line = 17
               play = "Configure nginx with multiple notifiers"
               section = "handlers"
               sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
+              task = "restart nginx"
+              version = "ramen.ansible.provenance.v1"
             }
           }
         }
@@ -163,26 +163,26 @@
           operationRef = "restart_nginx"
           extensions {
             x-ansible {
-              task = "restart nginx"
-              version = "ramen.ansible.provenance.v1"
               column = 7
               line = 17
               play = "Configure nginx with multiple notifiers"
               section = "handlers"
               sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
+              task = "restart nginx"
+              version = "ramen.ansible.provenance.v1"
             }
           }
         }
       }
       extensions {
         x-ansible {
-          version = "ramen.ansible.provenance.v1"
           column = 7
           line = 17
           play = "Configure nginx with multiple notifiers"
           section = "handlers"
           sourceFile = "../../testdata/ansible-conversion/multinotify/input/playbook.yml"
           task = "restart nginx"
+          version = "ramen.ansible.provenance.v1"
         }
       }
     }

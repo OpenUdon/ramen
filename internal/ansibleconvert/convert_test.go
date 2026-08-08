@@ -2,9 +2,9 @@ package ansibleconvert
 
 import (
 	"context"
-	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -184,50 +184,70 @@ func TestConvertNginxPlaybook(t *testing.T) {
 	}
 }
 
-func TestConvertNginxPlaybookTargetUWS15UsesExtensionOwnedLeaves(t *testing.T) {
-	result, doc := runConvertWithOptions(t, "nginx", Options{TargetUWS: TargetUWS15})
-	if result.StrictFailures != 0 {
-		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+func TestConvertNginxPlaybookSupportedTargetsUseSameExtensionOwnedLeaves(t *testing.T) {
+	tests := []struct {
+		name       string
+		target     string
+		docVersion string
+	}{
+		{name: "1.5", target: TargetUWS15, docVersion: "1.5.0"},
+		{name: "1.6", target: TargetUWS16, docVersion: "1.6.0"},
+		{name: "1.7", target: TargetUWS17, docVersion: "1.7.0"},
 	}
-	if doc.UWS != "1.5.0" {
-		t.Fatalf("uws = %q, want 1.5.0", doc.UWS)
-	}
-	if len(doc.SourceDescriptions) != 0 {
-		t.Fatalf("UWS 1.5 compatibility output should not emit ansible sourceDescriptions: %#v", doc.SourceDescriptions)
-	}
+	var baseline *uws1.Document
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, doc := runConvertWithOptions(t, "nginx", Options{TargetUWS: tt.target})
+			if result.StrictFailures != 0 {
+				t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
+			}
+			if doc.UWS != tt.docVersion {
+				t.Fatalf("uws = %q, want %s", doc.UWS, tt.docVersion)
+			}
+			if len(doc.SourceDescriptions) != 0 {
+				t.Fatalf("target %s should not emit ansible sourceDescriptions: %#v", tt.name, doc.SourceDescriptions)
+			}
 
-	install := findOperation(doc, "install_nginx")
-	if install == nil {
-		t.Fatalf("install_nginx operation missing")
-	}
-	if install.SourceDescription != "" || install.SourceOperationID != "" || install.SourceOperationRef != "" {
-		t.Fatalf("UWS 1.5 compatibility operation should be extension-owned: %#v", install)
-	}
-	if install.Extensions[uws1.ExtensionOperationProfile] != ansiblemodulecall.ProfileName {
-		t.Fatalf("operation profile = %#v, want %s", install.Extensions[uws1.ExtensionOperationProfile], ansiblemodulecall.ProfileName)
-	}
-	payload, ok, err := ansiblemodulecall.ReadOperationExtension(install.Extensions)
-	if err != nil || !ok {
-		t.Fatalf("read ansible module extension ok=%v err=%v extensions=%#v", ok, err, install.Extensions)
-	}
-	if payload.Module != "ansible.builtin.apt" || payload.Argspec == nil || payload.Argspec.SourceID != "builtin" || payload.Argspec.Collection != "ansible.builtin" {
-		t.Fatalf("ansible module payload = %#v", payload)
-	}
-	if body, _ := install.Request["body"].(map[string]any); body["name"] != "$variables.pkg" {
-		t.Fatalf("request body changed in compatibility mode: %#v", install.Request)
-	}
-	if install.Outputs["changed"] != "$response.body.changed" {
-		t.Fatalf("outputs changed in compatibility mode: %#v", install.Outputs)
-	}
-	review, err := os.ReadFile(result.ReviewMD)
-	if err != nil {
-		t.Fatalf("read review: %v", err)
-	}
-	reviewText := string(review)
-	for _, want := range []string{"`install_nginx`", "`builtin`", "`ansible.builtin.apt`"} {
-		if !strings.Contains(reviewText, want) {
-			t.Fatalf("1.5 review missing %q:\n%s", want, review)
-		}
+			install := findOperation(doc, "install_nginx")
+			if install == nil {
+				t.Fatalf("install_nginx operation missing")
+			}
+			if install.SourceDescription != "" || install.SourceOperationID != "" || install.SourceOperationRef != "" {
+				t.Fatalf("target %s operation should be extension-owned: %#v", tt.name, install)
+			}
+			if install.Extensions[uws1.ExtensionOperationProfile] != ansiblemodulecall.ProfileName {
+				t.Fatalf("operation profile = %#v, want %s", install.Extensions[uws1.ExtensionOperationProfile], ansiblemodulecall.ProfileName)
+			}
+			payload, ok, err := ansiblemodulecall.ReadOperationExtension(install.Extensions)
+			if err != nil || !ok {
+				t.Fatalf("read ansible module extension ok=%v err=%v extensions=%#v", ok, err, install.Extensions)
+			}
+			if payload.Module != "ansible.builtin.apt" || payload.Argspec == nil || payload.Argspec.SourceID != "builtin" || payload.Argspec.Collection != "ansible.builtin" {
+				t.Fatalf("ansible module payload = %#v", payload)
+			}
+			if body, _ := install.Request["body"].(map[string]any); body["name"] != "$variables.pkg" {
+				t.Fatalf("request body changed for target %s: %#v", tt.name, install.Request)
+			}
+			if install.Outputs["changed"] != "$response.body.changed" {
+				t.Fatalf("outputs changed for target %s: %#v", tt.name, install.Outputs)
+			}
+			review, err := os.ReadFile(result.ReviewMD)
+			if err != nil {
+				t.Fatalf("read review: %v", err)
+			}
+			for _, want := range []string{"`install_nginx`", "`builtin`", "`ansible.builtin.apt`"} {
+				if !strings.Contains(string(review), want) {
+					t.Fatalf("target %s review missing %q:\n%s", tt.name, want, review)
+				}
+			}
+
+			doc.UWS = ""
+			if baseline == nil {
+				baseline = doc
+			} else if !reflect.DeepEqual(doc, baseline) {
+				t.Fatalf("target %s document shape differs from target 1.5:\nwant %#v\ngot  %#v", tt.name, baseline, doc)
+			}
+		})
 	}
 }
 
@@ -1399,29 +1419,12 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 					actual = normalizeReviewForCorpus(actual, outDir, filepath.Join(corpusRoot, name))
 					expected = normalizeReviewForCorpus(expected, filepath.Join(corpusRoot, name), filepath.Join(corpusRoot, name))
 				}
-				if rel == "workflows/workflow.hcl" {
-					actual = canonicalHCLForCorpus(t, rel+" actual", actual)
-					expected = canonicalHCLForCorpus(t, rel+" expected", expected)
-				}
 				if string(actual) != string(expected) {
 					t.Fatalf("%s drifted for %s\n--- expected\n%s\n--- actual\n%s", rel, name, expected, actual)
 				}
 			}
 		})
 	}
-}
-
-func canonicalHCLForCorpus(t *testing.T, label string, data []byte) []byte {
-	t.Helper()
-	var doc uws1.Document
-	if err := convert.UnmarshalHCL(data, &doc); err != nil {
-		t.Fatalf("parse %s: %v", label, err)
-	}
-	canonical, err := json.MarshalIndent(&doc, "", "  ")
-	if err != nil {
-		t.Fatalf("canonicalize %s: %v", label, err)
-	}
-	return canonical
 }
 
 func sortedMapKeys(m map[string]string) []string {

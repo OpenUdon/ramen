@@ -18,15 +18,6 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-uws-ansible-module {
-        module = "ansible.builtin.file"
-        argspec {
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-          collection = "ansible.builtin"
-        }
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
         column = 7
         line = 4
@@ -36,6 +27,15 @@
         task = "Create app directories"
         version = "ramen.ansible.provenance.v1"
       }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.file"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   workflow "main" {
@@ -45,13 +45,13 @@
       forEach      = "$variables.create_app_directories_items"
       extensions {
         x-ansible {
-          sourceFile = "../../testdata/ansible-conversion/loop/input/playbook.yml"
-          task = "Create app directories"
-          version = "ramen.ansible.provenance.v1"
           column = 7
           line = 4
           play = "Create application directories"
           section = "tasks"
+          sourceFile = "../../testdata/ansible-conversion/loop/input/playbook.yml"
+          task = "Create app directories"
+          version = "ramen.ansible.provenance.v1"
         }
       }
     }
