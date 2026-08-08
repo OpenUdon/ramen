@@ -1,16 +1,10 @@
-  uws = "1.6.0"
+  uws = "1.5.0"
   info {
     title   = "Fail closed cases"
     version = "1.0.0"
   }
-  sourceDescription "builtin" {
-    url  = "testdata/argspec/ansible-builtin.argspec.json"
-    type = "ansible-module"
-  }
   operation "doubly_guarded_child" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.service"
-    description       = "Doubly guarded child"
+    description = "Doubly guarded child"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -24,21 +18,28 @@
       condition = "$response.body.failed != true"
     }
     extensions {
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
+        section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
+        task = "Doubly guarded child"
         version = "ramen.ansible.provenance.v1"
         column = 11
         line = 17
         play = "Fail closed cases"
-        section = "tasks"
-        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
-        task = "Doubly guarded child"
+      }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
       }
     }
   }
   operation "singly_guarded_child" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.service"
-    description       = "Singly guarded child"
+    description = "Singly guarded child"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -53,20 +54,27 @@
     }
     extensions {
       x-ansible {
-        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
         task = "Singly guarded child"
         version = "ramen.ansible.provenance.v1"
         column = 11
         line = 22
         play = "Fail closed cases"
         section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
       }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   operation "consumer_of_skipped_producer" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.shell"
-    description       = "Consumer of skipped producer"
+    description = "Consumer of skipped producer"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -80,20 +88,27 @@
     }
     extensions {
       x-ansible {
-        line = 33
-        play = "Fail closed cases"
-        section = "tasks"
         sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
         task = "Consumer of skipped producer"
         version = "ramen.ansible.provenance.v1"
         column = 7
+        line = 33
+        play = "Fail closed cases"
+        section = "tasks"
       }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.shell"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   operation "consumer_before_future_producer" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.shell"
-    description       = "Consumer before future producer"
+    description = "Consumer before future producer"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -106,21 +121,28 @@
       condition = "$response.body.failed != true"
     }
     extensions {
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
-        section = "tasks"
-        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
         task = "Consumer before future producer"
         version = "ramen.ansible.provenance.v1"
         column = 7
         line = 38
         play = "Fail closed cases"
+        section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
+      }
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.shell"
       }
     }
   }
   operation "future_producer" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.shell"
-    description       = "Future producer"
+    description = "Future producer"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -134,20 +156,27 @@
     }
     extensions {
       x-ansible {
+        section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
         task = "Future producer"
         version = "ramen.ansible.provenance.v1"
         column = 7
         line = 42
         play = "Fail closed cases"
-        section = "tasks"
-        sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
       }
+      x-uws-ansible-module {
+        argspec {
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+          collection = "ansible.builtin"
+        }
+        module = "ansible.builtin.shell"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   operation "guarded_restart" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.service"
-    description       = "guarded restart"
+    description = "guarded restart"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -162,14 +191,23 @@
     }
     extensions {
       x-ansible {
+        version = "ramen.ansible.provenance.v1"
         column = 7
         line = 58
         play = "Fail closed cases"
         section = "handlers"
         sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
         task = "guarded restart"
-        version = "ramen.ansible.provenance.v1"
       }
+      x-uws-ansible-module {
+        argspec {
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   workflow "main" {
@@ -186,26 +224,26 @@
               operationRef = "doubly_guarded_child"
               extensions {
                 x-ansible {
+                  column = 11
                   line = 17
                   play = "Fail closed cases"
                   section = "tasks"
                   sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
                   task = "Doubly guarded child"
                   version = "ramen.ansible.provenance.v1"
-                  column = 11
                 }
               }
             }
           }
           extensions {
             x-ansible {
-              version = "ramen.ansible.provenance.v1"
-              column = 11
               line = 17
               play = "Fail closed cases"
               section = "tasks"
               sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
               task = "Doubly guarded child"
+              version = "ramen.ansible.provenance.v1"
+              column = 11
             }
           }
         }
@@ -227,13 +265,13 @@
       when         = "$variables.env == \"prod\""
       extensions {
         x-ansible {
-          play = "Fail closed cases"
-          section = "tasks"
           sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
           task = "Singly guarded child"
           version = "ramen.ansible.provenance.v1"
           column = 11
           line = 22
+          play = "Fail closed cases"
+          section = "tasks"
         }
       }
     }
@@ -241,13 +279,13 @@
       operationRef = "consumer_of_skipped_producer"
       extensions {
         x-ansible {
-          version = "ramen.ansible.provenance.v1"
-          column = 7
-          line = 33
           play = "Fail closed cases"
           section = "tasks"
           sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
           task = "Consumer of skipped producer"
+          version = "ramen.ansible.provenance.v1"
+          column = 7
+          line = 33
         }
       }
     }
@@ -255,13 +293,13 @@
       operationRef = "consumer_before_future_producer"
       extensions {
         x-ansible {
-          line = 38
           play = "Fail closed cases"
           section = "tasks"
           sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
           task = "Consumer before future producer"
           version = "ramen.ansible.provenance.v1"
           column = 7
+          line = 38
         }
       }
     }
@@ -269,13 +307,13 @@
       operationRef = "future_producer"
       extensions {
         x-ansible {
-          version = "ramen.ansible.provenance.v1"
-          column = 7
           line = 42
           play = "Fail closed cases"
           section = "tasks"
           sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
           task = "Future producer"
+          version = "ramen.ansible.provenance.v1"
+          column = 7
         }
       }
     }
@@ -291,13 +329,13 @@
               operationRef = "guarded_restart"
               extensions {
                 x-ansible {
-                  section = "handlers"
-                  sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
-                  task = "guarded restart"
                   version = "ramen.ansible.provenance.v1"
                   column = 7
                   line = 58
                   play = "Fail closed cases"
+                  section = "handlers"
+                  sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
+                  task = "guarded restart"
                 }
               }
             }
@@ -317,13 +355,13 @@
       }
       extensions {
         x-ansible {
+          sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
           task = "guarded restart"
           version = "ramen.ansible.provenance.v1"
           column = 7
           line = 58
           play = "Fail closed cases"
           section = "handlers"
-          sourceFile = "../../testdata/ansible-conversion/failclosed/input/playbook.yml"
         }
       }
     }

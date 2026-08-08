@@ -1425,6 +1425,38 @@ func TestCLIConvertAnsibleTargetUWS15WritesCompatibilityDocument(t *testing.T) {
 	}
 }
 
+func TestCLIConvertAnsibleTargetUWS17RunsInCheckMode(t *testing.T) {
+	root := t.TempDir()
+	outDir := filepath.Join(root, "ansible")
+	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
+	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
+	convertCmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "ansible.builtin="+argspecPath,
+		"--target-uws", "1.7",
+		"--ignore-unsupported",
+		"--out", outDir)
+	if output, err := convertCmd.CombinedOutput(); err != nil {
+		t.Fatalf("convert ansible --target-uws 1.7 failed: %v\n%s", err, output)
+	}
+	docPath := filepath.Join(outDir, "workflows", "workflow.uws.yaml")
+	data, err := os.ReadFile(docPath)
+	if err != nil {
+		t.Fatalf("read UWS 1.7 output: %v", err)
+	}
+	var doc uws1.Document
+	if err := uwsconvert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatalf("parse UWS 1.7 output: %v", err)
+	}
+	if doc.UWS != "1.7.0" || len(doc.SourceDescriptions) != 0 {
+		t.Fatalf("UWS 1.7 conversion emitted unexpected binding: version=%q sources=%#v", doc.UWS, doc.SourceDescriptions)
+	}
+	runCmd := helperCommand("run", docPath, "--check", "--mock", "--state", filepath.Join(root, "state.db"))
+	if output, err := runCmd.CombinedOutput(); err != nil {
+		t.Fatalf("run check rejected converted UWS 1.7 document: %v\n%s", err, output)
+	}
+}
+
 func TestCLIConvertAnsibleRejectsInvalidTargetUWS(t *testing.T) {
 	root := t.TempDir()
 	outDir := filepath.Join(root, "ansible")

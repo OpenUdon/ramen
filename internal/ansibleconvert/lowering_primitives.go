@@ -146,7 +146,7 @@ func (lw *lowerer) appendUntilRetryPolicy(op *uws1.Operation, task *Task, lowere
 	op.OnFailure = append(op.OnFailure, action)
 }
 
-func invertPre16Comparison(condition string) (string, bool) {
+func invertSimpleComparison(condition string) (string, bool) {
 	m := whenCompareRE.FindStringSubmatch(strings.TrimSpace(condition))
 	if m == nil {
 		return "", false

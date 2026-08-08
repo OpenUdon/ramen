@@ -218,7 +218,7 @@ func lowerNegatedWhenLeaf(cond string, ctx *exprContext) (string, bool, string) 
 		if !ok {
 			return "", false, reason
 		}
-		inverted, ok := invertPre16Comparison(lowered)
+		inverted, ok := invertSimpleComparison(lowered)
 		if !ok {
 			return "", false, fmt.Sprintf("condition %q could not be inverted into UWS comparison syntax", cond)
 		}

@@ -50,9 +50,8 @@ type moduleRef struct {
 // LoadArgspecs reads and indexes the supplied uws.ansible.1.0 documents.
 func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 	idx := &ArgspecIndex{bySource: map[string]ArgspecInput{}, byCollection: map[string]string{}, byFQCN: map[string]moduleRef{}}
-	byUWSName := map[string]string{}
 	for _, input := range inputs {
-		schemaPath := versions.PathForAnsibleSourceProfile(filepath.Dir(input.Path), "")
+		schemaPath := versions.PathForAnsibleArgspec(filepath.Dir(input.Path), "")
 		if err := validation.ValidateFile(schemaPath, input.Path); err != nil {
 			return nil, fmt.Errorf("argspec %s: schema validation failed: %w", input.ID, err)
 		}
@@ -70,11 +69,6 @@ func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 		if _, dup := idx.bySource[input.ID]; dup {
 			return nil, fmt.Errorf("argspec %s: duplicate source ID", input.ID)
 		}
-		uwsName := sourceUWSName(input.ID)
-		if existing, dup := byUWSName[uwsName]; dup {
-			return nil, fmt.Errorf("argspec %s: sanitized source name %q collides with argspec %s; choose distinct --argspec IDs", input.ID, uwsName, existing)
-		}
-		byUWSName[uwsName] = input.ID
 		idx.bySource[input.ID] = input
 		idx.byCollection[input.ID] = doc.Collection
 		for fqcn, module := range doc.Modules {

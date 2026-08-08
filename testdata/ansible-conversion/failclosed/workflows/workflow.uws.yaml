@@ -13,8 +13,6 @@ operations:
         body:
             name: nginx
             state: stopped
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.service
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -25,6 +23,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Doubly guarded child
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: Singly guarded child
       operationId: singly_guarded_child
       outputs:
@@ -33,8 +38,6 @@ operations:
         body:
             name: nginx
             state: started
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.service
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -45,6 +48,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Singly guarded child
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: Consumer of skipped producer
       operationId: consumer_of_skipped_producer
       outputs:
@@ -52,8 +62,6 @@ operations:
       request:
         body:
             cmd: UWS-TODO({{ produced.stdout }})
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.shell
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -64,6 +72,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Consumer of skipped producer
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.shell
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: Consumer before future producer
       operationId: consumer_before_future_producer
       outputs:
@@ -71,8 +86,6 @@ operations:
       request:
         body:
             cmd: UWS-TODO({{ future_result.stdout }})
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.shell
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -83,6 +96,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Consumer before future producer
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.shell
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: Future producer
       operationId: future_producer
       outputs:
@@ -90,8 +110,6 @@ operations:
       request:
         body:
             cmd: echo future
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.shell
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -102,6 +120,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Future producer
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.shell
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: guarded restart
       operationId: guarded_restart
       outputs:
@@ -110,8 +135,6 @@ operations:
         body:
             name: nginx
             state: restarted
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.service
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -122,11 +145,14 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: guarded restart
         version: ramen.ansible.provenance.v1
-sourceDescriptions:
-    - name: builtin
-      type: ansible-module
-      url: testdata/argspec/ansible-builtin.argspec.json
-uws: 1.6.0
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-uws-operation-profile: uws.ansible-module-call.1.0
+uws: 1.5.0
 workflows:
     - steps:
         - cases:

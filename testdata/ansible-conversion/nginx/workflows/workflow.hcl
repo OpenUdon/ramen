@@ -1,23 +1,17 @@
-  uws = "1.6.0"
+  uws = "1.5.0"
   info {
     title   = "Configure nginx"
     version = "1.0.0"
   }
-  sourceDescription "builtin" {
-    url  = "testdata/argspec/ansible-builtin.argspec.json"
-    type = "ansible-module"
-  }
   operation "install_nginx" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.apt"
-    description       = "Install nginx"
+    description = "Install nginx"
     outputs = {
       changed = "$response.body.changed"
     }
     request {
       body {
-        name = "$variables.pkg"
         state = "present"
+        name = "$variables.pkg"
       }
     }
     successCriterion {
@@ -25,48 +19,62 @@
     }
     extensions {
       x-ansible {
+        version = "ramen.ansible.provenance.v1"
+        column = 7
+        line = 6
         play = "Configure nginx"
         section = "tasks"
         sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
         task = "Install nginx"
-        version = "ramen.ansible.provenance.v1"
-        column = 7
-        line = 6
       }
+      x-uws-ansible-module {
+        module = "ansible.builtin.apt"
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
     }
   }
   operation "deploy_nginx_config" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.template"
-    description       = "Deploy nginx config"
+    description = "Deploy nginx config"
     outputs = {
       changed = "$response.body.changed"
     }
     request {
       body {
-        dest = "/etc/nginx/nginx.conf"
         src = "nginx.conf.j2"
+        dest = "/etc/nginx/nginx.conf"
       }
     }
     successCriterion {
       condition = "$response.body.failed != true"
     }
     extensions {
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
+        play = "Configure nginx"
+        section = "tasks"
+        sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
         task = "Deploy nginx config"
         version = "ramen.ansible.provenance.v1"
         column = 7
         line = 11
-        play = "Configure nginx"
-        section = "tasks"
-        sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
+      }
+      x-uws-ansible-module {
+        argspec {
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+        }
+        module = "ansible.builtin.template"
       }
     }
   }
   operation "restart_nginx" {
-    sourceDescription = "builtin"
-    sourceOperationId = "ansible.builtin.service"
-    description       = "restart nginx"
+    description = "restart nginx"
     outputs = {
       changed = "$response.body.changed"
     }
@@ -80,14 +88,23 @@
       condition = "$response.body.failed != true"
     }
     extensions {
+      x-uws-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-uws-operation-profile = "uws.ansible-module-call.1.0"
       x-ansible {
+        section = "handlers"
+        sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
         task = "restart nginx"
         version = "ramen.ansible.provenance.v1"
         column = 7
         line = 18
         play = "Configure nginx"
-        section = "handlers"
-        sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
       }
     }
   }
@@ -97,13 +114,13 @@
       operationRef = "install_nginx"
       extensions {
         x-ansible {
-          column = 7
-          line = 6
           play = "Configure nginx"
           section = "tasks"
           sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
           task = "Install nginx"
           version = "ramen.ansible.provenance.v1"
+          column = 7
+          line = 6
         }
       }
     }
@@ -126,13 +143,13 @@
       when         = "$steps.deploy_nginx_config.outputs.changed == true"
       extensions {
         x-ansible {
-          sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
           task = "restart nginx"
           version = "ramen.ansible.provenance.v1"
           column = 7
           line = 18
           play = "Configure nginx"
           section = "handlers"
+          sourceFile = "../../testdata/ansible-conversion/nginx/input/playbook.yml"
         }
       }
     }

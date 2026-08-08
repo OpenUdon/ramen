@@ -30,7 +30,6 @@ type lowerer struct {
 	vars       map[string]bool
 	// neededOutputs[stepID][outputName] = response path (dot form)
 	neededOutputs map[string]map[string]string
-	sourcesUsed   map[string]bool
 	varCounter    int
 	targetUWS     string
 }
@@ -52,7 +51,6 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 		registered:    map[string]string{},
 		vars:          map[string]bool{},
 		neededOutputs: map[string]map[string]string{},
-		sourcesUsed:   map[string]bool{},
 		targetUWS:     targetUWS,
 	}
 	title := pb.Plays[0].Name
@@ -369,10 +367,10 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 			lt.skipped = true
 			return nil
 		}
-		inverted, ok := invertPre16Comparison(lowered)
+		inverted, ok := invertSimpleComparison(lowered)
 		if !ok {
 			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
-				Message: "failed_when could not be inverted into UWS 1.6 comparison syntax; the task was not lowered"})
+				Message: "failed_when could not be inverted into a supported UWS comparison; the task was not lowered"})
 			lt.skipped = true
 			return nil
 		}
@@ -391,17 +389,17 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	}
 	if task.IgnoreErrors {
 		lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
-			Message: "ignore_errors: true needs continue-on-failure semantics not defined by UWS 1.6; the task was not lowered"})
+			Message: "ignore_errors: true needs continue-on-failure semantics not defined by UWS core; the task was not lowered"})
 		lt.skipped = true
 		return nil
 	}
 	if task.AnyErrorsFatal {
-		// UWS 1.6 sequence execution already fails fast, so no field is emitted.
+		// UWS sequence execution already fails fast, so no field is emitted.
 	}
 	if task.Throttle != nil {
 		if lt.hostFanOut && *task.Throttle != 1 {
 			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
-				Message: "throttle greater than 1 needs host fan-out concurrency semantics outside UWS 1.6; the task was not lowered"})
+				Message: "throttle greater than 1 needs host fan-out concurrency semantics outside UWS core; the task was not lowered"})
 			lt.skipped = true
 			return nil
 		} else if !lt.hostFanOut {
@@ -436,10 +434,6 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		op.Request = map[string]any{"body": body}
 	}
 
-	if lw.targetUWS == TargetUWS16 {
-		lw.sourcesUsed[sourceID] = true
-		lw.ensureSourceDescription(sourceID)
-	}
 	lw.doc.Operations = append(lw.doc.Operations, op)
 	return lw.wrapGuardedStepDNF(step, guardDNF, task)
 }
@@ -453,42 +447,50 @@ func hasStrictFailure(diags []Diagnostic) bool {
 	return false
 }
 
+// normalizeTargetUWS resolves the declared uws version of the emitted document.
+// The emitted shape no longer varies by target: Ansible module leaves are
+// always extension-owned operations, which are valid at every listed version.
 func normalizeTargetUWS(target string) string {
 	switch strings.TrimSpace(target) {
-	case "", "1.6", "1.6.0":
-		return TargetUWS16
-	case "1.5", "1.5.0":
+	case "", "1.5", "1.5.0":
 		return TargetUWS15
+	case "1.6", "1.6.0":
+		return TargetUWS16
+	case "1.7", "1.7.0":
+		return TargetUWS17
 	default:
 		return strings.TrimSpace(target)
 	}
 }
 
 func targetUWSDocumentVersion(target string) string {
-	if target == TargetUWS15 {
+	switch target {
+	case TargetUWS16:
+		return "1.6.0"
+	case TargetUWS17:
+		return "1.7.0"
+	default:
 		return "1.5.0"
 	}
-	return "1.6.0"
 }
 
+// bindAnsibleOperation emits the module leaf as an extension-owned operation.
+// The managed host does not expose the collection module as a pre-existing
+// named operation; the control node supplies its implementation. UWS 1.6
+// briefly offered a first-class ansible-module source type; UWS 1.7 removed it.
 func (lw *lowerer) bindAnsibleOperation(op *uws1.Operation, sourceID, module string) {
-	if lw.targetUWS == TargetUWS15 {
-		op.Extensions = map[string]any{
-			uws1.ExtensionOperationProfile: ansiblemodulecall.ProfileName,
-		}
-		input, _ := lw.idx.Source(sourceID)
-		_ = ansiblemodulecall.SetOperationExtension(&op.Extensions, &ansiblemodulecall.OperationAnsibleModule{
-			Module: module,
-			Argspec: &ansiblemodulecall.ArgspecReference{
-				SourceID:   sourceID,
-				URL:        input.Path,
-				Collection: lw.idx.Collection(sourceID),
-			},
-		})
-		return
+	op.Extensions = map[string]any{
+		uws1.ExtensionOperationProfile: ansiblemodulecall.ProfileName,
 	}
-	op.SourceDescription = sourceUWSName(sourceID)
-	op.SourceOperationID = module
+	input, _ := lw.idx.Source(sourceID)
+	_ = ansiblemodulecall.SetOperationExtension(&op.Extensions, &ansiblemodulecall.OperationAnsibleModule{
+		Module: module,
+		Argspec: &ansiblemodulecall.ArgspecReference{
+			SourceID:   sourceID,
+			URL:        input.Path,
+			Collection: lw.idx.Collection(sourceID),
+		},
+	})
 }
 
 // lowerHandler lowers a notified handler. One notifier gates the handler step
@@ -500,7 +502,7 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 	for _, notifier := range notifiers {
 		if notifier.hostFanOut {
 			lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: handler.Name,
-				Message: "handler notification after host fan-out needs per-host changed evaluation; UWS 1.6 forEach aggregates changed outputs, so the handler was not lowered"})
+				Message: "handler notification after host fan-out needs per-host changed evaluation; UWS forEach aggregates changed outputs, so the handler was not lowered"})
 			return nil
 		}
 	}
@@ -734,32 +736,6 @@ func (lw *lowerer) applyNeededOutputs() {
 			op.Outputs[name] = "$response.body." + needs[name]
 		}
 	}
-}
-
-func (lw *lowerer) ensureSourceDescription(sourceID string) {
-	name := sourceUWSName(sourceID)
-	for _, sd := range lw.doc.SourceDescriptions {
-		if sd.Name == name {
-			return
-		}
-	}
-	input, _ := lw.idx.Source(sourceID)
-	lw.doc.SourceDescriptions = append(lw.doc.SourceDescriptions, &uws1.SourceDescription{
-		Name: name,
-		URL:  input.Path,
-		Type: uws1.SourceDescriptionTypeAnsibleModule,
-	})
-}
-
-// sourceUWSName converts an argspec source ID (often an Ansible collection FQCN
-// such as "ansible.builtin") into a UWS sourceDescription name, which must match
-// ^[A-Za-z0-9_-]+$. The raw ID stays the argspec lookup key; only the emitted
-// name is sanitized so a dotted collection ID does not fail UWS validation.
-func sourceUWSName(sourceID string) string {
-	if name := sanitizeID(sourceID); name != "" {
-		return name
-	}
-	return "source"
 }
 
 func (lw *lowerer) ensureComponents() {

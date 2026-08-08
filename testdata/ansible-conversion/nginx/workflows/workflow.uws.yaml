@@ -13,8 +13,6 @@ operations:
         body:
             name: $variables.pkg
             state: present
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.apt
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -25,6 +23,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/nginx/input/playbook.yml
         task: Install nginx
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.apt
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: Deploy nginx config
       operationId: deploy_nginx_config
       outputs:
@@ -33,8 +38,6 @@ operations:
         body:
             dest: /etc/nginx/nginx.conf
             src: nginx.conf.j2
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.template
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -45,6 +48,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/nginx/input/playbook.yml
         task: Deploy nginx config
         version: ramen.ansible.provenance.v1
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.template
+      x-uws-operation-profile: uws.ansible-module-call.1.0
     - description: restart nginx
       operationId: restart_nginx
       outputs:
@@ -53,8 +63,6 @@ operations:
         body:
             name: nginx
             state: restarted
-      sourceDescription: builtin
-      sourceOperationId: ansible.builtin.service
       successCriteria:
         - condition: $response.body.failed != true
       x-ansible:
@@ -65,11 +73,14 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/nginx/input/playbook.yml
         task: restart nginx
         version: ramen.ansible.provenance.v1
-sourceDescriptions:
-    - name: builtin
-      type: ansible-module
-      url: testdata/argspec/ansible-builtin.argspec.json
-uws: 1.6.0
+      x-uws-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-uws-operation-profile: uws.ansible-module-call.1.0
+uws: 1.5.0
 workflows:
     - steps:
         - operationRef: install_nginx

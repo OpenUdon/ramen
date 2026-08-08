@@ -1,14 +1,16 @@
 # Ansible Conversion
 
 `ramen convert ansible` statically converts a supported subset of Ansible
-playbooks into reviewable UWS workflow artifacts. The default output is UWS 1.6
-with `ansible-module` source binding. Use `--target-uws 1.5` to emit
-extension-owned Ansible module-call leaves for UWS 1.5 compatibility. Features
-that need unsupported semantics are strict diagnostics rather than
-approximations:
+playbooks into reviewable UWS workflow artifacts. Ansible module leaves are
+emitted as extension-owned operations carrying
+`uws.ansible-module-call.1.0`: the managed host does not expose a collection
+module as a pre-existing named operation, so the control node supplies its
+implementation and the argspec remains a client-side library manifest.
+Features that need unsupported semantics are strict diagnostics
+rather than approximations:
 
 ```bash
-ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.6 --out DIR --ignore-unsupported
+ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.5 --out DIR --ignore-unsupported
 ```
 
 The command does not execute Ansible, modules, inventory connections, API
@@ -19,9 +21,10 @@ source operations, or UWS workflows. It is a conversion and review aid only.
 - `--playbook FILE` is required and must point to an Ansible playbook YAML
   file.
 - `--argspec ID=PATH` supplies a collection argspec document. The flag may be
-  repeated. `ID` is the raw argspec source ID; conversion sanitizes it for the
-  emitted UWS source description name and rejects IDs that would collide after
-  sanitization. `PATH` is recorded as that source URL.
+  repeated. `ID` is the raw argspec lookup key and is preserved in emitted
+  module-call review references. Exact duplicate IDs are rejected, while IDs
+  such as `acme.one` and `acme-one` remain distinct. `PATH` is recorded as the
+  argspec URL.
 - `--project-dir DIR` records the static project root used for file
   resolution. It defaults to the playbook directory.
 - `--roles-path DIR` and `--collections-path DIR` are repeatable static
@@ -45,15 +48,17 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   - module entries keyed by FQCN, such as `ansible.builtin.file`
   - argument metadata for required fields and accepted enum values
 
-  Ramen validates each file against the published UWS Ansible source-profile
-  schema before decoding it. Unknown schema fields, missing required fields,
+  Ramen validates each file against the published UWS Ansible argspec schema
+  before decoding it. Unknown schema fields, missing required fields,
   module keys outside the declared collection, and parameter aliases claimed
   by more than one canonical parameter are argspec ingestion errors. The
   command exits `1` and writes no conversion/review artifacts.
-- `--target-uws 1.6|1.5` selects the emitted operation binding shape. `1.6`
-  emits first-class `sourceDescriptions[].type: ansible-module`; `1.5` emits
-  extension-owned operations with `x-uws-operation-profile:
-  uws.ansible-module-call.1.0` and `x-uws-ansible-module`.
+- `--target-uws 1.5|1.6|1.7` selects only the `uws` version the emitted
+  document declares; the default is `1.5`. The document shape is identical at
+  every version, because module leaves are always extension-owned operations
+  with `x-uws-operation-profile: uws.ansible-module-call.1.0` and
+  `x-uws-ansible-module`. UWS 1.6 briefly offered an `ansible-module` source
+  type and UWS 1.7 removed it.
 
 ## Outputs
 
@@ -117,7 +122,7 @@ without `until`, and `throttle` without host fan-out, emit non-strict
 diagnostics and no control policy. `ignore_errors: true`, unsupported
 host-fan-out `throttle`, multi-condition `changed_when`, and non-invertible or
 multi-condition `failed_when` are strict diagnostics. `any_errors_fatal: true`
-matches UWS 1.6 fail-fast behavior and emits no field.
+matches UWS fail-fast behavior and emits no field.
 
 Argspec parameter aliases are normalized to their canonical request-body keys
 after value lowering. One alias spelling emits only its canonical key, and
@@ -130,14 +135,13 @@ parameters follow the same task-omission rule.
 ## Lowering Contract
 
 Ramen owns Ansible playbook lowering. UWS owns the resulting orchestration
-objects and the bound runtime owns Ansible module execution. The UWS 1.6 and
-UWS 1.5 targets share the same orchestration lowering; only the module leaf
-binding differs.
+objects and the bound runtime owns Ansible module execution. All `--target-uws`
+values share the same lowering; only the declared `uws` version differs.
 
 | Ansible construct | Ramen lowering |
 | --- | --- |
 | Ordered `pre_tasks`, `tasks`, `post_tasks` | One UWS `sequence` workflow preserving resolved play order. |
-| Module task | One UWS operation plus one operation step. UWS 1.6 binds to `sourceDescriptions[].type: ansible-module`; UWS 1.5 uses `uws.ansible-module-call.1.0`. |
+| Module task | One UWS operation plus one operation step. The operation is extension-owned, carrying `uws.ansible-module-call.1.0` with the module FQCN and argspec review reference. |
 | Literal or whole-reference args | `request.body` values, with `{{ var }}` lowered to `$variables.*`, `$inputs.*`, `$item`, or `$steps.*.outputs.*` when safe. |
 | `when: expr` | Step `when` for one condition; nested `switch` guards for conjunctions that need more than one condition. |
 | `when: a and b` | DNF conjunction lowered as nested `switch` guards so both conditions must pass. |
@@ -167,11 +171,11 @@ the source file, line, column, play, section, task name, optional role, optional
 import stack, and optional tags. These extensions are review/debug metadata and
 do not define execution semantics.
 
-For `--target-uws 1.5`, Ansible module calls are not source-bound. The emitted
-operation keeps the same `request.body`, `outputs`, `successCriteria`, retries,
-handlers, and workflow structure, but the module FQCN and argspec review
-reference live under `x-uws-ansible-module`. UWS still owns orchestration; the
-bound runtime owns module execution.
+Ansible module calls are not source-bound. The emitted operation carries
+`request.body`, `outputs`, `successCriteria`, retries, handlers, and workflow
+structure as usual, with the module FQCN and argspec review reference under
+`x-uws-ansible-module`. UWS still owns orchestration; the bound runtime owns
+module execution.
 
 Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:

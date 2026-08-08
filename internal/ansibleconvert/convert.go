@@ -20,8 +20,10 @@ import (
 // module, or workflow execution happens here.
 func Convert(_ context.Context, opts Options) (*Result, error) {
 	opts = normalizeOptions(opts)
-	if opts.TargetUWS != TargetUWS16 && opts.TargetUWS != TargetUWS15 {
-		return nil, fmt.Errorf("unsupported Ansible conversion target UWS %q (want 1.6 or 1.5)", opts.TargetUWS)
+	switch opts.TargetUWS {
+	case TargetUWS15, TargetUWS16, TargetUWS17:
+	default:
+		return nil, fmt.Errorf("unsupported Ansible conversion target UWS %q (want 1.5, 1.6, or 1.7)", opts.TargetUWS)
 	}
 	data, err := os.ReadFile(opts.PlaybookPath)
 	if err != nil {

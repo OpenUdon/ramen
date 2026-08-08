@@ -1,20 +1,25 @@
 // Package ansibleconvert converts Ansible playbooks into reviewable UWS
-// workflow artifacts. UWS 1.6 output binds module operations to ansible-module
-// sources; UWS 1.5 compatibility output emits extension-owned module calls.
-// Conversion is review-first and fail-closed: constructs that cannot be
+// workflow artifacts. Module operations are extension-owned calls carrying
+// uws.ansible-module-call.1.0 for every supported UWS target. Conversion is
+// review-first and fail-closed: constructs that cannot be
 // faithfully lowered (complex Jinja2, dynamic includes, unknown modules)
 // become diagnostics, not guesses. The converter never executes Ansible,
 // modules, or UWS workflows.
 package ansibleconvert
 
+// Supported values for Options.TargetUWS. These select only the uws version
+// declared by the emitted document; the shape is identical across all three,
+// because Ansible module leaves are always extension-owned operations carrying
+// uws.ansible-module-call.1.0.
 const (
-	TargetUWS16 = "1.6"
 	TargetUWS15 = "1.5"
+	TargetUWS16 = "1.6"
+	TargetUWS17 = "1.7"
 )
 
 // ArgspecInput names a collection argspec document (uws.ansible.1.0 shape)
 // supplied on the command line as ID=PATH. The ID is the raw argspec lookup
-// source; conversion sanitizes it before emitting a UWS sourceDescription name.
+// key and is preserved in emitted module-call review references.
 type ArgspecInput struct {
 	ID   string
 	Path string
@@ -33,8 +38,9 @@ type Options struct {
 	CollectionsPaths []string
 	InventoryPaths   []string
 	ExtraVars        []string
-	// TargetUWS selects the emitted document shape. Empty defaults to "1.6".
-	// Target "1.5" emits extension-owned Ansible module leaves.
+	// TargetUWS selects the uws version declared by the emitted document:
+	// "1.5", "1.6", or "1.7". Empty defaults to "1.5", the most widely
+	// compatible version that accepts the module-call supplement.
 	TargetUWS string
 	// IgnoreUnsupported allows workflow artifacts to be written even when
 	// strict-failure diagnostics were emitted. The resulting workflow omits the

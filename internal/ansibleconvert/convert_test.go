@@ -2,6 +2,7 @@ package ansibleconvert
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -135,19 +136,28 @@ func TestConvertNginxPlaybook(t *testing.T) {
 	if result.StrictFailures != 0 {
 		t.Fatalf("expected no strict failures, got %d: %#v", result.StrictFailures, result.Diagnostics)
 	}
-	if doc.UWS != "1.6.0" {
-		t.Fatalf("uws = %q, want 1.6.0", doc.UWS)
+	if doc.UWS != "1.5.0" {
+		t.Fatalf("uws = %q, want 1.5.0", doc.UWS)
 	}
-	if len(doc.SourceDescriptions) != 1 || doc.SourceDescriptions[0].Type != uws1.SourceDescriptionTypeAnsibleModule {
-		t.Fatalf("sourceDescriptions = %#v", doc.SourceDescriptions)
-	}
-	if doc.SourceDescriptions[0].Name != "builtin" {
-		t.Fatalf("source name = %q, want builtin", doc.SourceDescriptions[0].Name)
+	// Ansible module leaves are extension-owned because the managed host does
+	// not expose the collection module as a pre-existing named operation.
+	if len(doc.SourceDescriptions) != 0 {
+		t.Fatalf("sourceDescriptions = %#v, want none", doc.SourceDescriptions)
 	}
 
 	install := findOperation(doc, "install_nginx")
-	if install == nil || install.SourceOperationID != "ansible.builtin.apt" {
-		t.Fatalf("install_nginx operation missing or wrong selector: %#v", install)
+	if install == nil {
+		t.Fatalf("install_nginx operation missing")
+	}
+	payload, ok, err := ansiblemodulecall.ReadOperationExtension(install.Extensions)
+	if err != nil || !ok {
+		t.Fatalf("install_nginx missing module-call extension: ok=%v err=%v", ok, err)
+	}
+	if payload.Module != "ansible.builtin.apt" {
+		t.Fatalf("install_nginx module = %q, want ansible.builtin.apt", payload.Module)
+	}
+	if payload.Argspec == nil || payload.Argspec.SourceID != "builtin" {
+		t.Fatalf("install_nginx argspec reference = %#v, want sourceId builtin", payload.Argspec)
 	}
 	body, _ := install.Request["body"].(map[string]any)
 	if body["name"] != "$variables.pkg" {
@@ -286,10 +296,9 @@ func TestConvertInventoryHostFanOutWithHandlerFailsClosed(t *testing.T) {
 	}
 }
 
-func TestConvertSanitizesDottedArgspecSourceID(t *testing.T) {
-	// The natural argspec ID is the collection FQCN (e.g. "ansible.builtin"),
-	// but UWS sourceDescription names forbid dots. Conversion must sanitize the
-	// emitted name rather than fail UWS validation with an internal error.
+func TestConvertPreservesDottedArgspecSourceID(t *testing.T) {
+	// The natural argspec ID is often the collection FQCN. Extension-owned
+	// module calls preserve it because no sourceDescription name is emitted.
 	result, err := Convert(context.Background(), Options{
 		PlaybookPath: filepath.Join("testdata", "nginx", "playbook.yml"),
 		Argspecs: []ArgspecInput{
@@ -314,20 +323,26 @@ func TestConvertSanitizesDottedArgspecSourceID(t *testing.T) {
 	if err := doc.Validate(); err != nil {
 		t.Fatalf("emitted UWS document does not validate: %v", err)
 	}
-	if len(doc.SourceDescriptions) != 1 || doc.SourceDescriptions[0].Name != "ansible_builtin" {
-		t.Fatalf("source name = %#v, want ansible_builtin", doc.SourceDescriptions)
+	if len(doc.SourceDescriptions) != 0 {
+		t.Fatalf("sourceDescriptions = %#v, want none", doc.SourceDescriptions)
 	}
 	for _, op := range doc.Operations {
-		if op.SourceDescription != "ansible_builtin" {
-			t.Fatalf("operation %q sourceDescription = %q, want ansible_builtin", op.OperationID, op.SourceDescription)
+		payload, ok, err := ansiblemodulecall.ReadOperationExtension(op.Extensions)
+		if err != nil || !ok {
+			t.Fatalf("operation %q missing module-call extension: ok=%v err=%v", op.OperationID, ok, err)
 		}
-		if op.SourceOperationID != "" && !strings.HasPrefix(op.SourceOperationID, "ansible.builtin.") {
-			t.Fatalf("operation %q sourceOperationId = %q, want module FQCN preserved", op.OperationID, op.SourceOperationID)
+		if !strings.HasPrefix(payload.Module, "ansible.builtin.") {
+			t.Fatalf("operation %q module = %q, want module FQCN preserved", op.OperationID, payload.Module)
+		}
+		// The dotted argspec ID is carried verbatim in the review reference; it
+		// no longer has to satisfy the UWS sourceDescription name pattern.
+		if payload.Argspec == nil || payload.Argspec.SourceID != "ansible.builtin" {
+			t.Fatalf("operation %q argspec reference = %#v, want sourceId ansible.builtin", op.OperationID, payload.Argspec)
 		}
 	}
 }
 
-func TestLoadArgspecsRejectsSanitizedSourceNameCollision(t *testing.T) {
+func TestLoadArgspecsPreservesDistinctRawSourceIDs(t *testing.T) {
 	root := t.TempDir()
 	first := filepath.Join(root, "first.json")
 	second := filepath.Join(root, "second.json")
@@ -337,12 +352,21 @@ func TestLoadArgspecsRejectsSanitizedSourceNameCollision(t *testing.T) {
 	if err := os.WriteFile(second, []byte(`{"argspec":"uws.ansible.1.0","collection":"acme.two","modules":{"acme.two.second":{"parameters":{}}}}`), 0o644); err != nil {
 		t.Fatalf("write second argspec: %v", err)
 	}
-	_, err := LoadArgspecs([]ArgspecInput{
+	idx, err := LoadArgspecs([]ArgspecInput{
 		{ID: "acme.one", Path: first},
 		{ID: "acme-one", Path: second},
 	})
-	if err == nil || !strings.Contains(err.Error(), "sanitized source name") {
-		t.Fatalf("LoadArgspecs error = %v, want sanitized source collision", err)
+	if err != nil {
+		t.Fatalf("LoadArgspecs rejected distinct raw IDs: %v", err)
+	}
+	for fqcn, wantSourceID := range map[string]string{
+		"acme.one.first":  "acme.one",
+		"acme.two.second": "acme-one",
+	} {
+		gotSourceID, _, ok := idx.Lookup(fqcn)
+		if !ok || gotSourceID != wantSourceID {
+			t.Fatalf("Lookup(%q) = (%q, %v), want source ID %q", fqcn, gotSourceID, ok, wantSourceID)
+		}
 	}
 }
 
@@ -476,7 +500,7 @@ func TestConvertFailClosedGuardsAndTargets(t *testing.T) {
 		t.Fatalf("block delegate_to leaked a runnable child task: %#v", op)
 	}
 	// A block when plus a child when (AND in Ansible) lowers through nested
-	// UWS 1.6 switches, keeping the original task step ID inside the wrapper.
+	// UWS switch steps keep the original task step ID inside the wrapper.
 	doubleWrapper := findTopStep(doc.Workflows[0].Steps, "doubly_guarded_child_guard_1")
 	if doubleWrapper == nil || doubleWrapper.Type != uws1.WorkflowTypeSwitch || len(doubleWrapper.Cases) != 1 {
 		t.Fatalf("doubly guarded child should use a switch wrapper, got %#v", doubleWrapper)
@@ -1142,8 +1166,8 @@ func TestConvertStaticVariableConflictFailsClosed(t *testing.T) {
 
 func TestConvertSemanticDirectivesLowerWhenStaticButRuntimeMetadataIsInfo(t *testing.T) {
 	result, doc := runConvert(t, "directives")
-	if doc.UWS != "1.6.0" {
-		t.Fatalf("semantic directives should stay on UWS 1.6.0, got %q", doc.UWS)
+	if doc.UWS != "1.5.0" {
+		t.Fatalf("semantic directives should stay on UWS 1.5.0, got %q", doc.UWS)
 	}
 	retryOp := findOperation(doc, "retry_command")
 	if retryOp == nil || len(retryOp.SuccessCriteria) != 2 || retryOp.SuccessCriteria[1].Condition != "$response.body.rc == 0" {
@@ -1358,6 +1382,9 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 			if result.UWSPath != "" {
 				actualByRel["workflows/workflow.uws.yaml"] = result.UWSPath
 			}
+			if result.HCLPath != "" {
+				actualByRel["workflows/workflow.hcl"] = result.HCLPath
+			}
 			for _, rel := range sortedMapKeys(actualByRel) {
 				actual, err := os.ReadFile(actualByRel[rel])
 				if err != nil {
@@ -1372,12 +1399,29 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 					actual = normalizeReviewForCorpus(actual, outDir, filepath.Join(corpusRoot, name))
 					expected = normalizeReviewForCorpus(expected, filepath.Join(corpusRoot, name), filepath.Join(corpusRoot, name))
 				}
+				if rel == "workflows/workflow.hcl" {
+					actual = canonicalHCLForCorpus(t, rel+" actual", actual)
+					expected = canonicalHCLForCorpus(t, rel+" expected", expected)
+				}
 				if string(actual) != string(expected) {
 					t.Fatalf("%s drifted for %s\n--- expected\n%s\n--- actual\n%s", rel, name, expected, actual)
 				}
 			}
 		})
 	}
+}
+
+func canonicalHCLForCorpus(t *testing.T, label string, data []byte) []byte {
+	t.Helper()
+	var doc uws1.Document
+	if err := convert.UnmarshalHCL(data, &doc); err != nil {
+		t.Fatalf("parse %s: %v", label, err)
+	}
+	canonical, err := json.MarshalIndent(&doc, "", "  ")
+	if err != nil {
+		t.Fatalf("canonicalize %s: %v", label, err)
+	}
+	return canonical
 }
 
 func sortedMapKeys(m map[string]string) []string {
