@@ -3,18 +3,15 @@ package corpus
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
-	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/tfconfig"
 )
 
@@ -83,50 +80,12 @@ type awsParityPromotion struct {
 	Blockers      []string `json:"blockers,omitempty"`
 }
 
-type awsParityScenario struct {
-	Name                  string   `json:"name"`
-	ResourceType          string   `json:"resource_type"`
-	TerraformResourceType string   `json:"terraform_resource_type,omitempty"`
-	FixturePaths          []string `json:"fixture_paths,omitempty"`
-	OperationIDs          []string `json:"operation_ids"`
-	ObservedFields        []string `json:"observed_fields"`
-	ExpectedTransitions   []string `json:"expected_transitions"`
-	ObservationArtifacts  []string `json:"observation_artifacts,omitempty"`
-}
-
-type awsParityLiveRecording struct {
-	Version      string                         `json:"version"`
-	Lane         string                         `json:"lane"`
-	Scenario     string                         `json:"scenario"`
-	RecordedAt   string                         `json:"recorded_at"`
-	DurationMS   int64                          `json:"duration_ms,omitempty"`
-	Observations []awsParityRuntimeObservation  `json:"observations"`
-	Comparison   awsParityObservationComparison `json:"comparison"`
-	Failures     []awsParityRuntimeFailure      `json:"failures,omitempty"`
-}
-
-type awsParityRuntimeObservation struct {
-	Runtime    string         `json:"runtime"`
-	Resource   string         `json:"resource"`
-	DurationMS int64          `json:"duration_ms,omitempty"`
-	Fields     map[string]any `json:"fields,omitempty"`
-}
-
-type awsParityObservationComparison struct {
-	Matched bool     `json:"matched"`
-	Fields  []string `json:"fields"`
-}
-
-type awsParityRuntimeFailure struct {
-	Runtime string `json:"runtime"`
-	Class   string `json:"class"`
-	Message string `json:"message"`
-}
-
-type awsParityRuntimeResult struct {
-	Observation awsParityRuntimeObservation
-	Failure     *awsParityRuntimeFailure
-}
+type awsParityScenario = apiParityScenario
+type awsParityLiveRecording = apiParityLiveRecording
+type awsParityRuntimeObservation = apiParityRuntimeObservation
+type awsParityObservationComparison = apiParityObservationComparison
+type awsParityRuntimeFailure = apiParityRuntimeFailure
+type awsParityRuntimeResult = apiParityRuntimeResult
 
 func TestAWSProviderParityReplayArtifacts(t *testing.T) {
 	for _, lane := range awsParityLanes {
@@ -401,44 +360,15 @@ func assertAWSParityHCLFixture(t *testing.T, lane string, artifact awsParityArti
 }
 
 func assertAWSParityNativeProjectFixture(t *testing.T, lane string) {
-	t.Helper()
-	projectPath := filepath.Join(awsParityFixtureRoot, lane, "ramen")
-	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{ProjectPath: projectPath})
-	if err != nil {
-		t.Fatalf("validate %s native Ramen project fixture: %v", strings.ToUpper(lane), err)
-	}
-	if !result.Valid || result.Summary.Diagnostics != 0 {
-		t.Fatalf("%s native Ramen project fixture diagnostics: valid=%t summary=%#v diagnostics=%#v", strings.ToUpper(lane), result.Valid, result.Summary, result.Diagnostics)
-	}
+	assertAPIParityNativeProjectFixture(t, "AWS", awsParityFixtureRoot, lane)
 }
 
 func assertAWSParityPlanFixture(t *testing.T, lane, action, operationID, summaryField string, seedState bool) {
-	t.Helper()
-	statePath := filepath.Join(t.TempDir(), "state.db")
+	var seed func(*testing.T, string, string)
 	if seedState {
-		seedAWSParityState(t, lane, statePath)
+		seed = seedAWSParityState
 	}
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(awsParityFixtureRoot, lane, "ramen"),
-		StatePath:   statePath,
-		Action:      action,
-	})
-	if err != nil {
-		t.Fatalf("build %s %s Ramen fixture plan: %v", strings.ToUpper(lane), action, err)
-	}
-	if result.Plan.Errored {
-		t.Fatalf("%s %s Ramen fixture plan errored: %#v", strings.ToUpper(lane), action, result.Plan.Diagnostics)
-	}
-	if len(result.Plan.Resources) != 1 {
-		t.Fatalf("%s %s Ramen fixture resources=%d, want 1", strings.ToUpper(lane), action, len(result.Plan.Resources))
-	}
-	resource := result.Plan.Resources[0]
-	if resource.Mapping == nil || resource.Mapping.OperationID != operationID {
-		t.Fatalf("%s %s operation = %#v, want %s", strings.ToUpper(lane), action, resource.Mapping, operationID)
-	}
-	if !awsParitySummaryHasOne(result.Plan.Summary, summaryField) {
-		t.Fatalf("%s %s plan summary = %#v, want one %s action", strings.ToUpper(lane), action, result.Plan.Summary, summaryField)
-	}
+	assertAPIParityPlanFixture(t, "AWS", awsParityFixtureRoot, lane, action, operationID, summaryField, seed)
 }
 
 func seedAWSParityState(t *testing.T, lane, statePath string) {
@@ -477,20 +407,7 @@ func seedAWSParityState(t *testing.T, lane, statePath string) {
 }
 
 func awsParitySummaryHasOne(summary tfplan.Summary, field string) bool {
-	switch field {
-	case "create":
-		return summary.Create == 1
-	case "read":
-		return summary.Read == 1
-	case "update":
-		return summary.Update == 1
-	case "delete":
-		return summary.Delete == 1
-	case "put":
-		return summary.Put == 1
-	default:
-		return false
-	}
+	return apiParitySummaryHasOne(summary, field)
 }
 
 func assertAWSParitySettleFixture(t *testing.T, lane string) {
@@ -515,29 +432,7 @@ func assertAWSParitySettleFixture(t *testing.T, lane string) {
 }
 
 func assertAWSParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(awsParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      firstAWSParityActionForBindings(lane),
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for request bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for request bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	bindings := map[string][]string{}
-	for _, binding := range result.Plan.Resources[0].Mapping.RequestBindings {
-		bindings[binding.OperationRole] = append(bindings[binding.OperationRole], binding.RequestPath)
-	}
-	for role, wantPaths := range expected {
-		for _, wantPath := range wantPaths {
-			if !slices.Contains(bindings[role], wantPath) {
-				t.Fatalf("%s request bindings for role %s = %#v, want %s", strings.ToUpper(lane), role, bindings[role], wantPath)
-			}
-		}
-	}
+	assertAPIParityRequestBindings(t, "AWS", awsParityFixtureRoot, lane, firstAWSParityActionForBindings(lane), expected)
 }
 
 func firstAWSParityActionForBindings(lane string) string {
@@ -548,27 +443,7 @@ func firstAWSParityActionForBindings(lane string) string {
 }
 
 func assertAWSParityResponseBindings(t *testing.T, lane string, expected []string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(awsParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      "read",
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for response bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for response bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	var got []string
-	for _, binding := range result.Plan.Resources[0].Mapping.ResponseBindings {
-		got = append(got, binding.ResponsePath)
-	}
-	for _, want := range expected {
-		if !slices.Contains(got, want) {
-			t.Fatalf("%s response bindings = %#v, want %s", strings.ToUpper(lane), got, want)
-		}
-	}
+	assertAPIParityResponseBindings(t, "AWS", awsParityFixtureRoot, lane, expected)
 }
 
 func assertAWSParityUdonMetadata(t *testing.T, lane, service string) {
@@ -593,71 +468,23 @@ func compareAWSParityW01Observations(observations []awsParityRuntimeObservation)
 		"no_op",
 		"after_destroy.exists",
 	}
-	if len(observations) == 0 {
-		return awsParityObservationComparison{Matched: false, Fields: fields}
-	}
-	matched := true
-	first := observations[0].Fields
+	comparison := compareAPIParityObservationFields(observations, fields)
 	for _, observation := range observations {
-		for _, field := range fields {
-			if observation.Fields[field] != first[field] {
-				matched = false
-			}
-		}
 		if observation.Fields["after_apply.exists"] != true || observation.Fields["after_apply.arn_present"] != true || observation.Fields["after_apply.user_id_present"] != true || observation.Fields["after_destroy.exists"] != false {
-			matched = false
+			comparison.Matched = false
 		}
 	}
-	return awsParityObservationComparison{Matched: matched, Fields: fields}
+	return comparison
 }
 
 func awsParityFailure(runtime, class string, err error) awsParityRuntimeResult {
-	if err == nil {
-		err = errors.New("unknown AWS parity failure")
-	}
-	return awsParityRuntimeResult{Failure: &awsParityRuntimeFailure{
-		Runtime: runtime,
-		Class:   class,
-		Message: err.Error(),
-	}}
+	return apiParityFailure("AWS", runtime, class, err)
 }
 
 func compareOrUpdateAWSParityRecording(t *testing.T, recording awsParityLiveRecording, path string) {
-	t.Helper()
-	data, err := json.MarshalIndent(recording, "", "  ")
-	if err != nil {
-		t.Fatalf("encode AWS parity recording: %v", err)
-	}
-	data = append(data, '\n')
-	if os.Getenv(awsParityRecordEnv) == "1" {
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatalf("write AWS parity recording %s: %v", path, err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		t.Logf("no committed AWS parity recording at %s; live run was not recorded because %s is not set", path, awsParityRecordEnv)
-		return
-	}
-	if err != nil {
-		t.Fatalf("read committed AWS parity recording %s: %v", path, err)
-	}
-	if !reflect.DeepEqual(normalizeAWSParityRecording(t, want), normalizeAWSParityRecording(t, data)) {
-		t.Fatalf("live AWS parity recording differs from %s; rerun with %s=1 %s=1 only after reviewing sanitized live output", path, awsParityEnv, awsParityRecordEnv)
-	}
+	compareOrUpdateAPIParityRecording(t, "AWS", awsParityEnv, awsParityRecordEnv, path, recording, true, normalizeAWSParityRecording)
 }
 
 func normalizeAWSParityRecording(t *testing.T, data []byte) awsParityLiveRecording {
-	t.Helper()
-	var recording awsParityLiveRecording
-	if err := json.Unmarshal(data, &recording); err != nil {
-		t.Fatalf("decode AWS parity recording: %v", err)
-	}
-	recording.RecordedAt = ""
-	recording.DurationMS = 0
-	for i := range recording.Observations {
-		recording.Observations[i].DurationMS = 0
-	}
-	return recording
+	return normalizeAPIParityRecording(t, "AWS", data, nil)
 }

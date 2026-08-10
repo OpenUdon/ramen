@@ -3,7 +3,6 @@ package corpus
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,7 +12,6 @@ import (
 	"testing"
 
 	tfplan "github.com/OpenUdon/ramen/plan"
-	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/tfconfig"
 )
 
@@ -73,50 +71,12 @@ type azureParitySafety struct {
 	CostGuardrails        []string          `json:"cost_guardrails,omitempty"`
 }
 
-type azureParityScenario struct {
-	Name                  string   `json:"name"`
-	ResourceType          string   `json:"resource_type"`
-	TerraformResourceType string   `json:"terraform_resource_type,omitempty"`
-	FixturePaths          []string `json:"fixture_paths,omitempty"`
-	OperationIDs          []string `json:"operation_ids"`
-	ObservedFields        []string `json:"observed_fields"`
-	ExpectedTransitions   []string `json:"expected_transitions"`
-	ObservationArtifacts  []string `json:"observation_artifacts,omitempty"`
-}
-
-type azureParityLiveRecording struct {
-	Version      string                           `json:"version"`
-	Lane         string                           `json:"lane"`
-	Scenario     string                           `json:"scenario"`
-	RecordedAt   string                           `json:"recorded_at"`
-	DurationMS   int64                            `json:"duration_ms,omitempty"`
-	Observations []azureParityRuntimeObservation  `json:"observations"`
-	Comparison   azureParityObservationComparison `json:"comparison"`
-	Failures     []azureParityRuntimeFailure      `json:"failures,omitempty"`
-}
-
-type azureParityRuntimeObservation struct {
-	Runtime    string         `json:"runtime"`
-	Resource   string         `json:"resource"`
-	DurationMS int64          `json:"duration_ms,omitempty"`
-	Fields     map[string]any `json:"fields,omitempty"`
-}
-
-type azureParityObservationComparison struct {
-	Matched bool     `json:"matched"`
-	Fields  []string `json:"fields"`
-}
-
-type azureParityRuntimeFailure struct {
-	Runtime string `json:"runtime"`
-	Class   string `json:"class"`
-	Message string `json:"message"`
-}
-
-type azureParityRuntimeResult struct {
-	Observation azureParityRuntimeObservation
-	Failure     *azureParityRuntimeFailure
-}
+type azureParityScenario = apiParityScenario
+type azureParityLiveRecording = apiParityLiveRecording
+type azureParityRuntimeObservation = apiParityRuntimeObservation
+type azureParityObservationComparison = apiParityObservationComparison
+type azureParityRuntimeFailure = apiParityRuntimeFailure
+type azureParityRuntimeResult = apiParityRuntimeResult
 
 func TestAzureProviderParityReplayArtifacts(t *testing.T) {
 	for _, lane := range azureParityLanes {
@@ -586,19 +546,7 @@ func compareAzureParityZ09Observations(observations []azureParityRuntimeObservat
 }
 
 func compareAzureParityObservationFields(observations []azureParityRuntimeObservation, fields []string) azureParityObservationComparison {
-	if len(observations) == 0 {
-		return azureParityObservationComparison{Matched: false, Fields: fields}
-	}
-	matched := true
-	first := observations[0].Fields
-	for _, observation := range observations {
-		for _, field := range fields {
-			if !reflect.DeepEqual(observation.Fields[field], first[field]) {
-				matched = false
-			}
-		}
-	}
-	return azureParityObservationComparison{Matched: matched, Fields: fields}
+	return compareAPIParityObservationFields(observations, fields)
 }
 
 func TestAzureProviderParityARMEnvMapping(t *testing.T) {
@@ -757,136 +705,35 @@ func assertAzureParityHCLFixture(t *testing.T, lane string, artifact azureParity
 }
 
 func assertAzureParityNativeProjectFixture(t *testing.T, lane string) {
-	t.Helper()
-	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{
-		ProjectPath: filepath.Join(azureParityFixtureRoot, lane, "ramen"),
-	})
-	if err != nil {
-		t.Fatalf("validate %s native Ramen project fixture: %v", strings.ToUpper(lane), err)
-	}
-	if !result.Valid {
-		t.Fatalf("%s native Ramen project fixture did not validate: %#v", strings.ToUpper(lane), result.Diagnostics)
-	}
-	if result.Summary.Diagnostics != 0 {
-		t.Fatalf("%s native Ramen project fixture diagnostics = %#v", strings.ToUpper(lane), result.Summary)
-	}
+	assertAPIParityNativeProjectFixture(t, "Azure", azureParityFixtureRoot, lane)
 }
 
 func assertAzureParityPlanFixture(t *testing.T, lane, action, operationID, summaryField string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(azureParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      action,
-	})
-	if err != nil {
-		t.Fatalf("build %s %s Ramen fixture plan: %v", strings.ToUpper(lane), action, err)
-	}
-	if result.Plan.Errored {
-		t.Fatalf("%s %s Ramen fixture plan errored: %#v", strings.ToUpper(lane), action, result.Plan.Diagnostics)
-	}
-	if len(result.Plan.Resources) != 1 {
-		t.Fatalf("%s %s Ramen fixture resources=%d, want 1", strings.ToUpper(lane), action, len(result.Plan.Resources))
-	}
-	resource := result.Plan.Resources[0]
-	if resource.Mapping == nil || resource.Mapping.OperationID != operationID {
-		t.Fatalf("%s %s operation = %#v, want %s", strings.ToUpper(lane), action, resource.Mapping, operationID)
-	}
-	if !azureParitySummaryHasOne(result.Plan.Summary, summaryField) {
-		t.Fatalf("%s %s plan summary = %#v, want one %s action", strings.ToUpper(lane), action, result.Plan.Summary, summaryField)
-	}
+	assertAPIParityPlanFixture(t, "Azure", azureParityFixtureRoot, lane, action, operationID, summaryField, nil)
 }
 
 func azureParitySummaryHasOne(summary tfplan.Summary, field string) bool {
-	switch field {
-	case "create":
-		return summary.Create == 1
-	case "read":
-		return summary.Read == 1
-	case "delete":
-		return summary.Delete == 1
-	case "put":
-		return summary.Put == 1
-	default:
-		return false
-	}
+	return apiParitySummaryHasOne(summary, field)
 }
 
 func assertAzureParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
-	t.Helper()
 	action := "create"
 	if lane == "z03" || lane == "z08" {
 		action = "read"
 	}
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(azureParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      action,
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for request bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for request bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	bindings := map[string][]string{}
-	for _, binding := range result.Plan.Resources[0].Mapping.RequestBindings {
-		bindings[binding.OperationRole] = append(bindings[binding.OperationRole], binding.RequestPath)
-	}
-	for role, wantPaths := range expected {
-		for _, wantPath := range wantPaths {
-			if !slices.Contains(bindings[role], wantPath) {
-				t.Fatalf("%s request bindings for role %s = %#v, want %s", strings.ToUpper(lane), role, bindings[role], wantPath)
-			}
-		}
-	}
+	assertAPIParityRequestBindings(t, "Azure", azureParityFixtureRoot, lane, action, expected)
 }
 
 func azureParityFailure(runtime, class string, err error) azureParityRuntimeResult {
-	if err == nil {
-		err = errors.New("unknown Azure parity failure")
-	}
-	return azureParityRuntimeResult{Failure: &azureParityRuntimeFailure{
-		Runtime: runtime,
-		Class:   class,
-		Message: err.Error(),
-	}}
+	return apiParityFailure("Azure", runtime, class, err)
 }
 
 func compareOrUpdateAzureParityRecording(t *testing.T, recording azureParityLiveRecording, path string) {
-	t.Helper()
-	data, err := json.MarshalIndent(recording, "", "  ")
-	if err != nil {
-		t.Fatalf("encode Azure parity recording: %v", err)
-	}
-	data = append(data, '\n')
-	if os.Getenv(azureParityRecordEnv) == "1" {
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatalf("write Azure parity recording %s: %v", path, err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if err != nil {
-		t.Fatalf("read committed Azure parity recording %s: %v; rerun with %s=1 %s=1 only after reviewing sanitized live output", path, err, azureParityEnv, azureParityRecordEnv)
-	}
-	if !reflect.DeepEqual(normalizeAzureParityRecording(t, want), normalizeAzureParityRecording(t, data)) {
-		t.Fatalf("live Azure parity recording differs from %s; rerun with %s=1 %s=1 only after reviewing the sanitized diff", path, azureParityEnv, azureParityRecordEnv)
-	}
+	compareOrUpdateAPIParityRecording(t, "Azure", azureParityEnv, azureParityRecordEnv, path, recording, false, normalizeAzureParityRecording)
 }
 
 func normalizeAzureParityRecording(t *testing.T, data []byte) azureParityLiveRecording {
-	t.Helper()
-	var recording azureParityLiveRecording
-	if err := json.Unmarshal(data, &recording); err != nil {
-		t.Fatalf("decode Azure parity recording: %v", err)
-	}
-	recording.RecordedAt = ""
-	recording.DurationMS = 0
-	for i := range recording.Observations {
-		recording.Observations[i].DurationMS = 0
-	}
-	return recording
+	return normalizeAPIParityRecording(t, "Azure", data, nil)
 }
 
 func errAzureParityLiveRunnerParked(lane string) error {

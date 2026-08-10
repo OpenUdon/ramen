@@ -3,18 +3,15 @@ package corpus
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
-	"reflect"
 	"slices"
 	"strings"
 	"testing"
 
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
-	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/tfconfig"
 )
 
@@ -86,50 +83,12 @@ type githubParityPromotion struct {
 	Preconditions []string `json:"preconditions,omitempty"`
 }
 
-type githubParityScenario struct {
-	Name                  string   `json:"name"`
-	ResourceType          string   `json:"resource_type"`
-	TerraformResourceType string   `json:"terraform_resource_type,omitempty"`
-	FixturePaths          []string `json:"fixture_paths,omitempty"`
-	OperationIDs          []string `json:"operation_ids"`
-	ObservedFields        []string `json:"observed_fields"`
-	ExpectedTransitions   []string `json:"expected_transitions"`
-	ObservationArtifacts  []string `json:"observation_artifacts,omitempty"`
-}
-
-type githubParityLiveRecording struct {
-	Version      string                            `json:"version"`
-	Lane         string                            `json:"lane"`
-	Scenario     string                            `json:"scenario"`
-	RecordedAt   string                            `json:"recorded_at"`
-	DurationMS   int64                             `json:"duration_ms,omitempty"`
-	Observations []githubParityRuntimeObservation  `json:"observations"`
-	Comparison   githubParityObservationComparison `json:"comparison"`
-	Failures     []githubParityRuntimeFailure      `json:"failures,omitempty"`
-}
-
-type githubParityRuntimeObservation struct {
-	Runtime    string         `json:"runtime"`
-	Resource   string         `json:"resource"`
-	DurationMS int64          `json:"duration_ms,omitempty"`
-	Fields     map[string]any `json:"fields,omitempty"`
-}
-
-type githubParityObservationComparison struct {
-	Matched bool     `json:"matched"`
-	Fields  []string `json:"fields"`
-}
-
-type githubParityRuntimeFailure struct {
-	Runtime string `json:"runtime"`
-	Class   string `json:"class"`
-	Message string `json:"message"`
-}
-
-type githubParityRuntimeResult struct {
-	Observation githubParityRuntimeObservation
-	Failure     *githubParityRuntimeFailure
-}
+type githubParityScenario = apiParityScenario
+type githubParityLiveRecording = apiParityLiveRecording
+type githubParityRuntimeObservation = apiParityRuntimeObservation
+type githubParityObservationComparison = apiParityObservationComparison
+type githubParityRuntimeFailure = apiParityRuntimeFailure
+type githubParityRuntimeResult = apiParityRuntimeResult
 
 func TestGitHubProviderParityReplayArtifacts(t *testing.T) {
 	for _, lane := range githubParityLanes {
@@ -298,19 +257,7 @@ func assertGitHubParityRecordingSanitizedBytes(t *testing.T, lane string, data [
 }
 
 func compareGitHubParityObservations(observations []githubParityRuntimeObservation, fields []string) githubParityObservationComparison {
-	if len(observations) == 0 {
-		return githubParityObservationComparison{Matched: false, Fields: fields}
-	}
-	matched := true
-	first := observations[0].Fields
-	for _, observation := range observations {
-		for _, field := range fields {
-			if observation.Fields[field] != first[field] {
-				matched = false
-			}
-		}
-	}
-	return githubParityObservationComparison{Matched: matched, Fields: fields}
+	return compareAPIParityObservationFields(observations, fields)
 }
 
 func assertGitHubParityLiveObservationSemantics(t *testing.T, lane string, observation githubParityRuntimeObservation) {
@@ -378,60 +325,22 @@ func githubParityForbiddenRecordingSubstrings() []string {
 }
 
 func githubParityFailure(runtime, class string, err error) githubParityRuntimeResult {
-	if err == nil {
-		err = errors.New("unknown GitHub parity failure")
-	}
-	return githubParityRuntimeResult{Failure: &githubParityRuntimeFailure{
-		Runtime: runtime,
-		Class:   class,
-		Message: err.Error(),
-	}}
+	return apiParityFailure("GitHub", runtime, class, err)
 }
 
 func compareOrUpdateGitHubParityRecording(t *testing.T, recording githubParityLiveRecording, path string) {
-	t.Helper()
-	data, err := json.MarshalIndent(recording, "", "  ")
-	if err != nil {
-		t.Fatalf("encode GitHub parity recording: %v", err)
-	}
-	data = append(data, '\n')
-	if os.Getenv(githubParityRecordEnv) == "1" {
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatalf("write GitHub parity recording %s: %v", path, err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		t.Logf("no committed GitHub parity recording at %s; live run was not recorded because %s is not set", path, githubParityRecordEnv)
-		return
-	}
-	if err != nil {
-		t.Fatalf("read committed GitHub parity recording %s: %v", path, err)
-	}
-	if !reflect.DeepEqual(normalizeGitHubParityRecording(t, want), normalizeGitHubParityRecording(t, data)) {
-		t.Fatalf("live GitHub parity recording differs from %s; rerun with %s=1 %s=1 only after reviewing sanitized live output", path, githubParityEnv, githubParityRecordEnv)
-	}
+	compareOrUpdateAPIParityRecording(t, "GitHub", githubParityEnv, githubParityRecordEnv, path, recording, true, normalizeGitHubParityRecording)
 }
 
 func normalizeGitHubParityRecording(t *testing.T, data []byte) githubParityLiveRecording {
-	t.Helper()
-	var recording githubParityLiveRecording
-	if err := json.Unmarshal(data, &recording); err != nil {
-		t.Fatalf("decode GitHub parity recording: %v", err)
-	}
-	recording.RecordedAt = ""
-	recording.DurationMS = 0
-	for i := range recording.Observations {
-		recording.Observations[i].DurationMS = 0
-		recording.Observations[i].Resource = normalizeGitHubParityGeneratedResource(recording.Lane, recording.Observations[i].Runtime, recording.Observations[i].Resource)
-		for key, value := range recording.Observations[i].Fields {
+	return normalizeAPIParityRecording(t, "GitHub", data, func(lane string, observation *apiParityRuntimeObservation) {
+		observation.Resource = normalizeGitHubParityGeneratedResource(lane, observation.Runtime, observation.Resource)
+		for key, value := range observation.Fields {
 			if valueString, ok := value.(string); ok {
-				recording.Observations[i].Fields[key] = normalizeGitHubParityGeneratedResource(recording.Lane, recording.Observations[i].Runtime, valueString)
+				observation.Fields[key] = normalizeGitHubParityGeneratedResource(lane, observation.Runtime, valueString)
 			}
 		}
-	}
-	return recording
+	})
 }
 
 func normalizeGitHubParityGeneratedResource(lane, runtime, value string) string {
@@ -532,40 +441,15 @@ func assertGitHubParityHCLFixture(t *testing.T, lane string, artifact githubPari
 }
 
 func assertGitHubParityNativeProjectFixture(t *testing.T, lane string) {
-	t.Helper()
-	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{ProjectPath: filepath.Join(githubParityFixtureRoot, lane, "ramen")})
-	if err != nil {
-		t.Fatalf("validate %s native Ramen project fixture: %v", strings.ToUpper(lane), err)
-	}
-	if !result.Valid || result.Summary.Diagnostics != 0 {
-		t.Fatalf("%s native Ramen project fixture diagnostics: valid=%t summary=%#v diagnostics=%#v", strings.ToUpper(lane), result.Valid, result.Summary, result.Diagnostics)
-	}
+	assertAPIParityNativeProjectFixture(t, "GitHub", githubParityFixtureRoot, lane)
 }
 
 func assertGitHubParityPlanFixture(t *testing.T, lane, action, operationID, summaryField string, seedState bool) {
-	t.Helper()
-	statePath := filepath.Join(t.TempDir(), "state.db")
+	var seed func(*testing.T, string, string)
 	if seedState {
-		seedGitHubParityState(t, lane, statePath)
+		seed = seedGitHubParityState
 	}
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(githubParityFixtureRoot, lane, "ramen"),
-		StatePath:   statePath,
-		Action:      action,
-	})
-	if err != nil {
-		t.Fatalf("build %s %s Ramen fixture plan: %v", strings.ToUpper(lane), action, err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 {
-		t.Fatalf("%s %s Ramen fixture plan unusable: %#v", strings.ToUpper(lane), action, result.Plan)
-	}
-	resource := result.Plan.Resources[0]
-	if resource.Mapping == nil || resource.Mapping.OperationID != operationID {
-		t.Fatalf("%s %s operation = %#v, want %s", strings.ToUpper(lane), action, resource.Mapping, operationID)
-	}
-	if !githubParitySummaryHasOne(result.Plan.Summary, summaryField) {
-		t.Fatalf("%s %s plan summary = %#v, want one %s action", strings.ToUpper(lane), action, result.Plan.Summary, summaryField)
-	}
+	assertAPIParityPlanFixture(t, "GitHub", githubParityFixtureRoot, lane, action, operationID, summaryField, seed)
 }
 
 func seedGitHubParityState(t *testing.T, lane, statePath string) {
@@ -622,68 +506,15 @@ func githubParitySeedSnapshot(lane string) (state.ResourceSnapshot, error) {
 }
 
 func githubParitySummaryHasOne(summary tfplan.Summary, field string) bool {
-	switch field {
-	case "create":
-		return summary.Create == 1
-	case "read":
-		return summary.Read == 1
-	case "update":
-		return summary.Update == 1
-	case "delete":
-		return summary.Delete == 1
-	default:
-		return false
-	}
+	return apiParitySummaryHasOne(summary, field)
 }
 
 func assertGitHubParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(githubParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      "create",
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for request bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for request bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	bindings := map[string][]string{}
-	for _, binding := range result.Plan.Resources[0].Mapping.RequestBindings {
-		bindings[binding.OperationRole] = append(bindings[binding.OperationRole], binding.RequestPath)
-	}
-	for role, wantPaths := range expected {
-		for _, wantPath := range wantPaths {
-			if !slices.Contains(bindings[role], wantPath) {
-				t.Fatalf("%s request bindings for role %s = %#v, want %s", strings.ToUpper(lane), role, bindings[role], wantPath)
-			}
-		}
-	}
+	assertAPIParityRequestBindings(t, "GitHub", githubParityFixtureRoot, lane, "create", expected)
 }
 
 func assertGitHubParityResponseBindings(t *testing.T, lane string, expected []string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(githubParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      "read",
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for response bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for response bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	var got []string
-	for _, binding := range result.Plan.Resources[0].Mapping.ResponseBindings {
-		got = append(got, binding.ResponsePath)
-	}
-	for _, want := range expected {
-		if !slices.Contains(got, want) {
-			t.Fatalf("%s response bindings = %#v, want %s", strings.ToUpper(lane), got, want)
-		}
-	}
+	assertAPIParityResponseBindings(t, "GitHub", githubParityFixtureRoot, lane, expected)
 }
 
 func assertGitHubParityBase64Binding(t *testing.T, lane string) {

@@ -3,7 +3,6 @@ package corpus
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +13,6 @@ import (
 
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/state"
-	ramenvalidate "github.com/OpenUdon/ramen/validate"
 	"github.com/OpenUdon/tfconfig"
 )
 
@@ -69,50 +67,12 @@ type googleParitySafety struct {
 	Promotion            string   `json:"promotion,omitempty"`
 }
 
-type googleParityScenario struct {
-	Name                  string   `json:"name"`
-	ResourceType          string   `json:"resource_type"`
-	TerraformResourceType string   `json:"terraform_resource_type,omitempty"`
-	FixturePaths          []string `json:"fixture_paths,omitempty"`
-	OperationIDs          []string `json:"operation_ids"`
-	ObservedFields        []string `json:"observed_fields"`
-	ExpectedTransitions   []string `json:"expected_transitions"`
-	ObservationArtifacts  []string `json:"observation_artifacts,omitempty"`
-}
-
-type googleParityLiveRecording struct {
-	Version      string                            `json:"version"`
-	Lane         string                            `json:"lane"`
-	Scenario     string                            `json:"scenario"`
-	RecordedAt   string                            `json:"recorded_at"`
-	DurationMS   int64                             `json:"duration_ms,omitempty"`
-	Observations []googleParityRuntimeObservation  `json:"observations"`
-	Comparison   googleParityObservationComparison `json:"comparison"`
-	Failures     []googleParityRuntimeFailure      `json:"failures,omitempty"`
-}
-
-type googleParityRuntimeObservation struct {
-	Runtime    string         `json:"runtime"`
-	Resource   string         `json:"resource"`
-	DurationMS int64          `json:"duration_ms,omitempty"`
-	Fields     map[string]any `json:"fields,omitempty"`
-}
-
-type googleParityObservationComparison struct {
-	Matched bool     `json:"matched"`
-	Fields  []string `json:"fields"`
-}
-
-type googleParityRuntimeFailure struct {
-	Runtime string `json:"runtime"`
-	Class   string `json:"class"`
-	Message string `json:"message"`
-}
-
-type googleParityRuntimeResult struct {
-	Observation googleParityRuntimeObservation
-	Failure     *googleParityRuntimeFailure
-}
+type googleParityScenario = apiParityScenario
+type googleParityLiveRecording = apiParityLiveRecording
+type googleParityRuntimeObservation = apiParityRuntimeObservation
+type googleParityObservationComparison = apiParityObservationComparison
+type googleParityRuntimeFailure = apiParityRuntimeFailure
+type googleParityRuntimeResult = apiParityRuntimeResult
 
 func TestGoogleProviderParityReplayArtifacts(t *testing.T) {
 	for _, lane := range googleParityLanes {
@@ -522,41 +482,15 @@ func assertGoogleParityHCLFixture(t *testing.T, lane string, artifact googlePari
 }
 
 func assertGoogleParityNativeProjectFixture(t *testing.T, lane string) {
-	t.Helper()
-	projectPath := filepath.Join(googleParityFixtureRoot, lane, "ramen")
-	result, err := ramenvalidate.Run(context.Background(), ramenvalidate.Options{ProjectPath: projectPath})
-	if err != nil {
-		t.Fatalf("validate %s native Ramen project fixture: %v", strings.ToUpper(lane), err)
-	}
-	if !result.Valid || result.Summary.Diagnostics != 0 {
-		t.Fatalf("%s native Ramen project fixture diagnostics: valid=%t summary=%#v diagnostics=%#v", strings.ToUpper(lane), result.Valid, result.Summary, result.Diagnostics)
-	}
+	assertAPIParityNativeProjectFixture(t, "Google", googleParityFixtureRoot, lane)
 }
 
 func assertGoogleParityPlanFixture(t *testing.T, lane, action, operationID, summaryField string, seedState bool) {
-	t.Helper()
-	statePath := filepath.Join(t.TempDir(), "state.db")
+	var seed func(*testing.T, string, string)
 	if seedState {
-		seedGoogleParityState(t, lane, statePath)
+		seed = seedGoogleParityState
 	}
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(googleParityFixtureRoot, lane, "ramen"),
-		StatePath:   statePath,
-		Action:      action,
-	})
-	if err != nil {
-		t.Fatalf("build %s %s Ramen fixture plan: %v", strings.ToUpper(lane), action, err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 {
-		t.Fatalf("%s %s Ramen fixture plan unusable: %#v", strings.ToUpper(lane), action, result.Plan)
-	}
-	resource := result.Plan.Resources[0]
-	if resource.Mapping == nil || resource.Mapping.OperationID != operationID {
-		t.Fatalf("%s %s operation = %#v, want %s", strings.ToUpper(lane), action, resource.Mapping, operationID)
-	}
-	if !googleParitySummaryHasOne(result.Plan.Summary, summaryField) {
-		t.Fatalf("%s %s plan summary = %#v, want one %s action", strings.ToUpper(lane), action, result.Plan.Summary, summaryField)
-	}
+	assertAPIParityPlanFixture(t, "Google", googleParityFixtureRoot, lane, action, operationID, summaryField, seed)
 }
 
 func seedGoogleParityState(t *testing.T, lane, statePath string) {
@@ -613,94 +547,36 @@ func googleParitySeedSnapshot(lane string) (state.ResourceSnapshot, error) {
 }
 
 func googleParitySummaryHasOne(summary tfplan.Summary, field string) bool {
-	switch field {
-	case "create":
-		return summary.Create == 1
-	case "read":
-		return summary.Read == 1
-	case "update":
-		return summary.Update == 1
-	case "delete":
-		return summary.Delete == 1
-	default:
-		return false
-	}
+	return apiParitySummaryHasOne(summary, field)
 }
 
 func compareGoogleParityObservations(observations []googleParityRuntimeObservation, fields []string) googleParityObservationComparison {
-	if len(observations) == 0 {
-		return googleParityObservationComparison{Matched: false, Fields: fields}
-	}
-	matched := true
-	first := observations[0].Fields
+	comparison := compareAPIParityObservationFields(observations, fields)
 	for _, observation := range observations {
-		for _, field := range fields {
-			if observation.Fields[field] != first[field] {
-				matched = false
-			}
-		}
 		if observation.Fields["exists"] != true {
-			matched = false
+			comparison.Matched = false
 		}
 	}
-	return googleParityObservationComparison{Matched: matched, Fields: fields}
+	return comparison
 }
 
 func googleParityFailure(runtime, class string, err error) googleParityRuntimeResult {
-	if err == nil {
-		err = errors.New("unknown Google parity failure")
-	}
-	return googleParityRuntimeResult{Failure: &googleParityRuntimeFailure{
-		Runtime: runtime,
-		Class:   class,
-		Message: err.Error(),
-	}}
+	return apiParityFailure("Google", runtime, class, err)
 }
 
 func compareOrUpdateGoogleParityRecording(t *testing.T, recording googleParityLiveRecording, path string) {
-	t.Helper()
-	data, err := json.MarshalIndent(recording, "", "  ")
-	if err != nil {
-		t.Fatalf("encode Google parity recording: %v", err)
-	}
-	data = append(data, '\n')
-	if os.Getenv(googleParityRecordEnv) == "1" {
-		if err := os.WriteFile(path, data, 0o644); err != nil {
-			t.Fatalf("write Google parity recording %s: %v", path, err)
-		}
-		return
-	}
-	want, err := os.ReadFile(path)
-	if os.IsNotExist(err) {
-		t.Logf("no committed Google parity recording at %s; live run was not recorded because %s is not set", path, googleParityRecordEnv)
-		return
-	}
-	if err != nil {
-		t.Fatalf("read committed Google parity recording %s: %v", path, err)
-	}
-	if !reflect.DeepEqual(normalizeGoogleParityRecording(t, want), normalizeGoogleParityRecording(t, data)) {
-		t.Fatalf("live Google parity recording differs from %s; rerun with %s=1 %s=1 only after reviewing sanitized live output", path, googleParityEnv, googleParityRecordEnv)
-	}
+	compareOrUpdateAPIParityRecording(t, "Google", googleParityEnv, googleParityRecordEnv, path, recording, true, normalizeGoogleParityRecording)
 }
 
 func normalizeGoogleParityRecording(t *testing.T, data []byte) googleParityLiveRecording {
-	t.Helper()
-	var recording googleParityLiveRecording
-	if err := json.Unmarshal(data, &recording); err != nil {
-		t.Fatalf("decode Google parity recording: %v", err)
-	}
-	recording.RecordedAt = ""
-	recording.DurationMS = 0
-	for i := range recording.Observations {
-		recording.Observations[i].DurationMS = 0
-		recording.Observations[i].Resource = normalizeGoogleParityGeneratedResource(recording.Lane, recording.Observations[i].Runtime, recording.Observations[i].Resource)
-		for key, value := range recording.Observations[i].Fields {
+	return normalizeAPIParityRecording(t, "Google", data, func(lane string, observation *apiParityRuntimeObservation) {
+		observation.Resource = normalizeGoogleParityGeneratedResource(lane, observation.Runtime, observation.Resource)
+		for key, value := range observation.Fields {
 			if valueString, ok := value.(string); ok {
-				recording.Observations[i].Fields[key] = normalizeGoogleParityGeneratedResource(recording.Lane, recording.Observations[i].Runtime, valueString)
+				observation.Fields[key] = normalizeGoogleParityGeneratedResource(lane, observation.Runtime, valueString)
 			}
 		}
-	}
-	return recording
+	})
 }
 
 func normalizeGoogleParityGeneratedResource(lane, runtime, value string) string {
@@ -730,29 +606,7 @@ func normalizeGoogleParityGeneratedResource(lane, runtime, value string) string 
 }
 
 func assertGoogleParityRequestBindings(t *testing.T, lane string, expected map[string][]string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(googleParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      googleParityActionForBindings(lane),
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for request bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for request bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	bindings := map[string][]string{}
-	for _, binding := range result.Plan.Resources[0].Mapping.RequestBindings {
-		bindings[binding.OperationRole] = append(bindings[binding.OperationRole], binding.RequestPath)
-	}
-	for role, wantPaths := range expected {
-		for _, wantPath := range wantPaths {
-			if !slices.Contains(bindings[role], wantPath) {
-				t.Fatalf("%s request bindings for role %s = %#v, want %s", strings.ToUpper(lane), role, bindings[role], wantPath)
-			}
-		}
-	}
+	assertAPIParityRequestBindings(t, "Google", googleParityFixtureRoot, lane, googleParityActionForBindings(lane), expected)
 }
 
 func googleParityActionForBindings(lane string) string {
@@ -794,27 +648,7 @@ func assertGoogleParityRequestBindingLocations(t *testing.T, lane string) {
 }
 
 func assertGoogleParityResponseBindings(t *testing.T, lane string, expected []string) {
-	t.Helper()
-	result, err := tfplan.Build(context.Background(), tfplan.Options{
-		ProjectPath: filepath.Join(googleParityFixtureRoot, lane, "ramen"),
-		StatePath:   filepath.Join(t.TempDir(), "state.db"),
-		Action:      "read",
-	})
-	if err != nil {
-		t.Fatalf("build %s Ramen fixture plan for response bindings: %v", strings.ToUpper(lane), err)
-	}
-	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil {
-		t.Fatalf("%s Ramen fixture plan unusable for response bindings: %#v", strings.ToUpper(lane), result.Plan)
-	}
-	var got []string
-	for _, binding := range result.Plan.Resources[0].Mapping.ResponseBindings {
-		got = append(got, binding.ResponsePath)
-	}
-	for _, want := range expected {
-		if !slices.Contains(got, want) {
-			t.Fatalf("%s response bindings = %#v, want %s", strings.ToUpper(lane), got, want)
-		}
-	}
+	assertAPIParityResponseBindings(t, "Google", googleParityFixtureRoot, lane, expected)
 }
 
 func assertGoogleParityUdonMetadata(t *testing.T, lane string) {
