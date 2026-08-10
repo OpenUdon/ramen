@@ -38,10 +38,10 @@ func Project(mapping *tfplan.MappingPlan, execResult executor.Result) (map[strin
 			deleteDottedAny(computed, binding.ResponsePath)
 		}
 		if binding.Identity || binding.ResponseDerivedIdentity {
-			setDottedAny(identity, binding.StatePath, value)
+			setDottedAny(identity, binding.StatePath, cloneAny(value))
 		}
 		if binding.Computed || binding.Observed {
-			setDottedAny(computed, binding.StatePath, value)
+			setDottedAny(computed, binding.StatePath, cloneAny(value))
 		}
 		if binding.Sensitive {
 			if binding.Identity || binding.ResponseDerivedIdentity {
@@ -132,9 +132,24 @@ func responseBindingValue(binding project.ResponseBinding, execResult executor.R
 func cloneAnyMap(values map[string]any) map[string]any {
 	out := map[string]any{}
 	for key, value := range values {
-		out[key] = value
+		out[key] = cloneAny(value)
 	}
 	return out
+}
+
+func cloneAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		return cloneAnyMap(typed)
+	case []any:
+		out := make([]any, len(typed))
+		for i := range typed {
+			out[i] = cloneAny(typed[i])
+		}
+		return out
+	default:
+		return value
+	}
 }
 
 func dottedAny(values map[string]any, path string) (any, bool) {
