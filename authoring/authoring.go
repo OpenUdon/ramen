@@ -3,12 +3,14 @@ package authoring
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/OpenUdon/apitools"
@@ -36,17 +38,19 @@ const (
 
 // Options configures the Ramen Authoring adapter.
 type Options struct {
-	Goal        string
-	ProjectName string
-	OutDir      string
-	Context     promptcontext.Context
-	Variables   []project.Variable
-	Resources   []project.Resource
-	Redaction   project.Redaction
-	Validate    bool
-	Graph       bool
-	Plan        bool
-	StatePath   string
+	Goal               string
+	ProjectName        string
+	OutDir             string
+	Context            promptcontext.Context
+	APISources         []project.APISource
+	Variables          []project.Variable
+	Resources          []project.Resource
+	CandidateWorkflows []project.CandidateWorkflow
+	Redaction          project.Redaction
+	Validate           bool
+	Graph              bool
+	Plan               bool
+	StatePath          string
 }
 
 // Result is the adapter outcome. Report is the product-neutral Authoring
@@ -59,21 +63,49 @@ type Result struct {
 	Validation     *ramenvalidate.Result
 	Graph          *graph.Document
 	Plan           *plan.Result
+	Backups        []string
+}
+
+// SourceMaterialization is one digest-bound local API source copy included in
+// the same transaction as the generated project documents.
+type SourceMaterialization struct {
+	Kind       string
+	ID         string
+	SourcePath string
+	TargetPath string
+	SHA256     string
+	Content    []byte
+}
+
+// MaterializeOptions configures proposal-approved, transactional project
+// output. Document and Sources must already have been reviewed by the caller.
+type MaterializeOptions struct {
+	Document    *uws1.Document
+	OutDir      string
+	Sources     []SourceMaterialization
+	Force       bool
+	Draft       bool
+	RemovePaths []string
+	Validate    bool
+	Graph       bool
+	Plan        bool
+	StatePath   string
 }
 
 type state struct {
-	Goal           string
-	ProjectName    string
-	Context        promptcontext.Context
-	Variables      []project.Variable
-	Resources      []project.Resource
-	Redaction      project.Redaction
-	Draft          *uws1.Document
-	ProjectPath    string
-	ProjectHCLPath string
-	Validation     *ramenvalidate.Result
-	Graph          *graph.Document
-	Plan           *plan.Result
+	Goal               string
+	ProjectName        string
+	Context            promptcontext.Context
+	Variables          []project.Variable
+	Resources          []project.Resource
+	CandidateWorkflows []project.CandidateWorkflow
+	Redaction          project.Redaction
+	Draft              *uws1.Document
+	ProjectPath        string
+	ProjectHCLPath     string
+	Validation         *ramenvalidate.Result
+	Graph              *graph.Document
+	Plan               *plan.Result
 }
 
 type artifact struct {
@@ -82,6 +114,524 @@ type artifact struct {
 	Validation *ramenvalidate.Result
 	Graph      *graph.Document
 	Plan       *plan.Result
+}
+
+// BuildProject constructs a native Ramen/UWS document without writing files.
+// Interactive callers use this for the complete pre-write proposal.
+func BuildProject(opts Options) (*uws1.Document, error) {
+	runtime := runtime{outDir: firstNonEmpty(opts.OutDir, ".")}
+	state := state{
+		Goal: strings.TrimSpace(opts.Goal), ProjectName: strings.TrimSpace(opts.ProjectName),
+		Context: promptcontext.Normalize(opts.Context), Variables: append([]project.Variable(nil), opts.Variables...),
+		Resources: append([]project.Resource(nil), opts.Resources...), CandidateWorkflows: append([]project.CandidateWorkflow(nil), opts.CandidateWorkflows...), Redaction: opts.Redaction,
+	}
+	runtime.Normalize(&state)
+	issues := runtime.Readiness(state, nil)
+	if !sharedreadiness.Ready(issues) {
+		if top := sharedreadiness.TopIssue(issues); top != nil {
+			return nil, fmt.Errorf("%s: %s", top.Code, top.Message)
+		}
+		return nil, fmt.Errorf("Ramen authoring input is not ready")
+	}
+	return buildDocument(state), nil
+}
+
+// BuildIncompleteProject constructs an explicitly non-executable draft for an
+// approved technical deferral. It deliberately contains no operations or
+// workflows, so it cannot be mistaken for a runnable project.
+func BuildIncompleteProject(opts Options) (*uws1.Document, error) {
+	goal := strings.TrimSpace(opts.Goal)
+	name := strings.TrimSpace(opts.ProjectName)
+	if goal == "" || name == "" {
+		return nil, fmt.Errorf("incomplete Ramen project requires goal and project name")
+	}
+	profile := project.Profile{
+		Version:            project.Version,
+		APISources:         normalizeDraftAPISources(opts.APISources),
+		CandidateWorkflows: normalizeCandidateWorkflows(opts.CandidateWorkflows),
+		Metadata:           map[string]any{"draft_status": "incomplete", "outcome": goal},
+	}
+	if err := project.ValidateProfile(profile); err != nil {
+		return nil, err
+	}
+	return &uws1.Document{
+		UWS:        "1.4.0",
+		Info:       &uws1.Info{Title: name, Version: "0.1.0"},
+		Extensions: map[string]any{project.ExtensionKey: profile},
+	}, nil
+}
+
+// MaterializeProject validates a reviewed document and atomically installs
+// the YAML, HCL, and selected local API source files. Existing identical files
+// are reused. Differing files require Force and are retained as backups.
+func MaterializeProject(ctx context.Context, opts MaterializeOptions) (Result, error) {
+	if opts.Document == nil {
+		return Result{}, fmt.Errorf("reviewed Ramen project document is required")
+	}
+	outDir := filepath.Clean(strings.TrimSpace(opts.OutDir))
+	if strings.TrimSpace(opts.OutDir) == "" {
+		return Result{}, fmt.Errorf("output directory is required")
+	}
+	document, err := cloneDocument(opts.Document)
+	if err != nil {
+		return Result{}, err
+	}
+	sourceFiles, err := prepareSourceMaterializations(opts.Sources)
+	if err != nil {
+		return Result{}, err
+	}
+	if err := applyMaterializedSourcePaths(document, opts.Sources); err != nil {
+		return Result{}, err
+	}
+	yamlData, err := uwsconvert.MarshalYAML(document)
+	if err != nil {
+		return Result{}, err
+	}
+	yamlData = newlineTerminated(yamlData)
+	hclData, err := uwsconvert.MarshalHCL(document)
+	if err != nil {
+		return Result{}, err
+	}
+	hclData = newlineTerminated(hclData)
+	yamlPath := project.DefaultFile
+	hclPath := "project.uws.hcl"
+	if opts.Draft {
+		yamlPath = project.DraftFile
+		hclPath = project.DraftHCL
+	}
+	files := map[string][]byte{yamlPath: yamlData, hclPath: hclData}
+	for path, data := range sourceFiles {
+		if prior, exists := files[path]; exists && !bytes.Equal(prior, data) {
+			return Result{}, fmt.Errorf("materialization target collision at %q", path)
+		}
+		files[path] = data
+	}
+
+	stageDir, err := os.MkdirTemp("", "ramen-icot-stage-*")
+	if err != nil {
+		return Result{}, err
+	}
+	defer os.RemoveAll(stageDir)
+	if err := writeStageFiles(stageDir, files); err != nil {
+		return Result{}, err
+	}
+	stageProjectPath := filepath.Join(stageDir, yamlPath)
+	result := Result{}
+	if opts.Validate {
+		validation, err := ramenvalidate.Run(ctx, ramenvalidate.Options{ProjectPath: stageProjectPath})
+		if err != nil {
+			return Result{}, err
+		}
+		result.Validation = validation
+		if !validation.Valid {
+			return Result{}, fmt.Errorf("generated Ramen project did not pass validation")
+		}
+	}
+	if opts.Graph || opts.Plan {
+		loaded, err := project.Load(stageProjectPath)
+		if err != nil {
+			return Result{}, err
+		}
+		if opts.Graph {
+			built := graph.BuildProject(loaded)
+			result.Graph = &built
+			if graphHasErrors(built) {
+				return Result{}, fmt.Errorf("generated Ramen project graph contains errors")
+			}
+		}
+		if opts.Plan {
+			planned, err := plan.Build(ctx, plan.Options{ProjectPath: stageProjectPath, StatePath: strings.TrimSpace(opts.StatePath)})
+			if err != nil {
+				return Result{}, err
+			}
+			result.Plan = planned
+			if planned.Plan.Errored {
+				return Result{}, fmt.Errorf("generated Ramen project plan contains errors")
+			}
+		}
+	}
+	backups, err := commitMaterializedFiles(outDir, files, opts.Force, opts.RemovePaths)
+	if err != nil {
+		return Result{}, err
+	}
+	result.ProjectPath = filepath.Join(outDir, yamlPath)
+	result.ProjectHCLPath = filepath.Join(outDir, hclPath)
+	result.Backups = backups
+	return result, nil
+}
+
+func cloneDocument(document *uws1.Document) (*uws1.Document, error) {
+	data, err := json.Marshal(document)
+	if err != nil {
+		return nil, err
+	}
+	var clone uws1.Document
+	if err := json.Unmarshal(data, &clone); err != nil {
+		return nil, err
+	}
+	return &clone, nil
+}
+
+func prepareSourceMaterializations(sources []SourceMaterialization) (map[string][]byte, error) {
+	files := map[string][]byte{}
+	for _, source := range sources {
+		source.SourcePath = strings.TrimSpace(source.SourcePath)
+		target, err := safeRelativeTarget(source.TargetPath)
+		if err != nil {
+			return nil, fmt.Errorf("source %s:%s: %w", source.Kind, source.ID, err)
+		}
+		data := append([]byte(nil), source.Content...)
+		if len(data) == 0 {
+			info, err := os.Lstat(source.SourcePath)
+			if err != nil {
+				return nil, fmt.Errorf("source %s:%s: %w", source.Kind, source.ID, err)
+			}
+			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+				return nil, fmt.Errorf("source %s:%s must be a non-symlink regular file", source.Kind, source.ID)
+			}
+			if info.Size() > apitools.DefaultMaxBytes {
+				return nil, fmt.Errorf("source %s:%s exceeds the %d-byte limit", source.Kind, source.ID, apitools.DefaultMaxBytes)
+			}
+			data, err = os.ReadFile(source.SourcePath)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if int64(len(data)) > apitools.DefaultMaxBytes {
+			return nil, fmt.Errorf("source %s:%s exceeds the %d-byte limit", source.Kind, source.ID, apitools.DefaultMaxBytes)
+		}
+		digest := fmt.Sprintf("%x", sha256.Sum256(data))
+		if strings.TrimSpace(source.SHA256) == "" || !strings.EqualFold(digest, source.SHA256) {
+			return nil, fmt.Errorf("source %s:%s digest changed after proposal", source.Kind, source.ID)
+		}
+		if prior, exists := files[target]; exists && !bytes.Equal(prior, data) {
+			return nil, fmt.Errorf("source materialization target collision at %q", target)
+		}
+		files[target] = data
+	}
+	return files, nil
+}
+
+func applyMaterializedSourcePaths(document *uws1.Document, sources []SourceMaterialization) error {
+	profile, err := project.ProfileFromDocument(document)
+	if err != nil {
+		return err
+	}
+	paths := map[string]string{}
+	for _, source := range sources {
+		target, err := safeRelativeTarget(source.TargetPath)
+		if err != nil {
+			return err
+		}
+		paths[sourceKey(source.Kind, source.ID)] = filepath.ToSlash(target)
+	}
+	for i := range profile.APISources {
+		if target := paths[sourceKey(profile.APISources[i].Kind, profile.APISources[i].ID)]; target != "" {
+			profile.APISources[i].Path = target
+		}
+	}
+	for i := range profile.Resources {
+		for roleName, role := range profile.Resources[i].Operations {
+			if target := paths[sourceKey(role.SourceKind, role.SourceID)]; target != "" {
+				role.SourcePath = target
+				profile.Resources[i].Operations[roleName] = role
+			}
+		}
+	}
+	if document.Extensions == nil {
+		document.Extensions = map[string]any{}
+	}
+	document.Extensions[project.ExtensionKey] = profile
+	for _, description := range document.SourceDescriptions {
+		if description == nil {
+			continue
+		}
+		for _, source := range profile.APISources {
+			if description.Name == source.ID {
+				description.URL = source.Path
+				break
+			}
+		}
+	}
+	return nil
+}
+
+func safeRelativeTarget(path string) (string, error) {
+	path = filepath.Clean(strings.TrimSpace(path))
+	if path == "." || filepath.IsAbs(path) || path == ".." || strings.HasPrefix(path, ".."+string(filepath.Separator)) {
+		return "", fmt.Errorf("target path %q must stay inside the output directory", path)
+	}
+	return path, nil
+}
+
+func newlineTerminated(data []byte) []byte {
+	if len(data) == 0 || data[len(data)-1] != '\n' {
+		return append(data, '\n')
+	}
+	return data
+}
+
+func writeStageFiles(root string, files map[string][]byte) error {
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	for _, path := range paths {
+		target := filepath.Join(root, filepath.FromSlash(path))
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		if err := os.WriteFile(target, files[path], 0o644); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type pendingMaterializedFile struct {
+	relative  string
+	target    string
+	temp      string
+	backup    string
+	existed   bool
+	skip      bool
+	installed bool
+}
+
+type pendingRemoval struct {
+	target string
+	temp   string
+	moved  bool
+}
+
+func commitMaterializedFiles(outDir string, files map[string][]byte, force bool, removePaths []string) ([]string, error) {
+	return commitMaterializedFilesWithRename(outDir, files, force, removePaths, os.Rename)
+}
+
+func commitMaterializedFilesWithRename(outDir string, files map[string][]byte, force bool, removePaths []string, rename func(string, string) error) ([]string, error) {
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	slices.Sort(paths)
+	pending := make([]pendingMaterializedFile, 0, len(paths))
+	cleanupTemps := func() {
+		for _, file := range pending {
+			if file.temp != "" {
+				_ = os.Remove(file.temp)
+			}
+		}
+	}
+	for _, relative := range paths {
+		target := filepath.Join(outDir, filepath.FromSlash(relative))
+		if err := prepareMaterializationParent(outDir, filepath.Dir(target)); err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		file := pendingMaterializedFile{relative: relative, target: target}
+		if info, err := os.Lstat(target); err == nil {
+			if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+				cleanupTemps()
+				return nil, fmt.Errorf("materialization target %q is not a non-symlink regular file", target)
+			}
+			existing, err := os.ReadFile(target)
+			if err != nil {
+				cleanupTemps()
+				return nil, err
+			}
+			if bytes.Equal(existing, files[relative]) {
+				file.skip = true
+				pending = append(pending, file)
+				continue
+			}
+			if !force {
+				cleanupTemps()
+				return nil, fmt.Errorf("materialization target %q differs; use --force to replace it with a backup", target)
+			}
+			file.existed = true
+			file.backup = availableBackupPath(target)
+		} else if !os.IsNotExist(err) {
+			cleanupTemps()
+			return nil, err
+		}
+		temporary, err := os.CreateTemp(filepath.Dir(target), ".ramen-materialize-*")
+		if err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		file.temp = temporary.Name()
+		if err := temporary.Chmod(0o644); err != nil {
+			temporary.Close()
+			cleanupTemps()
+			return nil, err
+		}
+		if _, err := temporary.Write(files[relative]); err != nil {
+			temporary.Close()
+			cleanupTemps()
+			return nil, err
+		}
+		if err := temporary.Sync(); err != nil {
+			temporary.Close()
+			cleanupTemps()
+			return nil, err
+		}
+		if err := temporary.Close(); err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		pending = append(pending, file)
+	}
+	removals := make([]pendingRemoval, 0, len(removePaths))
+	for _, requested := range removePaths {
+		relative, err := safeRelativeTarget(requested)
+		if err != nil {
+			cleanupTemps()
+			return nil, fmt.Errorf("obsolete materialization path: %w", err)
+		}
+		if _, conflicts := files[relative]; conflicts {
+			cleanupTemps()
+			return nil, fmt.Errorf("obsolete materialization path %q conflicts with an output", relative)
+		}
+		target := filepath.Join(outDir, filepath.FromSlash(relative))
+		if err := prepareMaterializationParent(outDir, filepath.Dir(target)); err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		info, err := os.Lstat(target)
+		if os.IsNotExist(err) {
+			continue
+		}
+		if err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.Mode().IsRegular() {
+			cleanupTemps()
+			return nil, fmt.Errorf("obsolete materialization target %q is not a non-symlink regular file", target)
+		}
+		holder, err := os.CreateTemp(filepath.Dir(target), ".ramen-obsolete-*")
+		if err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		temp := holder.Name()
+		if err := holder.Close(); err != nil {
+			_ = os.Remove(temp)
+			cleanupTemps()
+			return nil, err
+		}
+		if err := os.Remove(temp); err != nil {
+			cleanupTemps()
+			return nil, err
+		}
+		removals = append(removals, pendingRemoval{target: target, temp: temp})
+	}
+	rollback := func(cause error) ([]string, error) {
+		for i := len(pending) - 1; i >= 0; i-- {
+			file := pending[i]
+			if file.installed {
+				_ = os.Remove(file.target)
+			}
+			if file.backup != "" {
+				_ = rename(file.backup, file.target)
+			}
+		}
+		for i := len(removals) - 1; i >= 0; i-- {
+			if removals[i].moved {
+				_ = rename(removals[i].temp, removals[i].target)
+			}
+		}
+		cleanupTemps()
+		return nil, cause
+	}
+	var backups []string
+	for i := range removals {
+		if err := rename(removals[i].target, removals[i].temp); err != nil {
+			return rollback(err)
+		}
+		removals[i].moved = true
+	}
+	for i := range pending {
+		file := &pending[i]
+		if file.skip {
+			continue
+		}
+		if file.existed {
+			if err := rename(file.target, file.backup); err != nil {
+				return rollback(err)
+			}
+			backups = append(backups, file.backup)
+		}
+		if err := rename(file.temp, file.target); err != nil {
+			return rollback(err)
+		}
+		file.temp = ""
+		file.installed = true
+	}
+	for _, removal := range removals {
+		_ = os.Remove(removal.temp)
+	}
+	return backups, nil
+}
+
+func prepareMaterializationParent(outDir, parent string) error {
+	root, err := filepath.Abs(filepath.Clean(outDir))
+	if err != nil {
+		return err
+	}
+	parent, err = filepath.Abs(filepath.Clean(parent))
+	if err != nil {
+		return err
+	}
+	relative, err := filepath.Rel(root, parent)
+	if err != nil || relative == ".." || strings.HasPrefix(relative, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("materialization parent %q escapes output directory %q", parent, root)
+	}
+	if err := os.MkdirAll(root, 0o755); err != nil {
+		return err
+	}
+	rootInfo, err := os.Lstat(root)
+	if err != nil {
+		return err
+	}
+	if rootInfo.Mode()&os.ModeSymlink != 0 || !rootInfo.IsDir() {
+		return fmt.Errorf("materialization parent %q is not a non-symlink directory", root)
+	}
+	if relative == "." {
+		return nil
+	}
+	current := root
+	for _, component := range strings.Split(relative, string(filepath.Separator)) {
+		current = filepath.Join(current, component)
+		info, err := os.Lstat(current)
+		if os.IsNotExist(err) {
+			if err := os.Mkdir(current, 0o755); err != nil {
+				return err
+			}
+			info, err = os.Lstat(current)
+		}
+		if err != nil {
+			return err
+		}
+		if info.Mode()&os.ModeSymlink != 0 || !info.IsDir() {
+			return fmt.Errorf("materialization parent %q is not a non-symlink directory", current)
+		}
+	}
+	return nil
+}
+
+func availableBackupPath(path string) string {
+	base := path + ".bak"
+	if _, err := os.Lstat(base); os.IsNotExist(err) {
+		return base
+	}
+	for i := 2; ; i++ {
+		candidate := fmt.Sprintf("%s.%d", base, i)
+		if _, err := os.Lstat(candidate); os.IsNotExist(err) {
+			return candidate
+		}
+	}
 }
 
 // DraftProject drafts a native Ramen/UWS project from an operator goal,
@@ -96,12 +646,13 @@ func DraftProject(ctx context.Context, opts Options) (Result, error) {
 		statePath: strings.TrimSpace(opts.StatePath),
 	}
 	initial := state{
-		Goal:        strings.TrimSpace(opts.Goal),
-		ProjectName: strings.TrimSpace(opts.ProjectName),
-		Context:     promptcontext.Normalize(opts.Context),
-		Variables:   append([]project.Variable(nil), opts.Variables...),
-		Resources:   append([]project.Resource(nil), opts.Resources...),
-		Redaction:   opts.Redaction,
+		Goal:               strings.TrimSpace(opts.Goal),
+		ProjectName:        strings.TrimSpace(opts.ProjectName),
+		Context:            promptcontext.Normalize(opts.Context),
+		Variables:          append([]project.Variable(nil), opts.Variables...),
+		Resources:          append([]project.Resource(nil), opts.Resources...),
+		CandidateWorkflows: append([]project.CandidateWorkflow(nil), opts.CandidateWorkflows...),
+		Redaction:          opts.Redaction,
 	}
 	run, err := sharedicot.RunRuntime[state, promptcontext.Context, artifact](
 		ctx,
@@ -157,6 +708,7 @@ func (r runtime) Normalize(s *state) {
 	s.Context = promptcontext.Normalize(s.Context)
 	s.Variables = normalizeVariables(s.Variables)
 	s.Resources = normalizeResources(s.Resources)
+	s.CandidateWorkflows = normalizeCandidateWorkflows(s.CandidateWorkflows)
 	s.Context = projectRelativePromptContext(r.outDir, s.Context)
 	s.Resources = projectRelativeResources(r.outDir, s.Resources)
 	s.Redaction = normalizeRedaction(s.Redaction)
@@ -303,11 +855,12 @@ func buildDocument(s state) *uws1.Document {
 	primaryRole := primaryOperationRole(resources)
 	localOperationID := primaryRole + "_" + resourceName
 	profile := project.Profile{
-		Version:    project.Version,
-		APISources: apiSourcesForContext(s.Context, source, operation, sourceID, sourceKind, resources),
-		Variables:  variablesForResources(s.Variables, resources),
-		Resources:  resources,
-		Redaction:  s.Redaction,
+		Version:            project.Version,
+		APISources:         apiSourcesForContext(s.Context, source, operation, sourceID, sourceKind, resources),
+		Variables:          variablesForResources(s.Variables, resources),
+		Resources:          resources,
+		CandidateWorkflows: normalizeCandidateWorkflows(s.CandidateWorkflows),
+		Redaction:          s.Redaction,
 	}
 	return &uws1.Document{
 		UWS: "1.4.0",
@@ -1953,6 +2506,34 @@ func normalizeResources(resources []project.Resource) []project.Resource {
 		}
 		out = append(out, resource)
 	}
+	return out
+}
+
+func normalizeCandidateWorkflows(candidates []project.CandidateWorkflow) []project.CandidateWorkflow {
+	out := append([]project.CandidateWorkflow(nil), candidates...)
+	for i := range out {
+		out[i].Title = strings.TrimSpace(out[i].Title)
+		out[i].Outcome = strings.TrimSpace(out[i].Outcome)
+		out[i].DeferralReason = strings.TrimSpace(out[i].DeferralReason)
+		out[i].PromotionTrigger = strings.TrimSpace(out[i].PromotionTrigger)
+	}
+	slices.SortStableFunc(out, func(a, b project.CandidateWorkflow) int { return strings.Compare(a.Title, b.Title) })
+	return out
+}
+
+func normalizeDraftAPISources(sources []project.APISource) []project.APISource {
+	out := append([]project.APISource(nil), sources...)
+	for i := range out {
+		out[i].Kind = strings.TrimSpace(out[i].Kind)
+		out[i].ID = strings.TrimSpace(out[i].ID)
+		out[i].Path = filepath.ToSlash(filepath.Clean(strings.TrimSpace(out[i].Path)))
+	}
+	slices.SortStableFunc(out, func(a, b project.APISource) int {
+		if a.Kind != b.Kind {
+			return strings.Compare(a.Kind, b.Kind)
+		}
+		return strings.Compare(a.ID, b.ID)
+	})
 	return out
 }
 

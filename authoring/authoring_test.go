@@ -2,6 +2,8 @@ package authoring
 
 import (
 	"context"
+	"crypto/sha256"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -15,6 +17,182 @@ import (
 	"github.com/OpenUdon/ramen/project"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 )
+
+func TestMaterializeProjectIsProposalGatedAndTransactional(t *testing.T) {
+	sourceRoot := t.TempDir()
+	sourcePath := filepath.Join(sourceRoot, "api.yaml")
+	writeTestOpenAPI(t, sourcePath, "createWidget")
+	sourceData, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(sourceData))
+	ctx := promptcontext.Context{
+		Version:    promptcontext.Version,
+		Sources:    []promptcontext.SourceDocument{{ID: "widgets", Kind: "openapi", URI: sourcePath}},
+		Operations: []promptcontext.OperationCandidate{{ID: "createWidget", OperationID: "createWidget", SourceID: "widgets", Verb: "POST", Path: "/widgets"}},
+	}
+	resource := APILifecycleResource(ctx, ctx.Operations[0], "Create a widget", "widgets")
+	outDir := filepath.Join(t.TempDir(), "out")
+	document, err := BuildProject(Options{Goal: "Create a widget", ProjectName: "widgets", OutDir: outDir, Context: ctx, Resources: []project.Resource{resource}})
+	if err != nil {
+		t.Fatalf("build: %v", err)
+	}
+	if _, err := os.Stat(outDir); !os.IsNotExist(err) {
+		t.Fatalf("build wrote output directory before approval: %v", err)
+	}
+	target := filepath.Join(outDir, "sources", "openapi", "widgets.yaml")
+	mustWriteAuthoringTestFile(t, target, []byte("different\n"))
+	materialize := MaterializeOptions{
+		Document: document, OutDir: outDir,
+		Sources:  []SourceMaterialization{{Kind: "openapi", ID: "widgets", SourcePath: sourcePath, TargetPath: "sources/openapi/widgets.yaml", SHA256: digest}},
+		Validate: true,
+	}
+	if _, err := MaterializeProject(context.Background(), materialize); err == nil || !strings.Contains(err.Error(), "use --force") {
+		t.Fatalf("collision error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
+		t.Fatalf("collision left a partial project: %v", err)
+	}
+	materialize.Force = true
+	result, err := MaterializeProject(context.Background(), materialize)
+	if err != nil {
+		t.Fatalf("force materialize: %v", err)
+	}
+	if result.ProjectPath == "" || len(result.Backups) != 1 {
+		t.Fatalf("result = %#v", result)
+	}
+	backupData, err := os.ReadFile(result.Backups[0])
+	if err != nil || string(backupData) != "different\n" {
+		t.Fatalf("backup data = %q, error = %v", backupData, err)
+	}
+	loaded, err := project.Load(result.ProjectPath)
+	if err != nil {
+		t.Fatalf("load materialized project: %v", err)
+	}
+	if got := loaded.Profile.APISources[0].Path; got != target {
+		t.Fatalf("materialized source path = %q, want %q", got, target)
+	}
+	materialize.Force = false
+	reused, err := MaterializeProject(context.Background(), materialize)
+	if err != nil || len(reused.Backups) != 0 {
+		t.Fatalf("identical collision was not reused: %#v / %v", reused, err)
+	}
+}
+
+func TestMaterializeProjectAcceptsDigestBoundEmbeddedSource(t *testing.T) {
+	content := []byte(`{"openapi":"3.0.0","info":{"title":"Remote","version":"1"},"paths":{"/widgets":{"get":{"operationId":"listWidgets","responses":{"200":{"description":"ok"}}}}}}`)
+	digest := fmt.Sprintf("%x", sha256.Sum256(content))
+	ctx := promptcontext.Context{
+		Version:    promptcontext.Version,
+		Sources:    []promptcontext.SourceDocument{{ID: "remote", Kind: "openapi", URI: "https://example.com/openapi.json"}},
+		Operations: []promptcontext.OperationCandidate{{ID: "listWidgets", OperationID: "listWidgets", SourceID: "remote", Verb: "GET", Path: "/widgets"}},
+	}
+	outDir := t.TempDir()
+	document, err := BuildProject(Options{Goal: "List widgets", ProjectName: "widgets", OutDir: outDir, Context: ctx})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := MaterializeProject(context.Background(), MaterializeOptions{
+		Document: document, OutDir: outDir,
+		Sources: []SourceMaterialization{{Kind: "openapi", ID: "remote", SourcePath: "https://example.com/openapi.json", TargetPath: "sources/openapi/remote.json", SHA256: digest, Content: content}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := os.ReadFile(filepath.Join(outDir, "sources", "openapi", "remote.json"))
+	if err != nil || string(got) != string(content) || result.ProjectPath == "" {
+		t.Fatalf("embedded materialization = %q, %#v, %v", got, result, err)
+	}
+}
+
+func TestMaterializeProjectRejectsChangedSourceDigest(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "api.yaml")
+	writeTestOpenAPI(t, sourcePath, "listWidgets")
+	ctx := promptcontext.Context{
+		Version:    promptcontext.Version,
+		Sources:    []promptcontext.SourceDocument{{ID: "widgets", Kind: "openapi", URI: sourcePath}},
+		Operations: []promptcontext.OperationCandidate{{ID: "listWidgets", OperationID: "listWidgets", SourceID: "widgets", Verb: "GET", Path: "/widgets"}},
+	}
+	document, err := BuildProject(Options{Goal: "List widgets", ProjectName: "widgets", OutDir: t.TempDir(), Context: ctx})
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = MaterializeProject(context.Background(), MaterializeOptions{
+		Document: document, OutDir: t.TempDir(),
+		Sources: []SourceMaterialization{{Kind: "openapi", ID: "widgets", SourcePath: sourcePath, TargetPath: "sources/openapi/widgets.yaml", SHA256: strings.Repeat("0", 64)}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "digest changed") {
+		t.Fatalf("error = %v", err)
+	}
+}
+
+func TestMaterializeProjectRejectsSymlinkedTargetParent(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "api.yaml")
+	writeTestOpenAPI(t, sourcePath, "listWidgets")
+	sourceData, err := os.ReadFile(sourcePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	digest := fmt.Sprintf("%x", sha256.Sum256(sourceData))
+	ctx := promptcontext.Context{
+		Version:    promptcontext.Version,
+		Sources:    []promptcontext.SourceDocument{{ID: "widgets", Kind: "openapi", URI: sourcePath}},
+		Operations: []promptcontext.OperationCandidate{{ID: "listWidgets", OperationID: "listWidgets", SourceID: "widgets", Verb: "GET", Path: "/widgets"}},
+	}
+	outDir := t.TempDir()
+	document, err := BuildProject(Options{Goal: "List widgets", ProjectName: "widgets", OutDir: outDir, Context: ctx})
+	if err != nil {
+		t.Fatal(err)
+	}
+	outside := t.TempDir()
+	if err := os.Symlink(outside, filepath.Join(outDir, "sources")); err != nil {
+		t.Fatal(err)
+	}
+	_, err = MaterializeProject(context.Background(), MaterializeOptions{
+		Document: document, OutDir: outDir,
+		Sources: []SourceMaterialization{{Kind: "openapi", ID: "widgets", SourcePath: sourcePath, TargetPath: "sources/openapi/widgets.yaml", SHA256: digest}},
+	})
+	if err == nil || !strings.Contains(err.Error(), "non-symlink directory") {
+		t.Fatalf("symlink parent error = %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outside, "openapi", "widgets.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("materialization escaped through symlink: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
+		t.Fatalf("symlink failure left partial project: %v", err)
+	}
+}
+
+func TestMaterializationTransactionRollsBackMidCommitFailure(t *testing.T) {
+	outDir := t.TempDir()
+	for _, name := range []string{"a.txt", "b.txt"} {
+		mustWriteAuthoringTestFile(t, filepath.Join(outDir, name), []byte("old-"+name+"\n"))
+	}
+	injected := fmt.Errorf("injected rename failure")
+	rename := func(oldPath, newPath string) error {
+		if strings.Contains(filepath.Base(oldPath), ".ramen-materialize-") && filepath.Base(newPath) == "b.txt" {
+			return injected
+		}
+		return os.Rename(oldPath, newPath)
+	}
+	_, err := commitMaterializedFilesWithRename(outDir, map[string][]byte{
+		"a.txt": []byte("new-a\n"),
+		"b.txt": []byte("new-b\n"),
+	}, true, nil, rename)
+	if err == nil || !strings.Contains(err.Error(), injected.Error()) {
+		t.Fatalf("transaction error = %v", err)
+	}
+	for _, name := range []string{"a.txt", "b.txt"} {
+		data, readErr := os.ReadFile(filepath.Join(outDir, name))
+		if readErr != nil || string(data) != "old-"+name+"\n" {
+			t.Fatalf("rollback %s = %q, %v", name, data, readErr)
+		}
+		if matches, _ := filepath.Glob(filepath.Join(outDir, name+".bak*")); len(matches) != 0 {
+			t.Fatalf("rollback left backups for %s: %#v", name, matches)
+		}
+	}
+}
 
 func TestDraftProjectWritesAndValidatesSkeleton(t *testing.T) {
 	root := t.TempDir()

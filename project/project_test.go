@@ -75,6 +75,34 @@ func TestLoadPreservesRemoteSourcePaths(t *testing.T) {
 	}
 }
 
+func TestCandidateWorkflowsRoundTripAsNonExecutableMetadata(t *testing.T) {
+	root := t.TempDir()
+	writeProjectDocumentForTest(t, filepath.Join(root, DefaultJSON), Profile{
+		Version: Version,
+		CandidateWorkflows: []CandidateWorkflow{
+			{Title: "Send notifications", Outcome: "Notify owners", DeferralReason: "Inventory is active", PromotionTrigger: "Inventory workflow is complete"},
+			{Title: "Audit widgets", Outcome: "Record widget changes", DeferralReason: "Inventory is active", PromotionTrigger: "Audit is prioritized"},
+		},
+	})
+	doc, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Profile.CandidateWorkflows) != 2 || doc.Profile.CandidateWorkflows[0].Title != "Audit widgets" {
+		t.Fatalf("candidate workflows = %#v", doc.Profile.CandidateWorkflows)
+	}
+	if len(doc.Profile.Resources) != 0 {
+		t.Fatalf("candidate workflows became executable resources: %#v", doc.Profile.Resources)
+	}
+}
+
+func TestCandidateWorkflowValidationRejectsIncompleteShape(t *testing.T) {
+	err := ValidateProfile(Profile{Version: Version, CandidateWorkflows: []CandidateWorkflow{{Title: "Later"}}})
+	if err == nil || !strings.Contains(err.Error(), "candidate_workflows") {
+		t.Fatalf("validation error = %v", err)
+	}
+}
+
 func TestLoadRequiresRamenProfileExtension(t *testing.T) {
 	root := t.TempDir()
 	path := filepath.Join(root, DefaultJSON)

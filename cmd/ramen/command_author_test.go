@@ -15,6 +15,7 @@ import (
 	sharedicotcli "github.com/OpenUdon/authoring/icotcli"
 	sharedpromptcontext "github.com/OpenUdon/authoring/promptcontext"
 	sharedreport "github.com/OpenUdon/authoring/report"
+	ramenicot "github.com/OpenUdon/ramen/internal/icot"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	uwsconvert "github.com/OpenUdon/uws/convert"
@@ -206,9 +207,9 @@ func TestCLIIcotNoLLMWritesProject(t *testing.T) {
 	sourcePath := filepath.Join(root, "api.yaml")
 	writeICOTOpenAPIForCLITest(t, sourcePath)
 	outDir := filepath.Join(root, "icot")
-	answersPath := filepath.Join(root, "answers.txt")
-	mustWriteCLIFile(t, answersPath, []byte("createWidget\n"))
-	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "Create a widget", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json")
+	answersPath := filepath.Join(root, "answers.json")
+	writeICOTV2Answers(t, answersPath, "createWidget", "approve", "approve")
+	cmd := helperCommand("icot", "--no-llm", "--answers", answersPath, "--goal", "Create a widget", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -236,15 +237,22 @@ func TestCLIIcotNoLLMWritesProject(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generated icot project does not load: %v", err)
 	}
-	if got := doc.Profile.APISources[0].Path; got != sourcePath {
-		t.Fatalf("api source path = %q, want %q", got, sourcePath)
+	wantSourcePath := filepath.Join(outDir, "sources", "openapi", "widgets.yaml")
+	if got := doc.Profile.APISources[0].Path; got != wantSourcePath {
+		t.Fatalf("api source path = %q, want %q", got, wantSourcePath)
 	}
 	projectText, err := os.ReadFile(filepath.Join(outDir, project.DefaultFile))
 	if err != nil {
 		t.Fatalf("read generated icot project: %v", err)
 	}
-	if !strings.Contains(string(projectText), "../api.yaml") || strings.Contains(string(projectText), "widgets.yaml") {
-		t.Fatalf("generated project did not preserve local API source path:\n%s", projectText)
+	if !strings.Contains(string(projectText), "sources/openapi/widgets.yaml") || strings.Contains(string(projectText), sourcePath) {
+		t.Fatalf("generated project did not materialize its digest-bound API source:\n%s", projectText)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, ".icot", "transcript.json")); err != nil {
+		t.Fatalf("default transcript is not under .icot: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(outDir, ".icot", "session.json")); !os.IsNotExist(err) {
+		t.Fatalf("completed run retained obsolete default session: %v", err)
 	}
 	validateCmd := helperCommand("validate", "--project", outDir)
 	if validateOutput, err := validateCmd.CombinedOutput(); err != nil {
@@ -260,6 +268,9 @@ func TestCLIIcotNoLLMWritesProject(t *testing.T) {
 	}
 	if role := doc.Profile.Resources[0].Operations["post"]; role.Method != "POST" || role.OperationID != "createWidget" {
 		t.Fatalf("post operation role = %#v", role)
+	}
+	if got := doc.Profile.Resources[0].Metadata["fallback_behavior"]; got != "fail closed and retain the last confirmed state" {
+		t.Fatalf("fallback behavior = %#v", got)
 	}
 }
 
@@ -279,7 +290,7 @@ func TestCLIIcotAgentAmbiguousOperationNeedsInput(t *testing.T) {
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("icot JSON is not parseable: %v\n%s", err, output)
 	}
-	if result.Report.Status != sharedreport.StatusNeedsInput || !strings.Contains(string(output), "ramen.icot.operation_ambiguous") {
+	if result.Report.Status != sharedreport.StatusNeedsInput || !strings.Contains(string(output), "operation.seed") || len(result.Frontier) != 1 {
 		t.Fatalf("ambiguous result = %#v\n%s", result, output)
 	}
 	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
@@ -292,9 +303,9 @@ func TestCLIIcotAgentExpandsLifecycleOperations(t *testing.T) {
 	sourcePath := filepath.Join(root, "api.yaml")
 	writeLifecycleICOTOpenAPIForCLITest(t, sourcePath)
 	outDir := filepath.Join(root, "lifecycle")
-	answersPath := filepath.Join(root, "answers.txt")
-	mustWriteCLIFile(t, answersPath, []byte("createWidget\n"))
-	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "Create, read, update, and delete a widget named ramen", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate")
+	answersPath := filepath.Join(root, "answers.json")
+	writeICOTV2Answers(t, answersPath, "createWidget", "approve", "approve")
+	cmd := helperCommand("icot", "--no-llm", "--answers", answersPath, "--goal", "Create, read, update, and delete a widget named ramen", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -324,9 +335,9 @@ func TestCLIIcotReadOnlyValidateGraphPlan(t *testing.T) {
 	sourcePath := filepath.Join(root, "api.yaml")
 	writeICOTOpenAPIForCLITest(t, sourcePath)
 	outDir := filepath.Join(root, "read")
-	answersPath := filepath.Join(root, "answers.txt")
-	mustWriteCLIFile(t, answersPath, []byte("listWidgets\n"))
-	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "List all widgets", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
+	answersPath := filepath.Join(root, "answers.json")
+	writeICOTV2Answers(t, answersPath, "approve")
+	cmd := helperCommand("icot", "--no-llm", "--answers", answersPath, "--goal", "List all widgets", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -376,9 +387,9 @@ paths:
 `))
 
 	outDir := filepath.Join(root, "read")
-	answersPath := filepath.Join(root, "answers.txt")
-	mustWriteCLIFile(t, answersPath, []byte("Resources_List\n"))
-	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "List Azure resources in the selected subscription", "--api-source", "openapi:azure-resources="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
+	answersPath := filepath.Join(root, "answers.json")
+	writeICOTV2Answers(t, answersPath, "approve")
+	cmd := helperCommand("icot", "--no-llm", "--answers", answersPath, "--goal", "List Azure resources in the selected subscription", "--api-source", "openapi:azure-resources="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -403,8 +414,8 @@ paths:
 	if err != nil {
 		t.Fatalf("read-only azure project read failed: %v", err)
 	}
-	if !strings.Contains(string(projectText), "../azure/resources.json") || strings.Contains(string(projectText), sourcePath) {
-		t.Fatalf("project did not preserve ../ source path semantics: %s", projectText)
+	if !strings.Contains(string(projectText), "sources/openapi/azure-resources.json") || strings.Contains(string(projectText), sourcePath) {
+		t.Fatalf("project did not use the materialized source path: %s", projectText)
 	}
 	doc, err := project.Load(projectPath)
 	if err != nil {
@@ -445,9 +456,9 @@ paths:
           description: ok
 `))
 	outDir := filepath.Join(root, "delete")
-	answersPath := filepath.Join(root, "answers.txt")
-	mustWriteCLIFile(t, answersPath, []byte("deleteWidget\n"))
-	cmd := helperCommand("icot", "--agent", "--no-llm", "--answers", answersPath, "--goal", "Delete widget named ramen", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
+	answersPath := filepath.Join(root, "answers.json")
+	writeICOTV2Answers(t, answersPath, "approve", "approve")
+	cmd := helperCommand("icot", "--no-llm", "--answers", answersPath, "--goal", "Delete widget named ramen", "--api-source", "openapi:widgets="+sourcePath, "--out", outDir, "--json", "--validate", "--graph", "--plan")
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	output, err := cmd.Output()
@@ -490,11 +501,22 @@ func TestCLIIcotUnsupportedAPISourceKindNeedsInput(t *testing.T) {
 	if err := json.Unmarshal(output, &result); err != nil {
 		t.Fatalf("icot JSON is not parseable: %v\n%s", err, output)
 	}
-	if result.Report.Status != sharedreport.StatusNeedsInput || !strings.Contains(string(output), "ramen.icot.api_source_unsupported") {
+	if result.Report.Status != sharedreport.StatusNeedsInput || !strings.Contains(string(output), "ramen.icot.api_source_invalid") {
 		t.Fatalf("unsupported source result = %#v\n%s", result, output)
 	}
 	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
 		t.Fatalf("unsupported source wrote project: %v", err)
+	}
+}
+
+func TestLoadICOTV2AnswersRejectsV1AndUnversionedInputs(t *testing.T) {
+	for _, content := range []string{`{"version":"ramen.icot-answers.v1","input":"approve\n"}`, `{"input":"approve\n"}`} {
+		path := filepath.Join(t.TempDir(), "answers.json")
+		mustWriteCLIFile(t, path, []byte(content))
+		_, err := loadICOTV2Answers(path)
+		if err == nil || !strings.Contains(err.Error(), "v1 and unversioned inputs are not compatible") {
+			t.Fatalf("answers error = %v", err)
+		}
 	}
 }
 
@@ -519,8 +541,11 @@ func TestRunICOTDraftUsesOptionalLLMAssistant(t *testing.T) {
 	}
 	defer func() { newICOTAssistant = oldFactory }()
 	result := runICOTDraft(context.Background(), "Create a widget", "", outDir, "", []string{"openapi:widgets=" + sourcePath}, false, false, false, sharedicotcli.Flags{Agent: true, Provider: "openai", Model: "gpt-test", Temperature: 0.2}, nil, io.Discard)
-	if result.Report.Status != sharedreport.StatusComplete || !called {
+	if result.Report.Status != sharedreport.StatusNeedsInput || !called || result.Session == nil || result.Session.Metadata["llm_suggested_operation_id"] != "createWidget" {
 		t.Fatalf("icot llm result = %#v called=%t", result, called)
+	}
+	if result.ProjectPath != "" {
+		t.Fatalf("agent mode wrote project %q", result.ProjectPath)
 	}
 }
 
@@ -565,10 +590,19 @@ func TestCLIIcotMissingInputsWritesNoProject(t *testing.T) {
 	if exitErr, ok := err.(*exec.ExitError); !ok || exitErr.ExitCode() != 1 {
 		t.Fatalf("icot exit = %v, output:\n%s", err, output)
 	}
-	if !strings.Contains(string(output), "ramen.icot.missing_goal") {
+	if !strings.Contains(string(output), "boundary.outcome") {
 		t.Fatalf("missing goal diagnostic absent:\n%s", output)
 	}
 	if _, err := os.Stat(filepath.Join(outDir, project.DefaultFile)); !os.IsNotExist(err) {
 		t.Fatalf("icot wrote project despite missing input: %v", err)
 	}
+}
+
+func writeICOTV2Answers(t *testing.T, path string, answers ...string) {
+	t.Helper()
+	data, err := json.Marshal(ramenicot.AnswersFile{Version: ramenicot.AnswersVersion, Input: strings.Join(answers, "\n") + "\n"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mustWriteCLIFile(t, path, data)
 }

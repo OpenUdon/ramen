@@ -77,7 +77,11 @@ baseline is:
 Recent authoring fixes also keep request and response schemas separate and
 preserve writable desired inputs when read responses echo the same field path.
 The full 32-row replay is now enforced by `icot_replay_test.go` using the
-committed `testdata/parity/icot-replay.json` inventory.
+committed `ramen.icot-replay.v2` inventory at
+`testdata/parity/icot-replay.json`. Each row traverses the v2 interview graph,
+whole-frontier answers, evidence ledger, proposal approval, transactional
+source/project materialization, and native validation without live providers
+or network access.
 
 ## Current Coverage Summary
 

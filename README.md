@@ -117,7 +117,7 @@ Experimental on-ramps create or convert native artifacts:
 
 ```bash
 ramen author --context context.json --goal "Manage widgets"
-ramen icot --goal "List resources" --api-source openapi:api=api.json --no-llm --validate --graph
+ramen icot --goal "List resources" --openapi api=api.json --network ask --no-llm --validate --graph
 ramen convert
 ramen convert ansible --playbook playbook.yml --argspec-dir argspecs
 ```
@@ -128,6 +128,23 @@ Platform teams integrate a trusted runtime through the supported
 [`executor.Executor`](https://pkg.go.dev/github.com/OpenUdon/ramen/executor)
 interface. `ramen version --json` reports local build metadata without network
 checks or telemetry.
+
+`ramen icot` uses a dependency-aware v2 interview. It inspects repeatable
+`--api-source KIND:ID=PATH`, `--openapi ID=PATH`, and `--source-root PATH`
+inputs before asking questions; supports OpenAPI/Swagger, Google Discovery,
+AWS Smithy, AsyncAPI, GraphQL, OpenRPC, gRPC/protobuf, and OData; and shows all
+currently ready decisions as one round. `--prompt-mode full|normal|fast`
+controls safe defaults, while forced or uncertain decisions are always shown.
+Broad goals must select one active workflow; later workflows remain
+non-executable candidates in the generated project.
+
+Remote source lookup is separate and bounded by `--network never|ask|allow`.
+Interactive mode defaults to `ask`; agent mode is effectively `never` unless
+`allow` is explicit. No project or selected source is written until the full
+proposal is approved. Structured technical deferrals can save a non-runnable
+draft and resumable v2 session; default interview state stays under
+`OUT/.icot/`, and `--resume SESSION` reopens deferred leaves for promotion.
+`--agent` and `--print` never write deliverables.
 
 ### Azure API-First Example
 

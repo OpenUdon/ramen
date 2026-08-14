@@ -3,6 +3,7 @@ package corpus
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -10,8 +11,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/apitools"
+	sharedicot "github.com/OpenUdon/authoring/icot"
+	"github.com/OpenUdon/authoring/prompt"
 	"github.com/OpenUdon/authoring/promptcontext"
+	"github.com/OpenUdon/authoring/readiness"
 	ramenauthoring "github.com/OpenUdon/ramen/authoring"
+	ramenicot "github.com/OpenUdon/ramen/internal/icot"
 	"github.com/OpenUdon/ramen/project"
 )
 
@@ -41,6 +47,7 @@ type icotReplayAPISource struct {
 func TestICoTReplayProjectsValidate(t *testing.T) {
 	entries := loadICoTReplayInventory(t)
 	executed := 0
+	exactMatches := 0
 	for _, entry := range entries {
 		t.Run(entry.Row, func(t *testing.T) {
 			result, _ := draftICoTReplayProject(t, entry)
@@ -50,30 +57,17 @@ func TestICoTReplayProjectsValidate(t *testing.T) {
 			if !result.Validation.Valid {
 				t.Fatalf("generated project did not validate: %#v", result.Validation)
 			}
+			generated := operationRoleSet(t, result.ProjectPath)
+			approved := operationRoleSet(t, entry.ApprovedFixture)
+			if entry.RoleMatch != "exact" || !reflect.DeepEqual(generated, approved) {
+				t.Fatalf("generated role set = %#v, want exact approved %#v", generated, approved)
+			}
+			exactMatches++
 			executed++
 		})
 	}
 	if executed != len(entries) {
 		t.Fatalf("executed %d replay rows, want %d", executed, len(entries))
-	}
-}
-
-func TestICoTReplayRoleSetsMatchApproved(t *testing.T) {
-	entries := loadICoTReplayInventory(t)
-	exactMatches := 0
-	for _, entry := range entries {
-		t.Run(entry.Row, func(t *testing.T) {
-			result, _ := draftICoTReplayProject(t, entry)
-			generated := operationRoleSet(t, result.ProjectPath)
-			approved := operationRoleSet(t, entry.ApprovedFixture)
-			if entry.RoleMatch != "exact" {
-				t.Fatalf("unknown role_match %q", entry.RoleMatch)
-			}
-			if !reflect.DeepEqual(generated, approved) {
-				t.Fatalf("generated role set = %#v, want approved %#v", generated, approved)
-			}
-			exactMatches++
-		})
 	}
 	if exactMatches != 32 {
 		t.Fatalf("role match count exact=%d, want exact=32", exactMatches)
@@ -137,6 +131,14 @@ func TestICoTReplayInventoryMatchesParityDoc(t *testing.T) {
 	}
 }
 
+func TestICoTReplayRejectsV1WithoutCompatibilityDecode(t *testing.T) {
+	var inventory icotReplayInventory
+	err := decodeICoTReplayInventory([]byte(`{"version":"ramen.icot-replay.v1","entries":[]}`), &inventory)
+	if err == nil || !strings.Contains(err.Error(), "v1 inputs are not compatible") {
+		t.Fatalf("v1 replay error = %v", err)
+	}
+}
+
 func loadICoTReplayInventory(t *testing.T) []icotReplayEntry {
 	t.Helper()
 	data, err := os.ReadFile(icotReplayInventoryPath)
@@ -144,16 +146,23 @@ func loadICoTReplayInventory(t *testing.T) []icotReplayEntry {
 		t.Fatalf("read iCoT replay inventory: %v", err)
 	}
 	var inventory icotReplayInventory
-	if err := json.Unmarshal(data, &inventory); err != nil {
+	if err := decodeICoTReplayInventory(data, &inventory); err != nil {
 		t.Fatalf("parse iCoT replay inventory: %v", err)
-	}
-	if inventory.Version != "ramen.icot-replay.v1" {
-		t.Fatalf("inventory version = %q", inventory.Version)
 	}
 	if len(inventory.Entries) == 0 {
 		t.Fatalf("inventory has no entries")
 	}
 	return inventory.Entries
+}
+
+func decodeICoTReplayInventory(data []byte, inventory *icotReplayInventory) error {
+	if err := json.Unmarshal(data, inventory); err != nil {
+		return err
+	}
+	if inventory.Version != "ramen.icot-replay.v2" {
+		return fmt.Errorf("unsupported Ramen iCoT replay version %q; want %q; v1 inputs are not compatible", inventory.Version, "ramen.icot-replay.v2")
+	}
+	return nil
 }
 
 func draftICoTReplayProject(t *testing.T, entry icotReplayEntry) (ramenauthoring.Result, promptcontext.Context) {
@@ -166,23 +175,57 @@ func draftICoTReplayProject(t *testing.T, entry icotReplayEntry) (ramenauthoring
 			Path: source.Path,
 		})
 	}
-	ctx, err := ramenauthoring.PromptContextFromAPISources(context.Background(), entry.Goal, inputs)
-	if err != nil {
-		t.Fatalf("build prompt context: %v", err)
+	localSources := make([]apitools.LocalSource, 0, len(inputs))
+	for _, input := range inputs {
+		localSources = append(localSources, apitools.LocalSource{Kind: input.Kind, ID: input.ID, Path: input.Path})
 	}
+	discovered, err := ramenicot.DiscoverLocalSources(context.Background(), ramenicot.DiscoveryOptions{Goal: entry.Goal, Sources: localSources})
+	if err != nil {
+		t.Fatalf("discover local sources: %v", err)
+	}
+	ctx := discovered.Context
 	seed := findICoTReplaySeed(t, ctx, entry.SeedOperation)
-	resource := ramenauthoring.APILifecycleResource(ctx, seed, entry.Goal, entry.ProjectName)
-	result, err := ramenauthoring.DraftProject(context.Background(), ramenauthoring.Options{
-		Goal:        entry.Goal,
-		ProjectName: entry.ProjectName,
-		Context:     ctx,
-		Resources:   []project.Resource{resource},
-		OutDir:      t.TempDir(),
-		Validate:    true,
+	_ = seed
+	outDir := t.TempDir()
+	session := ramenicot.SeedSession(entry.Goal, entry.ProjectName, outDir, "never", discovered.Plans, discovered.Blockers, discovered.Context)
+	for !ramenicot.Ready(session, ramenicot.CheckReadiness(session)) {
+		frontier, err := ramenicot.PlanFrontier(session)
+		if err != nil {
+			t.Fatalf("plan frontier: %v", err)
+		}
+		if len(frontier) == 0 {
+			t.Fatal("v2 replay reached an empty unresolved frontier")
+		}
+		answers := make([]sharedicot.RoundAnswer, 0, len(frontier))
+		for _, question := range frontier {
+			value := question.Recommendation
+			source := readiness.DefaultRecommendationSource
+			switch question.ID {
+			case "operation.seed":
+				value, source = entry.SeedOperation, "replay"
+			case "safety.mutation_posture":
+				value, source = "approve", "replay"
+			case "output.verification":
+				value, source = "validate", "replay"
+			case "proposal.approval":
+				value, source = "approve", "replay"
+			}
+			if value == "" {
+				t.Fatalf("v2 replay question %s has no deterministic answer", question.ID)
+			}
+			answers = append(answers, sharedicot.RoundAnswer{QuestionID: question.ID, Value: value, Source: source})
+		}
+		if err := ramenicot.ApplyRound(&session, answers); err != nil {
+			t.Fatalf("apply replay round: %v", err)
+		}
+	}
+	run, err := ramenicot.Run(context.Background(), ramenicot.RunOptions{
+		Session: session, DefaultMode: prompt.DefaultsSilent, NoTranscript: true, Validate: true,
 	})
 	if err != nil {
-		t.Fatalf("draft project: %v", err)
+		t.Fatalf("run v2 replay: %v", err)
 	}
+	result := ramenauthoring.Result{ProjectPath: run.Artifact.ProjectPath, ProjectHCLPath: run.Artifact.ProjectHCLPath, Validation: run.Artifact.Validation}
 	if result.ProjectPath == "" {
 		t.Fatalf("draft result missing project path: %#v", result)
 	}

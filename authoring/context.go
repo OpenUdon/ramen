@@ -443,6 +443,16 @@ func normalizeAPISourceKind(kind string) string {
 		return apitools.APISourceKindAWSSmithy
 	case apitools.APISourceKindGoogleDiscovery, "google_discovery", "discovery", "google":
 		return apitools.APISourceKindGoogleDiscovery
+	case apitools.APISourceKindAsyncAPI:
+		return apitools.APISourceKindAsyncAPI
+	case apitools.APISourceKindGraphQL:
+		return apitools.APISourceKindGraphQL
+	case apitools.APISourceKindOpenRPC:
+		return apitools.APISourceKindOpenRPC
+	case apitools.APISourceKindGRPCProtobuf, "grpc_protobuf", "protobuf", "proto":
+		return apitools.APISourceKindGRPCProtobuf
+	case apitools.APISourceKindOData:
+		return apitools.APISourceKindOData
 	default:
 		return ""
 	}

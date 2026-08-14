@@ -19,6 +19,8 @@ const (
 	DefaultFile  = "project.uws.yaml"
 	DefaultJSON  = "project.uws.json"
 	DefaultYAML  = "project.uws.yml"
+	DraftFile    = "project.uws.draft.yaml"
+	DraftHCL     = "project.uws.draft.hcl"
 	WorkflowYAML = "workflows/workflow.uws.yaml"
 	WorkflowJSON = "workflows/workflow.uws.json"
 	WorkflowYML  = "workflows/workflow.uws.yml"
@@ -32,12 +34,22 @@ type Document struct {
 }
 
 type Profile struct {
-	Version    string         `json:"version"`
-	APISources []APISource    `json:"api_sources,omitempty"`
-	Variables  []Variable     `json:"variables,omitempty"`
-	Resources  []Resource     `json:"resources,omitempty"`
-	Redaction  Redaction      `json:"redaction,omitempty"`
-	Metadata   map[string]any `json:"metadata,omitempty"`
+	Version            string              `json:"version"`
+	APISources         []APISource         `json:"api_sources,omitempty"`
+	Variables          []Variable          `json:"variables,omitempty"`
+	Resources          []Resource          `json:"resources,omitempty"`
+	CandidateWorkflows []CandidateWorkflow `json:"candidate_workflows,omitempty"`
+	Redaction          Redaction           `json:"redaction,omitempty"`
+	Metadata           map[string]any      `json:"metadata,omitempty"`
+}
+
+// CandidateWorkflow is a non-executable future direction retained alongside
+// the one active workflow. It carries no source, operation, or mapping detail.
+type CandidateWorkflow struct {
+	Title            string `json:"title"`
+	Outcome          string `json:"outcome"`
+	DeferralReason   string `json:"deferral_reason"`
+	PromotionTrigger string `json:"promotion_trigger"`
 }
 
 type Variable struct {
@@ -269,6 +281,18 @@ func ValidateProfile(profile Profile) error {
 	}
 	seenSources := map[string]bool{}
 	seenVariables := map[string]bool{}
+	seenCandidates := map[string]bool{}
+	for _, candidate := range profile.CandidateWorkflows {
+		candidate.Title = strings.TrimSpace(candidate.Title)
+		if candidate.Title == "" || strings.TrimSpace(candidate.Outcome) == "" || strings.TrimSpace(candidate.DeferralReason) == "" || strings.TrimSpace(candidate.PromotionTrigger) == "" {
+			return fmt.Errorf("candidate_workflows entries require title, outcome, deferral_reason, and promotion_trigger")
+		}
+		key := strings.ToLower(candidate.Title)
+		if seenCandidates[key] {
+			return fmt.Errorf("duplicate candidate workflow %s", candidate.Title)
+		}
+		seenCandidates[key] = true
+	}
 	for _, variable := range profile.Variables {
 		name := strings.TrimSpace(variable.Name)
 		if name == "" {
@@ -371,6 +395,13 @@ func SourceForRole(profile Profile, role OperationRole) APISource {
 }
 
 func normalizeProfilePaths(profile *Profile, dir string) {
+	for i := range profile.CandidateWorkflows {
+		profile.CandidateWorkflows[i].Title = strings.TrimSpace(profile.CandidateWorkflows[i].Title)
+		profile.CandidateWorkflows[i].Outcome = strings.TrimSpace(profile.CandidateWorkflows[i].Outcome)
+		profile.CandidateWorkflows[i].DeferralReason = strings.TrimSpace(profile.CandidateWorkflows[i].DeferralReason)
+		profile.CandidateWorkflows[i].PromotionTrigger = strings.TrimSpace(profile.CandidateWorkflows[i].PromotionTrigger)
+	}
+	slices.SortStableFunc(profile.CandidateWorkflows, func(a, b CandidateWorkflow) int { return strings.Compare(a.Title, b.Title) })
 	for i := range profile.APISources {
 		profile.APISources[i].Kind = strings.TrimSpace(profile.APISources[i].Kind)
 		profile.APISources[i].ID = strings.TrimSpace(profile.APISources[i].ID)

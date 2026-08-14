@@ -741,6 +741,16 @@ func normalizeAPISourceKind(kind string) string {
 		return "aws-smithy"
 	case "google-discovery", "google", "discovery":
 		return "google-discovery"
+	case "asyncapi":
+		return "asyncapi"
+	case "graphql":
+		return "graphql"
+	case "openrpc":
+		return "openrpc"
+	case "grpc-protobuf", "grpc_protobuf", "protobuf", "proto":
+		return "grpc-protobuf"
+	case "odata":
+		return "odata"
 	default:
 		return ""
 	}

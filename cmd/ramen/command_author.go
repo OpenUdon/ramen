@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -13,10 +12,11 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"time"
 
+	"github.com/OpenUdon/apitools"
+	sharedicot "github.com/OpenUdon/authoring/icot"
 	sharedicotcli "github.com/OpenUdon/authoring/icotcli"
 	sharedpromptcontext "github.com/OpenUdon/authoring/promptcontext"
 	sharedreadiness "github.com/OpenUdon/authoring/readiness"
@@ -24,8 +24,8 @@ import (
 	"github.com/OpenUdon/authoring/trust"
 	ramenauthoring "github.com/OpenUdon/ramen/authoring"
 	"github.com/OpenUdon/ramen/graph"
+	ramenicot "github.com/OpenUdon/ramen/internal/icot"
 	tfplan "github.com/OpenUdon/ramen/plan"
-	"github.com/OpenUdon/ramen/project"
 	ramenvalidate "github.com/OpenUdon/ramen/validate"
 )
 
@@ -34,13 +34,24 @@ const (
 	defaultICOTCopilotModel = "gpt-5.4-mini"
 )
 
+var discoverICOTRemoteSources = ramenicot.DiscoverRemoteSources
+
 type authorCLIResult struct {
-	Report         sharedreport.Result   `json:"report"`
-	ProjectPath    string                `json:"project_path,omitempty"`
-	ProjectHCLPath string                `json:"project_hcl_path,omitempty"`
-	Validation     *ramenvalidate.Result `json:"validation,omitempty"`
-	Graph          *graph.Document       `json:"graph,omitempty"`
-	Plan           *tfplan.Result        `json:"plan,omitempty"`
+	Version            string                        `json:"version,omitempty"`
+	Status             string                        `json:"status,omitempty"`
+	Report             sharedreport.Result           `json:"report"`
+	ProjectPath        string                        `json:"project_path,omitempty"`
+	ProjectHCLPath     string                        `json:"project_hcl_path,omitempty"`
+	Validation         *ramenvalidate.Result         `json:"validation,omitempty"`
+	Graph              *graph.Document               `json:"graph,omitempty"`
+	Plan               *tfplan.Result                `json:"plan,omitempty"`
+	Session            *ramenicot.Session            `json:"session,omitempty"`
+	Frontier           []sharedreadiness.Question    `json:"frontier,omitempty"`
+	Proposal           *ramenicot.Proposal           `json:"proposal,omitempty"`
+	CandidateWorkflows []ramenicot.CandidateWorkflow `json:"candidate_workflows,omitempty"`
+	SourceCandidates   []ramenicot.SourcePlan        `json:"source_candidates,omitempty"`
+	Blockers           []ramenicot.Blocker           `json:"blockers,omitempty"`
+	Backups            []string                      `json:"backups,omitempty"`
 }
 
 func runAuthorCommand(ctx context.Context, args []string) {
@@ -168,12 +179,25 @@ func runICOTCommand(ctx context.Context, args []string) {
 	planGate := fs.Bool("plan", false, "Build a non-mutating desired-state plan after drafting")
 	statePath := fs.String("state", "", "Optional SQLite state path for --plan")
 	var apiSources repeatedStringFlag
+	var openAPIs repeatedStringFlag
+	var sourceRoots repeatedStringFlag
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH")
+	fs.Var(&openAPIs, "openapi", "Repeatable OpenAPI shorthand as ID=PATH")
+	fs.Var(&sourceRoots, "source-root", "Repeatable explicit local file or directory root for bounded discovery")
+	network := fs.String("network", "", "Remote lookup policy: never, ask, or allow")
+	resumePath := fs.String("resume", "", "Resume a ramen.icot-session.v2 JSON file")
+	sessionPath := fs.String("session", "", "Autosave path for ramen.icot-session.v2 JSON")
+	transcriptPath := fs.String("transcript", "", "Transcript path for ramen.icot-transcript.v2 JSON")
+	force := fs.Bool("force", false, "Replace differing approved targets while retaining backups")
+	printOnly := fs.Bool("print", false, "Print interview/proposal state without writing deliverables")
+	maxEntries := fs.Int("source-max-entries", 0, "Optional local discovery visit limit")
+	maxCandidates := fs.Int("source-max-candidates", 0, "Optional local discovery candidate limit")
+	maxBytes := fs.Int64("source-max-bytes", 0, "Optional local discovery per-file byte limit")
 	common := sharedicotcli.Flags{NoLLM: true, PromptMode: "normal"}
 	sharedicotcli.AddFlags(fs, &common)
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen icot [--goal TEXT] [--api-source KIND:ID=PATH ...] [--project-name NAME] [--out DIR] [--validate] [--graph] [--plan] [--state PATH] [--prompt-mode full|normal|fast] [--no-llm] [--provider NAME] [--model NAME] [--temperature FLOAT] [--agent] [--json] [--answers PATH] [--no-transcript] [--report PATH]\n")
-		fmt.Fprintf(fs.Output(), "\nInteractively drafts a native UWS/Ramen project from local API source metadata. It never executes API calls, Terraform/OpenTofu, providers, refresh, apply, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen icot [--goal TEXT] [--api-source KIND:ID=PATH ...] [--openapi ID=PATH ...] [--source-root PATH ...] [--network never|ask|allow] [--resume SESSION] [--project-name NAME] [--out DIR] [--validate] [--graph] [--plan] [--state PATH] [--prompt-mode full|normal|fast] [--no-llm] [--agent] [--print] [--json] [--answers PATH] [--no-transcript] [--report PATH]\n")
+		fmt.Fprintf(fs.Output(), "\nRuns a dependency-aware, proposal-gated interview that authors a native UWS/Ramen project from validated API source evidence. It never executes API operations, Terraform/OpenTofu, providers, refresh, apply, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -183,11 +207,17 @@ func runICOTCommand(ctx context.Context, args []string) {
 		fs.Usage()
 		os.Exit(2)
 	}
-	if _, err := sharedicotcli.PromptDefaultMode(common.PromptMode); err != nil {
+	defaultMode, err := sharedicotcli.PromptDefaultMode(common.PromptMode)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
-	answerInput, err := loadICOTAnswers(common.Answers)
+	policy, err := resolveRamenICOTNetworkPolicy(*network, common.Agent)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
+	answerInput, err := loadICOTV2Answers(common.Answers)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
@@ -202,7 +232,79 @@ func runICOTCommand(ctx context.Context, args []string) {
 	} else if !common.Agent {
 		reader = os.Stdin
 	}
-	result := runICOTDraft(ctx, *goal, *projectName, *outDir, *statePath, []string(apiSources), *validateGate, *graphGate, *planGate, common, reader, promptOut)
+	var session ramenicot.Session
+	if strings.TrimSpace(*resumePath) != "" {
+		session, err = ramenicot.LoadSession(*resumePath)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(2)
+		}
+		ramenicot.PrepareResume(&session)
+	} else {
+		session = ramenicot.SeedSession(*goal, *projectName, *outDir, policy, nil, nil, sharedpromptcontext.Context{})
+	}
+	session.NetworkPolicy = policy
+	session.Force = session.Force || *force
+	if flagWasSet(fs, "out") || strings.TrimSpace(session.OutDir) == "" {
+		session.OutDir = *outDir
+	}
+	localSources, parseErr := parseICOTLocalSources([]string(apiSources), []string(openAPIs))
+	if parseErr != nil {
+		fmt.Fprintln(os.Stderr, parseErr)
+		os.Exit(2)
+	}
+	if len(localSources) > 0 || len(sourceRoots) > 0 {
+		discovered, discoverErr := ramenicot.DiscoverLocalSources(ctx, ramenicot.DiscoveryOptions{
+			Goal: firstNonEmpty(*goal, session.Boundary.Outcome), Roots: []string(sourceRoots), Sources: localSources,
+			MaxVisitedEntries: *maxEntries, MaxCandidates: *maxCandidates, MaxBytes: *maxBytes,
+		})
+		if discoverErr != nil {
+			session.Blockers = []ramenicot.Blocker{{Code: "ramen.icot.api_source_invalid", Message: discoverErr.Error(), Remediation: "Correct the explicit source declaration or narrow the source root.", Deferrable: true}}
+		} else {
+			ramenicot.ReplaceDiscovery(&session, discovered)
+		}
+	}
+	if len(session.SourcePlans) == 0 && len(session.Blockers) == 0 && policy == "allow" {
+		discovered, discoverErr := discoverICOTRemoteSources(ctx, ramenicot.RemoteLookupOptions{Query: firstNonEmpty(*goal, session.Boundary.Outcome)})
+		if discoverErr != nil {
+			if errors.Is(discoverErr, context.Canceled) {
+				fmt.Fprintln(os.Stderr, discoverErr)
+				os.Exit(1)
+			}
+			session.Blockers = []ramenicot.Blocker{{Code: "ramen.icot.remote_lookup_failed", Message: discoverErr.Error(), Remediation: "Provide --api-source or --source-root and retry.", Deferrable: true}}
+		} else {
+			ramenicot.ReplaceDiscovery(&session, discovered)
+		}
+	}
+	if common.Agent && len(session.SourcePlans) == 0 && len(session.Blockers) == 0 {
+		session.Blockers = []ramenicot.Blocker{{Code: "ramen.icot.missing_api_source", Message: "No explicit local API source or source root was provided.", Remediation: "Provide --api-source or --source-root.", Deferrable: true}}
+	}
+	if err := applyICOTLLMSuggestion(ctx, &session, common); err != nil {
+		session.Blockers = append(session.Blockers, ramenicot.Blocker{Code: "ramen.icot.llm_unavailable", Message: err.Error(), Remediation: "Retry without model assistance using --no-llm or correct the model configuration.", Deferrable: true})
+	}
+	if strings.TrimSpace(*sessionPath) == "" {
+		if strings.TrimSpace(*resumePath) != "" {
+			*sessionPath = *resumePath
+		} else {
+			*sessionPath = filepath.Join(session.OutDir, ".icot", "session.json")
+		}
+	}
+	if strings.TrimSpace(*transcriptPath) == "" {
+		*transcriptPath = filepath.Join(session.OutDir, ".icot", "transcript.json")
+	}
+	v2Result, runErr := ramenicot.Run(ctx, ramenicot.RunOptions{
+		Session: session, Input: reader, Output: promptOut, DefaultMode: defaultMode,
+		Agent: common.Agent, PrintOnly: *printOnly, AutosavePath: *sessionPath,
+		TranscriptPath: *transcriptPath, NoTranscript: common.NoTranscript,
+		Validate: *validateGate, Graph: *graphGate, Plan: *planGate, StatePath: *statePath,
+		RemoteLookup: discoverICOTRemoteSources,
+	})
+	result := authorCLIResultForICOTV2(v2Result, runErr)
+	if v2Result.Status == "complete" && !common.Agent && !*printOnly && strings.TrimSpace(*sessionPath) != "" {
+		if err := os.Remove(*sessionPath); err != nil && !os.IsNotExist(err) {
+			fmt.Fprintf(os.Stderr, "ramen.icot.session_cleanup_failed: %v\n", err)
+		}
+	}
 	if common.Report != "" {
 		if err := writeJSONFile(common.Report, result); err != nil {
 			fmt.Fprintln(os.Stderr, err)
@@ -215,281 +317,69 @@ func runICOTCommand(ctx context.Context, args []string) {
 		printICOTHuman(result)
 		printAuthorDiagnostics(result.Report)
 	}
-	if result.Report.Status != sharedreport.StatusComplete {
+	if runErr != nil && !errors.Is(runErr, sharedicot.ErrNeedsInput) && !errors.Is(runErr, sharedicot.ErrCanceled) {
+		fmt.Fprintln(os.Stderr, runErr)
+	}
+	if v2Result.Status != "complete" && !(*printOnly && v2Result.Status == "proposal") {
 		os.Exit(1)
 	}
 }
 
 func runICOTDraft(ctx context.Context, goal, projectName, outDir, statePath string, sourceFlags []string, validateGate, graphGate, planGate bool, common sharedicotcli.Flags, answerInput io.Reader, promptOut io.Writer) authorCLIResult {
-	prompts := newCLIAnswers(answerInput, promptOut)
-	goal = strings.TrimSpace(goal)
-	if goal == "" && !common.Agent {
-		answer, ok := prompts.ask("Ramen goal")
-		if !ok {
-			return icotNeedsInput("ramen.icot.missing_goal", "Describe the Ramen desired-state project goal.", "goal")
-		}
-		goal = strings.TrimSpace(answer)
-	}
-	if goal == "" {
-		return icotNeedsInput("ramen.icot.missing_goal", "Describe the Ramen desired-state project goal.", "goal")
-	}
-	if len(sourceFlags) == 0 && !common.Agent {
-		answer, ok := prompts.ask("API source (KIND:ID=PATH)")
-		if !ok {
-			return icotNeedsInput("ramen.icot.missing_api_source", "Provide a local API source as KIND:ID=PATH.", "api_source")
-		}
-		sourceFlags = append(sourceFlags, answer)
-	}
-	if len(sourceFlags) == 0 {
-		return icotNeedsInput("ramen.icot.missing_api_source", "Provide a local API source as KIND:ID=PATH.", "api_source")
-	}
-	tfInputs, err := parseAPISourceFlags(sourceFlags)
+	localSources, err := parseICOTLocalSources(sourceFlags, nil)
 	if err != nil {
 		return icotFailed("ramen.icot.api_source_invalid", err.Error())
 	}
-	apiInputs := make([]ramenauthoring.APISourceInput, len(tfInputs))
-	for i, input := range tfInputs {
-		apiInputs[i] = ramenauthoring.APISourceInput{Kind: input.Kind, ID: input.ID, Path: input.Path, DownloadDir: outDir}
-	}
-	promptContext, err := ramenauthoring.PromptContextFromAPISources(ctx, goal, apiInputs)
-	if err != nil {
-		var inputErr ramenauthoring.APISourceInputError
-		if errors.As(err, &inputErr) {
-			return icotNeedsInputWithDetail(firstNonEmpty(inputErr.Code, "ramen.icot.api_source_invalid"), err.Error(), "api_source", map[string]any{
-				"kind": inputErr.Kind,
-				"id":   inputErr.ID,
-				"path": inputErr.Path,
-			})
-		}
-		return icotFailed("ramen.icot.api_source_load_error", err.Error())
-	}
-	if len(promptContext.Operations) == 0 {
-		return icotNeedsInput("ramen.icot.missing_operation", "No operation candidates were found in the local API source metadata.", "operation")
-	}
-	suggestedOperationID := ""
-	if !common.NoLLM {
-		advisor, config, err := newICOTAssistant(common, os.Getenv)
+	discovered := ramenicot.DiscoveryResult{}
+	if len(localSources) > 0 {
+		discovered, err = ramenicot.DiscoverLocalSources(ctx, ramenicot.DiscoveryOptions{Goal: goal, Sources: localSources})
 		if err != nil {
-			return icotNeedsInputWithDetail("ramen.icot.llm_unavailable", err.Error(), "llm", map[string]any{
-				"provider": config.Provider,
-				"model":    config.Model,
-			})
-		}
-		if advisor != nil {
-			suggestion, err := advisor.SuggestOperation(ctx, icotAssistantRequest{
-				Goal:        goal,
-				Context:     promptContext,
-				Provider:    config.Provider,
-				Model:       config.Model,
-				Temperature: config.Temperature,
-			})
-			if err != nil {
-				return icotNeedsInputWithDetail("ramen.icot.llm_unavailable", err.Error(), "llm", map[string]any{
-					"provider": config.Provider,
-					"model":    config.Model,
-				})
-			}
-			suggestedOperationID = suggestion.OperationID
-			if promptContext.Metadata == nil {
-				promptContext.Metadata = map[string]string{}
-			}
-			promptContext.Metadata["llm_provider"] = config.Provider
-			promptContext.Metadata["llm_model"] = config.Model
-			if suggestedOperationID != "" {
-				promptContext.Metadata["llm_suggested_operation_id"] = suggestedOperationID
-			}
+			return icotFailed("ramen.icot.api_source_invalid", err.Error())
 		}
 	}
-	selection := chooseICOTOperation(goal, promptContext, prompts, common.Agent, suggestedOperationID)
-	if !selection.OK {
-		if selection.Ambiguous {
-			return icotNeedsInputWithDetail("ramen.icot.operation_ambiguous", "Choose one listed operation ID from the local API source metadata.", "operation", map[string]any{
-				"candidates": selection.Candidates,
-				"suggested":  suggestedOperationID,
-			})
-		}
-		return icotNeedsInputWithDetail("ramen.icot.missing_operation", "Choose one listed operation ID from the local API source metadata.", "operation", map[string]any{
-			"candidates": selection.Candidates,
-			"suggested":  suggestedOperationID,
-		})
+	session := ramenicot.SeedSession(goal, projectName, outDir, "never", discovered.Plans, discovered.Blockers, discovered.Context)
+	session.Discovery = discovered.Report
+	if err := applyICOTLLMSuggestion(ctx, &session, common); err != nil {
+		return icotFailed("ramen.icot.llm_unavailable", err.Error())
 	}
-	operation := selection.Operation
-	resources := []project.Resource{ramenauthoring.APILifecycleResource(promptContext, operation, goal, projectName)}
-	result, err := ramenauthoring.DraftProject(ctx, ramenauthoring.Options{
-		Goal:        goal,
-		ProjectName: projectName,
-		OutDir:      outDir,
-		Context:     promptContext,
-		Resources:   resources,
-		Validate:    validateGate,
-		Graph:       graphGate,
-		Plan:        planGate,
-		StatePath:   statePath,
+	mode, err := sharedicotcli.PromptDefaultMode(common.PromptMode)
+	if err != nil {
+		return icotFailed("ramen.icot.prompt_mode_invalid", err.Error())
+	}
+	result, runErr := ramenicot.Run(ctx, ramenicot.RunOptions{
+		Session: session, Input: answerInput, Output: promptOut, DefaultMode: mode, Agent: common.Agent,
+		NoTranscript: true, Validate: validateGate, Graph: graphGate, Plan: planGate, StatePath: statePath,
+	})
+	return authorCLIResultForICOTV2(result, runErr)
+}
+
+func applyICOTLLMSuggestion(ctx context.Context, session *ramenicot.Session, common sharedicotcli.Flags) error {
+	if common.NoLLM || session == nil || len(session.Context.Operations) == 0 {
+		return nil
+	}
+	advisor, config, err := newICOTAssistant(common, os.Getenv)
+	if err != nil {
+		return err
+	}
+	if advisor == nil {
+		return nil
+	}
+	suggestion, err := advisor.SuggestOperation(ctx, icotAssistantRequest{
+		Goal: session.Boundary.Outcome, Context: session.Context,
+		Provider: config.Provider, Model: config.Model, Temperature: config.Temperature,
 	})
 	if err != nil {
-		return icotFailed("ramen.icot.draft_failed", err.Error())
+		return err
 	}
-	cliResult := authorCLIResult{Report: result.Report, ProjectPath: result.ProjectPath, ProjectHCLPath: result.ProjectHCLPath, Validation: result.Validation, Graph: result.Graph, Plan: result.Plan}
-	return cliResult
-}
-
-type cliAnswers struct {
-	reader *bufio.Reader
-	out    io.Writer
-}
-
-func newCLIAnswers(in io.Reader, out io.Writer) *cliAnswers {
-	if out == nil {
-		out = io.Discard
+	if session.Metadata == nil {
+		session.Metadata = map[string]string{}
 	}
-	if in == nil {
-		return &cliAnswers{out: out}
+	session.Metadata["llm_provider"] = config.Provider
+	session.Metadata["llm_model"] = config.Model
+	if strings.TrimSpace(suggestion.OperationID) != "" {
+		session.Metadata["llm_suggested_operation_id"] = strings.TrimSpace(suggestion.OperationID)
 	}
-	return &cliAnswers{reader: bufio.NewReader(in), out: out}
-}
-
-func (answers *cliAnswers) ask(label string) (string, bool) {
-	if answers == nil || answers.reader == nil {
-		return "", false
-	}
-	fmt.Fprintf(answers.out, "%s: ", label)
-	line, err := answers.reader.ReadString('\n')
-	if err != nil && line == "" {
-		return "", false
-	}
-	return strings.TrimRight(line, "\r\n"), true
-}
-
-func (answers *cliAnswers) askDefault(label, current string) (string, bool) {
-	if answers == nil || answers.reader == nil {
-		return "", false
-	}
-	current = strings.TrimSpace(current)
-	if current != "" {
-		fmt.Fprintf(answers.out, "%s [%s]: ", label, current)
-	} else {
-		fmt.Fprintf(answers.out, "%s: ", label)
-	}
-	line, err := answers.reader.ReadString('\n')
-	if err != nil && line == "" {
-		return "", false
-	}
-	answer := strings.TrimRight(line, "\r\n")
-	if strings.TrimSpace(answer) == "" {
-		return current, current != ""
-	}
-	return answer, true
-}
-
-type icotOperationSelection struct {
-	Operation  sharedpromptcontext.OperationCandidate
-	OK         bool
-	Ambiguous  bool
-	Candidates []string
-}
-
-func chooseICOTOperation(goal string, ctx sharedpromptcontext.Context, prompts *cliAnswers, agent bool, suggestedOperationID string) icotOperationSelection {
-	ctx = sharedpromptcontext.Normalize(ctx)
-	if len(ctx.Operations) == 1 {
-		return icotOperationSelection{Operation: ctx.Operations[0], OK: true}
-	}
-	if op, ok := exactICOTOperationMatch(goal, ctx.Operations); ok {
-		return icotOperationSelection{Operation: op, OK: true}
-	}
-	ranked := rankICOTOperations(goal, ctx.Operations)
-	candidates := icotOperationIDs(ranked)
-	if len(ranked) == 0 {
-		return icotOperationSelection{}
-	}
-	if len(ranked) == 1 {
-		return icotOperationSelection{Operation: ranked[0], OK: true, Candidates: candidates}
-	}
-	fmt.Fprintln(prompts.out, "Operation candidates:")
-	for _, op := range ranked {
-		fmt.Fprintf(prompts.out, "  %s %s %s\n", firstNonEmpty(op.OperationID, op.ID), strings.ToUpper(op.Verb), op.Path)
-	}
-	if agent && (prompts == nil || prompts.reader == nil) {
-		return icotOperationSelection{Ambiguous: true, Candidates: candidates}
-	}
-	if suggestedOperationID != "" {
-		if _, ok := operationByID(ranked, suggestedOperationID); !ok {
-			suggestedOperationID = ""
-		}
-	}
-	answer, ok := prompts.askDefault("Operation ID", suggestedOperationID)
-	if !ok || strings.TrimSpace(answer) == "" {
-		return icotOperationSelection{Ambiguous: true, Candidates: candidates}
-	}
-	answer = strings.TrimSpace(answer)
-	if op, ok := operationByID(ctx.Operations, answer); ok {
-		return icotOperationSelection{Operation: op, OK: true, Candidates: candidates}
-	}
-	return icotOperationSelection{Candidates: candidates}
-}
-
-func rankICOTOperations(goal string, operations []sharedpromptcontext.OperationCandidate) []sharedpromptcontext.OperationCandidate {
-	goal = strings.ToLower(goal)
-	out := append([]sharedpromptcontext.OperationCandidate(nil), operations...)
-	slices.SortStableFunc(out, func(a, b sharedpromptcontext.OperationCandidate) int {
-		left := icotOperationScore(goal, a)
-		right := icotOperationScore(goal, b)
-		if left != right {
-			return right - left
-		}
-		return strings.Compare(firstNonEmpty(a.OperationID, a.ID), firstNonEmpty(b.OperationID, b.ID))
-	})
-	if len(out) > 10 {
-		out = out[:10]
-	}
-	return out
-}
-
-func icotOperationScore(goal string, op sharedpromptcontext.OperationCandidate) int {
-	text := strings.ToLower(strings.Join([]string{op.ID, op.OperationID, op.Name, op.Verb, op.Path, op.Summary, strings.Join(op.Tags, " ")}, " "))
-	score := 0
-	for _, token := range strings.FieldsFunc(goal, func(r rune) bool { return r < 'a' || r > 'z' }) {
-		if len(token) > 2 && strings.Contains(text, token) {
-			score += 5
-		}
-	}
-	if strings.Contains(goal, "create") || strings.Contains(goal, "add") || strings.Contains(goal, "manage") {
-		if strings.EqualFold(op.Verb, "POST") || strings.Contains(text, "create") {
-			score += 20
-		}
-	}
-	if strings.Contains(goal, "update") || strings.Contains(goal, "change") {
-		if strings.EqualFold(op.Verb, "PUT") || strings.EqualFold(op.Verb, "PATCH") || strings.Contains(text, "update") {
-			score += 20
-		}
-	}
-	if strings.Contains(goal, "delete") || strings.Contains(goal, "remove") {
-		if strings.EqualFold(op.Verb, "DELETE") || strings.Contains(text, "delete") {
-			score += 20
-		}
-	}
-	if icotReadOnlyText(goal) && icotReadOnlyGoal(goal, op) {
-		score += 10
-	}
-	return score
-}
-
-func exactICOTOperationMatch(goal string, operations []sharedpromptcontext.OperationCandidate) (sharedpromptcontext.OperationCandidate, bool) {
-	needle := normalizeOperationID(goal)
-	if needle == "" {
-		return sharedpromptcontext.OperationCandidate{}, false
-	}
-	var match sharedpromptcontext.OperationCandidate
-	count := 0
-	for _, op := range operations {
-		for _, candidate := range []string{op.OperationID, op.ID} {
-			if normalizeOperationID(candidate) == needle {
-				match = op
-				count++
-				break
-			}
-		}
-	}
-	return match, count == 1
+	return nil
 }
 
 func operationByID(operations []sharedpromptcontext.OperationCandidate, id string) (sharedpromptcontext.OperationCandidate, bool) {
@@ -500,27 +390,6 @@ func operationByID(operations []sharedpromptcontext.OperationCandidate, id strin
 		}
 	}
 	return sharedpromptcontext.OperationCandidate{}, false
-}
-
-func icotOperationIDs(operations []sharedpromptcontext.OperationCandidate) []string {
-	ids := make([]string, 0, len(operations))
-	for _, op := range operations {
-		if id := firstNonEmpty(op.OperationID, op.ID); id != "" {
-			ids = append(ids, id)
-		}
-	}
-	return ids
-}
-
-func normalizeOperationID(value string) string {
-	value = strings.ToLower(strings.TrimSpace(value))
-	var b strings.Builder
-	for _, r := range value {
-		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
 }
 
 type icotModelConfig struct {
@@ -882,52 +751,6 @@ func firstNonEmpty(values ...string) string {
 	return ""
 }
 
-func icotReadOnlyGoal(goal string, op sharedpromptcontext.OperationCandidate) bool {
-	text := strings.ToLower(strings.Join([]string{goal, op.ID, op.OperationID, op.Name, op.Summary}, " "))
-	verb := strings.ToUpper(strings.TrimSpace(op.Verb))
-	if verb == "GET" || verb == "HEAD" {
-		return true
-	}
-	return icotReadOnlyText(text)
-}
-
-func icotReadOnlyText(text string) bool {
-	text = strings.ToLower(text)
-	words := strings.FieldsFunc(text, func(r rune) bool { return r < 'a' || r > 'z' })
-	for _, word := range words {
-		switch word {
-		case "list", "read", "get", "show", "fetch", "enumerate", "all":
-			return true
-		}
-	}
-	return false
-}
-
-func icotNeedsInput(code, message, slot string) authorCLIResult {
-	return icotNeedsInputWithDetail(code, message, slot, nil)
-}
-
-func icotNeedsInputWithDetail(code, message, slot string, detail map[string]any) authorCLIResult {
-	issue := sharedreadiness.Issue{Code: code, Severity: "blocking", Message: message, Slot: slot}
-	diagnostic := trust.DiagnosticRecord{Code: code, Severity: "blocking", Message: message}
-	if len(detail) > 0 {
-		diagnostic.Detail = detail
-	}
-	return authorCLIResult{Report: sharedreport.Normalize(sharedreport.Result{
-		Status:   sharedreport.StatusNeedsInput,
-		Summary:  message,
-		TopIssue: &issue,
-		Readiness: &sharedreadiness.Result{
-			Ready:    false,
-			Issues:   []sharedreadiness.Issue{issue},
-			Blocking: []sharedreadiness.Issue{issue},
-			TopIssue: &issue,
-		},
-		Diagnostics: []trust.DiagnosticRecord{diagnostic},
-		Metadata:    map[string]string{"adapter": "ramen.icot"},
-	})}
-}
-
 func icotFailed(code, message string) authorCLIResult {
 	return authorCLIResult{Report: sharedreport.Normalize(sharedreport.Result{
 		Status:      sharedreport.StatusFailed,
@@ -937,7 +760,7 @@ func icotFailed(code, message string) authorCLIResult {
 	})}
 }
 
-func loadICOTAnswers(path string) (string, error) {
+func loadICOTV2Answers(path string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
 		return "", nil
@@ -946,25 +769,114 @@ func loadICOTAnswers(path string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("icot.answers_read_error: %w", err)
 	}
-	var replay struct {
-		Input string `json:"input"`
-		Turns []struct {
-			Answer string `json:"answer"`
-		} `json:"turns"`
+	var answers ramenicot.AnswersFile
+	if err := json.Unmarshal(data, &answers); err != nil {
+		return "", fmt.Errorf("icot.answers_parse_error: v2 answers must be JSON: %w", err)
 	}
-	if json.Unmarshal(data, &replay) == nil {
-		if strings.TrimSpace(replay.Input) != "" {
-			return replay.Input, nil
-		}
-		if len(replay.Turns) > 0 {
-			var lines []string
-			for _, turn := range replay.Turns {
-				lines = append(lines, turn.Answer)
-			}
-			return strings.Join(lines, "\n") + "\n", nil
-		}
+	if answers.Version != ramenicot.AnswersVersion {
+		return "", fmt.Errorf("icot.answers_version_invalid: got %q, want %q; v1 and unversioned inputs are not compatible", answers.Version, ramenicot.AnswersVersion)
 	}
-	return string(data), nil
+	return answers.Input, nil
+}
+
+func resolveRamenICOTNetworkPolicy(value string, agent bool) (string, error) {
+	value = strings.ToLower(strings.TrimSpace(value))
+	if value == "" {
+		if agent {
+			return "never", nil
+		}
+		return "ask", nil
+	}
+	if agent && value == "ask" {
+		return "never", nil
+	}
+	switch value {
+	case "never", "ask", "allow":
+		return value, nil
+	default:
+		return "", fmt.Errorf("--network must be never, ask, or allow")
+	}
+}
+
+func flagWasSet(fs *flag.FlagSet, name string) bool {
+	set := false
+	fs.Visit(func(current *flag.Flag) {
+		if current.Name == name {
+			set = true
+		}
+	})
+	return set
+}
+
+func parseICOTLocalSources(apiValues, openAPIValues []string) ([]apitools.LocalSource, error) {
+	parsed, err := parseAPISourceFlags(apiValues)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]apitools.LocalSource, 0, len(parsed)+len(openAPIValues))
+	for _, input := range parsed {
+		out = append(out, apitools.LocalSource{Kind: input.Kind, ID: input.ID, Path: input.Path})
+	}
+	openAPIs, err := parseOpenAPIFlags(openAPIValues)
+	if err != nil {
+		return nil, err
+	}
+	for _, input := range openAPIs {
+		out = append(out, apitools.LocalSource{Kind: apitools.APISourceKindOpenAPI, ID: input.ID, Path: input.Path})
+	}
+	return out, nil
+}
+
+func authorCLIResultForICOTV2(result ramenicot.RunResult, runErr error) authorCLIResult {
+	reportStatus := sharedreport.StatusNeedsInput
+	switch result.Status {
+	case "complete":
+		reportStatus = sharedreport.StatusComplete
+	case "canceled":
+		reportStatus = sharedreport.StatusCanceled
+	case "failed":
+		reportStatus = sharedreport.StatusFailed
+	}
+	issues := make([]sharedreadiness.Issue, 0, len(result.Frontier)+len(result.Blockers))
+	for _, question := range result.Frontier {
+		issues = append(issues, sharedreadiness.Issue{
+			Code: "ramen.icot." + strings.ReplaceAll(question.ID, ".", "_"), Severity: sharedreadiness.SeverityBlocking,
+			Slot: firstNonEmpty(question.ID, "interview"), Message: question.Prompt, SuggestedAnswer: question.Recommendation,
+		})
+	}
+	diagnostics := make([]trust.DiagnosticRecord, 0, len(result.Blockers)+1)
+	for _, blocker := range result.Blockers {
+		diagnostics = append(diagnostics, trust.DiagnosticRecord{Code: blocker.Code, Severity: "blocking", Message: blocker.Message, Detail: map[string]any{"remediation": blocker.Remediation}})
+	}
+	if runErr != nil && !errors.Is(runErr, sharedicot.ErrNeedsInput) && !errors.Is(runErr, sharedicot.ErrCanceled) {
+		diagnostics = append(diagnostics, trust.DiagnosticRecord{Code: "ramen.icot.run_failed", Severity: "error", Message: runErr.Error()})
+	}
+	readinessResult := sharedreadiness.Evaluate(issues)
+	report := sharedreport.Result{
+		Status: reportStatus, Summary: result.Proposal.Outcome, Diagnostics: diagnostics,
+		Metadata: map[string]string{"adapter": "ramen.icot.v2", "session_version": ramenicot.SessionVersion, "report_version": ramenicot.ReportVersion},
+	}
+	if len(issues) > 0 {
+		report.Readiness = &readinessResult
+		report.TopIssue = readinessResult.TopIssue
+	}
+	if result.Artifact.ProjectPath != "" {
+		report.Artifacts = append(report.Artifacts, trust.ArtifactRecord{Path: result.Artifact.ProjectPath, Kind: "ramen.project", Required: true})
+	}
+	if result.Artifact.ProjectHCLPath != "" {
+		report.Artifacts = append(report.Artifacts, trust.ArtifactRecord{Path: result.Artifact.ProjectHCLPath, Kind: "ramen.project.hcl"})
+	}
+	report = sharedreport.Normalize(report)
+	session := result.Session
+	proposal := result.Proposal
+	return authorCLIResult{
+		Version: result.Version, Status: result.Status, Report: report,
+		ProjectPath: result.Artifact.ProjectPath, ProjectHCLPath: result.Artifact.ProjectHCLPath,
+		Validation: result.Artifact.Validation, Graph: result.Artifact.Graph, Plan: result.Artifact.Plan,
+		Session: &session, Frontier: result.Frontier, Proposal: &proposal,
+		CandidateWorkflows: result.CandidateWorkflows, SourceCandidates: result.SourceCandidates,
+		Blockers: result.Blockers, Backups: result.Artifact.Backups,
+	}
 }
 
 func writeJSONFile(path string, value any) error {
