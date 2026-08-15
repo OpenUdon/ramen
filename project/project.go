@@ -268,6 +268,9 @@ func ProfileFromDocument(doc *uws1.Document) (Profile, error) {
 	if err != nil {
 		return Profile{}, err
 	}
+	if err := validateProfileDocument(data); err != nil {
+		return Profile{}, err
+	}
 	var profile Profile
 	if err := json.Unmarshal(data, &profile); err != nil {
 		return Profile{}, err

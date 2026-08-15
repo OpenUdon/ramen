@@ -1,0 +1,284 @@
+{
+  "$id": "https://github.com/OpenUdon/ramen/project/schemas/project.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ramen Native Project Profile v1",
+  "description": "Ramen-owned desired-state metadata carried by the x-ramen-desired-state UWS extension.",
+  "type": "object",
+  "required": ["version"],
+  "properties": {
+    "version": {"const": "ramen.project.v1"},
+    "api_sources": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/api-source"}
+    },
+    "variables": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/variable"}
+    },
+    "resources": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/resource"}
+    },
+    "candidate_workflows": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/candidate-workflow"}
+    },
+    "redaction": {"$ref": "#/$defs/redaction"},
+    "metadata": {"$ref": "#/$defs/arbitrary-map"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "string-array": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "arbitrary-map": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "candidate-workflow": {
+      "type": "object",
+      "required": ["title", "outcome", "deferral_reason", "promotion_trigger"],
+      "properties": {
+        "title": {"type": "string"},
+        "outcome": {"type": "string"},
+        "deferral_reason": {"type": "string"},
+        "promotion_trigger": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "variable": {
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_-]*$"
+        },
+        "type": {
+          "type": "string",
+          "enum": ["", "any", "string", "number", "bool", "object", "list"]
+        },
+        "description": {"type": "string"},
+        "default": true,
+        "sensitive": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "api-source": {
+      "type": "object",
+      "required": ["kind", "id", "path"],
+      "properties": {
+        "kind": {"type": "string"},
+        "id": {"type": "string"},
+        "path": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "resource": {
+      "type": "object",
+      "required": ["address", "kind", "type"],
+      "properties": {
+        "address": {"type": "string"},
+        "kind": {"type": "string"},
+        "type": {"type": "string"},
+        "name": {"type": "string"},
+        "provider": {"type": "string"},
+        "attributes": {"$ref": "#/$defs/arbitrary-map"},
+        "lifecycle": {"$ref": "#/$defs/lifecycle"},
+        "dependencies": {"$ref": "#/$defs/string-array"},
+        "operations": {
+          "type": "object",
+          "additionalProperties": {"$ref": "#/$defs/operation-role"}
+        },
+        "identity_attributes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/identity-attribute"}
+        },
+        "schema": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/schema-path"}
+        },
+        "request_bindings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/request-binding"}
+        },
+        "response_bindings": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/response-binding"}
+        },
+        "normalizers": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/normalizer"}
+        },
+        "mapping_lifecycle": {"$ref": "#/$defs/mapping-lifecycle"},
+        "required_operations": {"$ref": "#/$defs/string-array"},
+        "credential_bindings": {"$ref": "#/$defs/string-array"},
+        "runtime_hints": {"$ref": "#/$defs/runtime-hints"},
+        "redaction": {"$ref": "#/$defs/redaction"},
+        "ai": {"$ref": "#/$defs/ai-metadata"},
+        "metadata": {"$ref": "#/$defs/arbitrary-map"}
+      },
+      "additionalProperties": false
+    },
+    "lifecycle": {
+      "type": "object",
+      "properties": {
+        "prevent_destroy": {"type": "boolean"},
+        "ignore_all": {"type": "boolean"},
+        "ignore_paths": {"$ref": "#/$defs/string-array"},
+        "replace_triggered_by": {"$ref": "#/$defs/string-array"}
+      },
+      "additionalProperties": false
+    },
+    "operation-role": {
+      "type": "object",
+      "required": ["operation_id"],
+      "properties": {
+        "purpose": {"type": "string"},
+        "method": {"type": "string"},
+        "source_kind": {"type": "string"},
+        "source_id": {"type": "string"},
+        "source_path": {"type": "string"},
+        "operation_id": {"type": "string"},
+        "credential_bindings": {"$ref": "#/$defs/string-array"},
+        "ai": {"$ref": "#/$defs/ai-metadata"}
+      },
+      "additionalProperties": false
+    },
+    "runtime-hints": {
+      "type": "object",
+      "properties": {
+        "retry": {"$ref": "#/$defs/arbitrary-map"},
+        "waiter": {"$ref": "#/$defs/arbitrary-map"},
+        "settle": {"$ref": "#/$defs/arbitrary-map"}
+      },
+      "additionalProperties": false
+    },
+    "ai-metadata": {
+      "type": "object",
+      "properties": {
+        "confidence": {"$ref": "#/$defs/confidence"},
+        "uncertainty": {"type": "string"},
+        "rationale": {"type": "string"},
+        "citations": {"$ref": "#/$defs/string-array"}
+      },
+      "additionalProperties": false
+    },
+    "confidence": {
+      "type": "object",
+      "required": ["score"],
+      "properties": {
+        "score": {"type": "number"},
+        "reason": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "identity-attribute": {
+      "type": "object",
+      "required": ["name", "path"],
+      "properties": {
+        "name": {"type": "string"},
+        "path": {"type": "string"},
+        "request_keys": {"$ref": "#/$defs/string-array"},
+        "response_paths": {"$ref": "#/$defs/string-array"},
+        "required": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "schema-path": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string"},
+        "type": {"type": "string"},
+        "enum_values": {"$ref": "#/$defs/string-array"},
+        "required": {"type": "boolean"},
+        "optional": {"type": "boolean"},
+        "computed": {"type": "boolean"},
+        "sensitive": {"type": "boolean"},
+        "identity": {"type": "boolean"},
+        "response_derived_identity": {"type": "boolean"},
+        "immutable": {"type": "boolean"},
+        "create_only": {"type": "boolean"},
+        "updateable": {"type": "boolean"},
+        "replace_on_change": {"type": "boolean"},
+        "read_only": {"type": "boolean"},
+        "ignored": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "request-binding": {
+      "type": "object",
+      "required": ["operation_role", "path", "request_path"],
+      "properties": {
+        "operation_role": {"type": "string"},
+        "operation_id": {"type": "string"},
+        "path": {"type": "string"},
+        "request_path": {"type": "string"},
+        "location": {"type": "string"},
+        "encoding": {"type": "string"},
+        "required": {"type": "boolean"},
+        "identity": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "response-binding": {
+      "type": "object",
+      "required": ["operation_role", "response_path", "state_path"],
+      "properties": {
+        "operation_role": {"type": "string"},
+        "operation_id": {"type": "string"},
+        "response_path": {"type": "string"},
+        "state_path": {"type": "string"},
+        "identity": {"type": "boolean"},
+        "response_derived_identity": {"type": "boolean"},
+        "computed": {"type": "boolean"},
+        "observed": {"type": "boolean"},
+        "sensitive": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "normalizer": {
+      "type": "object",
+      "required": ["path", "kind"],
+      "properties": {
+        "path": {"type": "string"},
+        "kind": {"type": "string"}
+      },
+      "additionalProperties": false
+    },
+    "mapping-lifecycle": {
+      "type": "object",
+      "properties": {
+        "operation_roles": {"$ref": "#/$defs/string-array"},
+        "paths": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/mapping-lifecycle-path"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "mapping-lifecycle-path": {
+      "type": "object",
+      "required": ["path"],
+      "properties": {
+        "path": {"type": "string"},
+        "immutable": {"type": "boolean"},
+        "create_only": {"type": "boolean"},
+        "updateable": {"type": "boolean"},
+        "replace_on_change": {"type": "boolean"},
+        "computed": {"type": "boolean"},
+        "ignored": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "redaction": {
+      "type": "object",
+      "properties": {
+        "paths": {"$ref": "#/$defs/string-array"}
+      },
+      "additionalProperties": false
+    }
+  }
+}
