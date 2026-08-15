@@ -1,0 +1,90 @@
+{
+  "$id": "https://github.com/OpenUdon/ramen/internal/convertreport/schemas/manifest.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ramen Static Conversion Manifest v1",
+  "type": "object",
+  "required": ["version", "converter", "mode", "status", "inputs", "artifacts", "coverage", "diagnostics", "execution"],
+  "properties": {
+    "version": {"const": "ramen.convert.manifest.v1"},
+    "converter": {"enum": ["terraform", "ansible"]},
+    "mode": {"enum": ["strict", "partial"]},
+    "status": {"enum": ["complete", "partial", "failed"]},
+    "inputs": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/input"}
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/artifact"}
+    },
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "diagnostics": {"$ref": "#/$defs/diagnosticSummary"},
+    "execution": {
+      "type": "object",
+      "required": ["performed"],
+      "properties": {"performed": {"const": false}},
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "input": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "artifact": {
+      "type": "object",
+      "required": ["kind", "path", "sha256"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[a-f0-9]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "coverageItem": {
+      "type": "object",
+      "required": ["kind", "id", "disposition"],
+      "properties": {
+        "kind": {"type": "string", "minLength": 1},
+        "id": {"type": "string", "minLength": 1},
+        "disposition": {"enum": ["converted", "symbolic", "unsupported", "ignored"]},
+        "reason": {"type": "string", "minLength": 1},
+        "diagnostic_code": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "coverage": {
+      "type": "object",
+      "required": ["converted", "symbolic", "unsupported", "ignored", "items"],
+      "properties": {
+        "converted": {"type": "integer", "minimum": 0},
+        "symbolic": {"type": "integer", "minimum": 0},
+        "unsupported": {"type": "integer", "minimum": 0},
+        "ignored": {"type": "integer", "minimum": 0},
+        "items": {"type": "array", "items": {"$ref": "#/$defs/coverageItem"}}
+      },
+      "additionalProperties": false
+    },
+    "diagnosticSummary": {
+      "type": "object",
+      "required": ["path", "total", "errors", "warnings", "info", "strict_failures"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "total": {"type": "integer", "minimum": 0},
+        "errors": {"type": "integer", "minimum": 0},
+        "warnings": {"type": "integer", "minimum": 0},
+        "info": {"type": "integer", "minimum": 0},
+        "strict_failures": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  }
+}

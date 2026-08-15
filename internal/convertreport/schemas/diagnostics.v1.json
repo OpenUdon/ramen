@@ -1,0 +1,63 @@
+{
+  "$id": "https://github.com/OpenUdon/ramen/internal/convertreport/schemas/diagnostics.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ramen Static Conversion Diagnostics v1",
+  "type": "object",
+  "required": ["version", "converter", "diagnostics"],
+  "properties": {
+    "version": {"const": "ramen.convert.diagnostics.v1"},
+    "converter": {"enum": ["terraform", "ansible"]},
+    "diagnostics": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/diagnostic"}
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "position": {
+      "type": "object",
+      "required": ["line", "column"],
+      "properties": {
+        "line": {"type": "integer", "minimum": 0},
+        "column": {"type": "integer", "minimum": 0},
+        "byte": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "sourceRange": {
+      "type": "object",
+      "required": ["start", "end"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "path": {"type": "string", "minLength": 1},
+        "start": {"$ref": "#/$defs/position"},
+        "end": {"$ref": "#/$defs/position"}
+      },
+      "additionalProperties": false
+    },
+    "subject": {
+      "type": "object",
+      "required": ["kind", "id"],
+      "properties": {
+        "kind": {"enum": ["configuration", "module", "resource", "data_source", "play", "task", "argspec", "api_source", "conversion"]},
+        "id": {"type": "string", "minLength": 1},
+        "module": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": ["code", "severity", "message", "strict_failure"],
+      "properties": {
+        "code": {"type": "string", "pattern": "^[a-z][a-z0-9_.-]+$"},
+        "severity": {"enum": ["info", "warning", "error"]},
+        "message": {"type": "string", "minLength": 1},
+        "strict_failure": {"type": "boolean"},
+        "subject": {"$ref": "#/$defs/subject"},
+        "source_range": {"$ref": "#/$defs/sourceRange"},
+        "todo_id": {"type": "string", "minLength": 1}
+      },
+      "additionalProperties": false
+    }
+  }
+}
