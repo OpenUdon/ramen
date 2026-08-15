@@ -89,7 +89,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
 	}
-	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "resolving play roles/import_role", "host fan-out over $inputs.hosts", "not used for static expression lowering"} {
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "resolving play roles/import_role", "exact group targets without connecting", "values are redacted from reports"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
 		}
@@ -188,7 +188,7 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 		"--roles-path", filepath.Join(root, "roles"),
 		"--collections-path", filepath.Join(root, "collections"),
 		"--inventory", inventoryPath,
-		"--extra-var", "env=test",
+		"--extra-var", "env=super-private-marker",
 		"--ignore-unsupported",
 		"--out", outDir)
 	output, err := cmd.CombinedOutput()
@@ -211,10 +211,13 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 		t.Fatalf("read review: %v", err)
 	}
 	reviewText := string(review)
-	for _, expected := range []string{"## Unsupported Gate", "Generated artifacts are static review scaffolding", "Project directory:", "Roles paths:", "Collections paths:", "Inventory inputs:", "Extra vars:", "env=test"} {
+	for _, expected := range []string{"## Unsupported Gate", "Generated artifacts are static review scaffolding", "Project directory:", "Roles paths:", "Collections paths:", "Inventory inputs:", "Extra vars:", "env=<redacted>"} {
 		if !strings.Contains(reviewText, expected) {
 			t.Fatalf("review missing %q:\n%s", expected, review)
 		}
+	}
+	if strings.Contains(reviewText, "super-private-marker") {
+		t.Fatalf("review disclosed inline extra-var value:\n%s", review)
 	}
 	if !strings.Contains(reviewText, filepath.Join(root, "roles")) {
 		t.Fatalf("review missing expected sections:\n%s", review)
@@ -296,13 +299,14 @@ func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 	playbook := filepath.Join(root, "playbook.yml")
 	argspec := filepath.Join(root, "argspec.json")
 	mustWriteCLIFile(t, playbook, []byte(`- name: embedded schemas
-  hosts: localhost
+  hosts: web
   tasks:
     - name: Install package
       ansible.builtin.apt:
-        name: nginx
+        name: "{{ pkg }}"
         state: present
 `))
+	mustWriteCLIFile(t, filepath.Join(root, "inventory.ini"), []byte("[web]\nnode-1\n"))
 	mustWriteCLIFile(t, argspec, []byte(`{
   "argspec": "ramen.ansible.1.0",
   "collection": "ansible.builtin",
@@ -320,6 +324,8 @@ func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 		"convert", "ansible",
 		"--playbook", "playbook.yml",
 		"--argspec", "builtin=argspec.json",
+		"--inventory", "inventory.ini",
+		"--extra-var", "pkg=nginx",
 		"--out", "out",
 	)
 	command.Dir = root
@@ -332,6 +338,13 @@ func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 	}
 	if !strings.Contains(string(data), ansibleconvert.ProfileName) || !strings.Contains(string(data), ansibleconvert.ExtensionAnsibleModule) {
 		t.Fatalf("installed CLI output lacks Ramen-owned metadata:\n%s", data)
+	}
+	if !strings.Contains(string(data), "$variables.inventory_embedded_schemas_hosts") || !strings.Contains(string(data), "$variables.pkg") {
+		t.Fatalf("installed CLI did not apply static inventory/extra vars:\n%s", data)
+	}
+	review, err := os.ReadFile(filepath.Join(root, "out", "expected", "review.md"))
+	if err != nil || strings.Contains(string(review), "pkg=nginx") || !strings.Contains(string(review), "pkg=<redacted>") {
+		t.Fatalf("installed CLI extra-var review redaction failed: err=%v\n%s", err, review)
 	}
 
 	tfDir := filepath.Join(root, "tf")

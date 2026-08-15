@@ -35,6 +35,7 @@ type Play struct {
 	InventoryHosts     []string
 	InventoryResolved  bool
 	InventoryFailed    bool
+	StaticScopeFailed  bool
 	InventoryVariable  string
 	InventoryHostVars  map[string]map[string]any
 	InventoryVarNames  map[string]bool

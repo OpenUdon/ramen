@@ -52,8 +52,8 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	fs.Var(&argspecs, "argspec", "Collection argspec document as ID=PATH (repeatable; ramen.ansible.1.0 shape)")
 	fs.Var(&rolesPaths, "roles-path", "Static Ansible roles search path for resolving play roles/import_role (repeatable)")
 	fs.Var(&collectionsPaths, "collections-path", "Static Ansible collections search path for resolving FQCN collection roles (repeatable)")
-	fs.Var(&inventoryPaths, "inventory", "Inventory file or directory input; when supplied, non-local plays lower as host fan-out over $inputs.hosts (repeatable)")
-	fs.Var(&extraVars, "extra-var", "Static extra variable NAME=VALUE or @file (repeatable; recorded for review, not used for static expression lowering)")
+	fs.Var(&inventoryPaths, "inventory", "Bounded static INI/YAML/JSON inventory file; resolves all, exact host, or exact group targets without connecting (repeatable)")
+	fs.Var(&extraVars, "extra-var", "Literal static extra variable NAME=VALUE or @file at highest precedence (repeatable; values are redacted from reports)")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial]\n\n")
 		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. Ansible module leaves are emitted as extension-owned operations carrying ramen.ansible-module-call.1.0; --target-uws only selects the uws version the document declares, defaulting to 1.5. Unsupported constructs are reported explicitly. Strict mode (the transitional default) exits 3 and suppresses workflows; partial mode omits unsupported constructs and exits 0. --strict and --ignore-unsupported are deprecated mode aliases.\n\n")

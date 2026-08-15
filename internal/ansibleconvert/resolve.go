@@ -61,11 +61,13 @@ func (r *staticResolver) resolveVarsFiles(play *Play) {
 		if containsTemplate(value) {
 			r.addDiag(Diagnostic{Code: CodeStaticResolution, Severity: "error", StrictFailure: true, Task: play.Name,
 				Message: fmt.Sprintf("vars_files entry %q is templated; static variable ingestion requires literal file paths", value)})
+			play.StaticScopeFailed = true
 			continue
 		}
 		path := resolveRelativeTo(play.SourceFile, value)
 		vars, ok := r.readStaticVarsFile(path, fmt.Sprintf("vars_files %q", value), play.Name)
 		if !ok {
+			play.StaticScopeFailed = true
 			continue
 		}
 		r.mergeVars(play, vars, varPriorityVarsFile, fmt.Sprintf("vars_files %s", path), play.Name)
@@ -247,6 +249,8 @@ func (r *staticResolver) expandRole(play *Play, roleName, sourceFile string, lin
 		vars, varsOK := r.readStaticVarsFile(path, fmt.Sprintf("role %s %s", role.name, source.rel), taskName)
 		if varsOK {
 			r.mergeVars(play, vars, source.priority, fmt.Sprintf("role %s %s", role.name, source.rel), taskName)
+		} else {
+			play.StaticScopeFailed = true
 		}
 	}
 	handlersPath := filepath.Join(role.path, "handlers", "main.yml")
@@ -396,6 +400,7 @@ func (r *staticResolver) mergeVars(play *Play, vars map[string]any, priority int
 			case existingPriority == priority && !reflect.DeepEqual(existing, value):
 				r.addDiag(Diagnostic{Code: CodeVariableConflict, Severity: "error", StrictFailure: true, Task: taskName,
 					Message: fmt.Sprintf("variable %q from %s conflicts with %s at equal static precedence", name, source, play.VarSources[name])})
+				play.StaticScopeFailed = true
 				continue
 			}
 		}

@@ -35,6 +35,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	inventory, inventoryDiags := loadStaticInventory(opts.InventoryPaths)
 	inventoryDiags = append(inventoryDiags, applyInventoryTargets(playbook, inventory, len(opts.InventoryPaths) > 0)...)
 	resolveDiags := resolveStatic(playbook, opts)
+	extraVarDiags := applyExtraVars(playbook, opts.ExtraVars)
 	idx, err := LoadArgspecs(opts.Argspecs)
 	if err != nil {
 		return nil, err
@@ -46,6 +47,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	})
 	diags := append(parseDiags, inventoryDiags...)
 	diags = append(diags, resolveDiags...)
+	diags = append(diags, extraVarDiags...)
 	diags = append(diags, lowerDiags...)
 	if len(doc.Operations) == 0 {
 		diags = append(diags, Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true,
@@ -189,9 +191,12 @@ func writeAnsibleManifest(result *Result, doc *uws1.Document, opts Options) erro
 		value = strings.TrimSpace(value)
 		if strings.HasPrefix(value, "@") {
 			path := strings.TrimSpace(strings.TrimPrefix(value, "@"))
-			input, err := convertreport.FileInput("ansible-extra-vars-file", "", path)
-			if err != nil {
-				return fmt.Errorf("record extra-vars file: %w", err)
+			input := convertreport.Input{Kind: "ansible-extra-vars-file", Path: filepath.Base(filepath.Clean(path))}
+			if info, statErr := os.Lstat(path); statErr == nil && info.Mode().IsRegular() {
+				input, err = convertreport.FileInput("ansible-extra-vars-file", "", path)
+				if err != nil {
+					return fmt.Errorf("record extra-vars file: %w", err)
+				}
 			}
 			inputs = append(inputs, input)
 			continue
@@ -278,7 +283,7 @@ func writeReview(result *Result, doc *uws1.Document, opts Options) error {
 	fmt.Fprintf(&b, "- Roles paths: `%s`\n", reviewList(opts.RolesPaths))
 	fmt.Fprintf(&b, "- Collections paths: `%s`\n", reviewList(opts.CollectionsPaths))
 	fmt.Fprintf(&b, "- Inventory inputs: `%s`\n", reviewList(opts.InventoryPaths))
-	fmt.Fprintf(&b, "- Extra vars: `%s`\n", reviewList(opts.ExtraVars))
+	fmt.Fprintf(&b, "- Extra vars: `%s`\n", reviewExtraVars(opts.ExtraVars))
 	fmt.Fprintf(&b, "- Lowered operations: `%d`\n", len(doc.Operations))
 	fmt.Fprintf(&b, "- Diagnostics: `%d`\n", len(result.Diagnostics))
 	fmt.Fprintf(&b, "- Strict failures: `%d`\n", result.StrictFailures)
@@ -341,6 +346,28 @@ func reviewList(values []string) string {
 		return "none"
 	}
 	return strings.Join(values, ", ")
+}
+
+func reviewExtraVars(values []string) string {
+	if len(values) == 0 {
+		return "none"
+	}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if strings.HasPrefix(value, "@") {
+			path := strings.TrimSpace(strings.TrimPrefix(value, "@"))
+			out = append(out, "@"+filepath.Base(filepath.Clean(path)))
+			continue
+		}
+		name, _, _ := strings.Cut(value, "=")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			name = "inline"
+		}
+		out = append(out, name+"=<redacted>")
+	}
+	return strings.Join(out, ", ")
 }
 
 func writeArtifactPath(b *strings.Builder, root, label, path string) {

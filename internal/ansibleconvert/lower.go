@@ -126,7 +126,7 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 	notifiersByHandler := map[string][]*loweredTask{}
 	needsHostsInput := false
 	for _, play := range pb.Plays {
-		if play.InventoryFailed {
+		if play.InventoryFailed || play.StaticScopeFailed {
 			continue
 		}
 		hostFanOut := opts.HostFanOut && playNeedsHostFanOut(play.Hosts)

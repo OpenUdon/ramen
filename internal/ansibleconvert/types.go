@@ -71,6 +71,7 @@ const (
 	CodeHostsRuntimeOwned   = "ansible.hosts_runtime_owned"
 	CodeInventoryInvalid    = "ansible.inventory_invalid"
 	CodeInventoryPattern    = "ansible.inventory_pattern"
+	CodeExtraVarsInvalid    = "ansible.extra_vars_invalid"
 	CodeHandlerUnnotified   = "ansible.handler_unnotified"
 	CodePlaybookShape       = "ansible.playbook_shape"
 	CodeStaticResolution    = "ansible.static_resolution"
