@@ -178,6 +178,18 @@ func parseAPISourceFlags(values []string) ([]tfconvert.APISourceInput, error) {
 	return inputs, nil
 }
 
+func parseProviderSchemaFlags(values []string) ([]tfconvert.ProviderSchemaInput, error) {
+	inputs := make([]tfconvert.ProviderSchemaInput, 0, len(values))
+	for _, value := range values {
+		id, path, ok := strings.Cut(value, "=")
+		if !ok || strings.TrimSpace(id) == "" || strings.TrimSpace(path) == "" {
+			return nil, fmt.Errorf("--provider-schema must be ID=PATH, got %q", value)
+		}
+		inputs = append(inputs, tfconvert.ProviderSchemaInput{ID: strings.TrimSpace(id), Path: strings.TrimSpace(path)})
+	}
+	return inputs, nil
+}
+
 func parsePlanAPISourceFlags(values []string) ([]tfplan.APISourceInput, error) {
 	inputs := make([]tfplan.APISourceInput, 0, len(values))
 	for _, value := range values {

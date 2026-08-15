@@ -32,12 +32,13 @@ const (
 )
 
 type Options struct {
-	ConfigDir  string
-	OpenAPIs   []OpenAPIInput
-	APISources []APISourceInput
-	Action     string
-	Targets    []string
-	OutDir     string
+	ConfigDir       string
+	OpenAPIs        []OpenAPIInput
+	APISources      []APISourceInput
+	ProviderSchemas []ProviderSchemaInput
+	Action          string
+	Targets         []string
+	OutDir          string
 	// Mode is "strict" or "partial". Empty preserves the legacy Strict field.
 	Mode   string
 	Strict bool
@@ -50,6 +51,11 @@ type OpenAPIInput struct {
 
 type APISourceInput struct {
 	Kind string
+	ID   string
+	Path string
+}
+
+type ProviderSchemaInput struct {
 	ID   string
 	Path string
 }
@@ -79,16 +85,17 @@ type apiSourceStagingOwnership struct {
 }
 
 type Diagnostic struct {
-	Code          string       `json:"code"`
-	Severity      string       `json:"severity"`
-	Message       string       `json:"message"`
-	Address       string       `json:"address,omitempty"`
-	ModuleAddress string       `json:"module_address,omitempty"`
-	APISourceKind string       `json:"api_source_kind,omitempty"`
-	APISourceID   string       `json:"api_source_id,omitempty"`
-	SourceRange   *SourceRange `json:"source_range,omitempty"`
-	TodoID        string       `json:"todo_id,omitempty"`
-	StrictFailure bool         `json:"strict_failure,omitempty"`
+	Code             string       `json:"code"`
+	Severity         string       `json:"severity"`
+	Message          string       `json:"message"`
+	Address          string       `json:"address,omitempty"`
+	ModuleAddress    string       `json:"module_address,omitempty"`
+	APISourceKind    string       `json:"api_source_kind,omitempty"`
+	APISourceID      string       `json:"api_source_id,omitempty"`
+	ProviderSchemaID string       `json:"provider_schema_id,omitempty"`
+	SourceRange      *SourceRange `json:"source_range,omitempty"`
+	TodoID           string       `json:"todo_id,omitempty"`
+	StrictFailure    bool         `json:"strict_failure,omitempty"`
 }
 
 type SourceRange struct {
@@ -137,6 +144,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	conversion.loadAPISources(ctx)
+	conversion.loadProviderSchemas()
 	conversion.collectModuleContexts()
 	conversion.collectBindings()
 	conversion.collectSymbols()
@@ -185,16 +193,17 @@ func IsStrictFailure(err error) bool {
 }
 
 type conversionState struct {
-	opts         Options
-	doc          tfconfig.Document
-	apiSources   []apiDoc
-	bindings     []binding
-	symbols      []symbolFact
-	selected     []selectedObject
-	mappings     []objectMapping
-	diagnostics  []Diagnostic
-	semanticGaps []semanticGap
-	modules      map[string]moduleContext
+	opts            Options
+	doc             tfconfig.Document
+	apiSources      []apiDoc
+	bindings        []binding
+	symbols         []symbolFact
+	selected        []selectedObject
+	mappings        []objectMapping
+	diagnostics     []Diagnostic
+	semanticGaps    []semanticGap
+	modules         map[string]moduleContext
+	providerSchemas []providerSchemaDoc
 }
 
 type semanticGap struct {
@@ -321,6 +330,10 @@ func normalizeOptions(opts Options) Options {
 		opts.APISources[i].ID = strings.TrimSpace(opts.APISources[i].ID)
 		opts.APISources[i].Path = strings.TrimSpace(opts.APISources[i].Path)
 	}
+	for i := range opts.ProviderSchemas {
+		opts.ProviderSchemas[i].ID = strings.TrimSpace(opts.ProviderSchemas[i].ID)
+		opts.ProviderSchemas[i].Path = strings.TrimSpace(opts.ProviderSchemas[i].Path)
+	}
 	slices.SortFunc(opts.OpenAPIs, func(a, b OpenAPIInput) int {
 		if diff := cmp.Compare(a.ID, b.ID); diff != 0 {
 			return diff
@@ -331,6 +344,12 @@ func normalizeOptions(opts Options) Options {
 		left := []string{a.Kind, a.ID, a.Path}
 		right := []string{b.Kind, b.ID, b.Path}
 		return cmp.Compare(strings.Join(left, "\x00"), strings.Join(right, "\x00"))
+	})
+	slices.SortFunc(opts.ProviderSchemas, func(a, b ProviderSchemaInput) int {
+		if diff := cmp.Compare(a.ID, b.ID); diff != 0 {
+			return diff
+		}
+		return cmp.Compare(a.Path, b.Path)
 	})
 	for i := range opts.Targets {
 		opts.Targets[i] = strings.TrimSpace(opts.Targets[i])

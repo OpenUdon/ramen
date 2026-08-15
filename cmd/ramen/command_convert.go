@@ -30,7 +30,7 @@ func runConvertCommand(ctx context.Context, args []string) {
 }
 
 func convertUsage(out *os.File, command string) {
-	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial] [--strict]\n", command)
+	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--provider-schema ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial] [--strict]\n", command)
 	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial] [--strict|--ignore-unsupported]\n\n", command)
 	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
 }
@@ -143,12 +143,14 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	strict := fs.Bool("strict", false, "Deprecated alias for --mode strict")
 	var openAPIs repeatedStringFlag
 	var apiSources repeatedStringFlag
+	var providerSchemas repeatedStringFlag
 	var targets repeatedStringFlag
 	fs.Var(&openAPIs, "openapi", "Repeatable OpenAPI input as ID=PATH")
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&providerSchemas, "provider-schema", "Optional offline Terraform provider schema snapshot as ID=PATH (repeatable; read-only, never obtained by running a provider)")
 	fs.Var(&targets, "target", "Repeatable Terraform address target")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial]\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--provider-schema ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial]\n")
 		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. Strict mode is the default; it exits 3 and suppresses semantic project/workflow payloads when strict diagnostics remain. --mode partial explicitly permits review-only output with symbolic or omitted semantics. --strict remains a deprecated alias for --mode strict. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
@@ -174,15 +176,21 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(2)
 	}
+	schemas, err := parseProviderSchemaFlags(providerSchemas)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(2)
+	}
 	result, err := tfconvert.Convert(ctx, tfconvert.Options{
-		ConfigDir:  *configDir,
-		OpenAPIs:   inputs,
-		APISources: sources,
-		Action:     *action,
-		Targets:    []string(targets),
-		OutDir:     *outDir,
-		Mode:       mode,
-		Strict:     mode == "strict",
+		ConfigDir:       *configDir,
+		OpenAPIs:        inputs,
+		APISources:      sources,
+		ProviderSchemas: schemas,
+		Action:          *action,
+		Targets:         []string(targets),
+		OutDir:          *outDir,
+		Mode:            mode,
+		Strict:          mode == "strict",
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)

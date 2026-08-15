@@ -50,7 +50,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 		t.Fatalf("convert help failed: %v\n%s", err, output)
 	}
 	text = string(output)
-	for _, expected := range []string{"Usage: ramen convert", "--config-dir", "--api-source", "--openapi", "--action", "--target", "--mode", "--strict", "does not execute Terraform"} {
+	for _, expected := range []string{"Usage: ramen convert", "--config-dir", "--api-source", "--openapi", "--provider-schema", "--action", "--target", "--mode", "--strict", "does not execute Terraform"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("convert help missing %q:\n%s", expected, text)
 		}
@@ -79,6 +79,9 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "Usage: ramen convert") {
 		t.Fatalf("convert tf help missing usage:\n%s", output)
+	}
+	if !strings.Contains(string(output), "--provider-schema") || !strings.Contains(string(output), "never obtained by running a provider") {
+		t.Fatalf("convert tf help missing offline provider schema boundary:\n%s", output)
 	}
 
 	cmd = helperCommand("convert", "ansible", "--help")
