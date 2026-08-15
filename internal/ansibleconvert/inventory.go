@@ -149,9 +149,90 @@ func applyInventoryTargets(pb *Playbook, inv *staticInventory, supplied bool) []
 			continue
 		}
 		play.InventoryHosts = hosts
+		play.InventoryHostVars = map[string]map[string]any{}
+		play.InventoryVarNames = map[string]bool{}
+		connectionNames := map[string]bool{}
+		for _, host := range hosts {
+			vars, runtimeNames, err := inv.varsForHost(host)
+			if err != nil {
+				play.InventoryFailed = true
+				diags = append(diags, Diagnostic{Code: CodeVariableConflict, Severity: "error", StrictFailure: true, Task: play.Name,
+					Message: fmt.Sprintf("static inventory variables for host %q are ambiguous: %v", host, err)})
+				break
+			}
+			play.InventoryHostVars[host] = vars
+			for name := range vars {
+				play.InventoryVarNames[name] = true
+			}
+			for name := range runtimeNames {
+				connectionNames[name] = true
+			}
+		}
+		if play.InventoryFailed {
+			play.InventoryHosts = nil
+			play.InventoryHostVars = nil
+			play.InventoryVarNames = nil
+			continue
+		}
+		play.ConnectionVarCount = len(connectionNames)
 		play.InventoryResolved = true
 	}
 	return diags
+}
+
+func (inv *staticInventory) varsForHost(host string) (map[string]any, map[string]bool, error) {
+	if _, ok := inv.hosts[host]; !ok {
+		return nil, nil, fmt.Errorf("host is not defined")
+	}
+	out := map[string]any{}
+	runtimeNames := map[string]bool{}
+	if all := inv.groups["all"]; all != nil {
+		mergeInventoryRuntimeFiltered(out, all.vars, runtimeNames, false)
+	}
+	groupLayer := map[string]any{}
+	for _, name := range sortedGroupNames(inv.groups) {
+		if name == "all" {
+			continue
+		}
+		selected := map[string]bool{}
+		if err := inv.collectGroupHosts(name, selected, map[string]bool{}); err != nil {
+			return nil, nil, err
+		}
+		if !selected[host] {
+			continue
+		}
+		for varName, value := range inv.groups[name].vars {
+			if isRuntimeInventoryVar(varName) {
+				runtimeNames[varName] = true
+				continue
+			}
+			if existing, ok := groupLayer[varName]; ok && !reflect.DeepEqual(existing, value) {
+				return nil, nil, fmt.Errorf("group variable %q conflicts across groups at equal precedence", varName)
+			}
+			groupLayer[varName] = value
+		}
+	}
+	for name, value := range groupLayer {
+		out[name] = value
+	}
+	mergeInventoryRuntimeFiltered(out, inv.hosts[host], runtimeNames, true)
+	return out, runtimeNames, nil
+}
+
+func mergeInventoryRuntimeFiltered(dst, src map[string]any, runtimeNames map[string]bool, overwrite bool) {
+	for name, value := range src {
+		if isRuntimeInventoryVar(name) {
+			runtimeNames[name] = true
+			continue
+		}
+		if _, exists := dst[name]; !exists || overwrite {
+			dst[name] = value
+		}
+	}
+}
+
+func isRuntimeInventoryVar(name string) bool {
+	return strings.HasPrefix(strings.ToLower(strings.TrimSpace(name)), "ansible_")
 }
 
 func (inv *staticInventory) selectHosts(pattern string) ([]string, error) {

@@ -1,0 +1,15 @@
+all:
+  vars:
+    base: true
+    env: inventory
+  children:
+    web:
+      vars:
+        tier: frontend
+      hosts:
+        web-02:
+          zone: b
+          ansible_host: 192.0.2.2
+        web-01:
+          zone: a
+          ansible_host: 192.0.2.1

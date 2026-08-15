@@ -18,6 +18,10 @@ type exprContext struct {
 	currentRegister string
 	// taskVars are task-local static variables, addressed as $inputs.<name>.
 	taskVars map[string]bool
+	// hostVars are inventory variables available only while a statically
+	// selected inventory host object is the current forEach item.
+	hostVars   map[string]bool
+	inHostLoop bool
 	// inLoop is true while lowering values inside a forEach scope.
 	inLoop bool
 	// needOutput records that the producing step must expose a response path
@@ -72,6 +76,9 @@ func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 		if ctx.vars[inner] {
 			return "$variables." + inner, true, ""
 		}
+		if ctx.inHostLoop && ctx.hostVars[inner] {
+			return "$item.vars." + inner, true, ""
+		}
 		if _, isRegistered := ctx.registered[inner]; isRegistered {
 			return "", false, fmt.Sprintf("registered variable %q referenced as a whole object; reference a field path instead", inner)
 		}
@@ -97,6 +104,9 @@ func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 		}
 		if ctx.vars[head] {
 			return "$variables." + inner, true, ""
+		}
+		if ctx.inHostLoop && ctx.hostVars[head] {
+			return "$item.vars." + inner, true, ""
 		}
 		return "", false, fmt.Sprintf("unknown dotted reference %q", inner)
 	default:

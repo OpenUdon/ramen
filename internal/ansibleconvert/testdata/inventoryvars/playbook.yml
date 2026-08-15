@@ -1,0 +1,16 @@
+- name: Inventory variable scope
+  hosts: web
+  vars_files:
+    - vars/common.yml
+  vars:
+    env: play
+  tasks:
+    - name: Global precedence
+      ansible.builtin.shell:
+        cmd: "{{ env }}"
+    - name: Group variable
+      ansible.builtin.shell:
+        cmd: "{{ tier }}"
+    - name: Host variable
+      ansible.builtin.shell:
+        cmd: "{{ zone }}"

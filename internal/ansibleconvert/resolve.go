@@ -22,6 +22,14 @@ type roleResolution struct {
 	path string
 }
 
+const (
+	varPriorityRoleDefault = 10
+	varPriorityVarsFile    = 30
+	varPriorityPlay        = 50
+	varPriorityRoleVars    = 60
+	varPriorityExtra       = 100
+)
+
 func (r *staticResolver) addDiag(d Diagnostic) {
 	r.diags = append(r.diags, d)
 }
@@ -29,6 +37,7 @@ func (r *staticResolver) addDiag(d Diagnostic) {
 func resolveStatic(pb *Playbook, opts Options) []Diagnostic {
 	r := &staticResolver{opts: opts}
 	for _, play := range pb.Plays {
+		r.initializePlayVars(play)
 		r.roleHandlersSeen = map[string]bool{}
 		r.resolveVarsFiles(play)
 		var roleTasks []*Task
@@ -59,7 +68,7 @@ func (r *staticResolver) resolveVarsFiles(play *Play) {
 		if !ok {
 			continue
 		}
-		r.mergeVars(play, vars, fmt.Sprintf("vars_files %s", path), play.Name)
+		r.mergeVars(play, vars, varPriorityVarsFile, fmt.Sprintf("vars_files %s", path), play.Name)
 	}
 }
 
@@ -224,14 +233,20 @@ func (r *staticResolver) expandRole(play *Play, roleName, sourceFile string, lin
 			Message: fmt.Sprintf("role cycle detected at %s; role tasks were not lowered", role.path)})
 		return nil
 	}
-	for _, rel := range []string{filepath.Join("defaults", "main.yml"), filepath.Join("vars", "main.yml")} {
-		path := filepath.Join(role.path, rel)
+	for _, source := range []struct {
+		rel      string
+		priority int
+	}{
+		{rel: filepath.Join("defaults", "main.yml"), priority: varPriorityRoleDefault},
+		{rel: filepath.Join("vars", "main.yml"), priority: varPriorityRoleVars},
+	} {
+		path := filepath.Join(role.path, source.rel)
 		if _, err := os.Stat(path); err != nil {
 			continue
 		}
-		vars, varsOK := r.readStaticVarsFile(path, fmt.Sprintf("role %s %s", role.name, rel), taskName)
+		vars, varsOK := r.readStaticVarsFile(path, fmt.Sprintf("role %s %s", role.name, source.rel), taskName)
 		if varsOK {
-			r.mergeVars(play, vars, fmt.Sprintf("role %s %s", role.name, rel), taskName)
+			r.mergeVars(play, vars, source.priority, fmt.Sprintf("role %s %s", role.name, source.rel), taskName)
 		}
 	}
 	handlersPath := filepath.Join(role.path, "handlers", "main.yml")
@@ -344,20 +359,49 @@ func (r *staticResolver) readStaticVarsFile(path, label, taskName string) (map[s
 			Message: fmt.Sprintf("%s must be a static YAML map", label)})
 		return nil, false
 	}
+	for name, value := range vars {
+		if !identRE.MatchString(name) || !isStaticAnsibleValue(value) {
+			r.addDiag(Diagnostic{Code: CodeStaticResolution, Severity: "error", StrictFailure: true, Task: taskName,
+				Message: fmt.Sprintf("%s variable %q must be a literal static value with an identifier name", label, name)})
+			return nil, false
+		}
+	}
 	return vars, true
 }
 
-func (r *staticResolver) mergeVars(play *Play, vars map[string]any, source, taskName string) {
+func (r *staticResolver) initializePlayVars(play *Play) {
+	if play.VarPriorities == nil {
+		play.VarPriorities = map[string]int{}
+	}
+	if play.VarSources == nil {
+		play.VarSources = map[string]string{}
+	}
+	for name := range play.Vars {
+		play.VarPriorities[name] = varPriorityPlay
+		play.VarSources[name] = "play vars"
+	}
+}
+
+func (r *staticResolver) mergeVars(play *Play, vars map[string]any, priority int, source, taskName string) {
 	if play.Vars == nil {
 		play.Vars = map[string]any{}
 	}
+	r.initializePlayVars(play)
 	for name, value := range vars {
-		if existing, ok := play.Vars[name]; ok && !reflect.DeepEqual(existing, value) {
-			r.addDiag(Diagnostic{Code: CodeVariableConflict, Severity: "error", StrictFailure: true, Task: taskName,
-				Message: fmt.Sprintf("variable %q from %s conflicts with another static value; Ansible precedence was not approximated", name, source)})
-			continue
+		if existing, ok := play.Vars[name]; ok {
+			existingPriority := play.VarPriorities[name]
+			switch {
+			case existingPriority > priority:
+				continue
+			case existingPriority == priority && !reflect.DeepEqual(existing, value):
+				r.addDiag(Diagnostic{Code: CodeVariableConflict, Severity: "error", StrictFailure: true, Task: taskName,
+					Message: fmt.Sprintf("variable %q from %s conflicts with %s at equal static precedence", name, source, play.VarSources[name])})
+				continue
+			}
 		}
 		play.Vars[name] = value
+		play.VarPriorities[name] = priority
+		play.VarSources[name] = source
 	}
 }
 

@@ -105,3 +105,26 @@ func TestLoadStaticInventoryRejectsGroupCycle(t *testing.T) {
 		t.Fatalf("inv=%#v diags=%#v", inv, diags)
 	}
 }
+
+func TestInventoryVarsRejectEqualGroupPrecedenceConflict(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "conflict.yml")
+	data := []byte(`all:
+  children:
+    blue:
+      vars: {tier: blue}
+      hosts: {node-1: {}}
+    green:
+      vars: {tier: green}
+      hosts: {node-1: {}}
+`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inv, diags := loadStaticInventory([]string{path})
+	if len(diags) != 0 || inv.invalid {
+		t.Fatalf("inventory structure should load before scope resolution: %#v", diags)
+	}
+	if _, _, err := inv.varsForHost("node-1"); err == nil || !strings.Contains(err.Error(), "equal precedence") {
+		t.Fatalf("varsForHost conflict = %v", err)
+	}
+}

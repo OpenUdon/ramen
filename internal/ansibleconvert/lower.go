@@ -106,7 +106,14 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 			play.InventoryVariable = name
 			hosts := make([]any, len(play.InventoryHosts))
 			for i, host := range play.InventoryHosts {
-				hosts[i] = host
+				hostVars := cloneMapAny(play.InventoryHostVars[host])
+				for varName := range play.Vars {
+					delete(hostVars, varName)
+				}
+				if hostVars == nil {
+					hostVars = map[string]any{}
+				}
+				hosts[i] = map[string]any{"host": host, "vars": hostVars}
 			}
 			variables[name] = hosts
 			lw.vars[name] = true
@@ -123,6 +130,15 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 			continue
 		}
 		hostFanOut := opts.HostFanOut && playNeedsHostFanOut(play.Hosts)
+		playVars := boolKeys(play.Vars)
+		hostVars := cloneBoolMap(play.InventoryVarNames)
+		for name := range playVars {
+			delete(hostVars, name)
+		}
+		annotateTaskScopes(play.PreTasks, playVars, hostVars)
+		annotateTaskScopes(play.Tasks, playVars, hostVars)
+		annotateTaskScopes(play.PostTasks, playVars, hostVars)
+		annotateTaskScopes(play.Handlers, playVars, hostVars)
 		if hostFanOut && play.InventoryVariable == "" {
 			needsHostsInput = true
 		}
@@ -316,7 +332,7 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 	if len(taskVars) > 0 {
 		step.Inputs = taskVars
 	}
-	ctx := &exprContext{vars: lw.vars, registered: lw.registered, taskVars: boolKeys(taskVars), currentRegister: task.Register, needOutput: lw.noteNeededOutput}
+	ctx := &exprContext{vars: task.StaticPlayVars, registered: lw.registered, taskVars: boolKeys(taskVars), hostVars: task.StaticInventoryVars, inHostLoop: lt.hostSource != "", currentRegister: task.Register, needOutput: lw.noteNeededOutput}
 	if lt.hostFanOut {
 		if task.Loop != nil {
 			lw.addDiag(Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true, Task: task.Name,
@@ -332,7 +348,11 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		if step.Inputs == nil {
 			step.Inputs = map[string]any{}
 		}
-		step.Inputs["host"] = "$item"
+		if lt.hostSource != "" {
+			step.Inputs["host"] = "$item.host"
+		} else {
+			step.Inputs["host"] = "$item"
+		}
 	}
 
 	// Loop lowers to forEach on the step; $item becomes available inside.
@@ -614,7 +634,7 @@ func (lw *lowerer) handlerGateConditions(handler *Task, notifierGate string) (co
 	if len(handler.When) == 0 {
 		return conditionDNF{{notifierGate}}, true
 	}
-	ctx := &exprContext{vars: lw.vars, registered: lw.registered, taskVars: boolKeys(handler.Vars), currentRegister: handler.Register, needOutput: lw.noteNeededOutput}
+	ctx := &exprContext{vars: handler.StaticPlayVars, registered: lw.registered, taskVars: boolKeys(handler.Vars), hostVars: handler.StaticInventoryVars, currentRegister: handler.Register, needOutput: lw.noteNeededOutput}
 	guard, ok := lw.lowerConditionDNF(handler.Name, handler.When, ctx, "handler guard")
 	if !ok {
 		return nil, false
@@ -684,6 +704,30 @@ func cloneMapAny(values map[string]any) map[string]any {
 		out[key] = value
 	}
 	return out
+}
+
+func cloneBoolMap(values map[string]bool) map[string]bool {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]bool, len(values))
+	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func annotateTaskScopes(tasks []*Task, playVars, hostVars map[string]bool) {
+	for _, task := range tasks {
+		if task == nil {
+			continue
+		}
+		task.StaticPlayVars = cloneBoolMap(playVars)
+		task.StaticInventoryVars = cloneBoolMap(hostVars)
+		annotateTaskScopes(task.Block, playVars, hostVars)
+		annotateTaskScopes(task.Rescue, playVars, hostVars)
+		annotateTaskScopes(task.Always, playVars, hostVars)
+	}
 }
 
 // lowerLoopItems lowers a task loop into a forEach expression. List literals

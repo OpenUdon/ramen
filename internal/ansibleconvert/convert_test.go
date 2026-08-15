@@ -306,8 +306,8 @@ func TestConvertInventoryHostFanOutLowersInputsAndForEach(t *testing.T) {
 	if step.ForEach != "$variables.inventory_configure_remote_hosts_hosts" {
 		t.Fatalf("forEach = %q, want deterministic static inventory hosts", step.ForEach)
 	}
-	if step.Inputs["host"] != "$item" {
-		t.Fatalf("step inputs = %#v, want host bound to $item", step.Inputs)
+	if step.Inputs["host"] != "$item.host" {
+		t.Fatalf("step inputs = %#v, want host bound to the static inventory item", step.Inputs)
 	}
 }
 
@@ -1183,21 +1183,67 @@ func TestConvertFQCNCollectionRoleResolution(t *testing.T) {
 	}
 }
 
-func TestConvertStaticVariableConflictFailsClosed(t *testing.T) {
-	result, _ := runConvertWithOptions(t, "varconflict", Options{
+func TestConvertStaticVariablePrecedenceKeepsPlayVarsAboveVarsFiles(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "varconflict", Options{
 		ProjectDir: filepath.Join("testdata", "varconflict"),
 	})
-	if result.StrictFailures == 0 {
-		t.Fatalf("expected variable conflict strict failure: %#v", result.Diagnostics)
+	if result.StrictFailures != 0 {
+		t.Fatalf("play vars should override vars_files: %#v", result.Diagnostics)
 	}
-	var saw bool
+	if doc.Components == nil || doc.Components.Variables["app_pkg"] != "nginx" {
+		t.Fatalf("app_pkg = %#v, want play-level nginx", doc.Components)
+	}
 	for _, d := range result.Diagnostics {
-		if d.Code == CodeVariableConflict && d.StrictFailure {
-			saw = true
+		if d.Code == CodeVariableConflict {
+			t.Fatalf("unexpected precedence conflict: %#v", result.Diagnostics)
 		}
 	}
-	if !saw {
-		t.Fatalf("missing variable conflict diagnostic: %#v", result.Diagnostics)
+}
+
+func TestConvertStaticInventoryVariablesAndPrecedence(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "inventoryvars", Options{
+		InventoryPaths: []string{filepath.Join("testdata", "inventoryvars", "inventory.yml")},
+	})
+	if result.StrictFailures != 0 {
+		t.Fatalf("inventory vars conversion failed: %#v", result.Diagnostics)
+	}
+	if doc.Components == nil || doc.Components.Variables["env"] != "play" || doc.Components.Variables["common_value"] != "from_file" {
+		t.Fatalf("global precedence variables = %#v", doc.Components)
+	}
+	hosts, ok := doc.Components.Variables["inventory_inventory_variable_scope_hosts"].([]any)
+	if !ok || len(hosts) != 2 {
+		t.Fatalf("inventory host facts = %#v", doc.Components.Variables)
+	}
+	for _, value := range hosts {
+		host, ok := value.(map[string]any)
+		if !ok || host["host"] == "" {
+			t.Fatalf("host fact = %#v", value)
+		}
+		vars, _ := host["vars"].(map[string]any)
+		if vars["tier"] != "frontend" || vars["zone"] == nil || vars["base"] != true {
+			t.Fatalf("host vars = %#v", vars)
+		}
+		for name := range vars {
+			if strings.HasPrefix(name, "ansible_") || name == "env" {
+				t.Fatalf("runtime/shadowed inventory variable leaked: %#v", vars)
+			}
+		}
+	}
+	checks := map[string]any{
+		"global_precedence": "$variables.env",
+		"group_variable":    "$item.vars.tier",
+		"host_variable":     "$item.vars.zone",
+	}
+	for operationID, want := range checks {
+		op := findOperation(doc, operationID)
+		body, _ := op.Request["body"].(map[string]any)
+		if body["cmd"] != want {
+			t.Fatalf("%s cmd = %#v, want %#v", operationID, body["cmd"], want)
+		}
+		step := findStep(doc.Workflows[0].Steps, operationID)
+		if step == nil || step.ForEach != "$variables.inventory_inventory_variable_scope_hosts" || step.Inputs["host"] != "$item.host" {
+			t.Fatalf("%s static host fan-out = %#v", operationID, step)
+		}
 	}
 }
 

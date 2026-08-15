@@ -32,10 +32,15 @@ type Play struct {
 	// Inventory fields are populated only from bounded static inventory.
 	// InventoryFailed prevents partial conversion from widening a play whose
 	// requested target could not be resolved.
-	InventoryHosts    []string
-	InventoryResolved bool
-	InventoryFailed   bool
-	InventoryVariable string
+	InventoryHosts     []string
+	InventoryResolved  bool
+	InventoryFailed    bool
+	InventoryVariable  string
+	InventoryHostVars  map[string]map[string]any
+	InventoryVarNames  map[string]bool
+	ConnectionVarCount int
+	VarPriorities      map[string]int
+	VarSources         map[string]string
 }
 
 // Task is one task (or handler) entry. Exactly one of Module or Block is set
@@ -79,6 +84,8 @@ type Task struct {
 	SourceFile                 string
 	Line                       int
 	Column                     int
+	StaticPlayVars             map[string]bool
+	StaticInventoryVars        map[string]bool
 }
 
 type RoleRef struct {
