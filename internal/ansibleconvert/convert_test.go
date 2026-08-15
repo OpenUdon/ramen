@@ -1286,6 +1286,81 @@ func TestConvertLiteralIncludeTasksAndRole(t *testing.T) {
 	}
 }
 
+func TestConvertPrivateIncludeRoleVariablesFailClosedWithoutLeakingScope(t *testing.T) {
+	root := t.TempDir()
+	roleVarsDir := filepath.Join(root, "roles", "private", "vars")
+	roleTasksDir := filepath.Join(root, "roles", "private", "tasks")
+	if err := os.MkdirAll(roleVarsDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(roleTasksDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(roleVarsDir, "main.yml"), []byte("scoped_value: role-private-value\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(roleTasksDir, "main.yml"), []byte("- name: Private role task\n  ansible.builtin.shell:\n    cmd: \"{{ scoped_value }}\"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	playbookPath := filepath.Join(root, "playbook.yml")
+	playbook := `- name: private include scope
+  hosts: localhost
+  vars:
+    scoped_value: play-value
+  tasks:
+    - name: Before include
+      ansible.builtin.shell:
+        cmd: "{{ scoped_value }}"
+    - name: Include private role
+      include_role:
+        name: private
+    - name: After include
+      ansible.builtin.shell:
+        cmd: "{{ scoped_value }}"
+`
+	if err := os.WriteFile(playbookPath, []byte(playbook), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbookPath, ProjectDir: root,
+		Argspecs: []ArgspecInput{{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")}},
+		Mode:     "partial", OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StrictFailures == 0 || result.UWSPath == "" || result.HCLPath == "" || !hasDiagnostic(result.Diagnostics, CodeStaticResolution, "private", "default-private role variable scope") {
+		t.Fatalf("result=%#v", result)
+	}
+	data, err := os.ReadFile(result.UWSPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc uws1.Document
+	if err := convert.UnmarshalYAML(data, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if len(doc.Operations) != 2 || findOperation(&doc, "private_role_task") != nil || doc.Components.Variables["scoped_value"] != "play-value" {
+		t.Fatalf("document=%#v", &doc)
+	}
+	for _, operationID := range []string{"before_include", "after_include"} {
+		op := findOperation(&doc, operationID)
+		body, _ := op.Request["body"].(map[string]any)
+		if body["cmd"] != "$variables.scoped_value" {
+			t.Fatalf("%s body=%#v", operationID, body)
+		}
+	}
+	for _, path := range []string{result.UWSPath, result.HCLPath, result.ReviewMD, result.ManifestPath, result.DiagnosticsJSON, result.DiagnosticsMD} {
+		artifact, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if strings.Contains(string(artifact), "role-private-value") {
+			t.Fatalf("artifact %s leaked private role value:\n%s", path, artifact)
+		}
+	}
+}
+
 func TestConvertDynamicIncludeOptionsRemainStrict(t *testing.T) {
 	root := t.TempDir()
 	playbook := filepath.Join(root, "playbook.yml")

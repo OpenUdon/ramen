@@ -42,7 +42,7 @@ func resolveStatic(pb *Playbook, opts Options) []Diagnostic {
 		r.resolveVarsFiles(play)
 		var roleTasks []*Task
 		for _, role := range play.Roles {
-			roleTasks = append(roleTasks, r.expandRole(play, role.Name, role.SourceFile, role.Line, role.Column, nil, "tasks")...)
+			roleTasks = append(roleTasks, r.expandRole(play, role.Name, role.SourceFile, role.Line, role.Column, nil, "tasks", false)...)
 		}
 		play.Tasks = append(roleTasks, r.resolveTaskList(play, play.Tasks, nil, "tasks")...)
 		play.PreTasks = r.resolveTaskList(play, play.PreTasks, nil, "pre_tasks")
@@ -81,7 +81,10 @@ func (r *staticResolver) resolveTaskList(play *Play, tasks []*Task, importStack 
 		case task.StaticImport != "":
 			out = append(out, r.expandTaskImport(play, task, importStack, section)...)
 		case task.ImportRole != "":
-			tasks := r.expandRole(play, task.ImportRole, task.SourceFile, task.Line, task.Column, importStack, section)
+			tasks := r.expandRole(play, task.ImportRole, task.SourceFile, task.Line, task.Column, importStack, section, false)
+			out = append(out, r.applyImportWrapper(task, tasks)...)
+		case task.IncludeRole != "":
+			tasks := r.expandRole(play, task.IncludeRole, task.SourceFile, task.Line, task.Column, importStack, section, true)
 			out = append(out, r.applyImportWrapper(task, tasks)...)
 		case task.Block != nil:
 			task.Block = r.resolveTaskList(play, task.Block, importStack, section)
@@ -218,7 +221,7 @@ func importDirectiveConflict(directive, taskName string) Diagnostic {
 		Message: fmt.Sprintf("directive %q appears on both a static import wrapper and an imported task; Ansible precedence was not approximated", directive)}
 }
 
-func (r *staticResolver) expandRole(play *Play, roleName, sourceFile string, line, column int, importStack []string, section string) []*Task {
+func (r *staticResolver) expandRole(play *Play, roleName, sourceFile string, line, column int, importStack []string, section string, privateInclude bool) []*Task {
 	roleName = strings.TrimSpace(roleName)
 	taskName := roleName
 	if roleName == "" || containsTemplate(roleName) {
@@ -247,9 +250,17 @@ func (r *staticResolver) expandRole(play *Play, roleName, sourceFile string, lin
 			continue
 		}
 		vars, varsOK := r.readStaticVarsFile(path, fmt.Sprintf("role %s %s", role.name, source.rel), taskName)
-		if varsOK {
+		if privateInclude && varsOK && len(vars) > 0 {
+			r.addDiag(Diagnostic{Code: CodeStaticResolution, Severity: "error", StrictFailure: true, Task: taskName,
+				Message: fmt.Sprintf("include_role %q has non-empty %s; default-private role variable scope is not lowered and the included role was omitted", role.name, source.rel)})
+			return nil
+		}
+		if !privateInclude && varsOK {
 			r.mergeVars(play, vars, source.priority, fmt.Sprintf("role %s %s", role.name, source.rel), taskName)
-		} else {
+		} else if !varsOK {
+			if privateInclude {
+				return nil
+			}
 			play.StaticScopeFailed = true
 		}
 	}

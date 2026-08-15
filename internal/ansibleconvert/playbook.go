@@ -45,9 +45,9 @@ type Play struct {
 }
 
 // Task is one task (or handler) entry. Exactly one of Module or Block is set
-// for lowerable tasks; StaticImport and ImportRole mark static constructs that
-// are resolved before lowering, while DynamicInclude marks include_* constructs
-// that cannot be statically resolved.
+// for lowerable tasks; StaticImport, ImportRole, and IncludeRole mark static
+// constructs that are resolved before lowering, while DynamicInclude marks
+// include_* constructs that cannot be statically resolved.
 type Task struct {
 	Name                       string
 	Module                     string // FQCN, normalized (short names get ansible.builtin.)
@@ -73,6 +73,7 @@ type Task struct {
 	Always                     []*Task
 	StaticImport               string
 	ImportRole                 string
+	IncludeRole                string
 	DynamicInclude             string       // the include_* key that made this task dynamic
 	TodoDirectives             []string     // directives recorded for review (until/retries/...)
 	HardDirectives             []string     // directives that block conversion (delegate_to/...)
@@ -324,7 +325,7 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 	}
 	if m.has("include_role") {
 		if role, ok := staticIncludeRoleName(m.value("include_role")); ok && task.Loop == nil && task.Register == "" && len(task.Notify) == 0 {
-			task.ImportRole = role
+			task.IncludeRole = role
 		} else {
 			task.DynamicInclude = "include_role with templating, loop, register, notify, or dynamic options"
 		}
