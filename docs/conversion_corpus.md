@@ -9,6 +9,11 @@ regression-gate `ramen convert tf`, provide clean reference fixtures, and
 measure mapping coverage so it grows as `tfmapping` (and later AI-authoring)
 expands.
 
+Every committed YAML/HCL conversion carries the versioned review metadata
+defined by the [Terraform/OpenTofu conversion contract](terraform-conversion.md).
+Corpus drift tests reject unversioned `x-ramen-terraform` artifacts and the
+retired unresolved-operation profile.
+
 This is the right home for the durable conversion-corpus note: it explains the
 fixtures, generator, and expansion criteria. The memory bank remains the source
 of truth for milestone scope, sequencing, and acceptance criteria; update it

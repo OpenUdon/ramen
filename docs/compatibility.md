@@ -20,6 +20,12 @@ Readers fail closed on unknown future artifact versions. SQLite state migrates
 forward and rejects databases created by a newer unsupported schema; downgrade
 compatibility is not promised.
 
+`ramen.project.v1` fixed structures are schema-closed: unknown fields are not
+accepted compatibility extension points and fail before typed decoding. Custom
+project data belongs in documented `metadata` maps. Terraform conversion
+metadata is experimental and requires `ramen.terraform.provenance.v1`; old
+unversioned conversion packages must be regenerated rather than translated.
+
 ## Experimental Before v1
 
 Authoring, iCoT, Terraform/OpenTofu conversion, Ansible conversion, static
@@ -31,3 +37,6 @@ or plan-file runtime compatibility.
 Public binaries remain mock-backed for execution. Live mutations require a
 separately trusted executor implementation and are outside the v0.1 release
 contract.
+
+See [Terraform/OpenTofu conversion](terraform-conversion.md) for the exact
+review-metadata and reconversion boundary.
