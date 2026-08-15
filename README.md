@@ -119,7 +119,7 @@ Experimental on-ramps create or convert native artifacts:
 ramen author --context context.json --goal "Manage widgets"
 ramen icot --goal "List resources" --openapi api=api.json --network ask --no-llm --validate --graph
 ramen convert
-ramen convert ansible --playbook playbook.yml --argspec builtin=argspec.json --inventory inventory.yml --extra-var env=prod
+ramen convert ansible --playbook playbook.yml --argspec-dir argspecs --inventory inventory.yml --extra-var env=prod
 ```
 
 See the shared [static conversion contract](docs/conversion.md), the

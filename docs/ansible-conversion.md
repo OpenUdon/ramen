@@ -13,7 +13,7 @@ Features that need unsupported semantics are strict diagnostics
 rather than approximations:
 
 ```bash
-ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.5 --out DIR --mode strict
+ramen convert ansible --playbook FILE --argspec ID=PATH --argspec-dir DIR --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.5 --out DIR --mode strict
 ```
 
 The command does not execute Ansible, modules, inventory connections, API
@@ -28,6 +28,14 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   module-call review references. Exact duplicate IDs are rejected, while IDs
   such as `acme.one` and `acme-one` remain distinct. `PATH` is recorded as the
   argspec URL.
+- `--argspec-dir DIR` recursively discovers regular `*.argspec.json` files in
+  deterministic path order. It is repeatable and bounded to 16 non-symlink
+  directories, 256 documents, and 16 MiB per document. Each document is
+  validated against the embedded schema before its declared collection becomes
+  the source ID. Empty discovery, symlinks, malformed documents, duplicate
+  collection IDs, and duplicate module FQCNs fail ingestion. Other filenames
+  are ignored. Discovery never invokes `ansible-doc`, Python, Galaxy,
+  collection plugins, or the network.
 - `--project-dir DIR` records the static project root used for file
   resolution. It defaults to the playbook directory.
 - `--roles-path DIR` and `--collections-path DIR` are repeatable static
@@ -123,7 +131,10 @@ tasks, literal and variable-backed arguments, simple loops, `when` comparisons
 and condition lists, block/task guard combinations through nested `switch`
 steps, registers that refer to already-lowered producers, and notified
 handlers. Static `pre_tasks`, `tasks`, and `post_tasks` lower in play order.
-Literal `import_tasks` files are expanded in place, including nested imports.
+Literal `import_tasks` and simple literal `include_tasks` files are expanded in
+place, including nested content. Literal `include_role` with only a role name
+reuses static role resolution. Include templating, apply/extra options, loops,
+register/notify, and `include_vars` remain strict.
 Static roles load `tasks/main.yml`, `handlers/main.yml`, `defaults/main.yml`,
 and `vars/main.yml`; missing role tasks, missing imported files, cycles,
 ambiguous role matches, and templated paths are strict diagnostics. Handler
@@ -176,20 +187,21 @@ declared `uws` version differs.
 | `when: a and b` | DNF conjunction lowered as nested `switch` guards so both conditions must pass. |
 | `when: a or b` | DNF disjunction lowered as a `switch` with one case per disjunct when the task does not need a stable original step output for `register` or `notify`. |
 | `not`, `is defined`, `is not defined` | Lowered to simple UWS comparisons when the operand is a lowerable reference. |
-| `loop` / `with_items` | Step `forEach`; literal lists are hoisted to `components.variables`, and `$item` / `$index` are available inside the task. |
+| `loop` / `with_items` / `with_list` | Step `forEach`; literal lists are hoisted to `components.variables`, and `$item`, dotted item fields, and `$index` are available inside the task. |
+| Literal `with_dict` | Mapping keys sort lexically into `{key,value}` items, then lower through `forEach` with `$item.key` and `$item.value`. |
 | `register` field reads | Later references like `result.rc` become `$steps.<producer>.outputs.rc`; the producer operation exposes the requested response path. |
 | `changed_when` | A single lowerable condition replaces the operation's `outputs.changed`. |
 | `failed_when` | A single mechanically invertible condition replaces the default failure criterion in `successCriteria`. |
 | `until` + `retries` + `delay` | The `until` conditions append to `successCriteria`; static `retries` emits `onFailure` retry with `retryLimit: retries - 1`; static `delay` becomes `retryAfter`. |
 | `notify` / handlers | One notifier gates the handler step on `$steps.<notifier>.outputs.changed == true`; multiple notifiers lower to one `switch` that runs the handler at most once. |
-| Static `import_tasks` / `import_role` | Resolved before lowering; wrapper `when`, tags, task vars, retry directives, and condition directives are inherited when they do not conflict. |
+| Static import/include tasks and roles | Literal import forms plus bounded literal `include_tasks`/`include_role` resolve before lowering; supported wrapper guards, tags, vars, retry, and condition directives are inherited. |
 | Static inventory host fan-out | Non-local tasks get `forEach: $variables.inventory_*_hosts`, `inputs.host: $item.host`, and unshadowed host variables under `$item.vars.*`; connection behavior stays runtime-owned. |
 
 ## Support Matrix
 
 | Category | Constructs | Behavior |
 | --- | --- | --- |
-| Supported | Static module tasks, simple args, simple `when`, `and`/`or`/`not`, `loop`, `register` field reads, handlers, static imports, static roles, `changed_when`, `failed_when`, `until`/`retries`/`delay` | Lowered into UWS core workflow objects and validated argspec-bound module leaves. |
+| Supported | Static module tasks, simple args, simple `when`, `and`/`or`/`not`, literal loops, register field reads, handlers, bounded static imports/includes/roles, `changed_when`, `failed_when`, `until`/`retries`/`delay` | Lowered into UWS core workflow objects and validated argspec-bound module leaves. |
 | Partially supported | OR-guarded tasks, bounded static inventory fan-out, `throttle`, retries without `until`, and layered static variables | Lowered only when a stable UWS meaning exists; otherwise emits diagnostics. |
 | Runtime-owned | `become`, `become_user`, `become_method`, `environment`, `no_log`, inventory connection behavior, module invocation, credentials | Recorded as informational diagnostics or provenance; not emitted as UWS execution policy. |
 | Review-only | `x-ramen-ansible-provenance`, argspec references, and safe project/role/collection/inventory/extra-vars input evidence | Included for review and reproducibility; evidence metadata does not define UWS execution semantics. |
@@ -213,8 +225,8 @@ Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:
 
 - complex Jinja2 expressions, filters, and runtime facts
-- dynamic includes, including `include_tasks`, `include_role`, and
-  `include_vars`
+- templated or option-bearing `include_tasks`/`include_role`, include loops,
+  and `include_vars`
 - unknown modules or modules missing from supplied argspecs
 - `delegate_to`, `run_once`, and target-changing directives
 - block `rescue` or `always`
@@ -223,7 +235,10 @@ workflow behavior, including:
 - unsupported `throttle`, multi-condition `changed_when`, and non-invertible
   or multi-condition `failed_when`
 - simultaneous `loop` and `with_items`, including when either key has an empty
-  value, because precedence would be ambiguous
+  value, or any mixed supported loop directives, because precedence would be
+  ambiguous
+- dynamic/plugin-backed legacy `with_*` forms and templates nested inside
+  literal loop items
 - notified handlers after `--inventory` host fan-out, because the current
   conversion does not lower per-host changed gates for handler execution
 - inventory plugins, executable/directory inventory, dynamic host patterns,
