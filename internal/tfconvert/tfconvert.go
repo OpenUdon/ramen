@@ -37,7 +37,9 @@ type Options struct {
 	Action     string
 	Targets    []string
 	OutDir     string
-	Strict     bool
+	// Mode is "strict" or "partial". Empty preserves the legacy Strict field.
+	Mode   string
+	Strict bool
 }
 
 type OpenAPIInput struct {
@@ -257,6 +259,15 @@ type objectMapping struct {
 type operationTarget = tfmapping.OperationTarget
 
 func normalizeOptions(opts Options) Options {
+	opts.Mode = strings.ToLower(strings.TrimSpace(opts.Mode))
+	if opts.Mode == "" {
+		if opts.Strict {
+			opts.Mode = convertreport.ModeStrict
+		} else {
+			opts.Mode = convertreport.ModePartial
+		}
+	}
+	opts.Strict = opts.Mode == convertreport.ModeStrict
 	if strings.TrimSpace(opts.ConfigDir) == "" {
 		opts.ConfigDir = "."
 	}
@@ -969,21 +980,6 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := validateAPISourceStagingSafety(result.OutDir, c.apiSources); err != nil {
 		return err
 	}
-	workflowDoc, err := renderUWSDocument(c)
-	if err != nil {
-		return err
-	}
-	nativeDoc, err := renderUWSDocument(c)
-	if err != nil {
-		return err
-	}
-	nativeDoc.Info.Title = "ramen_native_project"
-	nativeDoc.Info.Description = "Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration."
-	for _, doc := range []*uws1.Document{workflowDoc, nativeDoc} {
-		if err := validateGeneratedTerraformDocument(doc); err != nil {
-			return err
-		}
-	}
 	if err := os.MkdirAll(filepath.Join(result.OutDir, "workflows"), 0o755); err != nil {
 		return err
 	}
@@ -1000,9 +996,6 @@ func writeArtifacts(result *Result, c conversionState) error {
 		return err
 	}
 	if err := writeFile(result.ProjectPath, renderProject(c)); err != nil {
-		return err
-	}
-	if err := writeNativeProject(result.NativeProjectPath, result.NativeProjectHCLPath, nativeDoc); err != nil {
 		return err
 	}
 	reportDiagnostics := terraformReportDiagnostics(c.diagnostics)
@@ -1024,13 +1017,46 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeFile(result.PlanMDPath, renderPlanMarkdown(c)); err != nil {
 		return err
 	}
-	if err := writeUWSDocument(result.UWSPath, result.UWSHCLPath, workflowDoc); err != nil {
-		return err
-	}
 	if err := writeFile(result.ReviewPath, renderReview(c)); err != nil {
 		return err
 	}
+	if result.StrictFailed {
+		if err := removeTerraformSemanticArtifacts(result); err != nil {
+			return err
+		}
+	} else {
+		workflowDoc, err := renderUWSDocument(c)
+		if err != nil {
+			return err
+		}
+		nativeDoc, err := renderUWSDocument(c)
+		if err != nil {
+			return err
+		}
+		nativeDoc.Info.Title = "ramen_native_project"
+		nativeDoc.Info.Description = "Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration."
+		for _, doc := range []*uws1.Document{workflowDoc, nativeDoc} {
+			if err := validateGeneratedTerraformDocument(doc); err != nil {
+				return err
+			}
+		}
+		if err := writeNativeProject(result.NativeProjectPath, result.NativeProjectHCLPath, nativeDoc); err != nil {
+			return err
+		}
+		if err := writeUWSDocument(result.UWSPath, result.UWSHCLPath, workflowDoc); err != nil {
+			return err
+		}
+	}
 	return writeTerraformManifest(result, c, reportDiagnostics)
+}
+
+func removeTerraformSemanticArtifacts(result *Result) error {
+	for _, path := range []string{result.NativeProjectPath, result.NativeProjectHCLPath, result.UWSPath, result.UWSHCLPath} {
+		if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("remove stale strict-mode semantic artifact %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 func terraformReportDiagnostics(diagnostics []Diagnostic) []convertreport.Diagnostic {
@@ -1131,18 +1157,11 @@ func writeTerraformManifest(result *Result, c conversionState, diagnostics []con
 	}
 	manifest := convertreport.Manifest{
 		Version: convertreport.ManifestVersion, Converter: convertreport.ConverterTerraform,
-		Mode: modeName(c.opts.Strict), Status: status, Inputs: inputs, Artifacts: artifacts,
+		Mode: c.opts.Mode, Status: status, Inputs: inputs, Artifacts: artifacts,
 		Coverage:    convertreport.NormalizeCoverage(coverageItems),
 		Diagnostics: convertreport.Summarize("expected/diagnostics.json", diagnostics), Execution: convertreport.Execution{Performed: false},
 	}
 	return convertreport.WriteManifest(result.ManifestPath, manifest)
-}
-
-func modeName(strict bool) string {
-	if strict {
-		return convertreport.ModeStrict
-	}
-	return convertreport.ModePartial
 }
 
 func writeFile(path, content string) error {

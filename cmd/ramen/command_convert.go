@@ -30,8 +30,8 @@ func runConvertCommand(ctx context.Context, args []string) {
 }
 
 func convertUsage(out *os.File, command string) {
-	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n", command)
-	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--ignore-unsupported]\n\n", command)
+	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial] [--strict]\n", command)
+	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial] [--strict|--ignore-unsupported]\n\n", command)
 	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
 }
 
@@ -40,8 +40,9 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	playbook := fs.String("playbook", "", "Ansible playbook YAML file")
 	outDir := fs.String("out", ".ramen/convert-ansible", "Output directory for converted artifacts")
 	projectDir := fs.String("project-dir", "", "Static Ansible project root (defaults to the playbook directory)")
-	strict := fs.Bool("strict", false, "Deprecated for Ansible conversion; unsupported constructs fail by default")
-	ignoreUnsupported := fs.Bool("ignore-unsupported", false, "Write a partial workflow that omits unsupported Ansible constructs")
+	modeFlag := fs.String("mode", "", "Conversion mode: strict or partial (default: strict during the transition)")
+	strict := fs.Bool("strict", false, "Deprecated alias for --mode strict")
+	ignoreUnsupported := fs.Bool("ignore-unsupported", false, "Deprecated alias for --mode partial")
 	targetUWS := fs.String("target-uws", "1.5", "UWS version declared by the emitted document: 1.5, 1.6, or 1.7. Module leaves are extension-owned at every version, so the shape does not change")
 	var argspecs repeatedStringFlag
 	var rolesPaths repeatedStringFlag
@@ -54,8 +55,8 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	fs.Var(&inventoryPaths, "inventory", "Inventory file or directory input; when supplied, non-local plays lower as host fan-out over $inputs.hosts (repeatable)")
 	fs.Var(&extraVars, "extra-var", "Static extra variable NAME=VALUE or @file (repeatable; recorded for review, not used for static expression lowering)")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--ignore-unsupported]\n\n")
-		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. Ansible module leaves are emitted as extension-owned operations carrying ramen.ansible-module-call.1.0; --target-uws only selects the uws version the document declares, defaulting to 1.5. Unsupported constructs are reported explicitly and fail the command unless --ignore-unsupported is set.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial]\n\n")
+		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. Ansible module leaves are emitted as extension-owned operations carrying ramen.ansible-module-call.1.0; --target-uws only selects the uws version the document declares, defaulting to 1.5. Unsupported constructs are reported explicitly. Strict mode (the transitional default) exits 3 and suppresses workflows; partial mode omits unsupported constructs and exits 0. --strict and --ignore-unsupported are deprecated mode aliases.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -63,6 +64,11 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	}
 	if strings.TrimSpace(*playbook) == "" {
 		fmt.Fprintln(os.Stderr, "ramen convert ansible: --playbook is required")
+		os.Exit(2)
+	}
+	mode, err := resolveConversionMode(*modeFlag, "strict", *strict, *ignoreUnsupported)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ramen convert ansible: %v\n", err)
 		os.Exit(2)
 	}
 	target := strings.TrimSpace(*targetUWS)
@@ -88,6 +94,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 		PlaybookPath:      *playbook,
 		Argspecs:          specs,
 		OutDir:            *outDir,
+		Mode:              mode,
 		Strict:            *strict,
 		ProjectDir:        *projectDir,
 		RolesPaths:        []string(rolesPaths),
@@ -95,7 +102,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 		InventoryPaths:    []string(inventoryPaths),
 		ExtraVars:         []string(extraVars),
 		TargetUWS:         target,
-		IgnoreUnsupported: *ignoreUnsupported,
+		IgnoreUnsupported: mode == "partial",
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
@@ -110,7 +117,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	fmt.Printf("Diagnostics: %s (%d total, %d strict)\n", result.DiagnosticsJSON, len(result.Diagnostics), result.StrictFailures)
 	fmt.Printf("Review: %s\n", result.ReviewMD)
 	fmt.Printf("Manifest: %s\n", result.ManifestPath)
-	if result.StrictFailures > 0 && !*ignoreUnsupported {
+	if result.StrictFailures > 0 && mode == "strict" {
 		fmt.Fprintf(os.Stderr, "ramen convert ansible: unsupported Ansible features found (%d strict diagnostics); workflow artifacts were not written\n", result.StrictFailures)
 		for _, diag := range result.Diagnostics {
 			if !diag.StrictFailure {
@@ -122,7 +129,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 			}
 			fmt.Fprintf(os.Stderr, "- %s task=%q: %s\n", diag.Code, task, diag.Message)
 		}
-		fmt.Fprintln(os.Stderr, "rerun with --ignore-unsupported to write a partial workflow that omits unsupported constructs")
+		fmt.Fprintln(os.Stderr, "rerun with --mode partial to write a partial workflow that omits unsupported constructs (--ignore-unsupported remains a deprecated alias)")
 		os.Exit(3)
 	}
 }
@@ -132,7 +139,8 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	action := fs.String("action", "", "Managed resource action: create, update, delete, or replace")
 	outDir := fs.String("out", "./.ramen/convert", "Output directory for draft review artifacts")
-	strict := fs.Bool("strict", false, "Fail when strict-failure diagnostics remain")
+	modeFlag := fs.String("mode", "", "Conversion mode: strict or partial (default: partial during the transition)")
+	strict := fs.Bool("strict", false, "Deprecated alias for --mode strict")
 	var openAPIs repeatedStringFlag
 	var apiSources repeatedStringFlag
 	var targets repeatedStringFlag
@@ -140,8 +148,8 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
 	fs.Var(&targets, "target", "Repeatable Terraform address target")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--strict]\n")
-		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial]\n")
+		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. Strict mode exits 3 and suppresses semantic project/workflow payloads when strict diagnostics remain. Partial mode is the transitional default. --strict remains a deprecated alias for --mode strict. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -149,6 +157,11 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	}
 	if fs.NArg() != 0 {
 		fs.Usage()
+		os.Exit(2)
+	}
+	mode, err := resolveConversionMode(*modeFlag, "partial", *strict, false)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ramen convert tf: %v\n", err)
 		os.Exit(2)
 	}
 	inputs, err := parseOpenAPIFlags(openAPIs)
@@ -168,12 +181,18 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 		Action:     *action,
 		Targets:    []string(targets),
 		OutDir:     *outDir,
-		Strict:     *strict,
+		Mode:       mode,
+		Strict:     mode == "strict",
 	})
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		if result != nil {
 			fmt.Fprintf(os.Stderr, "diagnostics: %s\n", result.DiagnosticsJSON)
+			fmt.Fprintf(os.Stderr, "review: %s\n", result.ReviewPath)
+			fmt.Fprintf(os.Stderr, "manifest: %s\n", result.ManifestPath)
+		}
+		if tfconvert.IsStrictFailure(err) {
+			os.Exit(3)
 		}
 		os.Exit(1)
 	}
@@ -189,4 +208,30 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	fmt.Printf("  diagnostics: %s\n", result.DiagnosticsJSON)
 	fmt.Printf("  review:      %s\n", result.ReviewPath)
 	fmt.Printf("  manifest:    %s\n", result.ManifestPath)
+}
+
+func resolveConversionMode(value, defaultMode string, strictAlias, partialAlias bool) (string, error) {
+	mode := strings.ToLower(strings.TrimSpace(value))
+	explicit := mode != ""
+	if explicit && mode != "strict" && mode != "partial" {
+		return "", fmt.Errorf("unsupported --mode %q (want strict or partial)", value)
+	}
+	if strictAlias && partialAlias {
+		return "", fmt.Errorf("--strict and --ignore-unsupported select contradictory modes")
+	}
+	if explicit && strictAlias && mode != "strict" {
+		return "", fmt.Errorf("--strict conflicts with --mode %s", mode)
+	}
+	if explicit && partialAlias && mode != "partial" {
+		return "", fmt.Errorf("--ignore-unsupported conflicts with --mode %s", mode)
+	}
+	switch {
+	case strictAlias:
+		mode = "strict"
+	case partialAlias:
+		mode = "partial"
+	case !explicit:
+		mode = defaultMode
+	}
+	return mode, nil
 }

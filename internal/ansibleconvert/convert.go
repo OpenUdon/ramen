@@ -88,6 +88,15 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 }
 
 func normalizeOptions(opts Options) Options {
+	opts.Mode = strings.ToLower(strings.TrimSpace(opts.Mode))
+	if opts.Mode == "" {
+		if opts.IgnoreUnsupported {
+			opts.Mode = convertreport.ModePartial
+		} else {
+			opts.Mode = convertreport.ModeStrict
+		}
+	}
+	opts.IgnoreUnsupported = opts.Mode == convertreport.ModePartial
 	opts.TargetUWS = normalizeTargetUWS(opts.TargetUWS)
 	if strings.TrimSpace(opts.ProjectDir) == "" {
 		dir := filepath.Dir(opts.PlaybookPath)
@@ -234,12 +243,11 @@ func writeAnsibleManifest(result *Result, doc *uws1.Document, opts Options) erro
 		}
 		coverageItems = append(coverageItems, convertreport.CoverageItem{Kind: "task", ID: id, Disposition: "unsupported", Reason: diagnostic.Message, DiagnosticCode: diagnostic.Code})
 	}
-	mode := convertreport.ModeStrict
+	mode := opts.Mode
 	status := convertreport.StatusComplete
 	if result.StrictFailures > 0 {
 		status = convertreport.StatusFailed
-		if opts.IgnoreUnsupported {
-			mode = convertreport.ModePartial
+		if mode == convertreport.ModePartial {
 			status = convertreport.StatusPartial
 		}
 	}

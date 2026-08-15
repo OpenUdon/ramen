@@ -30,6 +30,8 @@ type Options struct {
 	PlaybookPath string
 	Argspecs     []ArgspecInput
 	OutDir       string
+	// Mode is "strict" or "partial". Empty preserves IgnoreUnsupported.
+	Mode string
 	// Strict is accepted for CLI compatibility but is not used by Ansible
 	// conversion. Unsupported constructs always emit strict-failure diagnostics.
 	Strict           bool

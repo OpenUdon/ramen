@@ -1077,10 +1077,23 @@ paths:
           description: ok
 `)
 
+	outDir := filepath.Join(root, "out")
+	partial, err := Convert(context.Background(), Options{
+		ConfigDir: configDir,
+		OpenAPIs:  []OpenAPIInput{{ID: "users", Path: openAPIPath}},
+		OutDir:    outDir,
+	})
+	if err != nil {
+		t.Fatalf("partial conversion failed: %v", err)
+	}
+	if _, err := os.Stat(partial.UWSPath); err != nil {
+		t.Fatalf("partial conversion did not write semantic payload: %v", err)
+	}
+
 	result, err := Convert(context.Background(), Options{
 		ConfigDir: configDir,
 		OpenAPIs:  []OpenAPIInput{{ID: "users", Path: openAPIPath}},
-		OutDir:    filepath.Join(root, "out"),
+		OutDir:    outDir,
 		Strict:    true,
 	})
 	if err == nil {
@@ -1097,6 +1110,20 @@ paths:
 	}
 	if _, statErr := os.Stat(result.DiagnosticsJSON); statErr != nil {
 		t.Fatalf("strict conversion did not write diagnostics: %v", statErr)
+	}
+	for _, path := range []string{result.NativeProjectPath, result.NativeProjectHCLPath, result.UWSPath, result.UWSHCLPath} {
+		if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+			t.Fatalf("strict conversion retained semantic payload %s: %v", path, statErr)
+		}
+	}
+	for _, path := range []string{result.ReviewPath, result.ManifestPath, result.ConversionPath, result.MappingsPath, result.PlanJSONPath} {
+		if _, statErr := os.Stat(path); statErr != nil {
+			t.Fatalf("strict conversion did not retain review evidence %s: %v", path, statErr)
+		}
+	}
+	manifest := readFileForTest(t, result.ManifestPath)
+	if !strings.Contains(manifest, `"mode": "strict"`) || !strings.Contains(manifest, `"status": "failed"`) {
+		t.Fatalf("strict manifest has wrong mode/status:\n%s", manifest)
 	}
 }
 

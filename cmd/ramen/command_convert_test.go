@@ -50,7 +50,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 		t.Fatalf("convert help failed: %v\n%s", err, output)
 	}
 	text = string(output)
-	for _, expected := range []string{"Usage: ramen convert", "--config-dir", "--api-source", "--openapi", "--action", "--target", "--strict", "does not execute Terraform"} {
+	for _, expected := range []string{"Usage: ramen convert", "--config-dir", "--api-source", "--openapi", "--action", "--target", "--mode", "--strict", "does not execute Terraform"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("convert help missing %q:\n%s", expected, text)
 		}
@@ -86,7 +86,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
 	}
-	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--ignore-unsupported", "ansible-module", "resolving play roles/import_role", "host fan-out over $inputs.hosts", "not used for static expression lowering"} {
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "resolving play roles/import_role", "host fan-out over $inputs.hosts", "not used for static expression lowering"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
 		}
@@ -434,7 +434,7 @@ func TestCLIConvertAnsibleUnsupportedExitsByDefault(t *testing.T) {
 		t.Fatalf("convert ansible exit = %v, want code 3\n%s", err, output)
 	}
 	text := string(output)
-	for _, expected := range []string{"unsupported Ansible features found", "ansible.jinja_unsupported", "rerun with --ignore-unsupported"} {
+	for _, expected := range []string{"unsupported Ansible features found", "ansible.jinja_unsupported", "rerun with --mode partial"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("unsupported output missing %q:\n%s", expected, output)
 		}
@@ -444,6 +444,51 @@ func TestCLIConvertAnsibleUnsupportedExitsByDefault(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(outDir, "expected", "diagnostics.json")); err != nil {
 		t.Fatalf("unsupported conversion should write diagnostics: %v", err)
+	}
+}
+
+func TestCLIConvertModePolicy(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`resource "aws_instance" "web" { name = "web" }`))
+	outDir := filepath.Join(root, "strict-out")
+	cmd := helperCommand("convert", "tf", "--config-dir", configDir, "--mode", "strict", "--out", outDir)
+	output, err := cmd.CombinedOutput()
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 3 {
+		t.Fatalf("strict Terraform exit = %v, want code 3\n%s", err, output)
+	}
+	for _, rel := range []string{"expected/diagnostics.json", "expected/review.md", "expected/manifest.json"} {
+		if _, statErr := os.Stat(filepath.Join(outDir, rel)); statErr != nil {
+			t.Fatalf("strict Terraform missing %s: %v", rel, statErr)
+		}
+	}
+	for _, rel := range []string{"project.uws.yaml", "project.uws.hcl", "workflows/workflow.uws.yaml", "workflows/workflow.hcl"} {
+		if _, statErr := os.Stat(filepath.Join(outDir, rel)); !os.IsNotExist(statErr) {
+			t.Fatalf("strict Terraform wrote semantic payload %s: %v", rel, statErr)
+		}
+	}
+
+	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--mode", "partial", "--strict", "--out", filepath.Join(root, "conflict"))
+	output, err = cmd.CombinedOutput()
+	exitErr, ok = err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 2 || !strings.Contains(string(output), "conflicts with --mode partial") {
+		t.Fatalf("Terraform mode conflict = %v, want usage exit 2\n%s", err, output)
+	}
+
+	playbook := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
+	cmd = helperCommand("convert", "ansible", "--playbook", playbook, "--mode", "strict", "--ignore-unsupported", "--out", filepath.Join(root, "ansible-conflict"))
+	output, err = cmd.CombinedOutput()
+	exitErr, ok = err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 2 || !strings.Contains(string(output), "conflicts with --mode strict") {
+		t.Fatalf("Ansible mode conflict = %v, want usage exit 2\n%s", err, output)
+	}
+
+	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--mode", "unsafe", "--out", filepath.Join(root, "invalid"))
+	output, err = cmd.CombinedOutput()
+	exitErr, ok = err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 2 || !strings.Contains(string(output), "unsupported --mode") {
+		t.Fatalf("invalid mode = %v, want usage exit 2\n%s", err, output)
 	}
 }
 
