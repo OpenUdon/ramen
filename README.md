@@ -119,7 +119,7 @@ Experimental on-ramps create or convert native artifacts:
 ramen author --context context.json --goal "Manage widgets"
 ramen icot --goal "List resources" --openapi api=api.json --network ask --no-llm --validate --graph
 ramen convert
-ramen convert ansible --playbook playbook.yml --argspec-dir argspecs
+ramen convert ansible --playbook playbook.yml --argspec builtin=argspec.json --inventory inventory.yml --extra-var env=prod
 ```
 
 See the shared [static conversion contract](docs/conversion.md), the
@@ -132,6 +132,12 @@ Terraform conversion can also accept repeatable
 `--provider-schema ID=PATH` snapshots for offline client-configuration
 validation. This never runs a provider and does not replace the required API
 source that defines server operations.
+
+Ansible conversion can resolve bounded regular INI/YAML/JSON inventory files
+for `all`, one exact host, or one exact group and apply literal extra vars at
+the highest static precedence. This chooses client-requested host facts only;
+Ramen still never opens an inventory connection, SSH session, or module runtime,
+and inline extra-var values are redacted from conversion reports.
 
 `ramen run` is an adjacent imperative UWS runbook command; it does not create
 desired-state resources. Default release builds include mock execution only.

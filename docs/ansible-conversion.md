@@ -37,14 +37,21 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   `--roles-path` or, when no roles path is supplied, `PROJECT/roles`; FQCN
   collection roles resolve under
   `--collections-path DIR/ansible_collections/NAMESPACE/COLLECTION/roles/ROLE`.
-- `--inventory FILE` is repeatable and changes lowering posture: when at least
-  one inventory input is supplied, non-local plays lower host-targeted task
-  steps as UWS stage-1 host fan-out over `$inputs.hosts`, with each step
-  binding `inputs.host` to `$item`. The converter does not parse inventory
-  files or lower connection details; those remain runtime-owned.
-- `--extra-var NAME=VALUE` or `--extra-var @file` is repeatable and recorded in
-  review artifacts for provenance. It is not currently consumed for static
-  variable precedence or expression lowering.
+- `--inventory FILE` is repeatable and reads bounded regular `.ini`, `.yaml`,
+  `.yml`, or `.json` files. Each file is limited to 8 MiB; at most 32 inputs,
+  4,096 hosts, and 1,024 groups are accepted. `all`, one exact host, or one
+  exact group play target resolves to a sorted host-object collection. Exact
+  group children are expanded recursively. Globs, unions/intersections,
+  exclusions, ranges, templated targets, cycles, empty selections, executable
+  inventory, directories, and symlinks fail closed. Ramen reads no inventory
+  plugin and opens no connection.
+- `--extra-var NAME=VALUE` or `--extra-var @file` is repeatable and enters
+  static lowering at the highest precedence. File inputs must be bounded
+  regular YAML/JSON maps; inline values are literal YAML values. Dynamic
+  values, conflicting duplicates, malformed maps, directories, and symlinks
+  fail closed. Secret-like literal variable names require a symbolic runtime
+  credential binding. Reports retain names, safe filenames, and file digests,
+  never inline values.
 - Argspec documents must use the `ramen.ansible.1.0` shape:
   - top-level `argspec: ramen.ansible.1.0`
   - collection name, such as `ansible.builtin`
@@ -121,13 +128,17 @@ Static roles load `tasks/main.yml`, `handlers/main.yml`, `defaults/main.yml`,
 and `vars/main.yml`; missing role tasks, missing imported files, cycles,
 ambiguous role matches, and templated paths are strict diagnostics. Handler
 `listen` aliases can be notified by name, and duplicate handler names or
-aliases in one resolved play are strict diagnostics. Static play `vars`,
-`vars_files`, role defaults, and role vars are emitted as
-`components.variables` only when each source is a YAML map; conflicting values
-fail closed instead of approximating Ansible precedence. Static task-local
-`vars` lower into the task step's `inputs` and are visible to that task's
-expression lowering as `$inputs.<name>`. With `--inventory`, non-local task
-steps lower to UWS stage-1 host fan-out using `$inputs.hosts`.
+aliases in one resolved play are strict diagnostics. Static values use this
+bounded precedence from low to high: role defaults; inventory `all` vars;
+equal-precedence inventory group vars; inventory host vars; vars files; play
+vars; role vars; task vars; extra vars. Higher layers override lower layers.
+Conflicting values within one layer fail closed rather than relying on group
+priority or plugin behavior. Static task-local `vars` lower into task step
+`inputs` and resolve as `$inputs.<name>`. With `--inventory`, non-local steps
+fan out over a deterministic `components.variables` host-object list, bind
+`inputs.host` to `$item.host`, and resolve unshadowed inventory variables as
+`$item.vars.<name>`. Variables beginning `ansible_` remain connection/runtime
+facts and are not embedded in those host objects.
 
 When statically expressible, a single `changed_when` replaces the default
 `changed` output expression, a single mechanically invertible `failed_when`
@@ -172,16 +183,16 @@ declared `uws` version differs.
 | `until` + `retries` + `delay` | The `until` conditions append to `successCriteria`; static `retries` emits `onFailure` retry with `retryLimit: retries - 1`; static `delay` becomes `retryAfter`. |
 | `notify` / handlers | One notifier gates the handler step on `$steps.<notifier>.outputs.changed == true`; multiple notifiers lower to one `switch` that runs the handler at most once. |
 | Static `import_tasks` / `import_role` | Resolved before lowering; wrapper `when`, tags, task vars, retry directives, and condition directives are inherited when they do not conflict. |
-| `--inventory` host fan-out | Non-local tasks get `forEach: $inputs.hosts` and `inputs.host: $item`; inventory parsing and connection details stay runtime-owned. |
+| Static inventory host fan-out | Non-local tasks get `forEach: $variables.inventory_*_hosts`, `inputs.host: $item.host`, and unshadowed host variables under `$item.vars.*`; connection behavior stays runtime-owned. |
 
 ## Support Matrix
 
 | Category | Constructs | Behavior |
 | --- | --- | --- |
 | Supported | Static module tasks, simple args, simple `when`, `and`/`or`/`not`, `loop`, `register` field reads, handlers, static imports, static roles, `changed_when`, `failed_when`, `until`/`retries`/`delay` | Lowered into UWS core workflow objects and validated argspec-bound module leaves. |
-| Partially supported | OR-guarded tasks, host fan-out, `throttle`, retries without `until`, static variables and role vars | Lowered only when a stable UWS meaning exists; otherwise emits diagnostics. |
+| Partially supported | OR-guarded tasks, bounded static inventory fan-out, `throttle`, retries without `until`, and layered static variables | Lowered only when a stable UWS meaning exists; otherwise emits diagnostics. |
 | Runtime-owned | `become`, `become_user`, `become_method`, `environment`, `no_log`, inventory connection behavior, module invocation, credentials | Recorded as informational diagnostics or provenance; not emitted as UWS execution policy. |
-| Review-only | `x-ramen-ansible-provenance` provenance, argspec references, project/role/collection/inventory inputs, extra-vars inputs | Included for review and reproducibility; they do not define UWS execution semantics. |
+| Review-only | `x-ramen-ansible-provenance`, argspec references, and safe project/role/collection/inventory/extra-vars input evidence | Included for review and reproducibility; evidence metadata does not define UWS execution semantics. |
 | Unsupported / fail-closed | Complex Jinja2, runtime facts, dynamic includes, unknown modules, `delegate_to`, `run_once`, `rescue`, `always`, non-static task vars, `ignore_errors`, unsafe handler/host fan-out combinations | Emits strict diagnostics and omits the affected task/handler unless `--mode partial` allows a partial artifact. |
 
 Lowered operations and steps carry provenance-only `x-ramen-ansible-provenance` extensions with
@@ -215,7 +226,8 @@ workflow behavior, including:
   value, because precedence would be ambiguous
 - notified handlers after `--inventory` host fan-out, because the current
   conversion does not lower per-host changed gates for handler execution
-- inventory file expansion and connection behavior
+- inventory plugins, executable/directory inventory, dynamic host patterns,
+  group-priority ambiguity, vault, and all inventory connection behavior
 
 This boundary keeps conversion review-first: unsupported behavior is visible in
 diagnostics, and no converted artifact should be treated as approved for trusted

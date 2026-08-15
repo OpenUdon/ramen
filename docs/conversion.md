@@ -50,6 +50,10 @@ absolute host path, credential value, or raw inline Ansible extra-variable
 value. Arrays use deterministic ordering so identical inputs and invocation
 paths produce byte-identical reports.
 
+Ansible inventory and extra-vars files are digest evidence. Resolved
+non-connection inventory facts can affect static lowering, but SSH/connection
+fields and secret-like literal extra vars never enter generated workflows.
+
 The common envelope owns reporting only. Terraform's native desired-state and
 provenance contracts remain defined in
 [Terraform/OpenTofu Conversion](terraform-conversion.md); Ansible's module-call

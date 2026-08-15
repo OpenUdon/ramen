@@ -23,6 +23,11 @@ Ansible conversion plus assisted authoring are adapter paths into native
 artifacts. Imperative `run` is adjacent and does not create desired-state
 resources.
 
+Static Ansible inventory selection is client-language analysis only: bounded
+host/group/variable facts may shape a workflow, while inventory plugins,
+connections, SSH, vault, facts gathering, and module execution remain outside
+Ramen.
+
 For v0.1.x, the supported Go packages are `project`, `validate`, `graph`,
 `plan`, `apply`, `reconcile`, `state`, and `executor`. Other exported packages
 remain experimental before v1. The executor integration is an in-process Go
