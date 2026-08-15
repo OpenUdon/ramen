@@ -34,9 +34,10 @@ is not sent to the trusted executor.
   repeated.
 - `--out DIR` selects the review package directory and defaults to
   `.ramen/convert`.
-- `--mode strict|partial` selects the common conversion gate. During the
-  transition, omitted mode defaults to `partial`. `--strict` remains a
-  deprecated alias for `--mode strict`.
+- `--mode strict|partial` selects the common conversion gate. Omitted mode
+  defaults to `strict`. `--strict` remains a deprecated alias for
+  `--mode strict`; use `--mode partial` explicitly for review-only output with
+  symbolic or omitted semantics.
 
 Inputs and staged API source documents are untrusted. Source staging rejects
 unsafe overlaps and unowned pre-existing generated directories. Credentials

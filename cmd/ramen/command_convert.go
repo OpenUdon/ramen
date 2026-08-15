@@ -139,7 +139,7 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	configDir := fs.String("config-dir", ".", "Terraform/OpenTofu configuration directory")
 	action := fs.String("action", "", "Managed resource action: create, update, delete, or replace")
 	outDir := fs.String("out", "./.ramen/convert", "Output directory for draft review artifacts")
-	modeFlag := fs.String("mode", "", "Conversion mode: strict or partial (default: partial during the transition)")
+	modeFlag := fs.String("mode", "", "Conversion mode: strict or partial (default: strict)")
 	strict := fs.Bool("strict", false, "Deprecated alias for --mode strict")
 	var openAPIs repeatedStringFlag
 	var apiSources repeatedStringFlag
@@ -149,7 +149,7 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	fs.Var(&targets, "target", "Repeatable Terraform address target")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial]\n")
-		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. Strict mode exits 3 and suppresses semantic project/workflow payloads when strict diagnostics remain. Partial mode is the transitional default. --strict remains a deprecated alias for --mode strict. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. Strict mode is the default; it exits 3 and suppresses semantic project/workflow payloads when strict diagnostics remain. --mode partial explicitly permits review-only output with symbolic or omitted semantics. --strict remains a deprecated alias for --mode strict. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -159,7 +159,7 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 		fs.Usage()
 		os.Exit(2)
 	}
-	mode, err := resolveConversionMode(*modeFlag, "partial", *strict, false)
+	mode, err := resolveConversionMode(*modeFlag, "strict", *strict, false)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ramen convert tf: %v\n", err)
 		os.Exit(2)

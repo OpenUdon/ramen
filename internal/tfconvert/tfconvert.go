@@ -274,11 +274,7 @@ type operationTarget = tfmapping.OperationTarget
 func normalizeOptions(opts Options) Options {
 	opts.Mode = strings.ToLower(strings.TrimSpace(opts.Mode))
 	if opts.Mode == "" {
-		if opts.Strict {
-			opts.Mode = convertreport.ModeStrict
-		} else {
-			opts.Mode = convertreport.ModePartial
-		}
+		opts.Mode = convertreport.ModeStrict
 	}
 	opts.Strict = opts.Mode == convertreport.ModeStrict
 	if strings.TrimSpace(opts.ConfigDir) == "" {

@@ -452,7 +452,7 @@ func TestCLIConvertModePolicy(t *testing.T) {
 	configDir := filepath.Join(root, "tf")
 	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`resource "aws_instance" "web" { name = "web" }`))
 	outDir := filepath.Join(root, "strict-out")
-	cmd := helperCommand("convert", "tf", "--config-dir", configDir, "--mode", "strict", "--out", outDir)
+	cmd := helperCommand("convert", "tf", "--config-dir", configDir, "--out", outDir)
 	output, err := cmd.CombinedOutput()
 	exitErr, ok := err.(*exec.ExitError)
 	if !ok || exitErr.ExitCode() != 3 {
@@ -467,6 +467,17 @@ func TestCLIConvertModePolicy(t *testing.T) {
 		if _, statErr := os.Stat(filepath.Join(outDir, rel)); !os.IsNotExist(statErr) {
 			t.Fatalf("strict Terraform wrote semantic payload %s: %v", rel, statErr)
 		}
+	}
+	partialOut := filepath.Join(root, "partial-out")
+	partialAPI := filepath.Join(root, "partial-api.yaml")
+	mustWriteCLIFile(t, partialAPI, []byte("openapi: 3.0.0\ninfo:\n  title: Unrelated\n  version: v1\npaths:\n  /users:\n    get:\n      operationId: getUser\n      responses:\n        '200':\n          description: ok\n"))
+	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "users="+partialAPI, "--action", "create", "--mode", "partial", "--out", partialOut)
+	if output, err = cmd.CombinedOutput(); err != nil {
+		t.Fatalf("explicit partial Terraform conversion failed: %v\n%s", err, output)
+	}
+	manifest, readErr := os.ReadFile(filepath.Join(partialOut, "expected", "manifest.json"))
+	if readErr != nil || !strings.Contains(string(manifest), `"mode": "partial"`) || !strings.Contains(string(manifest), `"status": "partial"`) {
+		t.Fatalf("partial manifest is missing partial mode/status: err=%v\n%s", readErr, manifest)
 	}
 
 	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--mode", "partial", "--strict", "--out", filepath.Join(root, "conflict"))

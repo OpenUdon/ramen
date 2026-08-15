@@ -227,7 +227,7 @@ paths:
 	if err := json.Unmarshal(manifestData, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if manifest.Converter != convertreport.ConverterTerraform || manifest.Mode != convertreport.ModePartial || manifest.Execution.Performed || len(manifest.Artifacts) == 0 {
+	if manifest.Converter != convertreport.ConverterTerraform || manifest.Mode != convertreport.ModeStrict || manifest.Execution.Performed || len(manifest.Artifacts) == 0 {
 		t.Fatalf("manifest = %#v", manifest)
 	}
 }
@@ -264,6 +264,7 @@ paths:
 		ConfigDir: configDir,
 		OpenAPIs:  []OpenAPIInput{{ID: "aws", Path: openAPIPath}},
 		OutDir:    filepath.Join(root, "out"),
+		Mode:      convertreport.ModePartial,
 	})
 	if err != nil {
 		t.Fatalf("Convert returned error: %v", err)
@@ -886,6 +887,7 @@ paths:
 		OpenAPIs:  []OpenAPIInput{{ID: "secrets", Path: openAPIPath}},
 		Action:    "create",
 		OutDir:    filepath.Join(root, "out"),
+		Mode:      convertreport.ModePartial,
 	})
 	if err != nil {
 		t.Fatalf("Convert returned error: %v", err)
@@ -1121,6 +1123,7 @@ paths:
 		ConfigDir: configDir,
 		OpenAPIs:  []OpenAPIInput{{ID: "users", Path: openAPIPath}},
 		OutDir:    filepath.Join(root, "out"),
+		Mode:      convertreport.ModePartial,
 	})
 	if err != nil {
 		t.Fatalf("Convert returned error outside strict mode: %v", err)
@@ -1177,6 +1180,7 @@ paths:
 		ConfigDir: configDir,
 		OpenAPIs:  []OpenAPIInput{{ID: "users", Path: openAPIPath}},
 		OutDir:    outDir,
+		Mode:      convertreport.ModePartial,
 	})
 	if err != nil {
 		t.Fatalf("partial conversion failed: %v", err)
@@ -1361,6 +1365,7 @@ paths:
 		OpenAPIs:  []OpenAPIInput{{ID: "first", Path: firstOpenAPI}, {ID: "second", Path: secondOpenAPI}},
 		Action:    "create",
 		OutDir:    filepath.Join(root, "out"),
+		Mode:      convertreport.ModePartial,
 	})
 	if err != nil {
 		t.Fatalf("Convert returned error for duplicate cross-document operation IDs: %v", err)

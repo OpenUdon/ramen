@@ -18,9 +18,8 @@ Both commands accept `--mode strict|partial`:
 - `partial` writes the supported subset, records every omission or symbolic
   fallback, and exits `0` when conversion itself succeeds.
 
-During the CLI transition, omitted mode preserves prior behavior: Terraform is
-`partial` and Ansible is `strict`. Terraform's `--strict` remains a deprecated
-alias for `--mode strict`; Ansible's `--strict` and
+Omitted mode is `strict` for both converters. Terraform's `--strict` remains a
+deprecated alias for `--mode strict`; Ansible's `--strict` and
 `--ignore-unsupported` remain deprecated aliases for strict and partial.
 Contradictory selections are usage errors.
 
