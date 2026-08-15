@@ -35,7 +35,9 @@ Current provider inputs:
   read limit, so the corpus uses the focused fixture instead of copying or
   requiring the full document.
 - Kubernetes: `../terraform-provider-kubernetes` examples + the pinned
-  Kubernetes Swagger regression fixture under `testdata/api-sources`.
+  Kubernetes Swagger regression fixture under `testdata/api-sources`, plus an
+  explicit Ramen-local registration for the K12 ClusterRoleBinding parity HCL
+  and focused RBAC OpenAPI fixture.
 - OpenTofu: optional static Terraform docs/examples under `../opentofu`,
   currently contributing only examples that map to supported provider/API
   source pairs and pass the same clean corpus gates.
@@ -60,6 +62,11 @@ under `testdata/manual-corpus`. M48 starts this root with a minimal Kubernetes
 Namespace fixture and a manifest-driven drift test that re-runs conversion,
 compares the native project and plan key artifacts, and verifies generated HCL
 is structurally equivalent to YAML.
+
+Ramen-local fixtures that should be owned by `cmd/corpusgen` are different:
+they must be individually registered with their input path, output identity,
+API source path and ID. The generator does not recursively scan Ramen's parity
+tree. K12 is the first such registration.
 
 ### Findings that shaped this (verified)
 - Provider: ~266 services, ~580 `aws_*` types. Configs are ~14.3K Go
@@ -143,7 +150,8 @@ compatibility adapter, but it should not be the canonical source model.
   Kubernetes OpenAPI source documents; scans AWS static Terraform files and
   renderable `.gtpl` templates; mines Google and AzureRM raw Terraform snippets
   from Go acceptance tests; scans Cloudflare static service testdata and
-  Kubernetes static examples; scans optional OpenTofu static docs/examples;
+  Kubernetes static examples; processes explicitly registered Ramen-local
+  fixtures; scans optional OpenTofu static docs/examples;
   copies each provider config into the entry's
   `input/` and converts from there (so the recorded `config_dir` matches what
   the test reproduces); gates on clean diagnostics **and** HCL round-trip;
@@ -234,7 +242,7 @@ Large API source documents are **referenced by relative path** in `meta.json`
 
 ## Results
 
-Committed corpus artifacts currently contain 159 strict-valid entries in
+Committed corpus artifacts currently contain 160 strict-valid entries in
 `testdata/corpus/manifest.json`:
 
 | provider/service | entries |
@@ -246,15 +254,15 @@ Committed corpus artifacts currently contain 159 strict-valid entries in
 | cloudflare/d1_database | 1 |
 | cloudflare/r2_bucket | 8 |
 | google/storage | 45 |
-| kubernetes/core | 4 |
+| kubernetes/core | 5 |
 
 One of the AWS S3 entries comes from the optional OpenTofu documentation/example
 scan. Six otherwise clean conversions are dropped because strict native
 validation finds incomplete desired-state metadata.
 
-### Why only 159 (the funnel)
+### Why only 160 (the funnel)
 
-159 is **not** the number of Terraform configs in the providers — it is what
+160 is **not** the number of Terraform configs in the providers — it is what
 survives a deliberately narrow funnel. The AWS provider has ~266 services, ~580
 resource types, and thousands of test configs (~14.3K Go `testAcc*Config*`
 builders + ~3K static files). The Google provider adds another fixture style:
@@ -302,10 +310,12 @@ Kubernetes:
 
 ```
 mapped resource services with local OpenAPI docs → 1 (core)
-  └─ static examples considered                → 165 inputs
-       ├─ 118 dropped: uses a Terraform type ramen does not map yet
+  └─ provider examples + registered K12 input  → 166 inputs
+       ├─ 107 dropped: uses a Terraform type ramen does not map yet
        ├─  44 dropped: no managed resource in the snippet
-       └─   5 committed: core namespace coverage plus RBAC RoleBinding/ClusterRole fixtures
+       ├─   4 dropped: fallback/unsupported/error diagnostics
+       ├─   6 dropped: strict native validation
+       └─   5 emitted: four provider examples plus K12 ClusterRoleBinding
 ```
 
 Cloudflare:
@@ -316,7 +326,7 @@ mapped resource services with local OpenAPI docs → 2 (r2_bucket, d1_database)
        └─ 9 emitted: R2 bucket and D1 database resource coverage
 ```
 
-So `159 = clean-only × mapped provider services × locally available API source
+So `160 = clean-only × mapped provider services × locally available API source
 documents × supported fixture extraction`. Each narrowing is a chosen scope
 (clean conversions only; local API source documents; supported fixture sources
 first), **not** a ceiling. The set grows
@@ -334,9 +344,10 @@ automatically — no hand-editing — along three axes:
 
 With template rendering, `aws_s3_bucket_public_access_block`,
 `aws_s3_bucket_versioning`, `aws_iam_user`, and `aws_lambda_permission` now
-added, the current AWS clean corpus is 69 entries; Google storage adds 45 and
-AzureRM Cosmos adds 31, Cloudflare R2/D1 adds 9, and Kubernetes adds 5 for 159
-committed entries. The same funnel still applies: only diagnostic-clean
+added, provider-derived AWS inputs contribute 69 entries; Google storage adds
+45, AzureRM Cosmos adds 31, Cloudflare R2/D1 adds 9, and Kubernetes adds 5 for
+159 entries. The optional OpenTofu S3 example brings the committed total to
+160. The same funnel still applies: only diagnostic-clean
 outputs from mapped types in
 services with local API source documents are emitted.
 
@@ -479,6 +490,7 @@ bindings, and fixture intake inside those services.
 ## Regenerate & verify
 ```
 go run ./cmd/corpusgen          # rebuild the corpus + COVERAGE.md
+go run ./cmd/corpusgen --check  # regenerate in a temporary directory and compare
 go test .                       # corpus regression (byte YAML/plan, structural HCL)
 go build ./... && go vet ./... && go test ./...   # full ramen suite
 ```
