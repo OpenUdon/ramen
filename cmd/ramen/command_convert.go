@@ -187,4 +187,5 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	fmt.Printf("  plan:        %s\n", result.PlanJSONPath)
 	fmt.Printf("  diagnostics: %s\n", result.DiagnosticsJSON)
 	fmt.Printf("  review:      %s\n", result.ReviewPath)
+	fmt.Printf("  manifest:    %s\n", result.ManifestPath)
 }

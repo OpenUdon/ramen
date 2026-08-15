@@ -14,6 +14,7 @@ import (
 
 	"github.com/OpenUdon/apitools"
 	"github.com/OpenUdon/ramen/internal/convertcore"
+	"github.com/OpenUdon/ramen/internal/convertreport"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
@@ -52,6 +53,7 @@ type APISourceInput struct {
 
 type Result struct {
 	OutDir               string
+	ManifestPath         string
 	ProjectPath          string
 	NativeProjectPath    string
 	ConversionPath       string
@@ -142,6 +144,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 
 	result := &Result{
 		OutDir:               opts.OutDir,
+		ManifestPath:         filepath.Join(opts.OutDir, "expected", "manifest.json"),
 		ProjectPath:          filepath.Join(opts.OutDir, "project.md"),
 		NativeProjectPath:    filepath.Join(opts.OutDir, project.DefaultFile),
 		ConversionPath:       filepath.Join(opts.OutDir, "expected", "conversion.json"),
@@ -1002,12 +1005,8 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeNativeProject(result.NativeProjectPath, result.NativeProjectHCLPath, nativeDoc); err != nil {
 		return err
 	}
-	diagJSON, err := json.MarshalIndent(c.diagnostics, "", "  ")
-	if err != nil {
-		return err
-	}
-	diagJSON = append(diagJSON, '\n')
-	if err := os.WriteFile(result.DiagnosticsJSON, diagJSON, 0o644); err != nil {
+	reportDiagnostics := terraformReportDiagnostics(c.diagnostics)
+	if err := convertreport.WriteDiagnostics(result.DiagnosticsJSON, convertreport.NewDiagnostics(convertreport.ConverterTerraform, reportDiagnostics)); err != nil {
 		return err
 	}
 	if err := writeFile(result.DiagnosticsMD, renderDiagnosticsMarkdown(c.diagnostics)); err != nil {
@@ -1028,7 +1027,122 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeUWSDocument(result.UWSPath, result.UWSHCLPath, workflowDoc); err != nil {
 		return err
 	}
-	return writeFile(result.ReviewPath, renderReview(c))
+	if err := writeFile(result.ReviewPath, renderReview(c)); err != nil {
+		return err
+	}
+	return writeTerraformManifest(result, c, reportDiagnostics)
+}
+
+func terraformReportDiagnostics(diagnostics []Diagnostic) []convertreport.Diagnostic {
+	out := make([]convertreport.Diagnostic, 0, len(diagnostics))
+	for _, diagnostic := range diagnostics {
+		report := convertreport.Diagnostic{
+			Code: diagnostic.Code, Severity: normalizeSeverity(diagnostic.Severity), Message: diagnostic.Message,
+			StrictFailure: diagnostic.StrictFailure, TodoID: diagnostic.TodoID,
+		}
+		subjectKind, subjectID := "", ""
+		switch {
+		case diagnostic.APISourceID != "":
+			subjectKind, subjectID = "api_source", diagnostic.APISourceID
+		case diagnostic.Address != "":
+			subjectKind, subjectID = "resource", diagnostic.Address
+		case diagnostic.ModuleAddress != "":
+			subjectKind, subjectID = "module", diagnostic.ModuleAddress
+		}
+		if subjectID != "" {
+			report.Subject = &convertreport.Subject{Kind: subjectKind, ID: subjectID, Module: diagnostic.ModuleAddress}
+		}
+		if diagnostic.SourceRange != nil {
+			report.SourceRange = &convertreport.SourceRange{
+				SourceID: diagnostic.SourceRange.SourceID, Path: diagnostic.SourceRange.Path,
+				Start: convertreport.Position{Line: diagnostic.SourceRange.Start.Line, Column: diagnostic.SourceRange.Start.Column, Byte: diagnostic.SourceRange.Start.Byte},
+				End:   convertreport.Position{Line: diagnostic.SourceRange.End.Line, Column: diagnostic.SourceRange.End.Column, Byte: diagnostic.SourceRange.End.Byte},
+			}
+		}
+		out = append(out, report)
+	}
+	return out
+}
+
+func writeTerraformManifest(result *Result, c conversionState, diagnostics []convertreport.Diagnostic) error {
+	inputs := make([]convertreport.Input, 0, len(c.doc.SourceFiles)+len(c.opts.APISources))
+	for _, source := range c.doc.SourceFiles {
+		path := source.Path
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(c.doc.RootDir, filepath.FromSlash(path))
+		}
+		input, err := convertreport.FileInput("terraform-config", source.ID, path)
+		if err != nil {
+			return fmt.Errorf("record Terraform input %s: %w", source.ID, err)
+		}
+		inputs = append(inputs, input)
+	}
+	for _, source := range c.opts.APISources {
+		input, err := convertreport.FileInput("api-source:"+source.Kind, source.ID, source.Path)
+		if err != nil {
+			return fmt.Errorf("record API source input %s: %w", source.ID, err)
+		}
+		inputs = append(inputs, input)
+	}
+	slices.SortFunc(inputs, func(a, b convertreport.Input) int {
+		return cmp.Compare(strings.Join([]string{a.Kind, a.ID, a.Path}, "\x00"), strings.Join([]string{b.Kind, b.ID, b.Path}, "\x00"))
+	})
+
+	artifactPaths := []struct{ kind, path string }{
+		{"project-review", result.ProjectPath}, {"project-yaml", result.NativeProjectPath}, {"project-hcl", result.NativeProjectHCLPath},
+		{"workflow-yaml", result.UWSPath}, {"workflow-hcl", result.UWSHCLPath}, {"conversion", result.ConversionPath},
+		{"mappings", result.MappingsPath}, {"plan-json", result.PlanJSONPath}, {"plan-markdown", result.PlanMDPath},
+		{"diagnostics-json", result.DiagnosticsJSON}, {"diagnostics-markdown", result.DiagnosticsMD}, {"review", result.ReviewPath},
+	}
+	for _, source := range c.apiSources {
+		artifactPaths = append(artifactPaths, struct{ kind, path string }{"api-source:" + source.Kind, filepath.Join(result.OutDir, filepath.FromSlash(source.PackagePath))})
+	}
+	artifacts := make([]convertreport.Artifact, 0, len(artifactPaths))
+	for _, candidate := range artifactPaths {
+		if _, err := os.Stat(candidate.path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		artifact, err := convertreport.FileArtifact(result.OutDir, candidate.kind, candidate.path)
+		if err != nil {
+			return err
+		}
+		artifacts = append(artifacts, artifact)
+	}
+	slices.SortFunc(artifacts, func(a, b convertreport.Artifact) int { return cmp.Compare(a.Path, b.Path) })
+
+	coverageItems := make([]convertreport.CoverageItem, 0, len(c.mappings))
+	for _, mapping := range c.mappings {
+		item := convertreport.CoverageItem{Kind: mapping.Object.Kind, ID: mapping.Object.Address, Disposition: "converted"}
+		if mapping.TodoID != "" || mapping.OperationID == "" {
+			item.Disposition = "symbolic"
+			item.Reason = firstNonEmpty(mapping.TodoID, "operation mapping remains unresolved")
+		}
+		coverageItems = append(coverageItems, item)
+	}
+	status := convertreport.StatusComplete
+	if hasStrictFailure(c.diagnostics) {
+		status = convertreport.StatusPartial
+		if c.opts.Strict {
+			status = convertreport.StatusFailed
+		}
+	}
+	manifest := convertreport.Manifest{
+		Version: convertreport.ManifestVersion, Converter: convertreport.ConverterTerraform,
+		Mode: modeName(c.opts.Strict), Status: status, Inputs: inputs, Artifacts: artifacts,
+		Coverage:    convertreport.NormalizeCoverage(coverageItems),
+		Diagnostics: convertreport.Summarize("expected/diagnostics.json", diagnostics), Execution: convertreport.Execution{Performed: false},
+	}
+	return convertreport.WriteManifest(result.ManifestPath, manifest)
+}
+
+func modeName(strict bool) string {
+	if strict {
+		return convertreport.ModeStrict
+	}
+	return convertreport.ModePartial
 }
 
 func writeFile(path, content string) error {

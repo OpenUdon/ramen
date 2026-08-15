@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/ramen/internal/convertreport"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	uwsconvert "github.com/OpenUdon/uws/convert"
@@ -82,6 +83,7 @@ paths:
 		result.DiagnosticsJSON,
 		result.DiagnosticsMD,
 		result.ReviewPath,
+		result.ManifestPath,
 		filepath.Join(result.OutDir, "openapi", "aws.yaml"),
 	} {
 		if _, err := os.Stat(path); err != nil {
@@ -111,6 +113,27 @@ paths:
 	project := readFileForTest(t, result.ProjectPath)
 	if !strings.Contains(project, "unapproved review scaffolding") || !strings.Contains(project, "aws_instance.web") {
 		t.Fatalf("project did not summarize draft posture and resource:\n%s", project)
+	}
+	diagnosticsData, err := os.ReadFile(result.DiagnosticsJSON)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := convertreport.ValidateDiagnostics(diagnosticsData); err != nil {
+		t.Fatalf("common diagnostics are invalid: %v", err)
+	}
+	manifestData, err := os.ReadFile(result.ManifestPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := convertreport.ValidateManifest(manifestData); err != nil {
+		t.Fatalf("conversion manifest is invalid: %v", err)
+	}
+	var manifest convertreport.Manifest
+	if err := json.Unmarshal(manifestData, &manifest); err != nil {
+		t.Fatal(err)
+	}
+	if manifest.Converter != convertreport.ConverterTerraform || manifest.Mode != convertreport.ModePartial || manifest.Execution.Performed || len(manifest.Artifacts) == 0 {
+		t.Fatalf("manifest = %#v", manifest)
 	}
 }
 

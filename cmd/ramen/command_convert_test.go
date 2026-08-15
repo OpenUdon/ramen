@@ -145,7 +145,7 @@ paths:
 	if !strings.Contains(string(projectData), tfconvert.TerraformProvenanceVersion) || strings.Contains(string(projectData), "ramen-review-todo") {
 		t.Fatalf("converted project lacks versioned Terraform metadata:\n%s", projectData)
 	}
-	for _, rel := range []string{"project.md", "project.uws.yaml", "workflows/workflow.uws.yaml", "expected/conversion.json", "expected/mappings.json", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
+	for _, rel := range []string{"project.md", "project.uws.yaml", "workflows/workflow.uws.yaml", "expected/conversion.json", "expected/mappings.json", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md", "expected/manifest.json"} {
 		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
 			t.Fatalf("missing %s: %v", rel, err)
 		}
