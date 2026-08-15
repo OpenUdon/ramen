@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"slices"
 	"strings"
 	"testing"
@@ -212,6 +213,50 @@ func TestStaticInstanceContextsRejectsUnboundedOrWrongShapes(t *testing.T) {
 	}
 }
 
+func TestStaticInstanceContextsExpandsSetFactsWhenAvailable(t *testing.T) {
+	value := tfconfig.Value{Kind: tfconfig.ValueKindCollection, Literal: []any{"green", "blue", "green"}}
+	field := reflect.ValueOf(&value).Elem().FieldByName("CollectionKind")
+	if !field.IsValid() || !field.CanSet() || field.Kind() != reflect.String {
+		t.Skip("pinned tfconfig does not yet expose collection shape")
+	}
+	field.SetString("set")
+	instances, ok := staticInstanceContexts(nil, &value)
+	if !ok || len(instances) != 2 || instances[0].Suffix != `["blue"]` || instances[1].Suffix != `["green"]` {
+		t.Fatalf("set instances = %#v, %t", instances, ok)
+	}
+}
+
+func TestConvertRejectsCompositeInstanceExpressions(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	apiPath := filepath.Join(root, "api.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_instance" "web" {
+  count = 2
+  name  = "web-${count.index}"
+}
+`)
+	writeFileForTest(t, apiPath, `openapi: 3.0.0
+info: {title: Instances, version: v1}
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200": {description: ok}
+`)
+	result, err := Convert(context.Background(), Options{
+		ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "aws", Path: apiPath}},
+		Action: "create", OutDir: filepath.Join(root, "out"), Mode: convertreport.ModePartial,
+	})
+	if err != nil {
+		t.Fatalf("partial conversion failed: %v", err)
+	}
+	if !hasDiagnostic(result.Diagnostics, "terraform.count_unsupported") {
+		t.Fatalf("composite count expression was not loss-gated: %#v", result.Diagnostics)
+	}
+}
+
 func TestConvertExpandsLoadedLocalModuleInputsAndProviderMappings(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
@@ -291,7 +336,7 @@ paths:
 	if err := json.Unmarshal([]byte(readFileForTest(t, result.ManifestPath)), &manifest); err != nil {
 		t.Fatalf("decode manifest: %v", err)
 	}
-	if manifest.Status != convertreport.StatusComplete || manifest.Coverage.Converted != 1 || manifest.Coverage.Unsupported != 0 {
+	if manifest.Status != convertreport.StatusComplete || manifest.Coverage.Converted != 2 || manifest.Coverage.Unsupported != 0 {
 		t.Fatalf("manifest status/coverage = %q/%#v", manifest.Status, manifest.Coverage)
 	}
 }

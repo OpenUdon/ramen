@@ -717,7 +717,7 @@ func (c *conversionState) collectSemanticGaps() {
 	for _, mod := range c.doc.Modules {
 		for _, resource := range mod.Resources {
 			address := fullAddress(mod.Address, resource.Address)
-			if _, ok := staticInstanceContexts(resource.Count, resource.ForEach); !ok {
+			if _, ok := staticObjectInstanceContexts(resource.Count, resource.ForEach, resource.Config); !ok {
 				c.collectInstanceGaps("resource", address, mod.Address, resource.Count, resource.ForEach, resource.Range)
 			}
 			if hasLifecycleSemantics(resource.Lifecycle) {
@@ -729,7 +729,7 @@ func (c *conversionState) collectSemanticGaps() {
 		}
 		for _, dataSource := range mod.DataSources {
 			address := fullAddress(mod.Address, dataSource.Address)
-			if _, ok := staticInstanceContexts(dataSource.Count, dataSource.ForEach); !ok {
+			if _, ok := staticObjectInstanceContexts(dataSource.Count, dataSource.ForEach, dataSource.Config); !ok {
 				c.collectInstanceGaps("data-source", address, mod.Address, dataSource.Count, dataSource.ForEach, dataSource.Range)
 			}
 		}
@@ -845,6 +845,34 @@ func staticInstanceContexts(count, forEach *tfconfig.Value) ([]instanceContext, 
 	}
 }
 
+func staticObjectInstanceContexts(count, forEach *tfconfig.Value, attributes []tfconfig.Attribute) ([]instanceContext, bool) {
+	instances, ok := staticInstanceContexts(count, forEach)
+	if !ok || !instanceReferencesAreExact(count, forEach, attributes) {
+		return nil, false
+	}
+	return instances, true
+}
+
+func instanceReferencesAreExact(count, forEach *tfconfig.Value, attributes []tfconfig.Attribute) bool {
+	for _, attribute := range attributes {
+		for _, ref := range attribute.Value.References {
+			subject := strings.TrimSpace(ref.Subject)
+			switch {
+			case strings.HasPrefix(subject, "count."):
+				if count == nil || strings.TrimSpace(attribute.Value.Expression) != "count.index" {
+					return false
+				}
+			case strings.HasPrefix(subject, "each."):
+				expression := strings.TrimSpace(attribute.Value.Expression)
+				if forEach == nil || (expression != "each.key" && expression != "each.value") {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
 func staticNonNegativeInt(value any) (int, bool) {
 	var n int64
 	switch typed := value.(type) {
@@ -921,7 +949,7 @@ func (c *conversionState) selectObjects() {
 		for _, res := range mod.Resources {
 			baseAddress := fullAddress(mod.Address, res.Address)
 			provider := c.selectedProvider(mod.Address, res.Provider, res.Type)
-			instances, ok := staticInstanceContexts(res.Count, res.ForEach)
+			instances, ok := staticObjectInstanceContexts(res.Count, res.ForEach, res.Config)
 			if !ok {
 				instances = []instanceContext{{}}
 			}
@@ -951,7 +979,7 @@ func (c *conversionState) selectObjects() {
 		for _, ds := range mod.DataSources {
 			baseAddress := fullAddress(mod.Address, ds.Address)
 			provider := c.selectedProvider(mod.Address, ds.Provider, ds.Type)
-			instances, ok := staticInstanceContexts(ds.Count, ds.ForEach)
+			instances, ok := staticObjectInstanceContexts(ds.Count, ds.ForEach, ds.Config)
 			if !ok {
 				instances = []instanceContext{{}}
 			}
@@ -1695,6 +1723,16 @@ func writeTerraformManifest(result *Result, c conversionState, diagnostics []con
 			item.Reason = firstNonEmpty(mapping.TodoID, "operation mapping remains unresolved")
 		}
 		coverageItems = append(coverageItems, item)
+	}
+	for _, mod := range c.doc.Modules {
+		for _, call := range mod.ModuleCalls {
+			if context, ok := c.modules[call.Address]; ok && context.Supported {
+				coverageItems = append(coverageItems, convertreport.CoverageItem{
+					Kind: "module-call", ID: call.Address, Disposition: "converted",
+					Reason: "loaded local module inputs and provider mappings were statically expanded",
+				})
+			}
+		}
 	}
 	for _, gap := range c.semanticGaps {
 		coverageItems = append(coverageItems, convertreport.CoverageItem{
