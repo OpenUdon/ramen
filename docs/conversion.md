@@ -6,6 +6,10 @@ share a semantic payload: Terraform/OpenTofu describes desired remote state,
 while Ansible describes client-side workflow steps whose module invocation is
 owned by a bound runtime.
 
+The canonical [client-language conversion model](client-language-conversion.md)
+defines ownership, evidence authority, runtime boundaries, and the promotion
+rule used by both adapters.
+
 Neither converter executes Terraform, OpenTofu, providers, Ansible, modules,
 inventory connections, API operations, or UWS workflows.
 Terraform conversion may read an operator-supplied offline provider-schema
