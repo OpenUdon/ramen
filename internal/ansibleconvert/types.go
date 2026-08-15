@@ -86,6 +86,7 @@ type Diagnostic struct {
 type Result struct {
 	UWSPath         string
 	HCLPath         string
+	ManifestPath    string
 	DiagnosticsJSON string
 	DiagnosticsMD   string
 	ReviewMD        string

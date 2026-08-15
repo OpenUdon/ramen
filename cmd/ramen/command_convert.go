@@ -109,6 +109,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	}
 	fmt.Printf("Diagnostics: %s (%d total, %d strict)\n", result.DiagnosticsJSON, len(result.Diagnostics), result.StrictFailures)
 	fmt.Printf("Review: %s\n", result.ReviewMD)
+	fmt.Printf("Manifest: %s\n", result.ManifestPath)
 	if result.StrictFailures > 0 && !*ignoreUnsupported {
 		fmt.Fprintf(os.Stderr, "ramen convert ansible: unsupported Ansible features found (%d strict diagnostics); workflow artifacts were not written\n", result.StrictFailures)
 		for _, diag := range result.Diagnostics {

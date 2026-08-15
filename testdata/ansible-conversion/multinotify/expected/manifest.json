@@ -1,0 +1,81 @@
+{
+  "version": "ramen.convert.manifest.v1",
+  "converter": "ansible",
+  "mode": "strict",
+  "status": "complete",
+  "inputs": [
+    {
+      "kind": "ansible-argspec",
+      "id": "builtin",
+      "path": "ansible-builtin.argspec.json",
+      "sha256": "e30fc1c523d99618375c6611216bb32104884983975c41d96e1dfb3381222655"
+    },
+    {
+      "kind": "ansible-playbook",
+      "id": "playbook",
+      "path": "playbook.yml",
+      "sha256": "f021b1eb079427066309e33424a2a3d278725decd65f0a5ccc9d21548e891ea3"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "diagnostics-json",
+      "path": "expected/diagnostics.json",
+      "sha256": "caf7e78c98adabc4fa0ba6fd4578f9b6d276bcfc392ba4f242725cf0d780a72a"
+    },
+    {
+      "kind": "diagnostics-markdown",
+      "path": "expected/diagnostics.md",
+      "sha256": "27ec327918417599889d63ce207a5a993a8f9270815269fbcfb7a3a5730413ef"
+    },
+    {
+      "kind": "review",
+      "path": "expected/review.md",
+      "sha256": "0a076285c719171a0594f297a65a9b087227937b09b5fe651b938ff8cb8d7947"
+    },
+    {
+      "kind": "workflow-hcl",
+      "path": "workflows/workflow.hcl",
+      "sha256": "f12bad64ef68db9bb179e6da93bc1b86bf943d108956f82b21bc238a1b38e0e2"
+    },
+    {
+      "kind": "workflow-yaml",
+      "path": "workflows/workflow.uws.yaml",
+      "sha256": "3c5c8a1c4fc4a9fdbdbb8117c9fa5d9c210e9f9d87ab13c81d59735d1c278872"
+    }
+  ],
+  "coverage": {
+    "converted": 3,
+    "symbolic": 0,
+    "unsupported": 0,
+    "ignored": 0,
+    "items": [
+      {
+        "kind": "operation",
+        "id": "deploy_nginx_config",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "install_nginx",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "restart_nginx",
+        "disposition": "converted"
+      }
+    ]
+  },
+  "diagnostics": {
+    "path": "expected/diagnostics.json",
+    "total": 0,
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "strict_failures": 0
+  },
+  "execution": {
+    "performed": false
+  }
+}

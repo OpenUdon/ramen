@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/ramen/internal/convertreport"
 	"github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -1413,6 +1414,7 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 			actualByRel := map[string]string{
 				"expected/diagnostics.json": result.DiagnosticsJSON,
 				"expected/diagnostics.md":   result.DiagnosticsMD,
+				"expected/manifest.json":    result.ManifestPath,
 				"expected/review.md":        result.ReviewMD,
 			}
 			if result.UWSPath != "" {
@@ -1437,6 +1439,11 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 				}
 				if string(actual) != string(expected) {
 					t.Fatalf("%s drifted for %s\n--- expected\n%s\n--- actual\n%s", rel, name, expected, actual)
+				}
+				if rel == "expected/manifest.json" {
+					if err := convertreport.ValidateManifest(actual); err != nil {
+						t.Fatalf("manifest for %s is invalid: %v", name, err)
+					}
 				}
 				if strings.HasPrefix(rel, "workflows/") {
 					for _, retired := range []string{retiredArgspecVersion, retiredProfileName, retiredExtensionModule, retiredExtensionProvenance} {

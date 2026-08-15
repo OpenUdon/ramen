@@ -1,40 +1,56 @@
 {
-  "version": "ramen.ansible-convert.v1",
+  "version": "ramen.convert.diagnostics.v1",
+  "converter": "ansible",
   "diagnostics": [
     {
       "code": "ansible.delegate_unsupported",
       "severity": "error",
       "message": "directive \"delegate_to\" on a block changes the execution target for all of its tasks; the block was not lowered",
-      "task": "Delegated block",
-      "strict_failure": true
+      "strict_failure": true,
+      "subject": {
+        "kind": "task",
+        "id": "Delegated block"
+      }
     },
     {
       "code": "ansible.jinja_unsupported",
       "severity": "error",
       "message": "argument \"cmd\": unknown dotted reference \"future_result.stdout\"",
-      "task": "Consumer before future producer",
-      "strict_failure": true
+      "strict_failure": true,
+      "subject": {
+        "kind": "task",
+        "id": "Consumer before future producer"
+      }
     },
     {
       "code": "ansible.jinja_unsupported",
       "severity": "error",
       "message": "argument \"cmd\": unknown dotted reference \"produced.stdout\"",
-      "task": "Consumer of skipped producer",
-      "strict_failure": true
+      "strict_failure": true,
+      "subject": {
+        "kind": "task",
+        "id": "Consumer of skipped producer"
+      }
     },
     {
       "code": "ansible.jinja_unsupported",
       "severity": "error",
       "message": "guarded task: expression \"ansible_facts['os_family']\" uses Jinja2 features (filters, lookups, math, or indexing) outside UWS core; the task was not lowered",
-      "task": "Guarded producer",
-      "strict_failure": true
+      "strict_failure": true,
+      "subject": {
+        "kind": "task",
+        "id": "Guarded producer"
+      }
     },
     {
       "code": "ansible.rescue_todo",
       "severity": "error",
       "message": "block rescue tasks are not lowered yet; the block was not lowered",
-      "task": "Block with rescue",
-      "strict_failure": true
+      "strict_failure": true,
+      "subject": {
+        "kind": "task",
+        "id": "Block with rescue"
+      }
     }
   ]
 }

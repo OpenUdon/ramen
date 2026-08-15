@@ -2,7 +2,6 @@ package ansibleconvert
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -10,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/OpenUdon/ramen/internal/convertcore"
+	"github.com/OpenUdon/ramen/internal/convertreport"
 	"github.com/OpenUdon/uws/uws1"
 )
 
@@ -54,6 +54,7 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	sortDiagnostics(diags)
 
 	result := &Result{
+		ManifestPath:    filepath.Join(opts.OutDir, "expected", "manifest.json"),
 		DiagnosticsJSON: filepath.Join(opts.OutDir, "expected", "diagnostics.json"),
 		DiagnosticsMD:   filepath.Join(opts.OutDir, "expected", "diagnostics.md"),
 		ReviewMD:        filepath.Join(opts.OutDir, "expected", "review.md"),
@@ -78,6 +79,9 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 		}
 	}
 	if err := writeReview(result, doc, opts); err != nil {
+		return nil, err
+	}
+	if err := writeAnsibleManifest(result, doc, opts); err != nil {
 		return nil, err
 	}
 	return result, nil
@@ -111,15 +115,8 @@ func writeDiagnostics(result *Result, diags []Diagnostic) error {
 	if err := os.MkdirAll(filepath.Dir(result.DiagnosticsJSON), 0o755); err != nil {
 		return err
 	}
-	payload := struct {
-		Version     string       `json:"version"`
-		Diagnostics []Diagnostic `json:"diagnostics"`
-	}{Version: "ramen.ansible-convert.v1", Diagnostics: diags}
-	data, err := json.MarshalIndent(payload, "", "  ")
-	if err != nil {
-		return err
-	}
-	if err := os.WriteFile(result.DiagnosticsJSON, append(data, '\n'), 0o644); err != nil {
+	reportDiagnostics := ansibleReportDiagnostics(diags)
+	if err := convertreport.WriteDiagnostics(result.DiagnosticsJSON, convertreport.NewDiagnostics(convertreport.ConverterAnsible, reportDiagnostics)); err != nil {
 		return err
 	}
 
@@ -138,6 +135,121 @@ func writeDiagnostics(result *Result, diags []Diagnostic) error {
 		}
 	}
 	return os.WriteFile(result.DiagnosticsMD, []byte(b.String()), 0o644)
+}
+
+func ansibleReportDiagnostics(diags []Diagnostic) []convertreport.Diagnostic {
+	out := make([]convertreport.Diagnostic, 0, len(diags))
+	for _, diagnostic := range diags {
+		report := convertreport.Diagnostic{Code: diagnostic.Code, Severity: diagnostic.Severity, Message: diagnostic.Message, StrictFailure: diagnostic.StrictFailure}
+		if diagnostic.Task != "" {
+			report.Subject = &convertreport.Subject{Kind: "task", ID: diagnostic.Task}
+		}
+		out = append(out, report)
+	}
+	return out
+}
+
+func writeAnsibleManifest(result *Result, doc *uws1.Document, opts Options) error {
+	inputs := make([]convertreport.Input, 0, 1+len(opts.Argspecs)+len(opts.InventoryPaths)+len(opts.ExtraVars))
+	playbook, err := convertreport.FileInput("ansible-playbook", "playbook", opts.PlaybookPath)
+	if err != nil {
+		return fmt.Errorf("record playbook input: %w", err)
+	}
+	inputs = append(inputs, playbook)
+	for _, spec := range opts.Argspecs {
+		input, err := convertreport.FileInput("ansible-argspec", spec.ID, spec.Path)
+		if err != nil {
+			return fmt.Errorf("record argspec input %s: %w", spec.ID, err)
+		}
+		inputs = append(inputs, input)
+	}
+	for _, path := range opts.InventoryPaths {
+		input := convertreport.Input{Kind: "ansible-inventory", Path: filepath.Base(filepath.Clean(path))}
+		if info, statErr := os.Stat(path); statErr == nil && info.Mode().IsRegular() {
+			input, err = convertreport.FileInput("ansible-inventory", "", path)
+			if err != nil {
+				return err
+			}
+		}
+		inputs = append(inputs, input)
+	}
+	for _, value := range opts.ExtraVars {
+		value = strings.TrimSpace(value)
+		if strings.HasPrefix(value, "@") {
+			path := strings.TrimSpace(strings.TrimPrefix(value, "@"))
+			input, err := convertreport.FileInput("ansible-extra-vars-file", "", path)
+			if err != nil {
+				return fmt.Errorf("record extra-vars file: %w", err)
+			}
+			inputs = append(inputs, input)
+			continue
+		}
+		name, _, _ := strings.Cut(value, "=")
+		name = strings.TrimSpace(name)
+		if name == "" {
+			name = "inline"
+		}
+		inputs = append(inputs, convertreport.Input{Kind: "ansible-extra-var", ID: name})
+	}
+	sort.Slice(inputs, func(i, j int) bool {
+		left := strings.Join([]string{inputs[i].Kind, inputs[i].ID, inputs[i].Path}, "\x00")
+		right := strings.Join([]string{inputs[j].Kind, inputs[j].ID, inputs[j].Path}, "\x00")
+		return left < right
+	})
+
+	artifactPaths := []struct{ kind, path string }{
+		{"workflow-yaml", result.UWSPath}, {"workflow-hcl", result.HCLPath}, {"diagnostics-json", result.DiagnosticsJSON},
+		{"diagnostics-markdown", result.DiagnosticsMD}, {"review", result.ReviewMD},
+	}
+	var artifacts []convertreport.Artifact
+	for _, candidate := range artifactPaths {
+		if candidate.path == "" {
+			continue
+		}
+		if _, err := os.Stat(candidate.path); err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		artifact, err := convertreport.FileArtifact(opts.OutDir, candidate.kind, candidate.path)
+		if err != nil {
+			return err
+		}
+		artifacts = append(artifacts, artifact)
+	}
+	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].Path < artifacts[j].Path })
+
+	coverageItems := make([]convertreport.CoverageItem, 0, len(doc.Operations)+result.StrictFailures)
+	for _, operation := range doc.Operations {
+		coverageItems = append(coverageItems, convertreport.CoverageItem{Kind: "operation", ID: operation.OperationID, Disposition: "converted"})
+	}
+	for _, diagnostic := range result.Diagnostics {
+		if !diagnostic.StrictFailure {
+			continue
+		}
+		id := diagnostic.Task
+		if id == "" {
+			id = diagnostic.Code
+		}
+		coverageItems = append(coverageItems, convertreport.CoverageItem{Kind: "task", ID: id, Disposition: "unsupported", Reason: diagnostic.Message, DiagnosticCode: diagnostic.Code})
+	}
+	mode := convertreport.ModeStrict
+	status := convertreport.StatusComplete
+	if result.StrictFailures > 0 {
+		status = convertreport.StatusFailed
+		if opts.IgnoreUnsupported {
+			mode = convertreport.ModePartial
+			status = convertreport.StatusPartial
+		}
+	}
+	manifest := convertreport.Manifest{
+		Version: convertreport.ManifestVersion, Converter: convertreport.ConverterAnsible, Mode: mode, Status: status,
+		Inputs: inputs, Artifacts: artifacts, Coverage: convertreport.NormalizeCoverage(coverageItems),
+		Diagnostics: convertreport.Summarize("expected/diagnostics.json", ansibleReportDiagnostics(result.Diagnostics)),
+		Execution:   convertreport.Execution{Performed: false},
+	}
+	return convertreport.WriteManifest(result.ManifestPath, manifest)
 }
 
 func writeReview(result *Result, doc *uws1.Document, opts Options) error {
@@ -161,11 +273,12 @@ func writeReview(result *Result, doc *uws1.Document, opts Options) error {
 	fmt.Fprintf(&b, "- Strict failures: `%d`\n", result.StrictFailures)
 
 	b.WriteString("\n## Artifact Paths\n\n")
-	writeArtifactPath(&b, "UWS document", result.UWSPath)
-	writeArtifactPath(&b, "HCL document", result.HCLPath)
-	writeArtifactPath(&b, "Diagnostics JSON", result.DiagnosticsJSON)
-	writeArtifactPath(&b, "Diagnostics Markdown", result.DiagnosticsMD)
-	writeArtifactPath(&b, "Review Markdown", result.ReviewMD)
+	writeArtifactPath(&b, opts.OutDir, "UWS document", result.UWSPath)
+	writeArtifactPath(&b, opts.OutDir, "HCL document", result.HCLPath)
+	writeArtifactPath(&b, opts.OutDir, "Diagnostics JSON", result.DiagnosticsJSON)
+	writeArtifactPath(&b, opts.OutDir, "Diagnostics Markdown", result.DiagnosticsMD)
+	writeArtifactPath(&b, opts.OutDir, "Review Markdown", result.ReviewMD)
+	writeArtifactPath(&b, opts.OutDir, "Manifest", result.ManifestPath)
 
 	b.WriteString("\n## Lowered Operations\n\n")
 	if len(doc.Operations) == 0 {
@@ -219,12 +332,16 @@ func reviewList(values []string) string {
 	return strings.Join(values, ", ")
 }
 
-func writeArtifactPath(b *strings.Builder, label, path string) {
+func writeArtifactPath(b *strings.Builder, root, label, path string) {
 	if strings.TrimSpace(path) == "" {
 		fmt.Fprintf(b, "- %s: not written\n", label)
 		return
 	}
-	fmt.Fprintf(b, "- %s: `%s`\n", label, path)
+	display := path
+	if rel, err := filepath.Rel(root, path); err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) && !filepath.IsAbs(rel) {
+		display = filepath.ToSlash(rel)
+	}
+	fmt.Fprintf(b, "- %s: `%s`\n", label, display)
 }
 
 func operationStepRefs(doc *uws1.Document) map[string][]string {

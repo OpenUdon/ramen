@@ -1,0 +1,131 @@
+{
+  "version": "ramen.convert.manifest.v1",
+  "converter": "ansible",
+  "mode": "partial",
+  "status": "partial",
+  "inputs": [
+    {
+      "kind": "ansible-argspec",
+      "id": "builtin",
+      "path": "ansible-builtin.argspec.json",
+      "sha256": "e30fc1c523d99618375c6611216bb32104884983975c41d96e1dfb3381222655"
+    },
+    {
+      "kind": "ansible-playbook",
+      "id": "playbook",
+      "path": "playbook.yml",
+      "sha256": "2d2cdeb920dc186c6c276270014981a55128f401437bda98e889880109e8abcf"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "diagnostics-json",
+      "path": "expected/diagnostics.json",
+      "sha256": "23d2c49a9cbf80633afe46f9114858fe6ca2ee441c06528fd03db2c94348bc1d"
+    },
+    {
+      "kind": "diagnostics-markdown",
+      "path": "expected/diagnostics.md",
+      "sha256": "0e0dbddd64d277e5e45a6aba7015858c4972fa456694885bf717c635124d7368"
+    },
+    {
+      "kind": "review",
+      "path": "expected/review.md",
+      "sha256": "bb3c17d8c67c0210aedc6bf18fad90f1452ecc46b1550ea3bf1ed72d6cd75e9f"
+    },
+    {
+      "kind": "workflow-hcl",
+      "path": "workflows/workflow.hcl",
+      "sha256": "f63bddb2a3a64b14e503a8f35ad144dd1f14d4516f204f27677f2f02be7e954f"
+    },
+    {
+      "kind": "workflow-yaml",
+      "path": "workflows/workflow.uws.yaml",
+      "sha256": "2d3ad4676b0a713d08d6313785c6d3c11bd5f5f5568a691e786a57d139340217"
+    }
+  ],
+  "coverage": {
+    "converted": 6,
+    "symbolic": 0,
+    "unsupported": 5,
+    "ignored": 0,
+    "items": [
+      {
+        "kind": "operation",
+        "id": "consumer_before_future_producer",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "consumer_of_skipped_producer",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "doubly_guarded_child",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "future_producer",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "guarded_restart",
+        "disposition": "converted"
+      },
+      {
+        "kind": "operation",
+        "id": "singly_guarded_child",
+        "disposition": "converted"
+      },
+      {
+        "kind": "task",
+        "id": "Block with rescue",
+        "disposition": "unsupported",
+        "reason": "block rescue tasks are not lowered yet; the block was not lowered",
+        "diagnostic_code": "ansible.rescue_todo"
+      },
+      {
+        "kind": "task",
+        "id": "Consumer before future producer",
+        "disposition": "unsupported",
+        "reason": "argument \"cmd\": unknown dotted reference \"future_result.stdout\"",
+        "diagnostic_code": "ansible.jinja_unsupported"
+      },
+      {
+        "kind": "task",
+        "id": "Consumer of skipped producer",
+        "disposition": "unsupported",
+        "reason": "argument \"cmd\": unknown dotted reference \"produced.stdout\"",
+        "diagnostic_code": "ansible.jinja_unsupported"
+      },
+      {
+        "kind": "task",
+        "id": "Delegated block",
+        "disposition": "unsupported",
+        "reason": "directive \"delegate_to\" on a block changes the execution target for all of its tasks; the block was not lowered",
+        "diagnostic_code": "ansible.delegate_unsupported"
+      },
+      {
+        "kind": "task",
+        "id": "Guarded producer",
+        "disposition": "unsupported",
+        "reason": "guarded task: expression \"ansible_facts['os_family']\" uses Jinja2 features (filters, lookups, math, or indexing) outside UWS core; the task was not lowered",
+        "diagnostic_code": "ansible.jinja_unsupported"
+      }
+    ]
+  },
+  "diagnostics": {
+    "path": "expected/diagnostics.json",
+    "total": 5,
+    "errors": 5,
+    "warnings": 0,
+    "info": 0,
+    "strict_failures": 5
+  },
+  "execution": {
+    "performed": false
+  }
+}

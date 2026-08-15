@@ -17,11 +17,12 @@ Generated artifacts are static review scaffolding. Ramen did not execute Ansible
 
 ## Artifact Paths
 
-- UWS document: `../../testdata/ansible-conversion/loop/workflows/workflow.uws.yaml`
-- HCL document: `../../testdata/ansible-conversion/loop/workflows/workflow.hcl`
-- Diagnostics JSON: `../../testdata/ansible-conversion/loop/expected/diagnostics.json`
-- Diagnostics Markdown: `../../testdata/ansible-conversion/loop/expected/diagnostics.md`
-- Review Markdown: `../../testdata/ansible-conversion/loop/expected/review.md`
+- UWS document: `workflows/workflow.uws.yaml`
+- HCL document: `workflows/workflow.hcl`
+- Diagnostics JSON: `expected/diagnostics.json`
+- Diagnostics Markdown: `expected/diagnostics.md`
+- Review Markdown: `expected/review.md`
+- Manifest: `expected/manifest.json`
 
 ## Lowered Operations
 

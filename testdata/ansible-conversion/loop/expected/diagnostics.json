@@ -1,4 +1,5 @@
 {
-  "version": "ramen.ansible-convert.v1",
+  "version": "ramen.convert.diagnostics.v1",
+  "converter": "ansible",
   "diagnostics": []
 }

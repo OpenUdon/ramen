@@ -194,7 +194,7 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 			t.Fatalf("convert ansible output missing %q:\n%s", expected, output)
 		}
 	}
-	for _, rel := range []string{"workflows/workflow.uws.yaml", "workflows/workflow.hcl", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
+	for _, rel := range []string{"workflows/workflow.uws.yaml", "workflows/workflow.hcl", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md", "expected/manifest.json"} {
 		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
 			t.Fatalf("missing %s: %v", rel, err)
 		}

@@ -1,0 +1,71 @@
+{
+  "version": "ramen.convert.manifest.v1",
+  "converter": "ansible",
+  "mode": "strict",
+  "status": "complete",
+  "inputs": [
+    {
+      "kind": "ansible-argspec",
+      "id": "builtin",
+      "path": "ansible-builtin.argspec.json",
+      "sha256": "e30fc1c523d99618375c6611216bb32104884983975c41d96e1dfb3381222655"
+    },
+    {
+      "kind": "ansible-playbook",
+      "id": "playbook",
+      "path": "playbook.yml",
+      "sha256": "99fa9951ec9266c28a9bf03289d355555d5a51163e80fefd249f4dbaa528e52c"
+    }
+  ],
+  "artifacts": [
+    {
+      "kind": "diagnostics-json",
+      "path": "expected/diagnostics.json",
+      "sha256": "caf7e78c98adabc4fa0ba6fd4578f9b6d276bcfc392ba4f242725cf0d780a72a"
+    },
+    {
+      "kind": "diagnostics-markdown",
+      "path": "expected/diagnostics.md",
+      "sha256": "27ec327918417599889d63ce207a5a993a8f9270815269fbcfb7a3a5730413ef"
+    },
+    {
+      "kind": "review",
+      "path": "expected/review.md",
+      "sha256": "5598139c8ee0c28d55867f4f57294143fe93f001668f4d9c02295ef537e6d258"
+    },
+    {
+      "kind": "workflow-hcl",
+      "path": "workflows/workflow.hcl",
+      "sha256": "2abc09cf99212d6e3295a1c98025775426d069ff19a4344e533e87977a44d424"
+    },
+    {
+      "kind": "workflow-yaml",
+      "path": "workflows/workflow.uws.yaml",
+      "sha256": "881f7ffc24cbf98e0d0d12da64e862e031181abdb32c7bd832c9544a39e1f89f"
+    }
+  ],
+  "coverage": {
+    "converted": 1,
+    "symbolic": 0,
+    "unsupported": 0,
+    "ignored": 0,
+    "items": [
+      {
+        "kind": "operation",
+        "id": "create_app_directories",
+        "disposition": "converted"
+      }
+    ]
+  },
+  "diagnostics": {
+    "path": "expected/diagnostics.json",
+    "total": 0,
+    "errors": 0,
+    "warnings": 0,
+    "info": 0,
+    "strict_failures": 0
+  },
+  "execution": {
+    "performed": false
+  }
+}
