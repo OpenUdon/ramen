@@ -18,6 +18,9 @@ ramen convert ansible --playbook FILE --argspec ID=PATH --argspec-dir DIR --proj
 
 The command does not execute Ansible, modules, inventory connections, API
 source operations, or UWS workflows. It is a conversion and review aid only.
+See the [client-language conversion model](client-language-conversion.md) for
+the cross-adapter ownership matrix and why argspec/inventory facts remain
+client-side while SSH and module execution stay runtime-owned.
 
 ## Inputs
 

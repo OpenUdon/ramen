@@ -22,6 +22,9 @@ ramen convert tf \
 Conversion is an experimental migration and review aid. The generated native
 profile is the planning contract; Terraform provenance remains review-only and
 is not sent to the trusted executor.
+See the [client-language conversion model](client-language-conversion.md) for
+the cross-adapter ownership matrix and why required API sources and optional
+provider-schema evidence have different authority.
 
 ## Inputs
 

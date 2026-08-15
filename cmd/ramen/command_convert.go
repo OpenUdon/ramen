@@ -33,6 +33,7 @@ func convertUsage(out *os.File, command string) {
 	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--provider-schema ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial] [--strict]\n", command)
 	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--argspec-dir DIR] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial] [--strict|--ignore-unsupported]\n\n", command)
 	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
+	fmt.Fprintf(out, "Terraform conversion requires API-source server-operation authority; provider schemas are optional client-shape evidence. Ansible argspec and inventory inputs are client-side facts; SSH and module execution remain trusted-runtime responsibilities.\n\n")
 }
 
 func runConvertAnsibleCommand(ctx context.Context, args []string) {
@@ -58,7 +59,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	fs.Var(&extraVars, "extra-var", "Literal static extra variable NAME=VALUE or @file at highest precedence (repeatable; values are redacted from reports)")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--argspec-dir DIR] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial]\n\n")
-		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. Ansible module leaves are emitted as extension-owned operations carrying ramen.ansible-module-call.1.0; --target-uws only selects the uws version the document declares, defaulting to 1.5. Unsupported constructs are reported explicitly. Strict mode (the transitional default) exits 3 and suppresses workflows; partial mode omits unsupported constructs and exits 0. --strict and --ignore-unsupported are deprecated mode aliases.\n\n")
+		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. Argspec and bounded inventory inputs are client-side facts; SSH, connections, credentials, and module execution stay in a separately approved trusted runtime. Ansible module leaves are emitted as extension-owned operations carrying ramen.ansible-module-call.1.0; --target-uws only selects the uws version the document declares, defaulting to 1.5. Unsupported constructs are reported explicitly. Strict mode (the transitional default) exits 3 and suppresses workflows; partial mode omits unsupported constructs and exits 0. --strict and --ignore-unsupported are deprecated mode aliases.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -154,7 +155,7 @@ func runConvertTFCommand(ctx context.Context, args []string) {
 	fs.Var(&targets, "target", "Repeatable Terraform address target")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen convert [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--provider-schema ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial]\n")
-		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. Strict mode is the default; it exits 3 and suppresses semantic project/workflow payloads when strict diagnostics remain. --mode partial explicitly permits review-only output with symbolic or omitted semantics. --strict remains a deprecated alias for --mode strict. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
+		fmt.Fprintf(fs.Output(), "\nGenerates draft Ramen review scaffolding from static Terraform/OpenTofu configuration and local API source documents. API sources are required server-operation authority; provider schemas are optional client-configuration evidence and never replace them. Strict mode is the default; it exits 3 and suppresses semantic project/workflow payloads when strict diagnostics remain. --mode partial explicitly permits review-only output with symbolic or omitted semantics. --strict remains a deprecated alias for --mode strict. It does not execute Terraform, providers, API source operations, or UWS workflows.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {

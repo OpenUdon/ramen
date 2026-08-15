@@ -80,6 +80,9 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if !strings.Contains(string(output), "Usage: ramen convert") {
 		t.Fatalf("convert tf help missing usage:\n%s", output)
 	}
+	if !strings.Contains(string(output), "API sources are required server-operation authority") || !strings.Contains(string(output), "optional client-configuration evidence") {
+		t.Fatalf("convert tf help missing client/server evidence distinction:\n%s", output)
+	}
 	if !strings.Contains(string(output), "--provider-schema") || !strings.Contains(string(output), "never obtained by running a provider") {
 		t.Fatalf("convert tf help missing offline provider schema boundary:\n%s", output)
 	}
@@ -89,7 +92,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
 	}
-	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--argspec-dir", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "*.argspec.json", "resolving play roles/import_role", "exact group targets without connecting", "values are redacted from reports"} {
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--argspec-dir", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "*.argspec.json", "resolving play roles/import_role", "exact group targets without connecting", "values are redacted from reports", "client-side facts", "trusted runtime"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
 		}

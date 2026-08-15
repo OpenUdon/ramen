@@ -27,6 +27,8 @@ Static Ansible inventory selection is client-language analysis only: bounded
 host/group/variable facts may shape a workflow, while inventory plugins,
 connections, SSH, vault, facts gathering, and module execution remain outside
 Ramen.
+The [client-language conversion model](client-language-conversion.md) is the
+canonical ownership and evidence decision guide for both conversion adapters.
 
 For v0.1.x, the supported Go packages are `project`, `validate`, `graph`,
 `plan`, `apply`, `reconcile`, `state`, and `executor`. Other exported packages

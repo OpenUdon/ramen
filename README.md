@@ -127,6 +127,8 @@ See the shared [static conversion contract](docs/conversion.md), the
 [Ansible conversion contract](docs/ansible-conversion.md) for their modes,
 reports, static inputs, Ramen-owned metadata, validation, artifacts, and
 compatibility boundaries.
+The [client-language conversion model](docs/client-language-conversion.md)
+provides the unified ownership/evidence matrix and syntax-promotion rule.
 
 Terraform conversion can also accept repeatable
 `--provider-schema ID=PATH` snapshots for offline client-configuration

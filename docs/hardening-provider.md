@@ -13,6 +13,10 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
 > same intended API-visible state as the reference tool for the supported
 > fixture set.
 
+The [client-language conversion model](client-language-conversion.md)
+distinguishes optional provider-schema client evidence from API-source server
+authority and the trusted execution boundary.
+
 ## Feature Decisions
 
 | Provider behavior | Ramen direction | Rationale |
