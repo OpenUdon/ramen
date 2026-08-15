@@ -139,6 +139,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	conversion.collectBindings()
 	conversion.collectSymbols()
 	conversion.collectSemanticGaps()
+	conversion.emitSemanticGapDiagnostics()
 	conversion.selectObjects()
 	conversion.validateAction()
 	conversion.mapObjects()
@@ -504,6 +505,15 @@ func (c *conversionState) collectInstanceGaps(kind, address, moduleAddress strin
 
 func (c *conversionState) addSemanticGap(gap semanticGap) {
 	c.semanticGaps = append(c.semanticGaps, gap)
+}
+
+func (c *conversionState) emitSemanticGapDiagnostics() {
+	for _, gap := range c.semanticGaps {
+		c.addDiagnostic(Diagnostic{
+			Code: gap.Code, Severity: "error", Message: gap.Message, Address: gap.Address,
+			ModuleAddress: gap.ModuleAddress, SourceRange: convertRange(gap.Range), StrictFailure: true,
+		})
+	}
 }
 
 func hasLifecycleSemantics(lifecycle *tfconfig.Lifecycle) bool {
@@ -1237,6 +1247,11 @@ func writeTerraformManifest(result *Result, c conversionState, diagnostics []con
 			item.Reason = firstNonEmpty(mapping.TodoID, "operation mapping remains unresolved")
 		}
 		coverageItems = append(coverageItems, item)
+	}
+	for _, gap := range c.semanticGaps {
+		coverageItems = append(coverageItems, convertreport.CoverageItem{
+			Kind: gap.Kind, ID: gap.ID, Disposition: "unsupported", Reason: gap.Message, DiagnosticCode: gap.Code,
+		})
 	}
 	status := convertreport.StatusComplete
 	if hasStrictFailure(c.diagnostics) {

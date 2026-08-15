@@ -60,6 +60,56 @@ func TestCollectSemanticGapsInventoriesUnrepresentedFacts(t *testing.T) {
 	}
 }
 
+func TestConvertReportsSemanticLossInDiagnosticsAndCoverage(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	apiPath := filepath.Join(root, "api.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_instance" "web" {
+  count = 2
+  name  = "web"
+}
+`)
+	writeFileForTest(t, apiPath, `openapi: 3.0.0
+info:
+  title: Instances
+  version: v1
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200":
+          description: ok
+`)
+	result, err := Convert(context.Background(), Options{
+		ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "aws", Path: apiPath}},
+		Action: "create", OutDir: filepath.Join(root, "out"), Mode: convertreport.ModePartial,
+	})
+	if err != nil {
+		t.Fatalf("partial conversion failed: %v", err)
+	}
+	if !hasDiagnostic(result.Diagnostics, "terraform.count_unsupported") {
+		t.Fatalf("count loss diagnostic missing: %#v", result.Diagnostics)
+	}
+	var manifest convertreport.Manifest
+	if err := json.Unmarshal([]byte(readFileForTest(t, result.ManifestPath)), &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	if manifest.Status != convertreport.StatusPartial || manifest.Coverage.Unsupported != 1 {
+		t.Fatalf("manifest status/coverage = %q/%#v", manifest.Status, manifest.Coverage)
+	}
+	found := false
+	for _, item := range manifest.Coverage.Items {
+		if item.DiagnosticCode == "terraform.count_unsupported" && item.ID == "aws_instance.web.count" && item.Disposition == "unsupported" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("manifest lacks count coverage item: %#v", manifest.Coverage.Items)
+	}
+}
+
 func TestConvertWritesDraftArtifacts(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")
