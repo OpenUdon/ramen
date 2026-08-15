@@ -3,9 +3,12 @@
 `ramen convert ansible` statically converts a supported subset of Ansible
 playbooks into reviewable UWS workflow artifacts. Ansible module leaves are
 emitted as extension-owned operations carrying
-`uws.ansible-module-call.1.0`: the managed host does not expose a collection
+`ramen.ansible-module-call.1.0`: the managed host does not expose a collection
 module as a pre-existing named operation, so the control node supplies its
 implementation and the argspec remains a client-side library manifest.
+The profile, module extension, provenance extension, schemas, and typed helpers
+are Ramen-owned internal conversion contracts; UWS owns only the generic
+workflow model and `x-uws-operation-profile` selector used here.
 Features that need unsupported semantics are strict diagnostics
 rather than approximations:
 
@@ -42,23 +45,29 @@ source operations, or UWS workflows. It is a conversion and review aid only.
 - `--extra-var NAME=VALUE` or `--extra-var @file` is repeatable and recorded in
   review artifacts for provenance. It is not currently consumed for static
   variable precedence or expression lowering.
-- Argspec documents must use the `uws.ansible.1.0` shape:
-  - top-level `argspec: uws.ansible.1.0`
+- Argspec documents must use the `ramen.ansible.1.0` shape:
+  - top-level `argspec: ramen.ansible.1.0`
   - collection name, such as `ansible.builtin`
   - module entries keyed by FQCN, such as `ansible.builtin.file`
   - argument metadata for required fields and accepted enum values
 
-  Ramen validates each file against the published UWS Ansible argspec schema
-  before decoding it. Unknown schema fields, missing required fields,
+  Ramen validates each file against its embedded Ansible argspec schema before
+  decoding it. Unknown schema fields, missing required fields,
   module keys outside the declared collection, and parameter aliases claimed
   by more than one canonical parameter are argspec ingestion errors. The
   command exits `1` and writes no conversion/review artifacts.
 - `--target-uws 1.5|1.6|1.7` selects only the `uws` version the emitted
   document declares; the default is `1.5`. The document shape is identical at
   every version, because module leaves are always extension-owned operations
-  with `x-uws-operation-profile: uws.ansible-module-call.1.0` and
-  `x-uws-ansible-module`. UWS 1.6 briefly offered an `ansible-module` source
+  with `x-uws-operation-profile: ramen.ansible-module-call.1.0` and
+  `x-ramen-ansible-module`. UWS 1.6 briefly offered an `ansible-module` source
   type and UWS 1.7 removed it.
+
+This namespace change is a hard break. Ramen rejects
+`uws.ansible.1.0`, `uws.ansible-module-call.1.0`, and
+`x-uws-ansible-module`; it does not translate them and provides no legacy
+decoder or artifact migration command. Historical artifacts remain available
+from repository history but are not accepted as current Ramen contracts.
 
 ## Outputs
 
@@ -134,14 +143,15 @@ parameters follow the same task-omission rule.
 
 ## Lowering Contract
 
-Ramen owns Ansible playbook lowering. UWS owns the resulting orchestration
-objects and the bound runtime owns Ansible module execution. All `--target-uws`
-values share the same lowering; only the declared `uws` version differs.
+Ramen owns Ansible playbook lowering and its conversion-only metadata. UWS owns
+the resulting generic orchestration objects and the bound runtime owns Ansible
+module execution. All `--target-uws` values share the same lowering; only the
+declared `uws` version differs.
 
 | Ansible construct | Ramen lowering |
 | --- | --- |
 | Ordered `pre_tasks`, `tasks`, `post_tasks` | One UWS `sequence` workflow preserving resolved play order. |
-| Module task | One UWS operation plus one operation step. The operation is extension-owned, carrying `uws.ansible-module-call.1.0` with the module FQCN and argspec review reference. |
+| Module task | One UWS operation plus one operation step. The operation is extension-owned, carrying `ramen.ansible-module-call.1.0` with the module FQCN and argspec review reference. |
 | Literal or whole-reference args | `request.body` values, with `{{ var }}` lowered to `$variables.*`, `$inputs.*`, `$item`, or `$steps.*.outputs.*` when safe. |
 | `when: expr` | Step `when` for one condition; nested `switch` guards for conjunctions that need more than one condition. |
 | `when: a and b` | DNF conjunction lowered as nested `switch` guards so both conditions must pass. |
@@ -163,10 +173,10 @@ values share the same lowering; only the declared `uws` version differs.
 | Supported | Static module tasks, simple args, simple `when`, `and`/`or`/`not`, `loop`, `register` field reads, handlers, static imports, static roles, `changed_when`, `failed_when`, `until`/`retries`/`delay` | Lowered into UWS core workflow objects and validated argspec-bound module leaves. |
 | Partially supported | OR-guarded tasks, host fan-out, `throttle`, retries without `until`, static variables and role vars | Lowered only when a stable UWS meaning exists; otherwise emits diagnostics. |
 | Runtime-owned | `become`, `become_user`, `become_method`, `environment`, `no_log`, inventory connection behavior, module invocation, credentials | Recorded as informational diagnostics or provenance; not emitted as UWS execution policy. |
-| Review-only | `x-ansible` provenance, argspec references, project/role/collection/inventory inputs, extra-vars inputs | Included for review and reproducibility; they do not define UWS execution semantics. |
+| Review-only | `x-ramen-ansible-provenance` provenance, argspec references, project/role/collection/inventory inputs, extra-vars inputs | Included for review and reproducibility; they do not define UWS execution semantics. |
 | Unsupported / fail-closed | Complex Jinja2, runtime facts, dynamic includes, unknown modules, `delegate_to`, `run_once`, `rescue`, `always`, non-static task vars, `ignore_errors`, unsafe handler/host fan-out combinations | Emits strict diagnostics and omits the affected task/handler unless `--ignore-unsupported` allows a partial artifact. |
 
-Lowered operations and steps carry provenance-only `x-ansible` extensions with
+Lowered operations and steps carry provenance-only `x-ramen-ansible-provenance` extensions with
 the source file, line, column, play, section, task name, optional role, optional
 import stack, and optional tags. These extensions are review/debug metadata and
 do not define execution semantics.
@@ -174,8 +184,9 @@ do not define execution semantics.
 Ansible module calls are not source-bound. The emitted operation carries
 `request.body`, `outputs`, `successCriteria`, retries, handlers, and workflow
 structure as usual, with the module FQCN and argspec review reference under
-`x-uws-ansible-module`. UWS still owns orchestration; the bound runtime owns
-module execution.
+`x-ramen-ansible-module`. The Ramen profile selects that metadata through the
+UWS core `x-uws-operation-profile` key; the bound runtime owns module
+execution.
 
 Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:
