@@ -212,6 +212,143 @@ func TestStaticInstanceContextsRejectsUnboundedOrWrongShapes(t *testing.T) {
 	}
 }
 
+func TestConvertExpandsLoadedLocalModuleInputsAndProviderMappings(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	apiPath := filepath.Join(root, "api.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+provider "aws" {
+  alias  = "west"
+  region = "us-west-2"
+}
+
+variable "name" {
+  default = "child-web"
+}
+
+module "child" {
+  source = "./modules/child"
+  providers = {
+    aws = aws.west
+  }
+  name = var.name
+}
+`)
+	writeFileForTest(t, filepath.Join(configDir, "modules", "child", "main.tf"), `
+variable "name" {}
+
+variable "role" {
+  default = "worker"
+}
+
+resource "aws_instance" "main" {
+  name = var.name
+  role = var.role
+}
+`)
+	writeFileForTest(t, apiPath, `openapi: 3.0.0
+info:
+  title: Instances
+  version: v1
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200":
+          description: ok
+`)
+
+	result, err := Convert(context.Background(), Options{
+		ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "aws", Path: apiPath}},
+		Action: "create", OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatalf("loaded module conversion failed: %v: %#v", err, result.Diagnostics)
+	}
+	if hasDiagnostic(result.Diagnostics, "terraform.module_call_unsupported") {
+		t.Fatalf("supported loaded module emitted loss diagnostic: %#v", result.Diagnostics)
+	}
+	var artifact conversionArtifact
+	if err := json.Unmarshal([]byte(readFileForTest(t, result.ConversionPath)), &artifact); err != nil {
+		t.Fatalf("decode conversion: %v", err)
+	}
+	if len(artifact.Objects) != 1 {
+		t.Fatalf("objects = %#v, want one child resource", artifact.Objects)
+	}
+	object := artifact.Objects[0]
+	if object.Address != "module.child.aws_instance.main" || object.ModuleAddress != "module.child" || object.Provider != "aws.west" || object.Binding != "aws_west" {
+		t.Fatalf("child object identity/provider = %#v", object)
+	}
+	got := map[string]string{}
+	for _, attr := range object.Config {
+		got[attr.Path] = attr.Value
+	}
+	if got["name"] != `"child-web"` || got["role"] != `"worker"` {
+		t.Fatalf("resolved child config = %#v", got)
+	}
+	var manifest convertreport.Manifest
+	if err := json.Unmarshal([]byte(readFileForTest(t, result.ManifestPath)), &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	if manifest.Status != convertreport.StatusComplete || manifest.Coverage.Converted != 1 || manifest.Coverage.Unsupported != 0 {
+		t.Fatalf("manifest status/coverage = %q/%#v", manifest.Status, manifest.Coverage)
+	}
+}
+
+func TestConvertRejectsLocalModulesOutsideBoundedSubset(t *testing.T) {
+	tests := []struct {
+		name      string
+		rootExtra string
+		callExtra string
+	}{
+		{name: "module output", rootExtra: `output "child_id" { value = module.child.id }`},
+		{name: "unresolved input", rootExtra: `locals { child_name = "web" }`, callExtra: `name = local.child_name`},
+		{name: "module instances", callExtra: `count = 1`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root := t.TempDir()
+			configDir := filepath.Join(root, "tf")
+			apiPath := filepath.Join(root, "api.yaml")
+			input := `name = "web"`
+			if tt.callExtra != "" {
+				input = tt.callExtra
+			}
+			writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+module "child" {
+  source = "./modules/child"
+  `+input+`
+}
+`+tt.rootExtra+"\n")
+			writeFileForTest(t, filepath.Join(configDir, "modules", "child", "main.tf"), `
+variable "name" {}
+resource "aws_instance" "main" { name = var.name }
+output "id" { value = aws_instance.main.id }
+`)
+			writeFileForTest(t, apiPath, `openapi: 3.0.0
+info: {title: Instances, version: v1}
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200": {description: ok}
+`)
+			result, err := Convert(context.Background(), Options{
+				ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "aws", Path: apiPath}},
+				Action: "create", OutDir: filepath.Join(root, "out"), Mode: convertreport.ModePartial,
+			})
+			if err != nil {
+				t.Fatalf("partial conversion failed: %v", err)
+			}
+			if !hasDiagnostic(result.Diagnostics, "terraform.module_call_unsupported") {
+				t.Fatalf("module loss diagnostic missing: %#v", result.Diagnostics)
+			}
+		})
+	}
+}
+
 func largeStringMap(size int) map[string]any {
 	out := make(map[string]any, size)
 	for i := 0; i < size; i++ {

@@ -137,6 +137,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	}
 
 	conversion.loadAPISources(ctx)
+	conversion.collectModuleContexts()
 	conversion.collectBindings()
 	conversion.collectSymbols()
 	conversion.collectSemanticGaps()
@@ -193,6 +194,7 @@ type conversionState struct {
 	mappings     []objectMapping
 	diagnostics  []Diagnostic
 	semanticGaps []semanticGap
+	modules      map[string]moduleContext
 }
 
 type semanticGap struct {
@@ -243,6 +245,7 @@ type selectedObject struct {
 	Range         *tfconfig.SourceRange
 	dependsOn     []tfconfig.Reference
 	references    []tfconfig.Reference
+	bindingModule string
 }
 
 type instanceContext struct {
@@ -250,6 +253,17 @@ type instanceContext struct {
 	CountIndex *int
 	EachKey    *string
 	EachValue  any
+}
+
+type moduleContext struct {
+	Supported bool
+	Values    map[string]tfconfig.Value
+	Providers map[string]resolvedProvider
+}
+
+type resolvedProvider struct {
+	Address       string
+	ModuleAddress string
 }
 
 type attributeFact struct {
@@ -398,6 +412,259 @@ func (c *conversionState) loadAPISources(ctx context.Context) {
 	}
 }
 
+func (c *conversionState) collectModuleContexts() {
+	c.modules = map[string]moduleContext{}
+	modules := slices.Clone(c.doc.Modules)
+	slices.SortFunc(modules, func(a, b tfconfig.Module) int {
+		if diff := cmp.Compare(strings.Count(a.Address, ".module."), strings.Count(b.Address, ".module.")); diff != 0 {
+			return diff
+		}
+		if diff := cmp.Compare(len(a.Address), len(b.Address)); diff != 0 {
+			return diff
+		}
+		return cmp.Compare(a.Address, b.Address)
+	})
+	for _, mod := range modules {
+		if mod.Status == tfconfig.ModuleStatusRoot {
+			values := map[string]tfconfig.Value{}
+			for _, variable := range mod.Variables {
+				if variable.Default != nil && staticModuleValue(*variable.Default) {
+					values[variable.Name] = *variable.Default
+				}
+			}
+			providers := map[string]resolvedProvider{}
+			for _, provider := range mod.ProviderConfigs {
+				providers[provider.Address] = resolvedProvider{Address: provider.Address}
+			}
+			c.modules[mod.Address] = moduleContext{Supported: true, Values: values, Providers: providers}
+			continue
+		}
+
+		ctx := moduleContext{Values: map[string]tfconfig.Value{}, Providers: map[string]resolvedProvider{}}
+		parent, parentOK := c.moduleByAddress(mod.ParentAddress)
+		parentContext, contextOK := c.modules[mod.ParentAddress]
+		call, callOK := moduleCallByAddress(parent, mod.Address)
+		if mod.Status != tfconfig.ModuleStatusLoaded || !parentOK || !contextOK || !parentContext.Supported || !callOK ||
+			call.Count != nil || call.ForEach != nil || len(call.DependsOn) != 0 || c.moduleOutputReferenced(parent, call) {
+			c.modules[mod.Address] = ctx
+			continue
+		}
+
+		declared := map[string]tfconfig.Variable{}
+		for _, variable := range mod.Variables {
+			declared[variable.Name] = variable
+		}
+		inputs := map[string]tfconfig.Value{}
+		valid := true
+		for _, input := range call.Inputs {
+			if _, exists := declared[input.Path]; !exists {
+				valid = false
+				break
+			}
+			value, ok := c.resolveModuleInput(mod.ParentAddress, input.Value)
+			if !ok {
+				valid = false
+				break
+			}
+			inputs[input.Path] = value
+		}
+		if !valid {
+			c.modules[mod.Address] = ctx
+			continue
+		}
+		for _, variable := range mod.Variables {
+			value, ok := inputs[variable.Name]
+			if !ok && variable.Default != nil && staticModuleValue(*variable.Default) {
+				value, ok = *variable.Default, true
+			}
+			if !ok {
+				valid = false
+				break
+			}
+			if variable.Sensitive {
+				value.Sensitive = true
+			}
+			ctx.Values[variable.Name] = value
+		}
+		if !valid || !moduleAttributesUseResolvedVariables(mod, ctx.Values) {
+			c.modules[mod.Address] = moduleContext{Values: map[string]tfconfig.Value{}, Providers: map[string]resolvedProvider{}}
+			continue
+		}
+		for _, mapping := range call.ProviderMappings {
+			provider, ok := c.resolveProvider(mod.ParentAddress, mapping.Provider.Address)
+			if !ok || strings.TrimSpace(mapping.ChildName) == "" {
+				valid = false
+				break
+			}
+			ctx.Providers[mapping.ChildName] = provider
+		}
+		if !valid {
+			c.modules[mod.Address] = moduleContext{Values: map[string]tfconfig.Value{}, Providers: map[string]resolvedProvider{}}
+			continue
+		}
+		for _, provider := range mod.ProviderConfigs {
+			if _, mapped := ctx.Providers[provider.Address]; !mapped {
+				ctx.Providers[provider.Address] = resolvedProvider{Address: provider.Address, ModuleAddress: mod.Address}
+			}
+		}
+		ctx.Supported = true
+		c.modules[mod.Address] = ctx
+	}
+}
+
+func staticModuleValue(value tfconfig.Value) bool {
+	if valueSensitive(value) || strings.TrimSpace(value.Expression) != "" || strings.TrimSpace(value.UnknownReason) != "" {
+		return false
+	}
+	switch value.Kind {
+	case tfconfig.ValueKindNull, tfconfig.ValueKindBool, tfconfig.ValueKindNumber, tfconfig.ValueKindString, tfconfig.ValueKindCollection:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c *conversionState) moduleByAddress(address string) (tfconfig.Module, bool) {
+	for _, mod := range c.doc.Modules {
+		if mod.Address == address {
+			return mod, true
+		}
+	}
+	return tfconfig.Module{}, false
+}
+
+func moduleCallByAddress(parent tfconfig.Module, address string) (tfconfig.ModuleCall, bool) {
+	for _, call := range parent.ModuleCalls {
+		if call.Address == address {
+			return call, true
+		}
+	}
+	return tfconfig.ModuleCall{}, false
+}
+
+func (c *conversionState) resolveModuleInput(parentAddress string, value tfconfig.Value) (tfconfig.Value, bool) {
+	if staticModuleValue(value) {
+		return value, true
+	}
+	name, ok := exactVariableReference(value)
+	if !ok {
+		return tfconfig.Value{}, false
+	}
+	ctx, ok := c.modules[parentAddress]
+	if !ok || !ctx.Supported {
+		return tfconfig.Value{}, false
+	}
+	resolved, ok := ctx.Values[name]
+	return resolved, ok && staticModuleValue(resolved)
+}
+
+func exactVariableReference(value tfconfig.Value) (string, bool) {
+	expression := strings.TrimSpace(value.Expression)
+	if !strings.HasPrefix(expression, "var.") || strings.Count(expression, ".") != 1 {
+		return "", false
+	}
+	name := strings.TrimPrefix(expression, "var.")
+	return name, name != ""
+}
+
+func moduleAttributesUseResolvedVariables(mod tfconfig.Module, values map[string]tfconfig.Value) bool {
+	check := func(attributes []tfconfig.Attribute) bool {
+		for _, attribute := range attributes {
+			for _, ref := range attribute.Value.References {
+				if !strings.HasPrefix(ref.Subject, "var.") {
+					continue
+				}
+				name, exact := exactVariableReference(attribute.Value)
+				if !exact || len(attribute.Value.References) != 1 {
+					return false
+				}
+				if _, ok := values[name]; !ok {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	for _, resource := range mod.Resources {
+		if !check(resource.Config) {
+			return false
+		}
+	}
+	for _, dataSource := range mod.DataSources {
+		if !check(dataSource.Config) {
+			return false
+		}
+	}
+	for _, provider := range mod.ProviderConfigs {
+		if !check(provider.Config) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c *conversionState) moduleOutputReferenced(parent tfconfig.Module, call tfconfig.ModuleCall) bool {
+	localPrefix := "module." + call.Name + "."
+	fullPrefix := call.Address + "."
+	for _, ref := range moduleReferences(parent) {
+		traversal := strings.TrimSpace(ref.Traversal)
+		if strings.HasPrefix(traversal, localPrefix) || strings.HasPrefix(traversal, fullPrefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func moduleReferences(mod tfconfig.Module) []tfconfig.Reference {
+	var out []tfconfig.Reference
+	for _, local := range mod.Locals {
+		out = append(out, local.References...)
+	}
+	for _, output := range mod.Outputs {
+		out = append(out, output.References...)
+		out = append(out, output.DependsOn...)
+	}
+	for _, resource := range mod.Resources {
+		out = append(out, resource.References...)
+		out = append(out, resource.DependsOn...)
+	}
+	for _, dataSource := range mod.DataSources {
+		out = append(out, dataSource.References...)
+		out = append(out, dataSource.DependsOn...)
+	}
+	for _, ephemeral := range mod.EphemeralResources {
+		out = append(out, ephemeral.References...)
+		out = append(out, ephemeral.DependsOn...)
+	}
+	for _, moduleCall := range mod.ModuleCalls {
+		out = append(out, moduleCall.References...)
+		out = append(out, moduleCall.DependsOn...)
+	}
+	return out
+}
+
+func (c *conversionState) resolveProvider(moduleAddress, address string) (resolvedProvider, bool) {
+	address = strings.TrimPrefix(strings.TrimSpace(address), "provider.")
+	if address == "" {
+		return resolvedProvider{}, false
+	}
+	ctx, ok := c.modules[moduleAddress]
+	if !ok || !ctx.Supported {
+		return resolvedProvider{}, false
+	}
+	if provider, exists := ctx.Providers[address]; exists {
+		return provider, true
+	}
+	if moduleAddress == "" {
+		return resolvedProvider{Address: address}, true
+	}
+	mod, ok := c.moduleByAddress(moduleAddress)
+	if !ok {
+		return resolvedProvider{}, false
+	}
+	return c.resolveProvider(mod.ParentAddress, address)
+}
+
 func (c *conversionState) collectBindings() {
 	for _, mod := range c.doc.Modules {
 		for _, cfg := range mod.ProviderConfigs {
@@ -476,10 +743,12 @@ func (c *conversionState) collectSemanticGaps() {
 		}
 		for _, call := range mod.ModuleCalls {
 			address := call.Address
-			c.addSemanticGap(semanticGap{
-				Code: "terraform.module_call_unsupported", Kind: "module-call", ID: address,
-				Message: "module call inputs, provider mappings, and output bindings are not expanded by Terraform conversion", ModuleAddress: address, Range: call.Range,
-			})
+			if context, ok := c.modules[address]; !ok || !context.Supported {
+				c.addSemanticGap(semanticGap{
+					Code: "terraform.module_call_unsupported", Kind: "module-call", ID: address,
+					Message: "module call inputs, provider mappings, or output bindings are outside the supported loaded local-module subset", ModuleAddress: address, Range: call.Range,
+				})
+			}
 			c.collectInstanceGaps("module-call", address, address, call.Count, call.ForEach, call.Range)
 		}
 		for _, moved := range mod.Moved {
@@ -651,6 +920,7 @@ func (c *conversionState) selectObjects() {
 	for _, mod := range c.doc.Modules {
 		for _, res := range mod.Resources {
 			baseAddress := fullAddress(mod.Address, res.Address)
+			provider := c.selectedProvider(mod.Address, res.Provider, res.Type)
 			instances, ok := staticInstanceContexts(res.Count, res.ForEach)
 			if !ok {
 				instances = []instanceContext{{}}
@@ -666,12 +936,13 @@ func (c *conversionState) selectObjects() {
 					ModuleAddress: mod.Address,
 					Type:          res.Type,
 					Name:          res.Name,
-					Provider:      providerAddress(res.Provider),
-					Binding:       normalizeBindingName(providerAddress(res.Provider)),
+					Provider:      provider.Address,
+					Binding:       normalizeBindingName(provider.Address),
 					Config:        c.attributesForInstance(addr, mod.Address, res.Config, instance),
 					Range:         res.Range,
 					dependsOn:     res.DependsOn,
 					references:    res.References,
+					bindingModule: provider.ModuleAddress,
 				}
 				obj.Config = c.withProviderDerivedAttributes(obj)
 				c.selected = append(c.selected, obj)
@@ -679,6 +950,7 @@ func (c *conversionState) selectObjects() {
 		}
 		for _, ds := range mod.DataSources {
 			baseAddress := fullAddress(mod.Address, ds.Address)
+			provider := c.selectedProvider(mod.Address, ds.Provider, ds.Type)
 			instances, ok := staticInstanceContexts(ds.Count, ds.ForEach)
 			if !ok {
 				instances = []instanceContext{{}}
@@ -694,12 +966,13 @@ func (c *conversionState) selectObjects() {
 					ModuleAddress: mod.Address,
 					Type:          ds.Type,
 					Name:          ds.Name,
-					Provider:      providerAddress(ds.Provider),
-					Binding:       normalizeBindingName(providerAddress(ds.Provider)),
+					Provider:      provider.Address,
+					Binding:       normalizeBindingName(provider.Address),
 					Config:        c.attributesForInstance(addr, mod.Address, ds.Config, instance),
 					Range:         ds.Range,
 					dependsOn:     ds.DependsOn,
 					references:    ds.References,
+					bindingModule: provider.ModuleAddress,
 				}
 				obj.Config = c.withProviderDerivedAttributes(obj)
 				c.selected = append(c.selected, obj)
@@ -736,7 +1009,7 @@ func (c *conversionState) providerConfigAttribute(obj selectedObject, path strin
 	localName := objectProviderLocalName(obj)
 	bindingName := obj.Binding
 	for _, binding := range c.bindings {
-		if binding.ModuleAddress != obj.ModuleAddress || binding.LocalName != localName {
+		if binding.ModuleAddress != obj.bindingModule || binding.LocalName != localName {
 			continue
 		}
 		if bindingName != "" && bindingName != "default" && binding.Name != bindingName {
@@ -1131,15 +1404,38 @@ func (c *conversionState) attributes(address, moduleAddress string, attrs []tfco
 func (c *conversionState) attributesForInstance(address, moduleAddress string, attrs []tfconfig.Attribute, instance instanceContext) []attributeFact {
 	out := make([]attributeFact, 0, len(attrs))
 	for _, attr := range attrs {
-		fact := attributeFact{Path: attr.Path, Value: valueTextForInstance(attr.Value, instance), Sensitive: valueSensitive(attr.Value)}
+		value := c.valueForModuleInstance(attr.Value, moduleAddress, instance)
+		fact := attributeFact{Path: attr.Path, Value: valueText(value), Sensitive: valueSensitive(value)}
 		if fact.Sensitive {
 			fact.TodoID = todoID(address+"."+attr.Path, "redaction", "review")
 		}
-		c.maybeSensitiveDiagnostic(address, moduleAddress, attr.Path, attr.Value)
+		c.maybeSensitiveDiagnostic(address, moduleAddress, attr.Path, value)
 		out = append(out, fact)
 	}
 	slices.SortFunc(out, func(a, b attributeFact) int { return cmp.Compare(a.Path, b.Path) })
 	return out
+}
+
+func (c *conversionState) valueForModuleInstance(value tfconfig.Value, moduleAddress string, instance instanceContext) tfconfig.Value {
+	if resolved, ok := instanceValue(value, instance); ok {
+		return resolved
+	}
+	if moduleAddress == "" {
+		return value
+	}
+	name, ok := exactVariableReference(value)
+	if !ok {
+		return value
+	}
+	ctx, ok := c.modules[moduleAddress]
+	if !ok || !ctx.Supported {
+		return value
+	}
+	resolved, ok := ctx.Values[name]
+	if !ok {
+		return value
+	}
+	return resolved
 }
 
 func (c *conversionState) maybeSensitiveDiagnostic(address, moduleAddress, path string, value tfconfig.Value) {
@@ -2479,6 +2775,20 @@ func providerAddress(ref *tfconfig.ProviderRef) string {
 	return ref.Address
 }
 
+func (c *conversionState) selectedProvider(moduleAddress string, ref *tfconfig.ProviderRef, objectType string) resolvedProvider {
+	address := providerAddress(ref)
+	if address == "" && moduleAddress == "" {
+		return resolvedProvider{}
+	}
+	if address == "" {
+		address, _, _ = strings.Cut(strings.TrimSpace(objectType), "_")
+	}
+	if provider, ok := c.resolveProvider(moduleAddress, address); ok {
+		return provider
+	}
+	return resolvedProvider{Address: address, ModuleAddress: moduleAddress}
+}
+
 func providerLocalName(address string) string {
 	address = strings.TrimPrefix(strings.TrimSpace(address), "provider.")
 	if head, _, ok := strings.Cut(address, "."); ok {
@@ -2594,32 +2904,52 @@ func valueTextForInstance(value tfconfig.Value, instance instanceContext) string
 	if valueSensitive(value) {
 		return valueText(value)
 	}
+	resolved, ok := instanceValue(value, instance)
+	if !ok {
+		return valueText(value)
+	}
+	return valueText(resolved)
+}
+
+func instanceValue(value tfconfig.Value, instance instanceContext) (tfconfig.Value, bool) {
+	if valueSensitive(value) {
+		return tfconfig.Value{}, false
+	}
 	expression := strings.TrimSpace(value.Expression)
 	var replacement any
 	switch expression {
 	case "count.index":
 		if instance.CountIndex == nil {
-			return valueText(value)
+			return tfconfig.Value{}, false
 		}
 		replacement = *instance.CountIndex
 	case "each.key":
 		if instance.EachKey == nil {
-			return valueText(value)
+			return tfconfig.Value{}, false
 		}
 		replacement = *instance.EachKey
 	case "each.value":
 		if instance.EachKey == nil {
-			return valueText(value)
+			return tfconfig.Value{}, false
 		}
 		replacement = instance.EachValue
 	default:
-		return valueText(value)
+		return tfconfig.Value{}, false
 	}
-	data, err := json.Marshal(replacement)
-	if err != nil {
-		return valueText(value)
+	resolved := tfconfig.Value{Literal: replacement, Range: value.Range}
+	switch replacement.(type) {
+	case nil:
+		resolved.Kind = tfconfig.ValueKindNull
+	case bool:
+		resolved.Kind = tfconfig.ValueKindBool
+	case int, int64, float64, json.Number:
+		resolved.Kind = tfconfig.ValueKindNumber
+	case string:
+		resolved.Kind = tfconfig.ValueKindString
+	default:
+		resolved.Kind = tfconfig.ValueKindCollection
 	}
-	return string(data)
+	return resolved, true
 }
 
 func valueSensitive(value tfconfig.Value) bool {
