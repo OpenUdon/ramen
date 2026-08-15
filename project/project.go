@@ -8,9 +8,9 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/OpenUdon/uws/schemas"
 	"github.com/OpenUdon/uws/uws1"
 	"github.com/OpenUdon/uws/validation"
-	"github.com/OpenUdon/uws/versions"
 )
 
 const (
@@ -217,7 +217,7 @@ func Load(path string) (*Document, error) {
 	if schemaVersion == "" {
 		schemaVersion = "1.0.0"
 	}
-	if err := validation.ValidateFile(versions.PathForVersion(filepath.Dir(resolved), schemaVersion), resolved); err != nil {
+	if err := validation.ValidateFile(schemas.PathForVersion(filepath.Dir(resolved), schemaVersion), resolved); err != nil {
 		return nil, fmt.Errorf("validate UWS project document %s: %w", resolved, err)
 	}
 	if err := doc.Validate(); err != nil {

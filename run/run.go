@@ -17,9 +17,9 @@ import (
 	"github.com/OpenUdon/ramen/internal/asyncrecord"
 	"github.com/OpenUdon/ramen/internal/redact"
 	"github.com/OpenUdon/ramen/state"
+	"github.com/OpenUdon/uws/schemas"
 	"github.com/OpenUdon/uws/uws1"
 	"github.com/OpenUdon/uws/validation"
-	"github.com/OpenUdon/uws/versions"
 )
 
 const Version = "ramen.run.v1"
@@ -251,7 +251,7 @@ func loadDocument(path string) (*uws1.Document, string, error) {
 	if schemaVersion == "" {
 		schemaVersion = "1.0.0"
 	}
-	if err := validation.ValidateFile(versions.PathForVersion(filepath.Dir(path), schemaVersion), path); err != nil {
+	if err := validation.ValidateFile(schemas.PathForVersion(filepath.Dir(path), schemaVersion), path); err != nil {
 		return nil, "", fmt.Errorf("run.document_invalid: %w", err)
 	}
 	if err := doc.Validate(); err != nil {
