@@ -43,6 +43,34 @@ func TestLoadExtraVarsRejectsConflictsSecretsAndDynamicValuesWithoutDisclosure(t
 	}
 }
 
+func TestLoadExtraVarsRejectsNestedSensitiveKeysWithoutDisclosure(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "extra.yml")
+	if err := os.WriteFile(path, []byte("config:\n  accounts:\n    - name: deploy\n      password: file-do-not-disclose\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for name, inputs := range map[string][]string{
+		"inline_map":  {"config={password: inline-do-not-disclose}"},
+		"inline_list": {"config=[{api_token: list-do-not-disclose}]"},
+		"file":        {"@" + path},
+	} {
+		t.Run(name, func(t *testing.T) {
+			_, diags, valid := loadExtraVars(inputs)
+			if valid || len(diags) != 1 || diags[0].Code != CodeNoLogLiteral || !diags[0].StrictFailure {
+				t.Fatalf("diagnostics=%#v valid=%v", diags, valid)
+			}
+			if !strings.Contains(diags[0].Message, "credential-shaped key") {
+				t.Fatalf("diagnostic = %q", diags[0].Message)
+			}
+			for _, literal := range []string{"inline-do-not-disclose", "list-do-not-disclose", "file-do-not-disclose"} {
+				if strings.Contains(diags[0].Message, literal) {
+					t.Fatalf("diagnostic disclosed rejected literal %q: %s", literal, diags[0].Message)
+				}
+			}
+		})
+	}
+}
+
 func TestConvertExtraVarsOverrideOtherStaticSources(t *testing.T) {
 	result, doc := runConvertWithOptions(t, "inventoryvars", Options{
 		InventoryPaths: []string{filepath.Join("testdata", "inventoryvars", "inventory.yml")},
@@ -68,7 +96,7 @@ func TestInvalidExtraVarsSuppressAffectedPlayInPartialMode(t *testing.T) {
 		Argspecs: []ArgspecInput{
 			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
 		},
-		ExtraVars:         []string{"api_token=do-not-disclose"},
+		ExtraVars:         []string{"config={password: do-not-disclose}"},
 		Mode:              "partial",
 		IgnoreUnsupported: true,
 		OutDir:            outDir,

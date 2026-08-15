@@ -531,6 +531,11 @@ func mergeInventoryVar(dst map[string]any, name string, value any) error {
 	if !identRE.MatchString(name) {
 		return fmt.Errorf("variable name %q is invalid", name)
 	}
+	if !isRuntimeInventoryVar(name) {
+		if sensitivePath, sensitive := sensitiveVariablePath(name, value); sensitive {
+			return fmt.Errorf("variable %q contains credential-shaped key %q; use a symbolic runtime credential binding instead of embedding a literal", name, sensitivePath)
+		}
+	}
 	if existing, ok := dst[name]; ok && !reflect.DeepEqual(existing, value) {
 		return fmt.Errorf("variable %q has conflicting values at the same inventory precedence", name)
 	}

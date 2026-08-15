@@ -128,3 +128,46 @@ func TestInventoryVarsRejectEqualGroupPrecedenceConflict(t *testing.T) {
 		t.Fatalf("varsForHost conflict = %v", err)
 	}
 }
+
+func TestLoadStaticInventoryRejectsCredentialShapedVariables(t *testing.T) {
+	for name, body := range map[string]string{
+		"group":  "all:\n  vars:\n    db_password: group-do-not-disclose\n  hosts:\n    node-1: {}\n",
+		"host":   "all:\n  hosts:\n    node-1:\n      api_token: host-do-not-disclose\n",
+		"nested": "all:\n  vars:\n    config:\n      accounts:\n        - private_key: nested-do-not-disclose\n  hosts:\n    node-1: {}\n",
+	} {
+		t.Run(name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "inventory.yml")
+			if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			inv, diags := loadStaticInventory([]string{path})
+			if inv == nil || !inv.invalid || len(diags) != 1 || diags[0].Code != CodeInventoryInvalid {
+				t.Fatalf("inventory=%#v diagnostics=%#v", inv, diags)
+			}
+			for _, literal := range []string{"group-do-not-disclose", "host-do-not-disclose", "nested-do-not-disclose"} {
+				if strings.Contains(diags[0].Message, literal) {
+					t.Fatalf("diagnostic disclosed rejected literal %q: %s", literal, diags[0].Message)
+				}
+			}
+		})
+	}
+}
+
+func TestLoadStaticInventoryKeepsConnectionCredentialsRuntimeOwned(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "inventory.yml")
+	data := []byte("all:\n  hosts:\n    node-1:\n      ansible_password: runtime-owned\n      tier: frontend\n")
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inv, diags := loadStaticInventory([]string{path})
+	if len(diags) != 0 || inv == nil || inv.invalid {
+		t.Fatalf("inventory=%#v diagnostics=%#v", inv, diags)
+	}
+	vars, runtimeNames, err := inv.varsForHost("node-1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if vars["tier"] != "frontend" || vars["ansible_password"] != nil || !runtimeNames["ansible_password"] {
+		t.Fatalf("vars=%#v runtimeNames=%#v", vars, runtimeNames)
+	}
+}

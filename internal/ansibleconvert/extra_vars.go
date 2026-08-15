@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -75,9 +76,9 @@ func loadExtraVars(inputs []string) (map[string]any, []Diagnostic, bool) {
 			continue
 		}
 		for name, value := range current {
-			if isSensitiveVariableName(name) {
+			if sensitivePath, sensitive := sensitiveVariablePath(name, value); sensitive {
 				diags = append(diags, Diagnostic{Code: CodeNoLogLiteral, Severity: "error", StrictFailure: true,
-					Message: fmt.Sprintf("extra variable %q looks sensitive; use a symbolic runtime credential binding instead of embedding a literal", name)})
+					Message: fmt.Sprintf("extra variable %q contains credential-shaped key %q; use a symbolic runtime credential binding instead of embedding a literal", name, sensitivePath)})
 				valid = false
 				continue
 			}
@@ -154,4 +155,38 @@ func isSensitiveVariableName(name string) bool {
 		}
 	}
 	return false
+}
+
+func sensitiveVariablePath(name string, value any) (string, bool) {
+	if isSensitiveVariableName(name) {
+		return name, true
+	}
+	return sensitiveValuePath(value, name)
+}
+
+func sensitiveValuePath(value any, path string) (string, bool) {
+	switch value := value.(type) {
+	case map[string]any:
+		keys := make([]string, 0, len(value))
+		for key := range value {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		for _, key := range keys {
+			childPath := path + "." + key
+			if isSensitiveVariableName(key) {
+				return childPath, true
+			}
+			if nestedPath, sensitive := sensitiveValuePath(value[key], childPath); sensitive {
+				return nestedPath, true
+			}
+		}
+	case []any:
+		for index, item := range value {
+			if nestedPath, sensitive := sensitiveValuePath(item, fmt.Sprintf("%s[%d]", path, index)); sensitive {
+				return nestedPath, true
+			}
+		}
+	}
+	return "", false
 }

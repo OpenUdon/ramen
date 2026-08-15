@@ -381,6 +381,9 @@ func (r *staticResolver) initializePlayVars(play *Play) {
 		play.VarSources = map[string]string{}
 	}
 	for name := range play.Vars {
+		if _, initialized := play.VarPriorities[name]; initialized {
+			continue
+		}
 		play.VarPriorities[name] = varPriorityPlay
 		play.VarSources[name] = "play vars"
 	}
