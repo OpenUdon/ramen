@@ -18,8 +18,8 @@ import (
 )
 
 func TestCollectSemanticGapsInventoriesUnrepresentedFacts(t *testing.T) {
-	count := tfconfig.Value{Kind: tfconfig.ValueKindNumber, Literal: 2}
-	forEach := tfconfig.Value{Kind: tfconfig.ValueKindCollection, Literal: map[string]any{"a": true}}
+	count := tfconfig.Value{Kind: tfconfig.ValueKindNumber, Literal: 257}
+	forEach := tfconfig.Value{Kind: tfconfig.ValueKindCollection, Literal: []any{"a"}}
 	preventDestroy := tfconfig.Value{Kind: tfconfig.ValueKindBool, Literal: true}
 	state := conversionState{doc: tfconfig.Document{Modules: []tfconfig.Module{{
 		Status:             tfconfig.ModuleStatusRoot,
@@ -66,7 +66,7 @@ func TestConvertReportsSemanticLossInDiagnosticsAndCoverage(t *testing.T) {
 	apiPath := filepath.Join(root, "api.yaml")
 	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
 resource "aws_instance" "web" {
-  count = 2
+  count = 257
   name  = "web"
 }
 `)
@@ -108,6 +108,116 @@ paths:
 	if !found {
 		t.Fatalf("manifest lacks count coverage item: %#v", manifest.Coverage.Items)
 	}
+}
+
+func TestConvertExpandsStaticCountAndForEachInstances(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	apiPath := filepath.Join(root, "api.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_instance" "counted" {
+  count = 2
+  name  = count.index
+}
+
+resource "aws_instance" "keyed" {
+  for_each = {
+    blue  = "primary"
+    green = "secondary"
+  }
+  name = each.key
+  role = each.value
+}
+`)
+	writeFileForTest(t, apiPath, `openapi: 3.0.0
+info:
+  title: Instances
+  version: v1
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200":
+          description: ok
+`)
+
+	result, err := Convert(context.Background(), Options{
+		ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "aws", Path: apiPath}},
+		Action: "create", OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatalf("static instance conversion failed: %v: %#v", err, result.Diagnostics)
+	}
+	for _, code := range []string{"terraform.count_unsupported", "terraform.for_each_unsupported"} {
+		if hasDiagnostic(result.Diagnostics, code) {
+			t.Fatalf("static instances emitted %s: %#v", code, result.Diagnostics)
+		}
+	}
+	var artifact conversionArtifact
+	if err := json.Unmarshal([]byte(readFileForTest(t, result.ConversionPath)), &artifact); err != nil {
+		t.Fatalf("decode conversion: %v", err)
+	}
+	want := map[string]map[string]string{
+		"aws_instance.counted[0]":     {"name": "0"},
+		"aws_instance.counted[1]":     {"name": "1"},
+		`aws_instance.keyed["blue"]`:  {"name": `"blue"`, "role": `"primary"`},
+		`aws_instance.keyed["green"]`: {"name": `"green"`, "role": `"secondary"`},
+	}
+	if len(artifact.Objects) != len(want) {
+		t.Fatalf("objects = %#v, want %d instances", artifact.Objects, len(want))
+	}
+	for _, object := range artifact.Objects {
+		expected, ok := want[object.Address]
+		if !ok {
+			t.Fatalf("unexpected object address %q", object.Address)
+		}
+		got := map[string]string{}
+		for _, attr := range object.Config {
+			got[attr.Path] = attr.Value
+		}
+		for path, value := range expected {
+			if got[path] != value {
+				t.Fatalf("%s.%s = %q, want %q", object.Address, path, got[path], value)
+			}
+		}
+	}
+	var manifest convertreport.Manifest
+	if err := json.Unmarshal([]byte(readFileForTest(t, result.ManifestPath)), &manifest); err != nil {
+		t.Fatalf("decode manifest: %v", err)
+	}
+	if manifest.Status != convertreport.StatusComplete || manifest.Coverage.Converted != 4 || manifest.Coverage.Unsupported != 0 {
+		t.Fatalf("manifest status/coverage = %q/%#v", manifest.Status, manifest.Coverage)
+	}
+}
+
+func TestStaticInstanceContextsRejectsUnboundedOrWrongShapes(t *testing.T) {
+	tests := []struct {
+		name    string
+		count   *tfconfig.Value
+		forEach *tfconfig.Value
+	}{
+		{name: "dynamic count", count: &tfconfig.Value{Kind: tfconfig.ValueKindExpression, Expression: "var.replicas"}},
+		{name: "too many count instances", count: &tfconfig.Value{Kind: tfconfig.ValueKindNumber, Literal: 257}},
+		{name: "negative count", count: &tfconfig.Value{Kind: tfconfig.ValueKindNumber, Literal: -1}},
+		{name: "tuple for_each", forEach: &tfconfig.Value{Kind: tfconfig.ValueKindCollection, Literal: []any{"blue"}}},
+		{name: "too many map instances", forEach: &tfconfig.Value{Kind: tfconfig.ValueKindCollection, Literal: largeStringMap(257)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if instances, ok := staticInstanceContexts(tt.count, tt.forEach); ok {
+				t.Fatalf("staticInstanceContexts() = %#v, true; want unsupported", instances)
+			}
+		})
+	}
+}
+
+func largeStringMap(size int) map[string]any {
+	out := make(map[string]any, size)
+	for i := 0; i < size; i++ {
+		out[string(rune(i))] = i
+	}
+	return out
 }
 
 func TestConvertWritesDraftArtifacts(t *testing.T) {

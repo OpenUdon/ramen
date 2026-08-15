@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"slices"
 	"strings"
@@ -240,6 +241,15 @@ type selectedObject struct {
 	Config        []attributeFact
 	Dependencies  []string
 	Range         *tfconfig.SourceRange
+	dependsOn     []tfconfig.Reference
+	references    []tfconfig.Reference
+}
+
+type instanceContext struct {
+	Suffix     string
+	CountIndex *int
+	EachKey    *string
+	EachValue  any
 }
 
 type attributeFact struct {
@@ -440,7 +450,9 @@ func (c *conversionState) collectSemanticGaps() {
 	for _, mod := range c.doc.Modules {
 		for _, resource := range mod.Resources {
 			address := fullAddress(mod.Address, resource.Address)
-			c.collectInstanceGaps("resource", address, mod.Address, resource.Count, resource.ForEach, resource.Range)
+			if _, ok := staticInstanceContexts(resource.Count, resource.ForEach); !ok {
+				c.collectInstanceGaps("resource", address, mod.Address, resource.Count, resource.ForEach, resource.Range)
+			}
 			if hasLifecycleSemantics(resource.Lifecycle) {
 				c.addSemanticGap(semanticGap{
 					Code: "terraform.lifecycle_unsupported", Kind: "resource-lifecycle", ID: address,
@@ -450,7 +462,9 @@ func (c *conversionState) collectSemanticGaps() {
 		}
 		for _, dataSource := range mod.DataSources {
 			address := fullAddress(mod.Address, dataSource.Address)
-			c.collectInstanceGaps("data-source", address, mod.Address, dataSource.Count, dataSource.ForEach, dataSource.Range)
+			if _, ok := staticInstanceContexts(dataSource.Count, dataSource.ForEach); !ok {
+				c.collectInstanceGaps("data-source", address, mod.Address, dataSource.Count, dataSource.ForEach, dataSource.Range)
+			}
 		}
 		for _, ephemeral := range mod.EphemeralResources {
 			address := fullAddress(mod.Address, ephemeral.Address)
@@ -499,6 +513,109 @@ func (c *conversionState) collectInstanceGaps(kind, address, moduleAddress strin
 	}
 }
 
+func staticInstanceContexts(count, forEach *tfconfig.Value) ([]instanceContext, bool) {
+	if count != nil && forEach != nil {
+		return nil, false
+	}
+	if count == nil && forEach == nil {
+		return []instanceContext{{}}, true
+	}
+	if count != nil {
+		n, ok := staticNonNegativeInt(count.Literal)
+		if count.Kind != tfconfig.ValueKindNumber || !ok || n > 256 {
+			return nil, false
+		}
+		out := make([]instanceContext, 0, n)
+		for i := 0; i < n; i++ {
+			index := i
+			out = append(out, instanceContext{Suffix: fmt.Sprintf("[%d]", i), CountIndex: &index})
+		}
+		return out, true
+	}
+	if forEach.Kind != tfconfig.ValueKindCollection {
+		return nil, false
+	}
+	switch values := forEach.Literal.(type) {
+	case map[string]any:
+		if len(values) > 256 {
+			return nil, false
+		}
+		keys := make([]string, 0, len(values))
+		for key := range values {
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		out := make([]instanceContext, 0, len(keys))
+		for _, key := range keys {
+			instanceKey := key
+			out = append(out, instanceContext{Suffix: terraformStringKeySuffix(key), EachKey: &instanceKey, EachValue: values[key]})
+		}
+		return out, true
+	case []any:
+		if tfconfigCollectionKind(*forEach) != "set" || len(values) > 256 {
+			return nil, false
+		}
+		keys := make([]string, 0, len(values))
+		for _, value := range values {
+			key, ok := value.(string)
+			if !ok {
+				return nil, false
+			}
+			keys = append(keys, key)
+		}
+		slices.Sort(keys)
+		keys = slices.Compact(keys)
+		out := make([]instanceContext, 0, len(keys))
+		for _, key := range keys {
+			instanceKey := key
+			out = append(out, instanceContext{Suffix: terraformStringKeySuffix(key), EachKey: &instanceKey, EachValue: key})
+		}
+		return out, true
+	default:
+		return nil, false
+	}
+}
+
+func staticNonNegativeInt(value any) (int, bool) {
+	var n int64
+	switch typed := value.(type) {
+	case int:
+		n = int64(typed)
+	case int64:
+		n = typed
+	case float64:
+		if typed != float64(int64(typed)) {
+			return 0, false
+		}
+		n = int64(typed)
+	case json.Number:
+		parsed, err := typed.Int64()
+		if err != nil {
+			return 0, false
+		}
+		n = parsed
+	default:
+		return 0, false
+	}
+	if n < 0 || n > int64(^uint(0)>>1) {
+		return 0, false
+	}
+	return int(n), true
+}
+
+func tfconfigCollectionKind(value tfconfig.Value) string {
+	field := reflect.ValueOf(value).FieldByName("CollectionKind")
+	if !field.IsValid() || field.Kind() != reflect.String {
+		return ""
+	}
+	return field.String()
+}
+
+func terraformStringKeySuffix(key string) string {
+	data, _ := json.Marshal(key)
+	return "[" + string(data) + "]"
+}
+
 func (c *conversionState) addSemanticGap(gap semanticGap) {
 	c.semanticGaps = append(c.semanticGaps, gap)
 }
@@ -533,8 +650,16 @@ func (c *conversionState) selectObjects() {
 	selectAll := len(targets) == 0
 	for _, mod := range c.doc.Modules {
 		for _, res := range mod.Resources {
-			addr := fullAddress(mod.Address, res.Address)
-			if selectAll || targetSelected(targets, addr) {
+			baseAddress := fullAddress(mod.Address, res.Address)
+			instances, ok := staticInstanceContexts(res.Count, res.ForEach)
+			if !ok {
+				instances = []instanceContext{{}}
+			}
+			for _, instance := range instances {
+				addr := baseAddress + instance.Suffix
+				if !selectAll && !targetSelected(targets, addr, baseAddress) {
+					continue
+				}
 				obj := selectedObject{
 					Kind:          "resource",
 					Address:       addr,
@@ -543,16 +668,26 @@ func (c *conversionState) selectObjects() {
 					Name:          res.Name,
 					Provider:      providerAddress(res.Provider),
 					Binding:       normalizeBindingName(providerAddress(res.Provider)),
-					Config:        c.attributes(addr, mod.Address, res.Config),
+					Config:        c.attributesForInstance(addr, mod.Address, res.Config, instance),
 					Range:         res.Range,
+					dependsOn:     res.DependsOn,
+					references:    res.References,
 				}
 				obj.Config = c.withProviderDerivedAttributes(obj)
 				c.selected = append(c.selected, obj)
 			}
 		}
 		for _, ds := range mod.DataSources {
-			addr := fullAddress(mod.Address, ds.Address)
-			if selectAll || targetSelected(targets, addr) {
+			baseAddress := fullAddress(mod.Address, ds.Address)
+			instances, ok := staticInstanceContexts(ds.Count, ds.ForEach)
+			if !ok {
+				instances = []instanceContext{{}}
+			}
+			for _, instance := range instances {
+				addr := baseAddress + instance.Suffix
+				if !selectAll && !targetSelected(targets, addr, baseAddress) {
+					continue
+				}
 				obj := selectedObject{
 					Kind:          "data_source",
 					Address:       addr,
@@ -561,8 +696,10 @@ func (c *conversionState) selectObjects() {
 					Name:          ds.Name,
 					Provider:      providerAddress(ds.Provider),
 					Binding:       normalizeBindingName(providerAddress(ds.Provider)),
-					Config:        c.attributes(addr, mod.Address, ds.Config),
+					Config:        c.attributesForInstance(addr, mod.Address, ds.Config, instance),
 					Range:         ds.Range,
+					dependsOn:     ds.DependsOn,
+					references:    ds.References,
 				}
 				obj.Config = c.withProviderDerivedAttributes(obj)
 				c.selected = append(c.selected, obj)
@@ -623,9 +760,15 @@ func hasAttributeFact(attrs []attributeFact, path string) bool {
 	return false
 }
 
-func targetSelected(targets map[string]bool, addr string) bool {
-	if _, ok := targets[addr]; ok {
-		targets[addr] = true
+func targetSelected(targets map[string]bool, addresses ...string) bool {
+	selected := false
+	for _, address := range addresses {
+		if _, ok := targets[address]; ok {
+			targets[address] = true
+			selected = true
+		}
+	}
+	if selected {
 		return true
 	}
 	return false
@@ -642,19 +785,8 @@ func (c *conversionState) assignSelectedDependencies() {
 		}
 		return cmp.Compare(a, b)
 	})
-	dependencies := map[string][]string{}
-	for _, mod := range c.doc.Modules {
-		for _, res := range mod.Resources {
-			addr := fullAddress(mod.Address, res.Address)
-			dependencies[addr] = selectedDependencies(addr, res.DependsOn, res.References, known)
-		}
-		for _, ds := range mod.DataSources {
-			addr := fullAddress(mod.Address, ds.Address)
-			dependencies[addr] = selectedDependencies(addr, ds.DependsOn, ds.References, known)
-		}
-	}
 	for i := range c.selected {
-		c.selected[i].Dependencies = dependencies[c.selected[i].Address]
+		c.selected[i].Dependencies = selectedDependencies(c.selected[i].Address, c.selected[i].dependsOn, c.selected[i].references, known)
 	}
 }
 
@@ -674,6 +806,18 @@ func selectedDependencies(address string, dependsOn, references []tfconfig.Refer
 				return
 			}
 		}
+		for _, candidate := range known {
+			if candidate == address {
+				continue
+			}
+			baseCandidate := terraformDeclarationAddress(candidate)
+			if ref.Traversal == baseCandidate || ref.Subject == baseCandidate || strings.HasPrefix(ref.Traversal, baseCandidate+".") {
+				if !seen[candidate] {
+					seen[candidate] = true
+					out = append(out, candidate)
+				}
+			}
+		}
 	}
 	for _, ref := range dependsOn {
 		add(ref)
@@ -683,6 +827,14 @@ func selectedDependencies(address string, dependsOn, references []tfconfig.Refer
 	}
 	slices.Sort(out)
 	return out
+}
+
+func terraformDeclarationAddress(address string) string {
+	lastDot := strings.LastIndex(address, ".")
+	if bracket := strings.LastIndex(address, "["); bracket > lastDot {
+		return address[:bracket]
+	}
+	return address
 }
 
 func (c *conversionState) validateAction() {
@@ -973,9 +1125,13 @@ func (c *conversionState) operationCandidates() []apitools.OperationSummary {
 }
 
 func (c *conversionState) attributes(address, moduleAddress string, attrs []tfconfig.Attribute) []attributeFact {
+	return c.attributesForInstance(address, moduleAddress, attrs, instanceContext{})
+}
+
+func (c *conversionState) attributesForInstance(address, moduleAddress string, attrs []tfconfig.Attribute, instance instanceContext) []attributeFact {
 	out := make([]attributeFact, 0, len(attrs))
 	for _, attr := range attrs {
-		fact := attributeFact{Path: attr.Path, Value: valueText(attr.Value), Sensitive: valueSensitive(attr.Value)}
+		fact := attributeFact{Path: attr.Path, Value: valueTextForInstance(attr.Value, instance), Sensitive: valueSensitive(attr.Value)}
 		if fact.Sensitive {
 			fact.TodoID = todoID(address+"."+attr.Path, "redaction", "review")
 		}
@@ -2432,6 +2588,38 @@ func valueText(value tfconfig.Value) string {
 		}
 	}
 	return string(value.Kind)
+}
+
+func valueTextForInstance(value tfconfig.Value, instance instanceContext) string {
+	if valueSensitive(value) {
+		return valueText(value)
+	}
+	expression := strings.TrimSpace(value.Expression)
+	var replacement any
+	switch expression {
+	case "count.index":
+		if instance.CountIndex == nil {
+			return valueText(value)
+		}
+		replacement = *instance.CountIndex
+	case "each.key":
+		if instance.EachKey == nil {
+			return valueText(value)
+		}
+		replacement = *instance.EachKey
+	case "each.value":
+		if instance.EachKey == nil {
+			return valueText(value)
+		}
+		replacement = instance.EachValue
+	default:
+		return valueText(value)
+	}
+	data, err := json.Marshal(replacement)
+	if err != nil {
+		return valueText(value)
+	}
+	return string(data)
 }
 
 func valueSensitive(value tfconfig.Value) bool {
