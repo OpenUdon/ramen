@@ -19,14 +19,17 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        bucket = "\\\"$${var.rName}-$${count.index}\\\""
-      }
-      x-ramen-terraform "object" {
-        address = "aws_s3_bucket.test"
-        kind = "resource"
-        name = "test"
-        type = "aws_s3_bucket"
+      x-ramen-terraform {
+        attributes {
+          bucket = "\\\"$${var.rName}-$${count.index}\\\""
+        }
+        object {
+          address = "aws_s3_bucket.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_s3_bucket"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -35,16 +38,16 @@
     sourceOperationId = "PutBucketVersioning"
     description       = "Review create create for Terraform resource aws_s3_bucket_versioning.test"
     request {
+      body "VersioningConfiguration" {
+        Status = "\\\"Enabled\\\""
+      }
+      path {
+        Bucket = "aws_s3_bucket.test[count.index].bucket"
+      }
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
       x-ramen-terraform {
-        object {
-          kind = "resource"
-          name = "test"
-          type = "aws_s3_bucket_versioning"
-          address = "aws_s3_bucket_versioning.test"
-        }
         attributes {
           bucket = "aws_s3_bucket.test[count.index].bucket"
           versioning_configuration {
@@ -53,20 +56,21 @@
         }
         identity_attributes = [
           {
-            terraform_path = "bucket"
+            name = "bucket"
             request_keys = [
               "Bucket"
             ]
             required = true
-            name = "bucket"
+            terraform_path = "bucket"
           }
         ]
-      }
-      body "VersioningConfiguration" {
-        Status = "\\\"Enabled\\\""
-      }
-      path {
-        Bucket = "aws_s3_bucket.test[count.index].bucket"
+        object {
+          address = "aws_s3_bucket_versioning.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_s3_bucket_versioning"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -85,114 +89,114 @@
     step "aws_s3_bucket_versioning_test_create" {
       operationRef = "aws_s3_bucket_versioning_test_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "aws_s3_bucket_versioning.test"
         terraform_type = "aws_s3_bucket_versioning"
-        action = "create"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          path = "aws-smithy/s3.json"
-          kind = "aws-smithy"
           id = "s3"
+          kind = "aws-smithy"
+          path = "aws-smithy/s3.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/aws/s3/BucketVersioning/list_basic/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          redaction = {
-
-          }
+          address = "aws_s3_bucket.test"
           attributes = {
             bucket = "\\\"$${var.rName}-$${count.index}\\\""
           }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          kind = "resource"
           lifecycle = {
 
           }
           metadata = {
             terraform_address = "aws_s3_bucket.test"
           }
-          address = "aws_s3_bucket.test"
-          kind = "resource"
-          type = "aws_s3_bucket"
           name = "test"
           operations = {
             create = {
-              source_kind = "aws-smithy"
-              source_id = "s3"
-              source_path = "aws-smithy/s3.json"
-              operation_id = "CreateBucket"
               credential_bindings = [
                 "aws_hmac"
               ]
+              operation_id = "CreateBucket"
               purpose = "create"
+              source_id = "s3"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/s3.json"
             }
           }
-        },
-        {
-          lifecycle = {
-
-          }
-          identity_attributes = [
-            {
-              required = true
-              name = "bucket"
-              path = "bucket"
-              request_keys = [
-                "Bucket"
-              ]
-            }
-          ]
           redaction = {
 
           }
-          dependencies = [
-            "aws_s3_bucket.test"
-          ]
-          operations = {
-            create = {
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "s3"
-              source_path = "aws-smithy/s3.json"
-              operation_id = "PutBucketVersioning"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-            }
-          }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          type = "aws_s3_bucket_versioning"
+          type = "aws_s3_bucket"
+        },
+        {
+          address = "aws_s3_bucket_versioning.test"
           attributes = {
             bucket = "aws_s3_bucket.test[count.index].bucket"
             versioning_configuration = {
               status = "\\\"Enabled\\\""
             }
           }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          dependencies = [
+            "aws_s3_bucket.test"
+          ]
+          identity_attributes = [
+            {
+              name = "bucket"
+              path = "bucket"
+              request_keys = [
+                "Bucket"
+              ]
+              required = true
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
           metadata = {
             terraform_address = "aws_s3_bucket_versioning.test"
           }
           name = "test"
-          address = "aws_s3_bucket_versioning.test"
-          kind = "resource"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "PutBucketVersioning"
+              purpose = "create"
+              source_id = "s3"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/s3.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_s3_bucket_versioning"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        config_dir = "testdata/corpus/aws/s3/BucketVersioning/list_basic/input"
-        source = "ramen convert tf"
-        action = "create"
-      }
+      version = "ramen.project.v1"
     }
   }

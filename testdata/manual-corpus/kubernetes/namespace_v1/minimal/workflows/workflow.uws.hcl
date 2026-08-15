@@ -17,28 +17,29 @@
         name = "\\\"ramen-manual-corpus\\\""
       }
       x-ramen-terraform {
-        object {
-          type = "kubernetes_namespace_v1"
-          address = "kubernetes_namespace_v1.manual"
-          kind = "resource"
-          name = "manual"
-        }
         attributes "metadata" {
           name = "\\\"ramen-manual-corpus\\\""
         }
         identity_attributes = [
           {
-            required = true
             name = "namespace_name"
-            terraform_path = "metadata.name"
             request_keys = [
               "name"
             ]
+            required = true
             response_paths = [
               "metadata.name"
             ]
+            terraform_path = "metadata.name"
           }
         ]
+        object {
+          address = "kubernetes_namespace_v1.manual"
+          kind = "resource"
+          name = "manual"
+          type = "kubernetes_namespace_v1"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -57,65 +58,65 @@
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "core"
+          kind = "openapi"
+          path = "openapi/core.json"
+        }
+      ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/manual-corpus/kubernetes/namespace_v1/minimal/input"
+        source = "ramen convert tf"
+      }
       redaction {
 
       }
-      metadata {
-        config_dir = "testdata/manual-corpus/kubernetes/namespace_v1/minimal/input"
-        source = "ramen convert tf"
-        action = "create"
-      }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          path = "openapi/core.json"
-          kind = "openapi"
-          id = "core"
-        }
-      ]
       resources = [
         {
-          lifecycle = {
-
-          }
-          identity_attributes = [
-            {
-              required = true
-              name = "namespace_name"
-              path = "metadata.name"
-              request_keys = [
-                "name"
-              ]
-              response_paths = [
-                "metadata.name"
-              ]
-            }
-          ]
-          operations = {
-            create = {
-              source_id = "core"
-              source_path = "openapi/core.json"
-              operation_id = "createCoreV1Namespace"
-              purpose = "create"
-              source_kind = "openapi"
-            }
-          }
-          metadata = {
-            terraform_address = "kubernetes_namespace_v1.manual"
-          }
-          kind = "resource"
-          type = "kubernetes_namespace_v1"
+          address = "kubernetes_namespace_v1.manual"
           attributes = {
             metadata = {
               name = "\\\"ramen-manual-corpus\\\""
             }
           }
+          identity_attributes = [
+            {
+              name = "namespace_name"
+              path = "metadata.name"
+              request_keys = [
+                "name"
+              ]
+              required = true
+              response_paths = [
+                "metadata.name"
+              ]
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "kubernetes_namespace_v1.manual"
+          }
+          name = "manual"
+          operations = {
+            create = {
+              operation_id = "createCoreV1Namespace"
+              purpose = "create"
+              source_id = "core"
+              source_kind = "openapi"
+              source_path = "openapi/core.json"
+            }
+          }
           redaction = {
 
           }
-          address = "kubernetes_namespace_v1.manual"
-          name = "manual"
+          type = "kubernetes_namespace_v1"
         }
       ]
+      version = "ramen.project.v1"
     }
   }

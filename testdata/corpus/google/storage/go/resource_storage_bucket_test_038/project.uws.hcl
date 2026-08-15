@@ -13,6 +13,10 @@
     sourceOperationId = "storage.buckets.insert"
     description       = "Review create create for Terraform resource google_storage_bucket.bucket"
     request {
+      body {
+        location = "\\\"US\\\""
+        name = "\\\"ramen-corpus\\\""
+      }
       x-ramen-credential-bindings = [
         "google_oauth2"
       ]
@@ -25,16 +29,16 @@
         }
         identity_attributes = [
           {
-            required = true
             name = "bucket_name"
-            terraform_path = "name"
             request_keys = [
               "name"
             ]
+            required = true
             response_paths = [
-              "name",
-              "id"
+              "id",
+              "name"
             ]
+            terraform_path = "name"
           }
         ]
         object {
@@ -43,10 +47,7 @@
           name = "bucket"
           type = "google_storage_bucket"
         }
-      }
-      body {
-        location = "\\\"US\\\""
-        name = "\\\"ramen-corpus\\\""
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -65,28 +66,23 @@
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "storage"
+          kind = "google-discovery"
+          path = "google-discovery/storage.json"
+        }
+      ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/google/storage/go/resource_storage_bucket_test_038/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "google_storage_bucket.bucket"
-          }
-          identity_attributes = [
-            {
-              name = "bucket_name"
-              path = "name"
-              request_keys = [
-                "name"
-              ]
-              response_paths = [
-                "name",
-                "id"
-              ]
-              required = true
-            }
-          ]
           address = "google_storage_bucket.bucket"
           attributes = {
             force_destroy = "true"
@@ -94,44 +90,49 @@
             location = "\\\"US\\\""
             name = "\\\"ramen-corpus\\\""
           }
-          type = "google_storage_bucket"
-          name = "bucket"
           credential_bindings = [
             "google_oauth2"
+          ]
+          identity_attributes = [
+            {
+              name = "bucket_name"
+              path = "name"
+              request_keys = [
+                "name"
+              ]
+              required = true
+              response_paths = [
+                "name",
+                "id"
+              ]
+            }
           ]
           kind = "resource"
           lifecycle = {
 
           }
+          metadata = {
+            terraform_address = "google_storage_bucket.bucket"
+          }
+          name = "bucket"
           operations = {
             create = {
-              source_kind = "google-discovery"
-              source_id = "storage"
-              source_path = "google-discovery/storage.json"
-              operation_id = "storage.buckets.insert"
               credential_bindings = [
                 "google_oauth2"
               ]
+              operation_id = "storage.buckets.insert"
               purpose = "create"
+              source_id = "storage"
+              source_kind = "google-discovery"
+              source_path = "google-discovery/storage.json"
             }
           }
-        }
-      ]
-      redaction {
+          redaction = {
 
-      }
-      metadata {
-        config_dir = "testdata/corpus/google/storage/go/resource_storage_bucket_test_038/input"
-        source = "ramen convert tf"
-        action = "create"
-      }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          kind = "google-discovery"
-          id = "storage"
-          path = "google-discovery/storage.json"
+          }
+          type = "google_storage_bucket"
         }
       ]
+      version = "ramen.project.v1"
     }
   }

@@ -30,6 +30,7 @@ operations:
                 kind: resource
                 name: example
                 type: kubernetes_namespace
+            version: ramen.terraform.provenance.v1
       sourceDescription: core
       sourceOperationId: createCoreV1Namespace
 sourceDescriptions:

@@ -26,14 +26,15 @@ operations:
                     - name
                   required: true
                   response_paths:
-                    - name
                     - id
+                    - name
                   terraform_path: name
             object:
                 address: google_storage_bucket.bucket
                 kind: resource
                 name: bucket
                 type: google_storage_bucket
+            version: ramen.terraform.provenance.v1
       sourceDescription: storage
       sourceOperationId: storage.buckets.insert
 sourceDescriptions:

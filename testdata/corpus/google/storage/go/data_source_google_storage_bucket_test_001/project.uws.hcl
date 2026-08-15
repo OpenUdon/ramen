@@ -13,6 +13,12 @@
     sourceOperationId = "storage.buckets.get"
     description       = "Review read read for Terraform data_source data.google_storage_bucket.bar"
     request {
+      path {
+        bucket = "google_storage_bucket.foo.name"
+      }
+      x-ramen-credential-bindings = [
+        "google_oauth2"
+      ]
       x-ramen-terraform {
         attributes {
           name = "google_storage_bucket.foo.name"
@@ -20,30 +26,25 @@
         identity_attributes = [
           {
             name = "bucket_name"
-            terraform_path = "name"
             request_keys = [
               "name"
             ]
-            response_paths = [
-              "name",
-              "id"
-            ]
             required = true
+            response_paths = [
+              "id",
+              "name"
+            ]
+            terraform_path = "name"
           }
         ]
         object {
+          address = "data.google_storage_bucket.bar"
           kind = "data_source"
           name = "bar"
           type = "google_storage_bucket"
-          address = "data.google_storage_bucket.bar"
         }
+        version = "ramen.terraform.provenance.v1"
       }
-      path {
-        bucket = "google_storage_bucket.foo.name"
-      }
-      x-ramen-credential-bindings = [
-        "google_oauth2"
-      ]
     }
   }
   operation "google_storage_bucket_foo_create" {
@@ -65,24 +66,25 @@
         }
         identity_attributes = [
           {
-            response_paths = [
-              "name",
-              "id"
-            ]
-            required = true
             name = "bucket_name"
-            terraform_path = "name"
             request_keys = [
               "name"
             ]
+            required = true
+            response_paths = [
+              "id",
+              "name"
+            ]
+            terraform_path = "name"
           }
         ]
         object {
-          type = "google_storage_bucket"
           address = "google_storage_bucket.foo"
           kind = "resource"
           name = "foo"
+          type = "google_storage_bucket"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -110,121 +112,121 @@
   }
   extensions {
     x-ramen-desired-state {
-      resources = [
-        {
-          metadata = {
-            terraform_address = "data.google_storage_bucket.bar"
-          }
-          address = "data.google_storage_bucket.bar"
-          kind = "data_source"
-          identity_attributes = [
-            {
-              required = true
-              name = "bucket_name"
-              path = "name"
-              request_keys = [
-                "name"
-              ]
-              response_paths = [
-                "name",
-                "id"
-              ]
-            }
-          ]
-          credential_bindings = [
-            "google_oauth2"
-          ]
-          name = "bar"
-          redaction = {
-
-          }
-          operations = {
-            read = {
-              operation_id = "storage.buckets.get"
-              credential_bindings = [
-                "google_oauth2"
-              ]
-              purpose = "read"
-              source_kind = "google-discovery"
-              source_id = "storage"
-              source_path = "google-discovery/storage.json"
-            }
-          }
-          type = "google_storage_bucket"
-          attributes = {
-            name = "google_storage_bucket.foo.name"
-          }
-          lifecycle = {
-
-          }
-          dependencies = [
-            "google_storage_bucket.foo"
-          ]
-        },
-        {
-          address = "google_storage_bucket.foo"
-          type = "google_storage_bucket"
-          identity_attributes = [
-            {
-              name = "bucket_name"
-              path = "name"
-              request_keys = [
-                "name"
-              ]
-              response_paths = [
-                "name",
-                "id"
-              ]
-              required = true
-            }
-          ]
-          attributes = {
-            name = "\\\"ramen-corpus-bucket\\\""
-            location = "\\\"US\\\""
-          }
-          lifecycle = {
-
-          }
-          redaction = {
-
-          }
-          name = "foo"
-          credential_bindings = [
-            "google_oauth2"
-          ]
-          metadata = {
-            terraform_address = "google_storage_bucket.foo"
-          }
-          kind = "resource"
-          operations = {
-            create = {
-              source_kind = "google-discovery"
-              source_id = "storage"
-              source_path = "google-discovery/storage.json"
-              operation_id = "storage.buckets.insert"
-              credential_bindings = [
-                "google_oauth2"
-              ]
-              purpose = "create"
-            }
-          }
-        }
-      ]
-      redaction {
-
-      }
-      metadata {
-        source = "ramen convert tf"
-        action = "create"
-        config_dir = "testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/input"
-      }
-      version = "ramen.project.v1"
       api_sources = [
         {
-          kind = "google-discovery"
           id = "storage"
+          kind = "google-discovery"
           path = "google-discovery/storage.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/google/storage/go/data_source_google_storage_bucket_test_001/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
+      resources = [
+        {
+          address = "data.google_storage_bucket.bar"
+          attributes = {
+            name = "google_storage_bucket.foo.name"
+          }
+          credential_bindings = [
+            "google_oauth2"
+          ]
+          dependencies = [
+            "google_storage_bucket.foo"
+          ]
+          identity_attributes = [
+            {
+              name = "bucket_name"
+              path = "name"
+              request_keys = [
+                "name"
+              ]
+              required = true
+              response_paths = [
+                "name",
+                "id"
+              ]
+            }
+          ]
+          kind = "data_source"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "data.google_storage_bucket.bar"
+          }
+          name = "bar"
+          operations = {
+            read = {
+              credential_bindings = [
+                "google_oauth2"
+              ]
+              operation_id = "storage.buckets.get"
+              purpose = "read"
+              source_id = "storage"
+              source_kind = "google-discovery"
+              source_path = "google-discovery/storage.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "google_storage_bucket"
+        },
+        {
+          address = "google_storage_bucket.foo"
+          attributes = {
+            location = "\\\"US\\\""
+            name = "\\\"ramen-corpus-bucket\\\""
+          }
+          credential_bindings = [
+            "google_oauth2"
+          ]
+          identity_attributes = [
+            {
+              name = "bucket_name"
+              path = "name"
+              request_keys = [
+                "name"
+              ]
+              required = true
+              response_paths = [
+                "name",
+                "id"
+              ]
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "google_storage_bucket.foo"
+          }
+          name = "foo"
+          operations = {
+            create = {
+              credential_bindings = [
+                "google_oauth2"
+              ]
+              operation_id = "storage.buckets.insert"
+              purpose = "create"
+              source_id = "storage"
+              source_kind = "google-discovery"
+              source_path = "google-discovery/storage.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "google_storage_bucket"
+        }
+      ]
+      version = "ramen.project.v1"
     }
   }

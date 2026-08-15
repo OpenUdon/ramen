@@ -14,22 +14,26 @@
     description       = "Review create create for Terraform resource azurerm_cosmosdb_account.test"
     request {
       body {
-        resourceGroupName = "\\\"ramen-corpus-rg\\\""
-        updateParameters {
-          kind = "\\\"GlobalDocumentDB\\\""
-          location = "\\\"eastus\\\""
-        }
         accountName = "\\\"acctest-ca-1\\\""
         createUpdateParameters {
+          kind = "\\\"GlobalDocumentDB\\\""
+          location = "\\\"eastus\\\""
           properties {
             databaseAccountOfferType = "\\\"Standard\\\""
           }
+        }
+        resourceGroupName = "\\\"ramen-corpus-rg\\\""
+        updateParameters {
           kind = "\\\"GlobalDocumentDB\\\""
           location = "\\\"eastus\\\""
         }
       }
       x-ramen-terraform {
         attributes {
+          consistency_policy {
+            consistency_level = "\\\"Session\\\""
+          }
+          free_tier_enabled = "true"
           geo_location {
             failover_priority = "0"
             location = "\\\"eastus\\\""
@@ -39,39 +43,36 @@
           name = "\\\"acctest-ca-1\\\""
           offer_type = "\\\"Standard\\\""
           resource_group_name = "\\\"ramen-corpus-rg\\\""
-          consistency_policy {
-            consistency_level = "\\\"Session\\\""
-          }
-          free_tier_enabled = "true"
         }
         identity_attributes = [
           {
+            name = "account_name"
             request_keys = [
               "accountName"
             ]
-            response_paths = [
-              "name",
-              "id"
-            ]
             required = true
-            name = "account_name"
+            response_paths = [
+              "id",
+              "name"
+            ]
             terraform_path = "name"
           },
           {
-            required = true
             name = "resource_group_name"
-            terraform_path = "resource_group_name"
             request_keys = [
               "resourceGroupName"
             ]
+            required = true
+            terraform_path = "resource_group_name"
           }
         ]
         object {
+          address = "azurerm_cosmosdb_account.test"
           kind = "resource"
           name = "test"
           type = "azurerm_cosmosdb_account"
-          address = "azurerm_cosmosdb_account.test"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -81,36 +82,34 @@
     step "azurerm_cosmosdb_account_test_create" {
       operationRef = "azurerm_cosmosdb_account_test_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "azurerm_cosmosdb_account.test"
         terraform_type = "azurerm_cosmosdb_account"
-        action = "create"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "cosmos"
+          kind = "openapi"
+          path = "openapi/cosmos.json"
+        }
+      ]
       metadata {
         action = "create"
         config_dir = "testdata/corpus/azurerm/cosmos/go/cosmosdb_account_resource_test_023/input"
         source = "ramen convert tf"
       }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          path = "openapi/cosmos.json"
-          kind = "openapi"
-          id = "cosmos"
-        }
-      ]
+      redaction {
+
+      }
       resources = [
         {
-          type = "azurerm_cosmosdb_account"
+          address = "azurerm_cosmosdb_account.test"
           attributes = {
-            location = "\\\"eastus\\\""
-            name = "\\\"acctest-ca-1\\\""
-            offer_type = "\\\"Standard\\\""
-            resource_group_name = "\\\"ramen-corpus-rg\\\""
             consistency_policy = {
               consistency_level = "\\\"Session\\\""
             }
@@ -120,20 +119,11 @@
               location = "\\\"eastus\\\""
             }
             kind = "\\\"GlobalDocumentDB\\\""
+            location = "\\\"eastus\\\""
+            name = "\\\"acctest-ca-1\\\""
+            offer_type = "\\\"Standard\\\""
+            resource_group_name = "\\\"ramen-corpus-rg\\\""
           }
-          operations = {
-            create = {
-              purpose = "create"
-              source_kind = "openapi"
-              source_id = "cosmos"
-              source_path = "openapi/cosmos.json"
-              operation_id = "DatabaseAccounts_CreateOrUpdate"
-            }
-          }
-          metadata = {
-            terraform_address = "azurerm_cosmosdb_account.test"
-          }
-          kind = "resource"
           identity_attributes = [
             {
               name = "account_name"
@@ -141,11 +131,11 @@
               request_keys = [
                 "accountName"
               ]
+              required = true
               response_paths = [
                 "name",
                 "id"
               ]
-              required = true
             },
             {
               name = "resource_group_name"
@@ -156,18 +146,29 @@
               required = true
             }
           ]
-          name = "test"
+          kind = "resource"
           lifecycle = {
 
+          }
+          metadata = {
+            terraform_address = "azurerm_cosmosdb_account.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              operation_id = "DatabaseAccounts_CreateOrUpdate"
+              purpose = "create"
+              source_id = "cosmos"
+              source_kind = "openapi"
+              source_path = "openapi/cosmos.json"
+            }
           }
           redaction = {
 
           }
-          address = "azurerm_cosmosdb_account.test"
+          type = "azurerm_cosmosdb_account"
         }
       ]
-      redaction {
-
-      }
+      version = "ramen.project.v1"
     }
   }

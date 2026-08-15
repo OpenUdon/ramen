@@ -13,6 +13,10 @@
     sourceOperationId = "CreateRole"
     description       = "Review create create for Terraform resource aws_iam_role.test"
     request {
+      body {
+        AssumeRolePolicyDocument = "data.aws_iam_policy_document.assume_role.json"
+        RoleName = "var.rName"
+      }
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
@@ -23,16 +27,16 @@
         }
         identity_attributes = [
           {
-            required = true
             name = "role_name"
-            terraform_path = "name"
             request_keys = [
               "RoleName"
             ]
+            required = true
             response_paths = [
-              "Role.RoleName",
-              "Role.Arn"
+              "Role.Arn",
+              "Role.RoleName"
             ]
+            terraform_path = "name"
           }
         ]
         object {
@@ -41,10 +45,7 @@
           name = "test"
           type = "aws_iam_role"
         }
-      }
-      body {
-        AssumeRolePolicyDocument = "data.aws_iam_policy_document.assume_role.json"
-        RoleName = "var.rName"
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -61,16 +62,19 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        policy = "data.aws_iam_policy_document.test.json"
-        role = "aws_iam_role.test.name"
-        name = "var.rName"
-      }
-      x-ramen-terraform "object" {
-        address = "aws_iam_role_policy.test"
-        kind = "resource"
-        name = "test"
-        type = "aws_iam_role_policy"
+      x-ramen-terraform {
+        attributes {
+          name = "var.rName"
+          policy = "data.aws_iam_policy_document.test.json"
+          role = "aws_iam_role.test.name"
+        }
+        object {
+          address = "aws_iam_role_policy.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_iam_role_policy"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -80,54 +84,52 @@
     step "aws_iam_role_test_create" {
       operationRef = "aws_iam_role_test_create"
       body {
-        terraform_address = "aws_iam_role.test"
-        terraform_type = "aws_iam_role"
         action = "create"
         purpose = "create"
+        terraform_address = "aws_iam_role.test"
+        terraform_type = "aws_iam_role"
       }
     }
     step "aws_iam_role_policy_test_create" {
       operationRef = "aws_iam_role_policy_test_create"
       body {
-        terraform_type = "aws_iam_role_policy"
         action = "create"
         purpose = "create"
         terraform_address = "aws_iam_role_policy.test"
+        terraform_type = "aws_iam_role_policy"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          kind = "aws-smithy"
           id = "iam"
+          kind = "aws-smithy"
           path = "aws-smithy/iam.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/aws/iam/tmpl/role_policy_basic/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
           address = "aws_iam_role.test"
-          kind = "resource"
           attributes = {
             assume_role_policy = "data.aws_iam_policy_document.assume_role.json"
             name = "var.rName"
           }
-          dependencies = [
-            "data.aws_iam_policy_document.assume_role"
-          ]
           credential_bindings = [
             "aws_hmac"
           ]
-          redaction = {
-
-          }
-          type = "aws_iam_role"
-          name = "test"
-          lifecycle = {
-
-          }
+          dependencies = [
+            "data.aws_iam_policy_document.assume_role"
+          ]
           identity_attributes = [
             {
               name = "role_name"
@@ -135,76 +137,78 @@
               request_keys = [
                 "RoleName"
               ]
+              required = true
               response_paths = [
                 "Role.RoleName",
                 "Role.Arn"
               ]
-              required = true
             }
           ]
-          operations = {
-            create = {
-              operation_id = "CreateRole"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-            }
+          kind = "resource"
+          lifecycle = {
+
           }
           metadata = {
             terraform_address = "aws_iam_role.test"
           }
-        },
-        {
-          address = "aws_iam_role_policy.test"
-          kind = "resource"
-          type = "aws_iam_role_policy"
           name = "test"
-          lifecycle = {
-
-          }
           operations = {
             create = {
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-              operation_id = "PutRolePolicy"
               credential_bindings = [
                 "aws_hmac"
               ]
+              operation_id = "CreateRole"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
             }
-          }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          metadata = {
-            terraform_address = "aws_iam_role_policy.test"
           }
           redaction = {
 
           }
+          type = "aws_iam_role"
+        },
+        {
+          address = "aws_iam_role_policy.test"
           attributes = {
+            name = "var.rName"
             policy = "data.aws_iam_policy_document.test.json"
             role = "aws_iam_role.test.name"
-            name = "var.rName"
           }
+          credential_bindings = [
+            "aws_hmac"
+          ]
           dependencies = [
             "aws_iam_role.test",
             "data.aws_iam_policy_document.test"
           ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_iam_role_policy.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "PutRolePolicy"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_iam_role_policy"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/aws/iam/tmpl/role_policy_basic/input"
-        source = "ramen convert tf"
-      }
+      version = "ramen.project.v1"
     }
   }

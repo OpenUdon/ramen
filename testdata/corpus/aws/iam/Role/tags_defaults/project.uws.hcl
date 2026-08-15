@@ -22,30 +22,31 @@
       ]
       x-ramen-terraform {
         attributes {
-          tags = "var.resource_tags"
           assume_role_policy = "jsonencode({\\n    Version = \\\"2012-10-17\\\"\\n    Statement = [{\\n      Action = \\\"sts:AssumeRole\\\",\\n      Principal = {\\n        Service = \\\"ec2.$${data.aws_partition.current.dns_suffix}\\\",\\n      }\\n      Effect = \\\"Allow\\\"\\n      Sid    = \\\"\\\"\\n    }]\\n  })"
           name = "var.rName"
+          tags = "var.resource_tags"
         }
         identity_attributes = [
           {
-            required = true
             name = "role_name"
-            terraform_path = "name"
             request_keys = [
               "RoleName"
             ]
+            required = true
             response_paths = [
-              "Role.RoleName",
-              "Role.Arn"
+              "Role.Arn",
+              "Role.RoleName"
             ]
+            terraform_path = "name"
           }
         ]
         object {
-          type = "aws_iam_role"
           address = "aws_iam_role.test"
           kind = "resource"
           name = "test"
+          type = "aws_iam_role"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -64,36 +65,35 @@
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "iam"
+          kind = "aws-smithy"
+          path = "aws-smithy/iam.json"
+        }
+      ]
       metadata {
         action = "create"
         config_dir = "testdata/corpus/aws/iam/Role/tags_defaults/input"
         source = "ramen convert tf"
       }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          kind = "aws-smithy"
-          id = "iam"
-          path = "aws-smithy/iam.json"
-        }
-      ]
+      redaction {
+
+      }
       resources = [
         {
+          address = "aws_iam_role.test"
+          attributes = {
+            assume_role_policy = "jsonencode({\\n    Version = \\\"2012-10-17\\\"\\n    Statement = [{\\n      Action = \\\"sts:AssumeRole\\\",\\n      Principal = {\\n        Service = \\\"ec2.$${data.aws_partition.current.dns_suffix}\\\",\\n      }\\n      Effect = \\\"Allow\\\"\\n      Sid    = \\\"\\\"\\n    }]\\n  })"
+            name = "var.rName"
+            tags = "var.resource_tags"
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
           dependencies = [
             "data.aws_partition.current"
           ]
-          operations = {
-            create = {
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-              operation_id = "CreateRole"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-            }
-          }
           identity_attributes = [
             {
               name = "role_name"
@@ -101,38 +101,39 @@
               request_keys = [
                 "RoleName"
               ]
+              required = true
               response_paths = [
                 "Role.RoleName",
                 "Role.Arn"
               ]
-              required = true
             }
           ]
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          address = "aws_iam_role.test"
           kind = "resource"
-          attributes = {
-            assume_role_policy = "jsonencode({\\n    Version = \\\"2012-10-17\\\"\\n    Statement = [{\\n      Action = \\\"sts:AssumeRole\\\",\\n      Principal = {\\n        Service = \\\"ec2.$${data.aws_partition.current.dns_suffix}\\\",\\n      }\\n      Effect = \\\"Allow\\\"\\n      Sid    = \\\"\\\"\\n    }]\\n  })"
-            name = "var.rName"
-            tags = "var.resource_tags"
-          }
-          name = "test"
           lifecycle = {
-
-          }
-          redaction = {
 
           }
           metadata = {
             terraform_address = "aws_iam_role.test"
           }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateRole"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
+          redaction = {
+
+          }
           type = "aws_iam_role"
         }
       ]
-      redaction {
-
-      }
+      version = "ramen.project.v1"
     }
   }

@@ -32,15 +32,15 @@
         identity_attributes = [
           {
             name = "role_name"
-            terraform_path = "name"
             request_keys = [
               "RoleName"
             ]
-            response_paths = [
-              "Role.RoleName",
-              "Role.Arn"
-            ]
             required = true
+            response_paths = [
+              "Role.Arn",
+              "Role.RoleName"
+            ]
+            terraform_path = "name"
           }
         ]
         object {
@@ -49,6 +49,7 @@
           name = "test"
           type = "aws_iam_role"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -65,16 +66,19 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        name = "var.rName"
-        policy = "<<EOF\\n{\\n  \\\"Version\\\": \\\"2012-10-17\\\",\\n  \\\"Statement\\\": [\\n    {\\n      \\\"Effect\\\": \\\"Allow\\\",\\n      \\\"Action\\\": [\\n        \\\"logs:CreateLogGroup\\\",\\n        \\\"logs:CreateLogStream\\\",\\n        \\\"logs:PutLogEvents\\\"\\n      ],\\n      \\\"Resource\\\": \\\"arn:$${data.aws_partition.current.partition}:logs:*:*:*\\\"\\n    }\\n  ]\\n}\\nEOF"
-        role = "aws_iam_role.test.id"
-      }
-      x-ramen-terraform "object" {
-        address = "aws_iam_role_policy.test"
-        kind = "resource"
-        name = "test"
-        type = "aws_iam_role_policy"
+      x-ramen-terraform {
+        attributes {
+          name = "var.rName"
+          policy = "<<EOF\\n{\\n  \\\"Version\\\": \\\"2012-10-17\\\",\\n  \\\"Statement\\\": [\\n    {\\n      \\\"Effect\\\": \\\"Allow\\\",\\n      \\\"Action\\\": [\\n        \\\"logs:CreateLogGroup\\\",\\n        \\\"logs:CreateLogStream\\\",\\n        \\\"logs:PutLogEvents\\\"\\n      ],\\n      \\\"Resource\\\": \\\"arn:$${data.aws_partition.current.partition}:logs:*:*:*\\\"\\n    }\\n  ]\\n}\\nEOF"
+          role = "aws_iam_role.test.id"
+        }
+        object {
+          address = "aws_iam_role_policy.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_iam_role_policy"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -92,18 +96,21 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        filename = "\\\"test-fixtures/lambdatest.zip\\\""
-        function_name = "\\\"$${var.rName}-$${count.index}\\\""
-        handler = "\\\"exports.example\\\""
-        role = "aws_iam_role.test.arn"
-        runtime = "\\\"nodejs24.x\\\""
-      }
-      x-ramen-terraform "object" {
-        address = "aws_lambda_function.test"
-        kind = "resource"
-        name = "test"
-        type = "aws_lambda_function"
+      x-ramen-terraform {
+        attributes {
+          filename = "\\\"test-fixtures/lambdatest.zip\\\""
+          function_name = "\\\"$${var.rName}-$${count.index}\\\""
+          handler = "\\\"exports.example\\\""
+          role = "aws_iam_role.test.arn"
+          runtime = "\\\"nodejs24.x\\\""
+        }
+        object {
+          address = "aws_lambda_function.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_lambda_function"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -122,173 +129,173 @@
     step "aws_iam_role_policy_test_create" {
       operationRef = "aws_iam_role_policy_test_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "aws_iam_role_policy.test"
         terraform_type = "aws_iam_role_policy"
-        action = "create"
       }
     }
     step "aws_lambda_function_test_create" {
       operationRef = "aws_lambda_function_test_create"
       body {
-        terraform_type = "aws_lambda_function"
         action = "create"
         purpose = "create"
         terraform_address = "aws_lambda_function.test"
+        terraform_type = "aws_lambda_function"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
           id = "iam"
+          kind = "aws-smithy"
           path = "aws-smithy/iam.json"
-          kind = "aws-smithy"
         },
         {
-          path = "aws-smithy/lambda.json"
-          kind = "aws-smithy"
           id = "lambda"
+          kind = "aws-smithy"
+          path = "aws-smithy/lambda.json"
         }
       ]
-      resources = [
-        {
-          address = "aws_iam_role.test"
-          operations = {
-            create = {
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-              operation_id = "CreateRole"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-            }
-          }
-          redaction = {
-
-          }
-          kind = "resource"
-          type = "aws_iam_role"
-          name = "test"
-          attributes = {
-            name = "var.rName"
-            assume_role_policy = "\\\"{\\\\n  \\\\\"Version\\\\\": \\\\\"2012-10-17\\\\\",\\\\n  \\\\\"Statement\\\\\": [\\\\n    {\\\\n      \\\\\"Action\\\\\": \\\\\"sts:AssumeRole\\\\\",\\\\n      \\\\\"Principal\\\\\": {\\\\n        \\\\\"Service\\\\\": \\\\\"lambda.amazonaws.com\\\\\"\\\\n      },\\\\n      \\\\\"Effect\\\\\": \\\\\"Allow\\\\\",\\\\n      \\\\\"Sid\\\\\": \\\\\"\\\\\"\\\\n    }\\\\n  ]\\\\n}\\\\n\\\""
-          }
-          lifecycle = {
-
-          }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          metadata = {
-            terraform_address = "aws_iam_role.test"
-          }
-          identity_attributes = [
-            {
-              response_paths = [
-                "Role.RoleName",
-                "Role.Arn"
-              ]
-              required = true
-              name = "role_name"
-              path = "name"
-              request_keys = [
-                "RoleName"
-              ]
-            }
-          ]
-        },
-        {
-          dependencies = [
-            "aws_iam_role.test",
-            "data.aws_partition.current"
-          ]
-          attributes = {
-            policy = "<<EOF\\n{\\n  \\\"Version\\\": \\\"2012-10-17\\\",\\n  \\\"Statement\\\": [\\n    {\\n      \\\"Effect\\\": \\\"Allow\\\",\\n      \\\"Action\\\": [\\n        \\\"logs:CreateLogGroup\\\",\\n        \\\"logs:CreateLogStream\\\",\\n        \\\"logs:PutLogEvents\\\"\\n      ],\\n      \\\"Resource\\\": \\\"arn:$${data.aws_partition.current.partition}:logs:*:*:*\\\"\\n    }\\n  ]\\n}\\nEOF"
-            role = "aws_iam_role.test.id"
-            name = "var.rName"
-          }
-          lifecycle = {
-
-          }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          type = "aws_iam_role_policy"
-          address = "aws_iam_role_policy.test"
-          operations = {
-            create = {
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-              operation_id = "PutRolePolicy"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-            }
-          }
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "aws_iam_role_policy.test"
-          }
-          kind = "resource"
-          name = "test"
-        },
-        {
-          operations = {
-            create = {
-              source_kind = "aws-smithy"
-              source_id = "lambda"
-              source_path = "aws-smithy/lambda.json"
-              operation_id = "CreateFunction"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-            }
-          }
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "aws_lambda_function.test"
-          }
-          address = "aws_lambda_function.test"
-          kind = "resource"
-          lifecycle = {
-
-          }
-          dependencies = [
-            "aws_iam_role.test"
-          ]
-          type = "aws_lambda_function"
-          name = "test"
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          attributes = {
-            runtime = "\\\"nodejs24.x\\\""
-            filename = "\\\"test-fixtures/lambdatest.zip\\\""
-            function_name = "\\\"$${var.rName}-$${count.index}\\\""
-            handler = "\\\"exports.example\\\""
-            role = "aws_iam_role.test.arn"
-          }
-        }
-      ]
-      redaction {
-
-      }
       metadata {
         action = "create"
         config_dir = "testdata/corpus/aws/lambda/Function/list_include_resource/input"
         source = "ramen convert tf"
       }
+      redaction {
+
+      }
+      resources = [
+        {
+          address = "aws_iam_role.test"
+          attributes = {
+            assume_role_policy = "\\\"{\\\\n  \\\\\"Version\\\\\": \\\\\"2012-10-17\\\\\",\\\\n  \\\\\"Statement\\\\\": [\\\\n    {\\\\n      \\\\\"Action\\\\\": \\\\\"sts:AssumeRole\\\\\",\\\\n      \\\\\"Principal\\\\\": {\\\\n        \\\\\"Service\\\\\": \\\\\"lambda.amazonaws.com\\\\\"\\\\n      },\\\\n      \\\\\"Effect\\\\\": \\\\\"Allow\\\\\",\\\\n      \\\\\"Sid\\\\\": \\\\\"\\\\\"\\\\n    }\\\\n  ]\\\\n}\\\\n\\\""
+            name = "var.rName"
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          identity_attributes = [
+            {
+              name = "role_name"
+              path = "name"
+              request_keys = [
+                "RoleName"
+              ]
+              required = true
+              response_paths = [
+                "Role.RoleName",
+                "Role.Arn"
+              ]
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_iam_role.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateRole"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_iam_role"
+        },
+        {
+          address = "aws_iam_role_policy.test"
+          attributes = {
+            name = "var.rName"
+            policy = "<<EOF\\n{\\n  \\\"Version\\\": \\\"2012-10-17\\\",\\n  \\\"Statement\\\": [\\n    {\\n      \\\"Effect\\\": \\\"Allow\\\",\\n      \\\"Action\\\": [\\n        \\\"logs:CreateLogGroup\\\",\\n        \\\"logs:CreateLogStream\\\",\\n        \\\"logs:PutLogEvents\\\"\\n      ],\\n      \\\"Resource\\\": \\\"arn:$${data.aws_partition.current.partition}:logs:*:*:*\\\"\\n    }\\n  ]\\n}\\nEOF"
+            role = "aws_iam_role.test.id"
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          dependencies = [
+            "aws_iam_role.test",
+            "data.aws_partition.current"
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_iam_role_policy.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "PutRolePolicy"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_iam_role_policy"
+        },
+        {
+          address = "aws_lambda_function.test"
+          attributes = {
+            filename = "\\\"test-fixtures/lambdatest.zip\\\""
+            function_name = "\\\"$${var.rName}-$${count.index}\\\""
+            handler = "\\\"exports.example\\\""
+            role = "aws_iam_role.test.arn"
+            runtime = "\\\"nodejs24.x\\\""
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          dependencies = [
+            "aws_iam_role.test"
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_lambda_function.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateFunction"
+              purpose = "create"
+              source_id = "lambda"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/lambda.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_lambda_function"
+        }
+      ]
+      version = "ramen.project.v1"
     }
   }

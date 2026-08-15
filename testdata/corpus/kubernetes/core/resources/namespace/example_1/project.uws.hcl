@@ -14,9 +14,9 @@
     description       = "Review create create for Terraform resource kubernetes_namespace.example"
     request {
       body "metadata" {
+        annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
         labels = "{\\\"mylabel\\\":\\\"label-value\\\"}"
         name = "\\\"terraform-example-namespace\\\""
-        annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
       }
       x-ramen-terraform {
         attributes "metadata" {
@@ -26,23 +26,24 @@
         }
         identity_attributes = [
           {
+            name = "namespace_name"
             request_keys = [
               "name"
             ]
+            required = true
             response_paths = [
               "metadata.name"
             ]
-            required = true
-            name = "namespace_name"
             terraform_path = "metadata.name"
           }
         ]
         object {
+          address = "kubernetes_namespace.example"
           kind = "resource"
           name = "example"
           type = "kubernetes_namespace"
-          address = "kubernetes_namespace.example"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -61,26 +62,30 @@
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "core"
+          kind = "openapi"
+          path = "openapi/core.json"
+        }
+      ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/kubernetes/core/resources/namespace/example_1/input"
+        source = "ramen convert tf"
+      }
       redaction {
 
       }
-      metadata {
-        source = "ramen convert tf"
-        action = "create"
-        config_dir = "testdata/corpus/kubernetes/core/resources/namespace/example_1/input"
-      }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          path = "openapi/core.json"
-          kind = "openapi"
-          id = "core"
-        }
-      ]
       resources = [
         {
-          lifecycle = {
-
+          address = "kubernetes_namespace.example"
+          attributes = {
+            metadata = {
+              annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
+              labels = "{\\\"mylabel\\\":\\\"label-value\\\"}"
+              name = "\\\"terraform-example-namespace\\\""
+            }
           }
           identity_attributes = [
             {
@@ -89,39 +94,35 @@
               request_keys = [
                 "name"
               ]
+              required = true
               response_paths = [
                 "metadata.name"
               ]
-              required = true
             }
           ]
-          redaction = {
+          kind = "resource"
+          lifecycle = {
 
           }
           metadata = {
             terraform_address = "kubernetes_namespace.example"
           }
-          address = "kubernetes_namespace.example"
+          name = "example"
           operations = {
             create = {
-              source_kind = "openapi"
-              source_id = "core"
-              source_path = "openapi/core.json"
               operation_id = "createCoreV1Namespace"
               purpose = "create"
+              source_id = "core"
+              source_kind = "openapi"
+              source_path = "openapi/core.json"
             }
           }
-          kind = "resource"
+          redaction = {
+
+          }
           type = "kubernetes_namespace"
-          name = "example"
-          attributes = {
-            metadata = {
-              annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
-              labels = "{\\\"mylabel\\\":\\\"label-value\\\"}"
-              name = "\\\"terraform-example-namespace\\\""
-            }
-          }
         }
       ]
+      version = "ramen.project.v1"
     }
   }

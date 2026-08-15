@@ -27,23 +27,24 @@
         }
         identity_attributes = [
           {
-            required = true
             name = "name"
-            terraform_path = "metadata.name"
             request_keys = [
               "name"
             ]
+            required = true
             response_paths = [
               "metadata.name"
             ]
+            terraform_path = "metadata.name"
           }
         ]
         object {
+          address = "kubernetes_cluster_role_v1.example"
           kind = "resource"
           name = "example"
           type = "kubernetes_cluster_role_v1"
-          address = "kubernetes_cluster_role_v1.example"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -64,29 +65,22 @@
     x-ramen-desired-state {
       api_sources = [
         {
-          kind = "openapi"
           id = "core"
+          kind = "openapi"
           path = "openapi/core.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          identity_attributes = [
-            {
-              response_paths = [
-                "metadata.name"
-              ]
-              required = true
-              name = "name"
-              path = "metadata.name"
-              request_keys = [
-                "name"
-              ]
-            }
-          ]
-          redaction = {
-
-          }
+          address = "kubernetes_cluster_role_v1.example"
           attributes = {
             metadata = {
               name = "\\\"terraform-example\\\""
@@ -97,35 +91,42 @@
               verbs = "[\\\"get\\\",\\\"list\\\",\\\"watch\\\"]"
             }
           }
+          identity_attributes = [
+            {
+              name = "name"
+              path = "metadata.name"
+              request_keys = [
+                "name"
+              ]
+              required = true
+              response_paths = [
+                "metadata.name"
+              ]
+            }
+          ]
+          kind = "resource"
           lifecycle = {
 
-          }
-          address = "kubernetes_cluster_role_v1.example"
-          kind = "resource"
-          type = "kubernetes_cluster_role_v1"
-          operations = {
-            create = {
-              source_kind = "openapi"
-              source_id = "core"
-              source_path = "openapi/core.json"
-              operation_id = "createRbacAuthorizationV1ClusterRole"
-              purpose = "create"
-            }
           }
           metadata = {
             terraform_address = "kubernetes_cluster_role_v1.example"
           }
           name = "example"
+          operations = {
+            create = {
+              operation_id = "createRbacAuthorizationV1ClusterRole"
+              purpose = "create"
+              source_id = "core"
+              source_kind = "openapi"
+              source_path = "openapi/core.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "kubernetes_cluster_role_v1"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/kubernetes/core/resources/cluster_role_v1/example_1/input"
-        source = "ramen convert tf"
-      }
       version = "ramen.project.v1"
     }
   }

@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -193,6 +194,43 @@ func TestManualCleanCorpusReproducesKeyArtifacts(t *testing.T) {
 		})
 	}
 	assertCorpusExecuted(t, "manual clean corpus", executed, len(m.Entries))
+}
+
+func TestTerraformCorpusUsesVersionedRamenMetadata(t *testing.T) {
+	files := 0
+	for _, root := range []string{corpusRoot, manualCorpusRoot} {
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || (filepath.Ext(path) != ".yaml" && filepath.Ext(path) != ".hcl") {
+				return nil
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			text := string(data)
+			metadataCount := strings.Count(text, "x-ramen-terraform")
+			if metadataCount == 0 {
+				return nil
+			}
+			files++
+			if versionCount := strings.Count(text, "ramen.terraform.provenance.v1"); versionCount != metadataCount {
+				t.Errorf("%s has %d Terraform metadata envelopes and %d provenance discriminators", path, metadataCount, versionCount)
+			}
+			if strings.Contains(text, "ramen-review-todo") {
+				t.Errorf("%s contains retired Terraform review profile", path)
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatalf("scan Terraform corpus %s: %v", root, err)
+		}
+	}
+	if files == 0 {
+		t.Fatal("Terraform corpus metadata scan found no YAML/HCL artifacts")
+	}
 }
 
 func TestCorpusMissingFixturePolicy(t *testing.T) {

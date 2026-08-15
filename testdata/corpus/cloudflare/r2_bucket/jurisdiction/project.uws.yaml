@@ -25,8 +25,8 @@ operations:
                   terraform_path: account_id
                 - name: bucket_name
                   request_keys:
-                    - name
                     - bucket_name
+                    - name
                   required: true
                   response_paths:
                     - result.name
@@ -36,6 +36,7 @@ operations:
                 kind: resource
                 name: ramen_corpus
                 type: cloudflare_r2_bucket
+            version: ramen.terraform.provenance.v1
       sourceDescription: r2_bucket
       sourceOperationId: r2-create-bucket
 sourceDescriptions:

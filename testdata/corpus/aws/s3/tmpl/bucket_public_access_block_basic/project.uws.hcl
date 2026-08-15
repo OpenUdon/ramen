@@ -19,14 +19,17 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        bucket = "var.rName"
-      }
-      x-ramen-terraform "object" {
-        type = "aws_s3_bucket"
-        address = "aws_s3_bucket.test"
-        kind = "resource"
-        name = "test"
+      x-ramen-terraform {
+        attributes {
+          bucket = "var.rName"
+        }
+        object {
+          address = "aws_s3_bucket.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_s3_bucket"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -57,11 +60,11 @@
         }
         identity_attributes = [
           {
+            name = "bucket"
             request_keys = [
               "Bucket"
             ]
             required = true
-            name = "bucket"
             terraform_path = "bucket"
           }
         ]
@@ -71,6 +74,7 @@
           name = "test"
           type = "aws_s3_bucket_public_access_block"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -80,73 +84,75 @@
     step "aws_s3_bucket_test_create" {
       operationRef = "aws_s3_bucket_test_create"
       body {
-        terraform_type = "aws_s3_bucket"
         action = "create"
         purpose = "create"
         terraform_address = "aws_s3_bucket.test"
+        terraform_type = "aws_s3_bucket"
       }
     }
     step "aws_s3_bucket_public_access_block_test_create" {
       operationRef = "aws_s3_bucket_public_access_block_test_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "aws_s3_bucket_public_access_block.test"
         terraform_type = "aws_s3_bucket_public_access_block"
-        action = "create"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "s3"
+          kind = "aws-smithy"
+          path = "aws-smithy/s3.json"
+        }
+      ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          name = "test"
-          lifecycle = {
-
-          }
-          operations = {
-            create = {
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "s3"
-              source_path = "aws-smithy/s3.json"
-              operation_id = "CreateBucket"
-            }
-          }
-          redaction = {
-
-          }
+          address = "aws_s3_bucket.test"
           attributes = {
             bucket = "var.rName"
           }
           credential_bindings = [
             "aws_hmac"
           ]
-          address = "aws_s3_bucket.test"
-          type = "aws_s3_bucket"
+          kind = "resource"
+          lifecycle = {
+
+          }
           metadata = {
             terraform_address = "aws_s3_bucket.test"
           }
-          kind = "resource"
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateBucket"
+              purpose = "create"
+              source_id = "s3"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/s3.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_s3_bucket"
         },
         {
-          identity_attributes = [
-            {
-              required = true
-              name = "bucket"
-              path = "bucket"
-              request_keys = [
-                "Bucket"
-              ]
-            }
-          ]
           address = "aws_s3_bucket_public_access_block.test"
-          kind = "resource"
-          type = "aws_s3_bucket_public_access_block"
-          name = "test"
           attributes = {
             block_public_acls = "false"
             block_public_policy = "false"
@@ -154,50 +160,48 @@
             ignore_public_acls = "false"
             restrict_public_buckets = "false"
           }
-          dependencies = [
-            "aws_s3_bucket.test"
-          ]
-          operations = {
-            create = {
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "s3"
-              source_path = "aws-smithy/s3.json"
-              operation_id = "PutPublicAccessBlock"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-            }
-          }
           credential_bindings = [
             "aws_hmac"
           ]
-          redaction = {
+          dependencies = [
+            "aws_s3_bucket.test"
+          ]
+          identity_attributes = [
+            {
+              name = "bucket"
+              path = "bucket"
+              request_keys = [
+                "Bucket"
+              ]
+              required = true
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
 
           }
           metadata = {
             terraform_address = "aws_s3_bucket_public_access_block.test"
           }
-          lifecycle = {
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "PutPublicAccessBlock"
+              purpose = "create"
+              source_id = "s3"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/s3.json"
+            }
+          }
+          redaction = {
 
           }
+          type = "aws_s3_bucket_public_access_block"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/aws/s3/tmpl/bucket_public_access_block_basic/input"
-        source = "ramen convert tf"
-      }
       version = "ramen.project.v1"
-      api_sources = [
-        {
-          path = "aws-smithy/s3.json"
-          kind = "aws-smithy"
-          id = "s3"
-        }
-      ]
     }
   }

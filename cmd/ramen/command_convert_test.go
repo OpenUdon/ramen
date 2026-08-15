@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/ramen/internal/ansibleconvert"
+	"github.com/OpenUdon/ramen/internal/tfconvert"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -137,6 +138,13 @@ paths:
 	if !strings.Contains(string(output), "ramen: convert wrote") {
 		t.Fatalf("convert output missing summary:\n%s", output)
 	}
+	projectData, err := os.ReadFile(filepath.Join(outDir, "project.uws.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(projectData), tfconvert.TerraformProvenanceVersion) || strings.Contains(string(projectData), "ramen-review-todo") {
+		t.Fatalf("converted project lacks versioned Terraform metadata:\n%s", projectData)
+	}
 	for _, rel := range []string{"project.md", "project.uws.yaml", "workflows/workflow.uws.yaml", "expected/conversion.json", "expected/mappings.json", "expected/diagnostics.json", "expected/diagnostics.md", "expected/review.md"} {
 		if _, err := os.Stat(filepath.Join(outDir, rel)); err != nil {
 			t.Fatalf("missing %s: %v", rel, err)
@@ -265,7 +273,7 @@ func TestCLIConvertAnsibleSupportedTargetsRunInCheckMode(t *testing.T) {
 	}
 }
 
-func TestInstalledCLIConvertAnsibleUsesEmbeddedSchemas(t *testing.T) {
+func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 	root := t.TempDir()
 	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
 	if err != nil {
@@ -317,6 +325,62 @@ func TestInstalledCLIConvertAnsibleUsesEmbeddedSchemas(t *testing.T) {
 	}
 	if !strings.Contains(string(data), ansibleconvert.ProfileName) || !strings.Contains(string(data), ansibleconvert.ExtensionAnsibleModule) {
 		t.Fatalf("installed CLI output lacks Ramen-owned metadata:\n%s", data)
+	}
+
+	tfDir := filepath.Join(root, "tf")
+	apiPath := filepath.Join(root, "api.yaml")
+	mustWriteCLIFile(t, filepath.Join(tfDir, "main.tf"), []byte(`
+resource "aws_instance" "web" {
+  name = "web"
+}
+`))
+	mustWriteCLIFile(t, apiPath, []byte(`openapi: 3.0.0
+info:
+  title: Installed Terraform conversion
+  version: v1
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200":
+          description: ok
+`))
+	command = exec.Command(binary,
+		"convert", "tf",
+		"--config-dir", "tf",
+		"--openapi", "aws=api.yaml",
+		"--action", "create",
+		"--out", "tf-out",
+	)
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("installed Terraform conversion outside repository: %v\n%s", err, output)
+	}
+	tfProjectPath := filepath.Join(root, "tf-out", "project.uws.yaml")
+	tfProject, err := os.ReadFile(tfProjectPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(tfProject), tfconvert.TerraformProvenanceVersion) {
+		t.Fatalf("installed Terraform output lacks provenance discriminator:\n%s", tfProject)
+	}
+	command = exec.Command(binary, "validate", "--project", "tf-out")
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("installed CLI rejected new Terraform metadata: %v\n%s", err, output)
+	}
+
+	legacy := strings.Replace(string(tfProject), "            version: "+tfconvert.TerraformProvenanceVersion+"\n", "", 1)
+	if legacy == string(tfProject) {
+		t.Fatalf("failed to construct unversioned Terraform fixture:\n%s", tfProject)
+	}
+	mustWriteCLIFile(t, tfProjectPath, []byte(legacy))
+	command = exec.Command(binary, "validate", "--project", "tf-out")
+	command.Dir = root
+	output, err := command.CombinedOutput()
+	if err == nil || !strings.Contains(string(output), "validate.terraform_metadata_invalid") {
+		t.Fatalf("installed CLI accepted unversioned Terraform metadata: err=%v\n%s", err, output)
 	}
 }
 

@@ -51,6 +51,7 @@
           name = "k12_cluster_role_binding"
           type = "kubernetes_cluster_role_binding_v1"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }

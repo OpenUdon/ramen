@@ -21,30 +21,31 @@
       ]
       x-ramen-terraform {
         attributes {
-          tags = "var.resource_tags"
           name = "var.rName"
+          tags = "var.resource_tags"
         }
         identity_attributes = [
           {
-            terraform_path = "name"
+            name = "user_name"
             request_keys = [
               "UserName"
             ]
-            response_paths = [
-              "User.UserName",
-              "User.Arn",
-              "User.UserId"
-            ]
             required = true
-            name = "user_name"
+            response_paths = [
+              "User.Arn",
+              "User.UserId",
+              "User.UserName"
+            ]
+            terraform_path = "name"
           }
         ]
         object {
+          address = "aws_iam_user.test"
           kind = "resource"
           name = "test"
           type = "aws_iam_user"
-          address = "aws_iam_user.test"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -63,72 +64,72 @@
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          kind = "aws-smithy"
           id = "iam"
+          kind = "aws-smithy"
           path = "aws-smithy/iam.json"
         }
       ]
-      resources = [
-        {
-          name = "test"
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "aws_iam_user.test"
-          }
-          attributes = {
-            name = "var.rName"
-            tags = "var.resource_tags"
-          }
-          operations = {
-            create = {
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-              operation_id = "CreateUser"
-            }
-          }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          type = "aws_iam_user"
-          lifecycle = {
-
-          }
-          address = "aws_iam_user.test"
-          identity_attributes = [
-            {
-              path = "name"
-              request_keys = [
-                "UserName"
-              ]
-              response_paths = [
-                "User.UserName",
-                "User.Arn",
-                "User.UserId"
-              ]
-              required = true
-              name = "user_name"
-            }
-          ]
-          kind = "resource"
-        }
-      ]
-      redaction {
-
-      }
       metadata {
         action = "create"
         config_dir = "testdata/corpus/aws/iam/User/tags/input"
         source = "ramen convert tf"
       }
+      redaction {
+
+      }
+      resources = [
+        {
+          address = "aws_iam_user.test"
+          attributes = {
+            name = "var.rName"
+            tags = "var.resource_tags"
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          identity_attributes = [
+            {
+              name = "user_name"
+              path = "name"
+              request_keys = [
+                "UserName"
+              ]
+              required = true
+              response_paths = [
+                "User.UserName",
+                "User.Arn",
+                "User.UserId"
+              ]
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_iam_user.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateUser"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_iam_user"
+        }
+      ]
+      version = "ramen.project.v1"
     }
   }

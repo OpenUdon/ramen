@@ -31,16 +31,16 @@
         }
         identity_attributes = [
           {
-            terraform_path = "name"
+            name = "role_name"
             request_keys = [
               "RoleName"
             ]
-            response_paths = [
-              "Role.RoleName",
-              "Role.Arn"
-            ]
             required = true
-            name = "role_name"
+            response_paths = [
+              "Role.Arn",
+              "Role.RoleName"
+            ]
+            terraform_path = "name"
           }
         ]
         object {
@@ -49,6 +49,7 @@
           name = "test"
           type = "aws_iam_role"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -58,27 +59,30 @@
     description       = "Review create create for Terraform resource aws_lambda_function.test"
     request {
       body {
-        Role = "aws_iam_role.test.arn"
-        Runtime = "\\\"nodejs24.x\\\""
         FunctionName = "var.rName"
         Handler = "\\\"exports.example\\\""
+        Role = "aws_iam_role.test.arn"
+        Runtime = "\\\"nodejs24.x\\\""
       }
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        region = "var.region"
-        role = "aws_iam_role.test.arn"
-        runtime = "\\\"nodejs24.x\\\""
-        filename = "\\\"test-fixtures/lambdatest.zip\\\""
-        function_name = "var.rName"
-        handler = "\\\"exports.example\\\""
-      }
-      x-ramen-terraform "object" {
-        address = "aws_lambda_function.test"
-        kind = "resource"
-        name = "test"
-        type = "aws_lambda_function"
+      x-ramen-terraform {
+        attributes {
+          filename = "\\\"test-fixtures/lambdatest.zip\\\""
+          function_name = "var.rName"
+          handler = "\\\"exports.example\\\""
+          region = "var.region"
+          role = "aws_iam_role.test.arn"
+          runtime = "\\\"nodejs24.x\\\""
+        }
+        object {
+          address = "aws_lambda_function.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_lambda_function"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -100,36 +104,37 @@
       ]
       x-ramen-terraform {
         attributes {
-          statement_id = "\\\"$${var.rName}-$${count.index}\\\""
           action = "\\\"lambda:InvokeFunction\\\""
           function_name = "aws_lambda_function.test.function_name"
           principal = "\\\"events.amazonaws.com\\\""
           region = "var.region"
+          statement_id = "\\\"$${var.rName}-$${count.index}\\\""
         }
         identity_attributes = [
           {
+            name = "function_name"
             request_keys = [
               "FunctionName"
             ]
             required = true
-            name = "function_name"
             terraform_path = "function_name"
           },
           {
-            terraform_path = "statement_id"
+            name = "statement_id"
             request_keys = [
               "StatementId"
             ]
             required = true
-            name = "statement_id"
+            terraform_path = "statement_id"
           }
         ]
         object {
-          name = "test"
-          type = "aws_lambda_permission"
           address = "aws_lambda_permission.test"
           kind = "resource"
+          name = "test"
+          type = "aws_lambda_permission"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -139,10 +144,10 @@
     step "aws_iam_role_test_create" {
       operationRef = "aws_iam_role_test_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "aws_iam_role.test"
         terraform_type = "aws_iam_role"
-        action = "create"
       }
     }
     step "aws_lambda_function_test_create" {
@@ -157,53 +162,45 @@
     step "aws_lambda_permission_test_create" {
       operationRef = "aws_lambda_permission_test_create"
       body {
-        terraform_type = "aws_lambda_permission"
         action = "create"
         purpose = "create"
         terraform_address = "aws_lambda_permission.test"
+        terraform_type = "aws_lambda_permission"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          kind = "aws-smithy"
           id = "iam"
+          kind = "aws-smithy"
           path = "aws-smithy/iam.json"
         },
         {
           id = "lambda"
-          path = "aws-smithy/lambda.json"
           kind = "aws-smithy"
+          path = "aws-smithy/lambda.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/aws/lambda/Permission/list_region_override/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
+          address = "aws_iam_role.test"
           attributes = {
             assume_role_policy = "\\\"{\\\\n  \\\\\"Version\\\\\": \\\\\"2012-10-17\\\\\",\\\\n  \\\\\"Statement\\\\\": [\\\\n    {\\\\n      \\\\\"Action\\\\\": \\\\\"sts:AssumeRole\\\\\",\\\\n      \\\\\"Principal\\\\\": {\\\\n        \\\\\"Service\\\\\": \\\\\"lambda.amazonaws.com\\\\\"\\\\n      },\\\\n      \\\\\"Effect\\\\\": \\\\\"Allow\\\\\",\\\\n      \\\\\"Sid\\\\\": \\\\\"\\\\\"\\\\n    }\\\\n  ]\\\\n}\\\\n\\\""
             name = "var.rName"
           }
-          operations = {
-            create = {
-              source_path = "aws-smithy/iam.json"
-              operation_id = "CreateRole"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-            }
-          }
           credential_bindings = [
             "aws_hmac"
           ]
-          metadata = {
-            terraform_address = "aws_iam_role.test"
-          }
-          address = "aws_iam_role.test"
           identity_attributes = [
             {
               name = "role_name"
@@ -211,93 +208,94 @@
               request_keys = [
                 "RoleName"
               ]
+              required = true
               response_paths = [
                 "Role.RoleName",
                 "Role.Arn"
               ]
-              required = true
             }
           ]
           kind = "resource"
           lifecycle = {
 
           }
+          metadata = {
+            terraform_address = "aws_iam_role.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateRole"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
           redaction = {
 
           }
           type = "aws_iam_role"
-          name = "test"
         },
         {
-          redaction = {
-
+          address = "aws_lambda_function.test"
+          attributes = {
+            filename = "\\\"test-fixtures/lambdatest.zip\\\""
+            function_name = "var.rName"
+            handler = "\\\"exports.example\\\""
+            region = "var.region"
+            role = "aws_iam_role.test.arn"
+            runtime = "\\\"nodejs24.x\\\""
           }
-          type = "aws_lambda_function"
-          name = "test"
+          credential_bindings = [
+            "aws_hmac"
+          ]
           dependencies = [
             "aws_iam_role.test"
           ]
-          address = "aws_lambda_function.test"
+          kind = "resource"
           lifecycle = {
 
           }
           metadata = {
             terraform_address = "aws_lambda_function.test"
           }
-          kind = "resource"
-          attributes = {
-            region = "var.region"
-            role = "aws_iam_role.test.arn"
-            runtime = "\\\"nodejs24.x\\\""
-            filename = "\\\"test-fixtures/lambdatest.zip\\\""
-            function_name = "var.rName"
-            handler = "\\\"exports.example\\\""
-          }
+          name = "test"
           operations = {
             create = {
-              operation_id = "CreateFunction"
               credential_bindings = [
                 "aws_hmac"
               ]
+              operation_id = "CreateFunction"
               purpose = "create"
-              source_kind = "aws-smithy"
               source_id = "lambda"
+              source_kind = "aws-smithy"
               source_path = "aws-smithy/lambda.json"
             }
           }
-          credential_bindings = [
-            "aws_hmac"
-          ]
+          redaction = {
+
+          }
+          type = "aws_lambda_function"
         },
         {
+          address = "aws_lambda_permission.test"
           attributes = {
+            action = "\\\"lambda:InvokeFunction\\\""
             function_name = "aws_lambda_function.test.function_name"
             principal = "\\\"events.amazonaws.com\\\""
             region = "var.region"
             statement_id = "\\\"$${var.rName}-$${count.index}\\\""
-            action = "\\\"lambda:InvokeFunction\\\""
-          }
-          operations = {
-            create = {
-              source_path = "aws-smithy/lambda.json"
-              operation_id = "AddPermission"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "lambda"
-            }
           }
           credential_bindings = [
             "aws_hmac"
           ]
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "aws_lambda_permission.test"
-          }
+          dependencies = [
+            "aws_lambda_function.test"
+          ]
           identity_attributes = [
             {
               name = "function_name"
@@ -316,25 +314,32 @@
               required = true
             }
           ]
-          address = "aws_lambda_permission.test"
+          kind = "resource"
           lifecycle = {
 
           }
-          dependencies = [
-            "aws_lambda_function.test"
-          ]
-          kind = "resource"
-          type = "aws_lambda_permission"
+          metadata = {
+            terraform_address = "aws_lambda_permission.test"
+          }
           name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "AddPermission"
+              purpose = "create"
+              source_id = "lambda"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/lambda.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_lambda_permission"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        config_dir = "testdata/corpus/aws/lambda/Permission/list_region_override/input"
-        source = "ramen convert tf"
-        action = "create"
-      }
+      version = "ramen.project.v1"
     }
   }

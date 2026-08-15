@@ -17,28 +17,29 @@
         name = "\\\"my-first-namespace\\\""
       }
       x-ramen-terraform {
-        identity_attributes = [
-          {
-            response_paths = [
-              "metadata.name"
-            ]
-            required = true
-            name = "namespace_name"
-            terraform_path = "metadata.name"
-            request_keys = [
-              "name"
-            ]
-          }
-        ]
-        object {
-          kind = "resource"
-          name = "example"
-          type = "kubernetes_namespace"
-          address = "kubernetes_namespace.example"
-        }
         attributes "metadata" {
           name = "\\\"my-first-namespace\\\""
         }
+        identity_attributes = [
+          {
+            name = "namespace_name"
+            request_keys = [
+              "name"
+            ]
+            required = true
+            response_paths = [
+              "metadata.name"
+            ]
+            terraform_path = "metadata.name"
+          }
+        ]
+        object {
+          address = "kubernetes_namespace.example"
+          kind = "resource"
+          name = "example"
+          type = "kubernetes_namespace"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -48,33 +49,38 @@
     step "kubernetes_namespace_example_create" {
       operationRef = "kubernetes_namespace_example_create"
       body {
-        terraform_address = "kubernetes_namespace.example"
-        terraform_type = "kubernetes_namespace"
         action = "create"
         purpose = "create"
+        terraform_address = "kubernetes_namespace.example"
+        terraform_type = "kubernetes_namespace"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "core"
+          kind = "openapi"
+          path = "openapi/core.json"
+        }
+      ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/kubernetes/core/example_1/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          redaction = {
-
-          }
+          address = "kubernetes_namespace.example"
           attributes = {
             metadata = {
               name = "\\\"my-first-namespace\\\""
             }
           }
-          lifecycle = {
-
-          }
-          metadata = {
-            terraform_address = "kubernetes_namespace.example"
-          }
-          name = "example"
-          address = "kubernetes_namespace.example"
           identity_attributes = [
             {
               name = "namespace_name"
@@ -82,40 +88,35 @@
               request_keys = [
                 "name"
               ]
+              required = true
               response_paths = [
                 "metadata.name"
               ]
-              required = true
             }
           ]
           kind = "resource"
-          type = "kubernetes_namespace"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "kubernetes_namespace.example"
+          }
+          name = "example"
           operations = {
             create = {
-              purpose = "create"
-              source_kind = "openapi"
-              source_id = "core"
-              source_path = "openapi/core.json"
               operation_id = "createCoreV1Namespace"
+              purpose = "create"
+              source_id = "core"
+              source_kind = "openapi"
+              source_path = "openapi/core.json"
             }
           }
-        }
-      ]
-      redaction {
+          redaction = {
 
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/kubernetes/core/example_1/input"
-        source = "ramen convert tf"
-      }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          id = "core"
-          path = "openapi/core.json"
-          kind = "openapi"
+          }
+          type = "kubernetes_namespace"
         }
       ]
+      version = "ramen.project.v1"
     }
   }

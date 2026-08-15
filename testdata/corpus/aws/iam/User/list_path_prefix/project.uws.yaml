@@ -21,15 +21,16 @@ operations:
                     - UserName
                   required: true
                   response_paths:
-                    - User.UserName
                     - User.Arn
                     - User.UserId
+                    - User.UserName
                   terraform_path: name
             object:
                 address: aws_iam_user.expected
                 kind: resource
                 name: expected
                 type: aws_iam_user
+            version: ramen.terraform.provenance.v1
       sourceDescription: iam
       sourceOperationId: CreateUser
     - description: Review create create for Terraform resource aws_iam_user.not_expected
@@ -50,15 +51,16 @@ operations:
                     - UserName
                   required: true
                   response_paths:
-                    - User.UserName
                     - User.Arn
                     - User.UserId
+                    - User.UserName
                   terraform_path: name
             object:
                 address: aws_iam_user.not_expected
                 kind: resource
                 name: not_expected
                 type: aws_iam_user
+            version: ramen.terraform.provenance.v1
       sourceDescription: iam
       sourceOperationId: CreateUser
 sourceDescriptions:

@@ -13,6 +13,10 @@
     sourceOperationId = "storage.buckets.insert"
     description       = "Review create create for Terraform resource google_storage_bucket.bucket"
     request {
+      body {
+        location = "\\\"EU\\\""
+        name = "\\\"ramen-corpus\\\""
+      }
       x-ramen-credential-bindings = [
         "google_oauth2"
       ]
@@ -31,28 +35,25 @@
         }
         identity_attributes = [
           {
-            terraform_path = "name"
+            name = "bucket_name"
             request_keys = [
               "name"
             ]
-            response_paths = [
-              "name",
-              "id"
-            ]
             required = true
-            name = "bucket_name"
+            response_paths = [
+              "id",
+              "name"
+            ]
+            terraform_path = "name"
           }
         ]
         object {
-          type = "google_storage_bucket"
           address = "google_storage_bucket.bucket"
           kind = "resource"
           name = "bucket"
+          type = "google_storage_bucket"
         }
-      }
-      body {
-        location = "\\\"EU\\\""
-        name = "\\\"ramen-corpus\\\""
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -62,58 +63,50 @@
     step "google_storage_bucket_bucket_create" {
       operationRef = "google_storage_bucket_bucket_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "google_storage_bucket.bucket"
         terraform_type = "google_storage_bucket"
-        action = "create"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      metadata {
-        source = "ramen convert tf"
-        action = "create"
-        config_dir = "testdata/corpus/google/storage/go/resource_storage_bucket_test_013/input"
-      }
-      version = "ramen.project.v1"
       api_sources = [
         {
           id = "storage"
-          path = "google-discovery/storage.json"
           kind = "google-discovery"
+          path = "google-discovery/storage.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/google/storage/go/resource_storage_bucket_test_013/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
           address = "google_storage_bucket.bucket"
-          lifecycle = {
-
-          }
-          credential_bindings = [
-            "google_oauth2"
-          ]
-          kind = "resource"
           attributes = {
-            name = "\\\"ramen-corpus\\\""
             force_destroy = "\\\"true\\\""
             lifecycle_rule = {
               action = {
                 type = "\\\"Delete\\\""
               }
               condition = {
-                send_age_if_zero = "true"
                 age = "0"
+                send_age_if_zero = "true"
               }
             }
             location = "\\\"EU\\\""
+            name = "\\\"ramen-corpus\\\""
           }
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "google_storage_bucket.bucket"
-          }
+          credential_bindings = [
+            "google_oauth2"
+          ]
           identity_attributes = [
             {
               name = "bucket_name"
@@ -121,31 +114,39 @@
               request_keys = [
                 "name"
               ]
+              required = true
               response_paths = [
                 "name",
                 "id"
               ]
-              required = true
             }
           ]
-          type = "google_storage_bucket"
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "google_storage_bucket.bucket"
+          }
           name = "bucket"
           operations = {
             create = {
-              operation_id = "storage.buckets.insert"
               credential_bindings = [
                 "google_oauth2"
               ]
+              operation_id = "storage.buckets.insert"
               purpose = "create"
-              source_kind = "google-discovery"
               source_id = "storage"
+              source_kind = "google-discovery"
               source_path = "google-discovery/storage.json"
             }
           }
+          redaction = {
+
+          }
+          type = "google_storage_bucket"
         }
       ]
-      redaction {
-
-      }
+      version = "ramen.project.v1"
     }
   }

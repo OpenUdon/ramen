@@ -13,43 +13,44 @@
     sourceOperationId = "storage.buckets.insert"
     description       = "Review create create for Terraform resource google_storage_bucket.website"
     request {
+      body {
+        location = "\\\"US\\\""
+        name = "\\\"ramen-corpus.gcp.tfacc.hashicorptest.com\\\""
+      }
       x-ramen-credential-bindings = [
         "google_oauth2"
       ]
       x-ramen-terraform {
         attributes {
-          website {
-            main_page_suffix = "\\\"default.html\\\""
-          }
           force_destroy = "true"
           location = "\\\"US\\\""
           name = "\\\"ramen-corpus.gcp.tfacc.hashicorptest.com\\\""
           storage_class = "\\\"STANDARD\\\""
+          website {
+            main_page_suffix = "\\\"default.html\\\""
+          }
         }
         identity_attributes = [
           {
+            name = "bucket_name"
             request_keys = [
               "name"
             ]
-            response_paths = [
-              "name",
-              "id"
-            ]
             required = true
-            name = "bucket_name"
+            response_paths = [
+              "id",
+              "name"
+            ]
             terraform_path = "name"
           }
         ]
         object {
-          type = "google_storage_bucket"
           address = "google_storage_bucket.website"
           kind = "resource"
           name = "website"
+          type = "google_storage_bucket"
         }
-      }
-      body {
-        location = "\\\"US\\\""
-        name = "\\\"ramen-corpus.gcp.tfacc.hashicorptest.com\\\""
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -59,85 +60,85 @@
     step "google_storage_bucket_website_create" {
       operationRef = "google_storage_bucket_website_create"
       body {
-        terraform_address = "google_storage_bucket.website"
-        terraform_type = "google_storage_bucket"
         action = "create"
         purpose = "create"
+        terraform_address = "google_storage_bucket.website"
+        terraform_type = "google_storage_bucket"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          path = "google-discovery/storage.json"
-          kind = "google-discovery"
           id = "storage"
+          kind = "google-discovery"
+          path = "google-discovery/storage.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/google/storage/go/resource_storage_bucket_test_046/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          type = "google_storage_bucket"
+          address = "google_storage_bucket.website"
           attributes = {
+            force_destroy = "true"
+            location = "\\\"US\\\""
+            name = "\\\"ramen-corpus.gcp.tfacc.hashicorptest.com\\\""
             storage_class = "\\\"STANDARD\\\""
             website = {
               main_page_suffix = "\\\"default.html\\\""
             }
-            force_destroy = "true"
-            location = "\\\"US\\\""
-            name = "\\\"ramen-corpus.gcp.tfacc.hashicorptest.com\\\""
           }
           credential_bindings = [
             "google_oauth2"
           ]
-          redaction = {
-
-          }
-          name = "website"
-          metadata = {
-            terraform_address = "google_storage_bucket.website"
-          }
-          address = "google_storage_bucket.website"
-          kind = "resource"
-          lifecycle = {
-
-          }
           identity_attributes = [
             {
-              required = true
               name = "bucket_name"
               path = "name"
               request_keys = [
                 "name"
               ]
+              required = true
               response_paths = [
                 "name",
                 "id"
               ]
             }
           ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "google_storage_bucket.website"
+          }
+          name = "website"
           operations = {
             create = {
-              operation_id = "storage.buckets.insert"
               credential_bindings = [
                 "google_oauth2"
               ]
+              operation_id = "storage.buckets.insert"
               purpose = "create"
-              source_kind = "google-discovery"
               source_id = "storage"
+              source_kind = "google-discovery"
               source_path = "google-discovery/storage.json"
             }
           }
+          redaction = {
+
+          }
+          type = "google_storage_bucket"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/google/storage/go/resource_storage_bucket_test_046/input"
-        source = "ramen convert tf"
-      }
+      version = "ramen.project.v1"
     }
   }

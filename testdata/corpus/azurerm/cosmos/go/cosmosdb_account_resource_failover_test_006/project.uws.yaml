@@ -32,8 +32,8 @@ operations:
                     - accountName
                   required: true
                   response_paths:
-                    - name
                     - id
+                    - name
                   terraform_path: name
                 - name: resource_group_name
                   request_keys:
@@ -45,6 +45,7 @@ operations:
                 kind: resource
                 name: test
                 type: azurerm_cosmosdb_account
+            version: ramen.terraform.provenance.v1
       sourceDescription: cosmos
       sourceOperationId: DatabaseAccounts_CreateOrUpdate
 sourceDescriptions:

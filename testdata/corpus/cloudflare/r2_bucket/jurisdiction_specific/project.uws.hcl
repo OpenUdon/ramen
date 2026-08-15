@@ -23,26 +23,31 @@
         account_id = "\\\"023e105f4ecef8ad9ca31a8372d0c353\\\""
       }
       x-ramen-terraform {
+        attributes {
+          account_id = "\\\"023e105f4ecef8ad9ca31a8372d0c353\\\""
+          jurisdiction = "\\\"eu\\\""
+          name = "\\\"ramen_corpus\\\""
+        }
         identity_attributes = [
           {
             name = "account_id"
-            terraform_path = "account_id"
             request_keys = [
               "account_id"
             ]
             required = true
+            terraform_path = "account_id"
           },
           {
             name = "bucket_name"
-            terraform_path = "name"
             request_keys = [
-              "name",
-              "bucket_name"
+              "bucket_name",
+              "name"
             ]
+            required = true
             response_paths = [
               "result.name"
             ]
-            required = true
+            terraform_path = "name"
           }
         ]
         object {
@@ -51,11 +56,7 @@
           name = "ramen_corpus"
           type = "cloudflare_r2_bucket"
         }
-        attributes {
-          account_id = "\\\"023e105f4ecef8ad9ca31a8372d0c353\\\""
-          jurisdiction = "\\\"eu\\\""
-          name = "\\\"ramen_corpus\\\""
-        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -65,60 +66,46 @@
     step "cloudflare_r2_bucket_ramen_corpus_create" {
       operationRef = "cloudflare_r2_bucket_ramen_corpus_create"
       body {
-        terraform_type = "cloudflare_r2_bucket"
         action = "create"
         purpose = "create"
         terraform_address = "cloudflare_r2_bucket.ramen_corpus"
+        terraform_type = "cloudflare_r2_bucket"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "r2_bucket"
+          kind = "openapi"
+          path = "openapi/r2_bucket.json"
+        }
+      ]
       metadata {
         action = "create"
         config_dir = "testdata/corpus/cloudflare/r2_bucket/jurisdiction_specific/input"
         source = "ramen convert tf"
       }
-      version = "ramen.project.v1"
-      api_sources = [
-        {
-          kind = "openapi"
-          id = "r2_bucket"
-          path = "openapi/r2_bucket.json"
-        }
-      ]
+      redaction {
+
+      }
       resources = [
         {
-          redaction = {
-
-          }
-          lifecycle = {
-
-          }
           address = "cloudflare_r2_bucket.ramen_corpus"
-          kind = "resource"
           attributes = {
+            account_id = "\\\"023e105f4ecef8ad9ca31a8372d0c353\\\""
             jurisdiction = "\\\"eu\\\""
             name = "\\\"ramen_corpus\\\""
-            account_id = "\\\"023e105f4ecef8ad9ca31a8372d0c353\\\""
-          }
-          operations = {
-            create = {
-              source_path = "openapi/r2_bucket.json"
-              operation_id = "r2-create-bucket"
-              purpose = "create"
-              source_kind = "openapi"
-              source_id = "r2_bucket"
-            }
           }
           identity_attributes = [
             {
-              required = true
               name = "account_id"
               path = "account_id"
               request_keys = [
                 "account_id"
               ]
+              required = true
             },
             {
               name = "bucket_name"
@@ -127,21 +114,35 @@
                 "name",
                 "bucket_name"
               ]
+              required = true
               response_paths = [
                 "result.name"
               ]
-              required = true
             }
           ]
-          name = "ramen_corpus"
+          kind = "resource"
+          lifecycle = {
+
+          }
           metadata = {
             terraform_address = "cloudflare_r2_bucket.ramen_corpus"
+          }
+          name = "ramen_corpus"
+          operations = {
+            create = {
+              operation_id = "r2-create-bucket"
+              purpose = "create"
+              source_id = "r2_bucket"
+              source_kind = "openapi"
+              source_path = "openapi/r2_bucket.json"
+            }
+          }
+          redaction = {
+
           }
           type = "cloudflare_r2_bucket"
         }
       ]
-      redaction {
-
-      }
+      version = "ramen.project.v1"
     }
   }

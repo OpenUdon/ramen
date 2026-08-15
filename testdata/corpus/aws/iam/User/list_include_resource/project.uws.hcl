@@ -26,16 +26,16 @@
         }
         identity_attributes = [
           {
+            name = "user_name"
             request_keys = [
               "UserName"
             ]
-            response_paths = [
-              "User.UserName",
-              "User.Arn",
-              "User.UserId"
-            ]
             required = true
-            name = "user_name"
+            response_paths = [
+              "User.Arn",
+              "User.UserId",
+              "User.UserName"
+            ]
             terraform_path = "name"
           }
         ]
@@ -45,6 +45,7 @@
           name = "test"
           type = "aws_iam_user"
         }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -63,8 +64,24 @@
   }
   extensions {
     x-ramen-desired-state {
+      api_sources = [
+        {
+          id = "iam"
+          kind = "aws-smithy"
+          path = "aws-smithy/iam.json"
+        }
+      ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/aws/iam/User/list_include_resource/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
+          address = "aws_iam_user.test"
           attributes = {
             name = "\\\"$${var.rName}-$${count.index}\\\""
             tags = "var.resource_tags"
@@ -72,63 +89,47 @@
           credential_bindings = [
             "aws_hmac"
           ]
-          metadata = {
-            terraform_address = "aws_iam_user.test"
-          }
-          operations = {
-            create = {
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "iam"
-              source_path = "aws-smithy/iam.json"
-              operation_id = "CreateUser"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-            }
-          }
-          address = "aws_iam_user.test"
-          type = "aws_iam_user"
-          kind = "resource"
-          name = "test"
-          lifecycle = {
-
-          }
           identity_attributes = [
             {
+              name = "user_name"
+              path = "name"
               request_keys = [
                 "UserName"
               ]
+              required = true
               response_paths = [
                 "User.UserName",
                 "User.Arn",
                 "User.UserId"
               ]
-              required = true
-              name = "user_name"
-              path = "name"
             }
           ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_iam_user.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateUser"
+              purpose = "create"
+              source_id = "iam"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/iam.json"
+            }
+          }
           redaction = {
 
           }
+          type = "aws_iam_user"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/aws/iam/User/list_include_resource/input"
-        source = "ramen convert tf"
-      }
       version = "ramen.project.v1"
-      api_sources = [
-        {
-          id = "iam"
-          path = "aws-smithy/iam.json"
-          kind = "aws-smithy"
-        }
-      ]
     }
   }

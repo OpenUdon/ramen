@@ -13,6 +13,11 @@
     sourceOperationId = "createCoreV1Namespace"
     description       = "Review create create for Terraform resource kubernetes_namespace_v1.example"
     request {
+      body "metadata" {
+        annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
+        labels = "{\\\"mylabel\\\":\\\"label-value\\\"}"
+        name = "\\\"terraform-example-namespace\\\""
+      }
       x-ramen-terraform {
         attributes "metadata" {
           annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
@@ -22,27 +27,23 @@
         identity_attributes = [
           {
             name = "namespace_name"
-            terraform_path = "metadata.name"
             request_keys = [
               "name"
             ]
+            required = true
             response_paths = [
               "metadata.name"
             ]
-            required = true
+            terraform_path = "metadata.name"
           }
         ]
         object {
-          name = "example"
-          type = "kubernetes_namespace_v1"
           address = "kubernetes_namespace_v1.example"
           kind = "resource"
+          name = "example"
+          type = "kubernetes_namespace_v1"
         }
-      }
-      body "metadata" {
-        labels = "{\\\"mylabel\\\":\\\"label-value\\\"}"
-        name = "\\\"terraform-example-namespace\\\""
-        annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -52,46 +53,39 @@
     step "kubernetes_namespace_v1_example_create" {
       operationRef = "kubernetes_namespace_v1_example_create"
       body {
-        terraform_type = "kubernetes_namespace_v1"
         action = "create"
         purpose = "create"
         terraform_address = "kubernetes_namespace_v1.example"
+        terraform_type = "kubernetes_namespace_v1"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          kind = "openapi"
           id = "core"
+          kind = "openapi"
           path = "openapi/core.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          kind = "resource"
-          type = "kubernetes_namespace_v1"
-          name = "example"
+          address = "kubernetes_namespace_v1.example"
           attributes = {
             metadata = {
               annotations = "{\\\"name\\\":\\\"example-annotation\\\"}"
               labels = "{\\\"mylabel\\\":\\\"label-value\\\"}"
               name = "\\\"terraform-example-namespace\\\""
             }
-          }
-          operations = {
-            create = {
-              source_id = "core"
-              source_path = "openapi/core.json"
-              operation_id = "createCoreV1Namespace"
-              purpose = "create"
-              source_kind = "openapi"
-            }
-          }
-          redaction = {
-
           }
           identity_attributes = [
             {
@@ -100,28 +94,35 @@
               request_keys = [
                 "name"
               ]
+              required = true
               response_paths = [
                 "metadata.name"
               ]
-              required = true
             }
           ]
-          metadata = {
-            terraform_address = "kubernetes_namespace_v1.example"
-          }
+          kind = "resource"
           lifecycle = {
 
           }
-          address = "kubernetes_namespace_v1.example"
+          metadata = {
+            terraform_address = "kubernetes_namespace_v1.example"
+          }
+          name = "example"
+          operations = {
+            create = {
+              operation_id = "createCoreV1Namespace"
+              purpose = "create"
+              source_id = "core"
+              source_kind = "openapi"
+              source_path = "openapi/core.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "kubernetes_namespace_v1"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/kubernetes/core/resources/namespace_v1/example_1/input"
-        source = "ramen convert tf"
-      }
+      version = "ramen.project.v1"
     }
   }

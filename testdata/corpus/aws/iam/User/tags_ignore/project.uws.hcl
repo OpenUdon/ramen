@@ -13,39 +13,40 @@
     sourceOperationId = "CreateUser"
     description       = "Review create create for Terraform resource aws_iam_user.test"
     request {
-      x-ramen-terraform {
-        identity_attributes = [
-          {
-            response_paths = [
-              "User.UserName",
-              "User.Arn",
-              "User.UserId"
-            ]
-            required = true
-            name = "user_name"
-            terraform_path = "name"
-            request_keys = [
-              "UserName"
-            ]
-          }
-        ]
-        object {
-          kind = "resource"
-          name = "test"
-          type = "aws_iam_user"
-          address = "aws_iam_user.test"
-        }
-        attributes {
-          name = "var.rName"
-          tags = "var.resource_tags"
-        }
-      }
       body {
         UserName = "var.rName"
       }
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
+      x-ramen-terraform {
+        attributes {
+          name = "var.rName"
+          tags = "var.resource_tags"
+        }
+        identity_attributes = [
+          {
+            name = "user_name"
+            request_keys = [
+              "UserName"
+            ]
+            required = true
+            response_paths = [
+              "User.Arn",
+              "User.UserId",
+              "User.UserName"
+            ]
+            terraform_path = "name"
+          }
+        ]
+        object {
+          address = "aws_iam_user.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_iam_user"
+        }
+        version = "ramen.terraform.provenance.v1"
+      }
     }
   }
   workflow "main" {
@@ -65,70 +66,70 @@
     x-ramen-desired-state {
       api_sources = [
         {
-          kind = "aws-smithy"
           id = "iam"
+          kind = "aws-smithy"
           path = "aws-smithy/iam.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/aws/iam/User/tags_ignore/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
+          address = "aws_iam_user.test"
+          attributes = {
+            name = "var.rName"
+            tags = "var.resource_tags"
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          identity_attributes = [
+            {
+              name = "user_name"
+              path = "name"
+              request_keys = [
+                "UserName"
+              ]
+              required = true
+              response_paths = [
+                "User.UserName",
+                "User.Arn",
+                "User.UserId"
+              ]
+            }
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
           metadata = {
             terraform_address = "aws_iam_user.test"
           }
           name = "test"
           operations = {
             create = {
-              operation_id = "CreateUser"
               credential_bindings = [
                 "aws_hmac"
               ]
+              operation_id = "CreateUser"
               purpose = "create"
-              source_kind = "aws-smithy"
               source_id = "iam"
+              source_kind = "aws-smithy"
               source_path = "aws-smithy/iam.json"
             }
           }
-          type = "aws_iam_user"
-          lifecycle = {
-
-          }
-          identity_attributes = [
-            {
-              path = "name"
-              request_keys = [
-                "UserName"
-              ]
-              response_paths = [
-                "User.UserName",
-                "User.Arn",
-                "User.UserId"
-              ]
-              required = true
-              name = "user_name"
-            }
-          ]
           redaction = {
 
           }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          address = "aws_iam_user.test"
-          kind = "resource"
-          attributes = {
-            name = "var.rName"
-            tags = "var.resource_tags"
-          }
+          type = "aws_iam_user"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/aws/iam/User/tags_ignore/input"
-        source = "ramen convert tf"
-      }
       version = "ramen.project.v1"
     }
   }

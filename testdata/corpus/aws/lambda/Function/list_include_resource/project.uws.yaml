@@ -21,14 +21,15 @@ operations:
                     - RoleName
                   required: true
                   response_paths:
-                    - Role.RoleName
                     - Role.Arn
+                    - Role.RoleName
                   terraform_path: name
             object:
                 address: aws_iam_role.test
                 kind: resource
                 name: test
                 type: aws_iam_role
+            version: ramen.terraform.provenance.v1
       sourceDescription: iam
       sourceOperationId: CreateRole
     - description: Review create create for Terraform resource aws_iam_role_policy.test
@@ -82,6 +83,7 @@ operations:
                 kind: resource
                 name: test
                 type: aws_iam_role_policy
+            version: ramen.terraform.provenance.v1
       sourceDescription: iam
       sourceOperationId: PutRolePolicy
     - description: Review create create for Terraform resource aws_lambda_function.test
@@ -106,6 +108,7 @@ operations:
                 kind: resource
                 name: test
                 type: aws_lambda_function
+            version: ramen.terraform.provenance.v1
       sourceDescription: lambda
       sourceOperationId: CreateFunction
 sourceDescriptions:

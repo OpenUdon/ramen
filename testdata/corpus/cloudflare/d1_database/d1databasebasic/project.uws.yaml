@@ -22,8 +22,8 @@ operations:
                   terraform_path: account_id
                 - name: database_name
                   request_keys:
-                    - name
                     - database_id
+                    - name
                   required: true
                   response_paths:
                     - result.name
@@ -34,6 +34,7 @@ operations:
                 kind: resource
                 name: ramen_corpus
                 type: cloudflare_d1_database
+            version: ramen.terraform.provenance.v1
       sourceDescription: d1_database
       sourceOperationId: d1-create-database
 sourceDescriptions:

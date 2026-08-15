@@ -19,15 +19,18 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        bucket = "var.rName"
-        bucket_namespace = "\"global\""
-      }
-      x-ramen-terraform "object" {
-        type = "aws_s3_bucket"
-        address = "aws_s3_bucket.test"
-        kind = "resource"
-        name = "test"
+      x-ramen-terraform {
+        attributes {
+          bucket = "var.rName"
+          bucket_namespace = "\\\"global\\\""
+        }
+        object {
+          address = "aws_s3_bucket.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_s3_bucket"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -37,66 +40,66 @@
     step "aws_s3_bucket_test_create" {
       operationRef = "aws_s3_bucket_test_create"
       body {
-        terraform_type = "aws_s3_bucket"
         action = "create"
         purpose = "create"
         terraform_address = "aws_s3_bucket.test"
+        terraform_type = "aws_s3_bucket"
       }
     }
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
-          kind = "aws-smithy"
           id = "s3"
+          kind = "aws-smithy"
           path = "aws-smithy/s3.json"
         }
       ]
-      resources = [
-        {
-          type = "aws_s3_bucket"
-          name = "test"
-          lifecycle = {
-
-          }
-          operations = {
-            create = {
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "s3"
-              source_path = "aws-smithy/s3.json"
-              operation_id = "CreateBucket"
-            }
-          }
-          kind = "resource"
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          address = "aws_s3_bucket.test"
-          attributes = {
-            bucket = "var.rName"
-            bucket_namespace = "\"global\""
-          }
-          metadata = {
-            terraform_address = "aws_s3_bucket.test"
-          }
-          redaction = {
-
-          }
-        }
-      ]
-      redaction {
-
-      }
       metadata {
         action = "create"
         config_dir = "testdata/corpus/aws/s3/Bucket/namespace_global/input"
         source = "ramen convert tf"
       }
+      redaction {
+
+      }
+      resources = [
+        {
+          address = "aws_s3_bucket.test"
+          attributes = {
+            bucket = "var.rName"
+            bucket_namespace = "\\\"global\\\""
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_s3_bucket.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateBucket"
+              purpose = "create"
+              source_id = "s3"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/s3.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_s3_bucket"
+        }
+      ]
+      version = "ramen.project.v1"
     }
   }

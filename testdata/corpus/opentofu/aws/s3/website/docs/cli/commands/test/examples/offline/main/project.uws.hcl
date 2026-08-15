@@ -19,14 +19,17 @@
       x-ramen-credential-bindings = [
         "aws_hmac"
       ]
-      x-ramen-terraform "attributes" {
-        bucket = "var.bucket_name"
-      }
-      x-ramen-terraform "object" {
-        type = "aws_s3_bucket"
-        address = "aws_s3_bucket.test"
-        kind = "resource"
-        name = "test"
+      x-ramen-terraform {
+        attributes {
+          bucket = "var.bucket_name"
+        }
+        object {
+          address = "aws_s3_bucket.test"
+          kind = "resource"
+          name = "test"
+          type = "aws_s3_bucket"
+        }
+        version = "ramen.terraform.provenance.v1"
       }
     }
   }
@@ -36,10 +39,10 @@
     step "aws_s3_bucket_test_create" {
       operationRef = "aws_s3_bucket_test_create"
       body {
+        action = "create"
         purpose = "create"
         terraform_address = "aws_s3_bucket.test"
         terraform_type = "aws_s3_bucket"
-        action = "create"
       }
     }
   }
@@ -48,53 +51,53 @@
       api_sources = [
         {
           id = "s3"
-          path = "aws-smithy/s3.json"
           kind = "aws-smithy"
+          path = "aws-smithy/s3.json"
         }
       ]
-      resources = [
-        {
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "aws_s3_bucket.test"
-          }
-          kind = "resource"
-          attributes = {
-            bucket = "var.bucket_name"
-          }
-          address = "aws_s3_bucket.test"
-          type = "aws_s3_bucket"
-          lifecycle = {
-
-          }
-          operations = {
-            create = {
-              operation_id = "CreateBucket"
-              credential_bindings = [
-                "aws_hmac"
-              ]
-              purpose = "create"
-              source_kind = "aws-smithy"
-              source_id = "s3"
-              source_path = "aws-smithy/s3.json"
-            }
-          }
-          credential_bindings = [
-            "aws_hmac"
-          ]
-          name = "test"
-        }
-      ]
-      redaction {
-
-      }
       metadata {
         action = "create"
         config_dir = "testdata/corpus/opentofu/aws/s3/website/docs/cli/commands/test/examples/offline/main/input"
         source = "ramen convert tf"
       }
+      redaction {
+
+      }
+      resources = [
+        {
+          address = "aws_s3_bucket.test"
+          attributes = {
+            bucket = "var.bucket_name"
+          }
+          credential_bindings = [
+            "aws_hmac"
+          ]
+          kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "aws_s3_bucket.test"
+          }
+          name = "test"
+          operations = {
+            create = {
+              credential_bindings = [
+                "aws_hmac"
+              ]
+              operation_id = "CreateBucket"
+              purpose = "create"
+              source_id = "s3"
+              source_kind = "aws-smithy"
+              source_path = "aws-smithy/s3.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "aws_s3_bucket"
+        }
+      ]
       version = "ramen.project.v1"
     }
   }
