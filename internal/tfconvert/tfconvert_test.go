@@ -5,15 +5,60 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
 	"github.com/OpenUdon/ramen/internal/convertreport"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
+	"github.com/OpenUdon/tfconfig"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
+
+func TestCollectSemanticGapsInventoriesUnrepresentedFacts(t *testing.T) {
+	count := tfconfig.Value{Kind: tfconfig.ValueKindNumber, Literal: 2}
+	forEach := tfconfig.Value{Kind: tfconfig.ValueKindCollection, Literal: map[string]any{"a": true}}
+	preventDestroy := tfconfig.Value{Kind: tfconfig.ValueKindBool, Literal: true}
+	state := conversionState{doc: tfconfig.Document{Modules: []tfconfig.Module{{
+		Status:             tfconfig.ModuleStatusRoot,
+		Resources:          []tfconfig.Resource{{Address: "example_resource.main", Count: &count, Lifecycle: &tfconfig.Lifecycle{PreventDestroy: &preventDestroy}}},
+		DataSources:        []tfconfig.DataSource{{Address: "data.example_resource.current", ForEach: &forEach}},
+		EphemeralResources: []tfconfig.EphemeralResource{{Address: "ephemeral.example_token.session"}},
+		ModuleCalls:        []tfconfig.ModuleCall{{Address: "module.child", Count: &count}},
+		Moved:              []tfconfig.MovedBlock{{From: "example_resource.old", To: "example_resource.main"}},
+		Imports:            []tfconfig.ImportBlock{{To: "example_resource.main"}},
+		Removed:            []tfconfig.RemovedBlock{{From: "example_resource.retired"}},
+		Checks:             []tfconfig.CheckBlock{{Name: "healthy"}},
+	}}}}
+
+	state.collectSemanticGaps()
+	wantCodes := []string{
+		"terraform.check_unsupported",
+		"terraform.count_unsupported",
+		"terraform.count_unsupported",
+		"terraform.ephemeral_unsupported",
+		"terraform.for_each_unsupported",
+		"terraform.import_unsupported",
+		"terraform.lifecycle_unsupported",
+		"terraform.module_call_unsupported",
+		"terraform.moved_unsupported",
+		"terraform.removed_unsupported",
+	}
+	gotCodes := make([]string, 0, len(state.semanticGaps))
+	for _, gap := range state.semanticGaps {
+		gotCodes = append(gotCodes, gap.Code)
+		if strings.TrimSpace(gap.Kind) == "" || strings.TrimSpace(gap.ID) == "" || strings.TrimSpace(gap.Message) == "" {
+			t.Fatalf("semantic gap lacks stable identity: %#v", gap)
+		}
+	}
+	slices.Sort(gotCodes)
+	slices.Sort(wantCodes)
+	if !slices.Equal(gotCodes, wantCodes) {
+		t.Fatalf("semantic gap codes = %v, want %v", gotCodes, wantCodes)
+	}
+}
 
 func TestConvertWritesDraftArtifacts(t *testing.T) {
 	root := t.TempDir()

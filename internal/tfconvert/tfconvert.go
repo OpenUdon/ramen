@@ -138,6 +138,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	conversion.loadAPISources(ctx)
 	conversion.collectBindings()
 	conversion.collectSymbols()
+	conversion.collectSemanticGaps()
 	conversion.selectObjects()
 	conversion.validateAction()
 	conversion.mapObjects()
@@ -181,14 +182,25 @@ func IsStrictFailure(err error) bool {
 }
 
 type conversionState struct {
-	opts        Options
-	doc         tfconfig.Document
-	apiSources  []apiDoc
-	bindings    []binding
-	symbols     []symbolFact
-	selected    []selectedObject
-	mappings    []objectMapping
-	diagnostics []Diagnostic
+	opts         Options
+	doc          tfconfig.Document
+	apiSources   []apiDoc
+	bindings     []binding
+	symbols      []symbolFact
+	selected     []selectedObject
+	mappings     []objectMapping
+	diagnostics  []Diagnostic
+	semanticGaps []semanticGap
+}
+
+type semanticGap struct {
+	Code          string
+	Kind          string
+	ID            string
+	Message       string
+	Address       string
+	ModuleAddress string
+	Range         *tfconfig.SourceRange
 }
 
 type apiDoc struct {
@@ -425,6 +437,84 @@ func (c *conversionState) collectSymbols() {
 			c.symbols = append(c.symbols, fact)
 		}
 	}
+}
+
+func (c *conversionState) collectSemanticGaps() {
+	for _, mod := range c.doc.Modules {
+		for _, resource := range mod.Resources {
+			address := fullAddress(mod.Address, resource.Address)
+			c.collectInstanceGaps("resource", address, mod.Address, resource.Count, resource.ForEach, resource.Range)
+			if hasLifecycleSemantics(resource.Lifecycle) {
+				c.addSemanticGap(semanticGap{
+					Code: "terraform.lifecycle_unsupported", Kind: "resource-lifecycle", ID: address,
+					Message: "resource lifecycle policy is not represented by Terraform conversion", Address: address, ModuleAddress: mod.Address, Range: resource.Lifecycle.Range,
+				})
+			}
+		}
+		for _, dataSource := range mod.DataSources {
+			address := fullAddress(mod.Address, dataSource.Address)
+			c.collectInstanceGaps("data-source", address, mod.Address, dataSource.Count, dataSource.ForEach, dataSource.Range)
+		}
+		for _, ephemeral := range mod.EphemeralResources {
+			address := fullAddress(mod.Address, ephemeral.Address)
+			c.addSemanticGap(semanticGap{
+				Code: "terraform.ephemeral_unsupported", Kind: "ephemeral-resource", ID: address,
+				Message: "ephemeral resource semantics are not represented by Terraform conversion", Address: address, ModuleAddress: mod.Address, Range: ephemeral.Range,
+			})
+			c.collectInstanceGaps("ephemeral-resource", address, mod.Address, ephemeral.Count, ephemeral.ForEach, ephemeral.Range)
+		}
+		for _, call := range mod.ModuleCalls {
+			address := call.Address
+			c.addSemanticGap(semanticGap{
+				Code: "terraform.module_call_unsupported", Kind: "module-call", ID: address,
+				Message: "module call inputs, provider mappings, and output bindings are not expanded by Terraform conversion", ModuleAddress: address, Range: call.Range,
+			})
+			c.collectInstanceGaps("module-call", address, address, call.Count, call.ForEach, call.Range)
+		}
+		for _, moved := range mod.Moved {
+			id := fullAddress(mod.Address, "moved:"+moved.From+"->"+moved.To)
+			c.addSemanticGap(semanticGap{Code: "terraform.moved_unsupported", Kind: "state-move", ID: id, Message: "moved block state migration is not represented by conversion", ModuleAddress: mod.Address, Range: moved.Range})
+		}
+		for _, imported := range mod.Imports {
+			id := fullAddress(mod.Address, "import:"+imported.To)
+			c.addSemanticGap(semanticGap{Code: "terraform.import_unsupported", Kind: "state-import", ID: id, Message: "import block state adoption is not represented by conversion", ModuleAddress: mod.Address, Range: imported.Range})
+		}
+		for _, removed := range mod.Removed {
+			id := fullAddress(mod.Address, "removed:"+removed.From)
+			c.addSemanticGap(semanticGap{Code: "terraform.removed_unsupported", Kind: "state-removal", ID: id, Message: "removed block state behavior is not represented by conversion", ModuleAddress: mod.Address, Range: removed.Range})
+		}
+		for _, check := range mod.Checks {
+			id := fullAddress(mod.Address, "check."+check.Name)
+			c.addSemanticGap(semanticGap{Code: "terraform.check_unsupported", Kind: "configuration-check", ID: id, Message: "check block assertions are not represented by conversion", ModuleAddress: mod.Address, Range: check.Range})
+		}
+	}
+	slices.SortFunc(c.semanticGaps, func(a, b semanticGap) int {
+		return cmp.Compare(strings.Join([]string{a.Kind, a.ID, a.Code}, "\x00"), strings.Join([]string{b.Kind, b.ID, b.Code}, "\x00"))
+	})
+}
+
+func (c *conversionState) collectInstanceGaps(kind, address, moduleAddress string, count, forEach *tfconfig.Value, rng *tfconfig.SourceRange) {
+	if count != nil {
+		c.addSemanticGap(semanticGap{Code: "terraform.count_unsupported", Kind: kind + "-instances", ID: address + ".count", Message: "count instances are not expanded by Terraform conversion", Address: address, ModuleAddress: moduleAddress, Range: firstRange(count.Range, rng)})
+	}
+	if forEach != nil {
+		c.addSemanticGap(semanticGap{Code: "terraform.for_each_unsupported", Kind: kind + "-instances", ID: address + ".for_each", Message: "for_each instances are not expanded by Terraform conversion", Address: address, ModuleAddress: moduleAddress, Range: firstRange(forEach.Range, rng)})
+	}
+}
+
+func (c *conversionState) addSemanticGap(gap semanticGap) {
+	c.semanticGaps = append(c.semanticGaps, gap)
+}
+
+func hasLifecycleSemantics(lifecycle *tfconfig.Lifecycle) bool {
+	return lifecycle != nil && (lifecycle.CreateBeforeDestroy != nil || lifecycle.PreventDestroy != nil || len(lifecycle.IgnoreChanges) > 0 || len(lifecycle.ReplaceTriggeredBy) > 0 || len(lifecycle.Preconditions) > 0 || len(lifecycle.Postconditions) > 0)
+}
+
+func firstRange(preferred, fallback *tfconfig.SourceRange) *tfconfig.SourceRange {
+	if preferred != nil {
+		return preferred
+	}
+	return fallback
 }
 
 func (c *conversionState) selectObjects() {
