@@ -23,9 +23,9 @@
           name = "var.cluster_role_binding_name"
         }
         attributes "role_ref" {
+          api_group = "\\\"rbac.authorization.k8s.io\\\""
           kind = "\\\"ClusterRole\\\""
           name = "var.cluster_role_name"
-          api_group = "\\\"rbac.authorization.k8s.io\\\""
         }
         attributes "subject" {
           kind = "\\\"ServiceAccount\\\""
@@ -35,14 +35,14 @@
         identity_attributes = [
           {
             name = "name"
-            terraform_path = "metadata.name"
             request_keys = [
               "name"
             ]
+            required = true
             response_paths = [
               "metadata.name"
             ]
-            required = true
+            terraform_path = "metadata.name"
           }
         ]
         object {
@@ -70,51 +70,39 @@
   }
   extensions {
     x-ramen-desired-state {
-      version = "ramen.project.v1"
       api_sources = [
         {
           id = "rbac"
-          path = "openapi/rbac.json"
           kind = "openapi"
+          path = "openapi/rbac.json"
         }
       ]
+      metadata {
+        action = "create"
+        config_dir = "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/input"
+        source = "ramen convert tf"
+      }
+      redaction {
+
+      }
       resources = [
         {
-          redaction = {
-
-          }
-          metadata = {
-            terraform_address = "kubernetes_cluster_role_binding_v1.k12_cluster_role_binding"
-          }
-          type = "kubernetes_cluster_role_binding_v1"
+          address = "kubernetes_cluster_role_binding_v1.k12_cluster_role_binding"
           attributes = {
+            metadata = {
+              labels = "{\\\"app.kubernetes.io/managed-by\\\":\\\"ramen-parity\\\",\\\"ramen.openudon.dev/lane\\\":\\\"k12\\\"}"
+              name = "var.cluster_role_binding_name"
+            }
+            role_ref = {
+              api_group = "\\\"rbac.authorization.k8s.io\\\""
+              kind = "\\\"ClusterRole\\\""
+              name = "var.cluster_role_name"
+            }
             subject = {
               kind = "\\\"ServiceAccount\\\""
               name = "var.service_account_name"
               namespace = "var.service_account_namespace"
             }
-            metadata = {
-              name = "var.cluster_role_binding_name"
-              labels = "{\\\"app.kubernetes.io/managed-by\\\":\\\"ramen-parity\\\",\\\"ramen.openudon.dev/lane\\\":\\\"k12\\\"}"
-            }
-            role_ref = {
-              kind = "\\\"ClusterRole\\\""
-              name = "var.cluster_role_name"
-              api_group = "\\\"rbac.authorization.k8s.io\\\""
-            }
-          }
-          operations = {
-            create = {
-              source_id = "rbac"
-              source_path = "openapi/rbac.json"
-              operation_id = "createRbacAuthorizationV1ClusterRoleBinding"
-              purpose = "create"
-              source_kind = "openapi"
-            }
-          }
-          address = "kubernetes_cluster_role_binding_v1.k12_cluster_role_binding"
-          lifecycle = {
-
           }
           identity_attributes = [
             {
@@ -123,23 +111,35 @@
               request_keys = [
                 "name"
               ]
+              required = true
               response_paths = [
                 "metadata.name"
               ]
-              required = true
             }
           ]
           kind = "resource"
+          lifecycle = {
+
+          }
+          metadata = {
+            terraform_address = "kubernetes_cluster_role_binding_v1.k12_cluster_role_binding"
+          }
           name = "k12_cluster_role_binding"
+          operations = {
+            create = {
+              operation_id = "createRbacAuthorizationV1ClusterRoleBinding"
+              purpose = "create"
+              source_id = "rbac"
+              source_kind = "openapi"
+              source_path = "openapi/rbac.json"
+            }
+          }
+          redaction = {
+
+          }
+          type = "kubernetes_cluster_role_binding_v1"
         }
       ]
-      redaction {
-
-      }
-      metadata {
-        action = "create"
-        config_dir = "testdata/corpus/kubernetes/core/resources/cluster_role_binding_v1/example_1/input"
-        source = "ramen convert tf"
-      }
+      version = "ramen.project.v1"
     }
   }
