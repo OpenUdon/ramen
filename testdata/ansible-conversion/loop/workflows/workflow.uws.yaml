@@ -17,7 +17,13 @@ operations:
             state: directory
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.file
+      x-ramen-ansible-provenance:
         column: 7
         line: 4
         play: Create application directories
@@ -25,20 +31,14 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/loop/input/playbook.yml
         task: Create app directories
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.file
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
 uws: 1.5.0
 workflows:
     - steps:
         - forEach: $variables.create_app_directories_items
           operationRef: create_app_directories
           stepId: create_app_directories
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 4
             play: Create application directories

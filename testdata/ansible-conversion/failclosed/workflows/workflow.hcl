@@ -18,7 +18,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-ramen-ansible-provenance {
         column = 11
         line = 17
         play = "Fail closed cases"
@@ -27,15 +35,7 @@
         task = "Doubly guarded child"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.service"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "singly_guarded_child" {
@@ -53,7 +53,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-ramen-ansible-provenance {
         column = 11
         line = 22
         play = "Fail closed cases"
@@ -62,15 +70,7 @@
         task = "Singly guarded child"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.service"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "consumer_of_skipped_producer" {
@@ -87,7 +87,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.shell"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 33
         play = "Fail closed cases"
@@ -96,15 +104,7 @@
         task = "Consumer of skipped producer"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.shell"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "consumer_before_future_producer" {
@@ -121,7 +121,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.shell"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 38
         play = "Fail closed cases"
@@ -130,15 +138,7 @@
         task = "Consumer before future producer"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.shell"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "future_producer" {
@@ -155,7 +155,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.shell"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 42
         play = "Fail closed cases"
@@ -164,15 +172,7 @@
         task = "Future producer"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.shell"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "guarded_restart" {
@@ -190,7 +190,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 58
         play = "Fail closed cases"
@@ -199,15 +207,7 @@
         task = "guarded restart"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.service"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   workflow "main" {
@@ -223,7 +223,7 @@
             step "doubly_guarded_child" {
               operationRef = "doubly_guarded_child"
               extensions {
-                x-ansible {
+                x-ramen-ansible-provenance {
                   column = 11
                   line = 17
                   play = "Fail closed cases"
@@ -236,7 +236,7 @@
             }
           }
           extensions {
-            x-ansible {
+            x-ramen-ansible-provenance {
               column = 11
               line = 17
               play = "Fail closed cases"
@@ -249,7 +249,7 @@
         }
       }
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 11
           line = 17
           play = "Fail closed cases"
@@ -264,7 +264,7 @@
       operationRef = "singly_guarded_child"
       when         = "$variables.env == \"prod\""
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 11
           line = 22
           play = "Fail closed cases"
@@ -278,7 +278,7 @@
     step "consumer_of_skipped_producer" {
       operationRef = "consumer_of_skipped_producer"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 33
           play = "Fail closed cases"
@@ -292,7 +292,7 @@
     step "consumer_before_future_producer" {
       operationRef = "consumer_before_future_producer"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 38
           play = "Fail closed cases"
@@ -306,7 +306,7 @@
     step "future_producer" {
       operationRef = "future_producer"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 42
           play = "Fail closed cases"
@@ -328,7 +328,7 @@
             step "guarded_restart" {
               operationRef = "guarded_restart"
               extensions {
-                x-ansible {
+                x-ramen-ansible-provenance {
                   column = 7
                   line = 58
                   play = "Fail closed cases"
@@ -341,7 +341,7 @@
             }
           }
           extensions {
-            x-ansible {
+            x-ramen-ansible-provenance {
               column = 7
               line = 58
               play = "Fail closed cases"
@@ -354,7 +354,7 @@
         }
       }
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 58
           play = "Fail closed cases"

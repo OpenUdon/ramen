@@ -15,7 +15,13 @@ operations:
             state: present
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.apt
+      x-ramen-ansible-provenance:
         column: 7
         line: 6
         play: Configure nginx
@@ -23,13 +29,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/nginx/input/playbook.yml
         task: Install nginx
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.apt
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: Deploy nginx config
       operationId: deploy_nginx_config
       outputs:
@@ -40,7 +40,13 @@ operations:
             src: nginx.conf.j2
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.template
+      x-ramen-ansible-provenance:
         column: 7
         line: 11
         play: Configure nginx
@@ -48,13 +54,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/nginx/input/playbook.yml
         task: Deploy nginx config
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.template
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: restart nginx
       operationId: restart_nginx
       outputs:
@@ -65,7 +65,13 @@ operations:
             state: restarted
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-ramen-ansible-provenance:
         column: 7
         line: 18
         play: Configure nginx
@@ -73,19 +79,13 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/nginx/input/playbook.yml
         task: restart nginx
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.service
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
 uws: 1.5.0
 workflows:
     - steps:
         - operationRef: install_nginx
           stepId: install_nginx
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 6
             play: Configure nginx
@@ -95,7 +95,7 @@ workflows:
             version: ramen.ansible.provenance.v1
         - operationRef: deploy_nginx_config
           stepId: deploy_nginx_config
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 11
             play: Configure nginx
@@ -106,7 +106,7 @@ workflows:
         - operationRef: restart_nginx
           stepId: restart_nginx
           when: $steps.deploy_nginx_config.outputs.changed == true
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 18
             play: Configure nginx

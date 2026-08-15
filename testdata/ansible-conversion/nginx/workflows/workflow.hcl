@@ -18,7 +18,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.apt"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 6
         play = "Configure nginx"
@@ -27,15 +35,7 @@
         task = "Install nginx"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.apt"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "deploy_nginx_config" {
@@ -53,7 +53,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.template"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 11
         play = "Configure nginx"
@@ -62,15 +70,7 @@
         task = "Deploy nginx config"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.template"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "restart_nginx" {
@@ -88,7 +88,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 18
         play = "Configure nginx"
@@ -97,15 +105,7 @@
         task = "restart nginx"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.service"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   workflow "main" {
@@ -113,7 +113,7 @@
     step "install_nginx" {
       operationRef = "install_nginx"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 6
           play = "Configure nginx"
@@ -127,7 +127,7 @@
     step "deploy_nginx_config" {
       operationRef = "deploy_nginx_config"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 11
           play = "Configure nginx"
@@ -142,7 +142,7 @@
       operationRef = "restart_nginx"
       when         = "$steps.deploy_nginx_config.outputs.changed == true"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 18
           play = "Configure nginx"

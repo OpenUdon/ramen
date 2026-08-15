@@ -18,7 +18,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.apt"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 4
         play = "Configure nginx with multiple notifiers"
@@ -27,15 +35,7 @@
         task = "Install nginx"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.apt"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "deploy_nginx_config" {
@@ -53,7 +53,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.template"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 10
         play = "Configure nginx with multiple notifiers"
@@ -62,15 +70,7 @@
         task = "Deploy nginx config"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.template"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   operation "restart_nginx" {
@@ -88,7 +88,15 @@
       condition = "$response.body.failed != true"
     }
     extensions {
-      x-ansible {
+      x-ramen-ansible-module {
+        argspec {
+          collection = "ansible.builtin"
+          sourceId = "builtin"
+          url = "testdata/argspec/ansible-builtin.argspec.json"
+        }
+        module = "ansible.builtin.service"
+      }
+      x-ramen-ansible-provenance {
         column = 7
         line = 17
         play = "Configure nginx with multiple notifiers"
@@ -97,15 +105,7 @@
         task = "restart nginx"
         version = "ramen.ansible.provenance.v1"
       }
-      x-uws-ansible-module {
-        argspec {
-          collection = "ansible.builtin"
-          sourceId = "builtin"
-          url = "testdata/argspec/ansible-builtin.argspec.json"
-        }
-        module = "ansible.builtin.service"
-      }
-      x-uws-operation-profile = "uws.ansible-module-call.1.0"
+      x-uws-operation-profile = "ramen.ansible-module-call.1.0"
     }
   }
   workflow "main" {
@@ -113,7 +113,7 @@
     step "install_nginx" {
       operationRef = "install_nginx"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 4
           play = "Configure nginx with multiple notifiers"
@@ -127,7 +127,7 @@
     step "deploy_nginx_config" {
       operationRef = "deploy_nginx_config"
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 10
           play = "Configure nginx with multiple notifiers"
@@ -145,7 +145,7 @@
         step "restart_nginx_run_1" {
           operationRef = "restart_nginx"
           extensions {
-            x-ansible {
+            x-ramen-ansible-provenance {
               column = 7
               line = 17
               play = "Configure nginx with multiple notifiers"
@@ -162,7 +162,7 @@
         step "restart_nginx_run_2" {
           operationRef = "restart_nginx"
           extensions {
-            x-ansible {
+            x-ramen-ansible-provenance {
               column = 7
               line = 17
               play = "Configure nginx with multiple notifiers"
@@ -175,7 +175,7 @@
         }
       }
       extensions {
-        x-ansible {
+        x-ramen-ansible-provenance {
           column = 7
           line = 17
           play = "Configure nginx with multiple notifiers"

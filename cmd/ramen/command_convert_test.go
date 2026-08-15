@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/ramen/internal/ansibleconvert"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -242,14 +243,80 @@ func TestCLIConvertAnsibleSupportedTargetsRunInCheckMode(t *testing.T) {
 				t.Fatalf("UWS %s conversion emitted unexpected binding: version=%q sources=%#v", tt.target, doc.UWS, doc.SourceDescriptions)
 			}
 			op := findOperationInDoc(&doc, "install_nginx")
-			if op == nil || op.SourceDescription != "" || op.SourceOperationID != "" || op.SourceOperationRef != "" || op.Extensions[uws1.ExtensionOperationProfile] != "uws.ansible-module-call.1.0" {
+			if op == nil || op.SourceDescription != "" || op.SourceOperationID != "" || op.SourceOperationRef != "" || op.Extensions[uws1.ExtensionOperationProfile] != ansibleconvert.ProfileName {
 				t.Fatalf("target %s install operation is not extension-owned: %#v", tt.target, op)
+			}
+			if len(op.Extensions) != 3 || op.Extensions[ansibleconvert.ExtensionAnsibleModule] == nil || op.Extensions[ansibleconvert.ExtensionAnsibleProvenance] == nil {
+				t.Fatalf("target %s extensions = %#v, want exact Ramen selector/module/provenance shape", tt.target, op.Extensions)
+			}
+			if err := ansibleconvert.ValidateOperationExtensions(op.Extensions); err != nil {
+				t.Fatalf("target %s operation extensions are invalid: %v", tt.target, err)
+			}
+			for _, retired := range []string{"uws.ansible.1.0", "uws.ansible-module-call.1.0", "x-uws-ansible-module", "x-ansible"} {
+				if strings.Contains(string(data), retired) {
+					t.Fatalf("target %s workflow contains retired identifier %q:\n%s", tt.target, retired, data)
+				}
 			}
 			runCmd := helperCommand("run", docPath, "--check", "--mock", "--state", filepath.Join(root, "state.db"))
 			if output, err := runCmd.CombinedOutput(); err != nil {
 				t.Fatalf("run check rejected converted UWS %s document: %v\n%s", tt.target, err, output)
 			}
 		})
+	}
+}
+
+func TestInstalledCLIConvertAnsibleUsesEmbeddedSchemas(t *testing.T) {
+	root := t.TempDir()
+	repoRoot, err := filepath.Abs(filepath.Join("..", ".."))
+	if err != nil {
+		t.Fatal(err)
+	}
+	binary := filepath.Join(root, "ramen")
+	build := exec.Command("go", "build", "-o", binary, "./cmd/ramen")
+	build.Dir = repoRoot
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build installed CLI: %v\n%s", err, output)
+	}
+
+	playbook := filepath.Join(root, "playbook.yml")
+	argspec := filepath.Join(root, "argspec.json")
+	mustWriteCLIFile(t, playbook, []byte(`- name: embedded schemas
+  hosts: localhost
+  tasks:
+    - name: Install package
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+`))
+	mustWriteCLIFile(t, argspec, []byte(`{
+  "argspec": "ramen.ansible.1.0",
+  "collection": "ansible.builtin",
+  "modules": {
+    "ansible.builtin.apt": {
+      "parameters": {
+        "name": {"type": "str", "required": true},
+        "state": {"type": "str", "choices": ["present", "absent"]}
+      }
+    }
+  }
+}`))
+
+	command := exec.Command(binary,
+		"convert", "ansible",
+		"--playbook", "playbook.yml",
+		"--argspec", "builtin=argspec.json",
+		"--out", "out",
+	)
+	command.Dir = root
+	if output, err := command.CombinedOutput(); err != nil {
+		t.Fatalf("installed CLI conversion outside repository: %v\n%s", err, output)
+	}
+	data, err := os.ReadFile(filepath.Join(root, "out", "workflows", "workflow.uws.yaml"))
+	if err != nil {
+		t.Fatalf("read installed CLI output: %v", err)
+	}
+	if !strings.Contains(string(data), ansibleconvert.ProfileName) || !strings.Contains(string(data), ansibleconvert.ExtensionAnsibleModule) {
+		t.Fatalf("installed CLI output lacks Ramen-owned metadata:\n%s", data)
 	}
 }
 
@@ -331,7 +398,7 @@ func TestCLIConvertAnsibleArgspecIngestionFailureExitsOneWithoutArtifacts(t *tes
 		t.Fatalf("write playbook: %v", err)
 	}
 	if err := os.WriteFile(argspecPath, []byte(`{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "acme.tools.file": {
@@ -363,6 +430,48 @@ func TestCLIConvertAnsibleArgspecIngestionFailureExitsOneWithoutArtifacts(t *tes
 	}
 }
 
+func TestCLIConvertAnsibleRejectsRetiredUWSArgspec(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	argspecPath := filepath.Join(root, "argspec.json")
+	outDir := filepath.Join(root, "out")
+	mustWriteCLIFile(t, playbookPath, []byte(`- name: retired argspec
+  hosts: localhost
+  tasks:
+    - name: Safe task
+      acme.tools.file:
+        path: /tmp/safe
+`))
+	mustWriteCLIFile(t, argspecPath, []byte(`{
+  "argspec": "uws.ansible.1.0",
+  "collection": "acme.tools",
+  "modules": {
+    "acme.tools.file": {
+      "parameters": {"path": {"type": "path"}}
+    }
+  }
+}`))
+
+	cmd := helperCommand("convert", "ansible",
+		"--playbook", playbookPath,
+		"--argspec", "tools="+argspecPath,
+		"--out", outDir)
+	output, err := cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("retired UWS argspec unexpectedly succeeded:\n%s", output)
+	}
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 1 {
+		t.Fatalf("convert ansible exit = %v, want code 1\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "schema validation failed") || !strings.Contains(string(output), "ramen.ansible.1.0") {
+		t.Fatalf("retired argspec output missing hard-break diagnostic:\n%s", output)
+	}
+	if _, err := os.Stat(outDir); !os.IsNotExist(err) {
+		t.Fatalf("retired argspec wrote conversion artifacts, stat err=%v", err)
+	}
+}
+
 func TestCLIConvertAnsibleArgspecConflictExitsThreeAndPartialOutputOmitsTask(t *testing.T) {
 	root := t.TempDir()
 	playbookPath := filepath.Join(root, "playbook.yml")
@@ -381,7 +490,7 @@ func TestCLIConvertAnsibleArgspecConflictExitsThreeAndPartialOutputOmitsTask(t *
 		t.Fatalf("write playbook: %v", err)
 	}
 	if err := os.WriteFile(argspecPath, []byte(`{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "acme.tools.file": {

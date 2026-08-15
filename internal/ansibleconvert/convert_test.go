@@ -9,7 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/OpenUdon/uws/ansiblemodulecall"
 	"github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -149,7 +148,7 @@ func TestConvertNginxPlaybook(t *testing.T) {
 	if install == nil {
 		t.Fatalf("install_nginx operation missing")
 	}
-	payload, ok, err := ansiblemodulecall.ReadOperationExtension(install.Extensions)
+	payload, ok, err := ReadOperationExtension(install.Extensions)
 	if err != nil || !ok {
 		t.Fatalf("install_nginx missing module-call extension: ok=%v err=%v", ok, err)
 	}
@@ -215,10 +214,16 @@ func TestConvertNginxPlaybookSupportedTargetsUseSameExtensionOwnedLeaves(t *test
 			if install.SourceDescription != "" || install.SourceOperationID != "" || install.SourceOperationRef != "" {
 				t.Fatalf("target %s operation should be extension-owned: %#v", tt.name, install)
 			}
-			if install.Extensions[uws1.ExtensionOperationProfile] != ansiblemodulecall.ProfileName {
-				t.Fatalf("operation profile = %#v, want %s", install.Extensions[uws1.ExtensionOperationProfile], ansiblemodulecall.ProfileName)
+			if install.Extensions[uws1.ExtensionOperationProfile] != ProfileName {
+				t.Fatalf("operation profile = %#v, want %s", install.Extensions[uws1.ExtensionOperationProfile], ProfileName)
 			}
-			payload, ok, err := ansiblemodulecall.ReadOperationExtension(install.Extensions)
+			if len(install.Extensions) != 3 || install.Extensions[ExtensionAnsibleModule] == nil || install.Extensions[ExtensionAnsibleProvenance] == nil {
+				t.Fatalf("target %s operation extensions = %#v, want exact Ramen selector/module/provenance shape", tt.name, install.Extensions)
+			}
+			if err := ValidateOperationExtensions(install.Extensions); err != nil {
+				t.Fatalf("target %s operation extensions are invalid: %v", tt.name, err)
+			}
+			payload, ok, err := ReadOperationExtension(install.Extensions)
 			if err != nil || !ok {
 				t.Fatalf("read ansible module extension ok=%v err=%v extensions=%#v", ok, err, install.Extensions)
 			}
@@ -238,6 +243,17 @@ func TestConvertNginxPlaybookSupportedTargetsUseSameExtensionOwnedLeaves(t *test
 			for _, want := range []string{"`install_nginx`", "`builtin`", "`ansible.builtin.apt`"} {
 				if !strings.Contains(string(review), want) {
 					t.Fatalf("target %s review missing %q:\n%s", tt.name, want, review)
+				}
+			}
+			for _, path := range []string{result.UWSPath, result.HCLPath} {
+				artifact, err := os.ReadFile(path)
+				if err != nil {
+					t.Fatalf("read target %s artifact %s: %v", tt.name, path, err)
+				}
+				for _, retired := range []string{retiredArgspecVersion, retiredProfileName, retiredExtensionModule, retiredExtensionProvenance} {
+					if strings.Contains(string(artifact), retired) {
+						t.Fatalf("target %s artifact %s contains retired identifier %q:\n%s", tt.name, path, retired, artifact)
+					}
 				}
 			}
 
@@ -347,7 +363,7 @@ func TestConvertPreservesDottedArgspecSourceID(t *testing.T) {
 		t.Fatalf("sourceDescriptions = %#v, want none", doc.SourceDescriptions)
 	}
 	for _, op := range doc.Operations {
-		payload, ok, err := ansiblemodulecall.ReadOperationExtension(op.Extensions)
+		payload, ok, err := ReadOperationExtension(op.Extensions)
 		if err != nil || !ok {
 			t.Fatalf("operation %q missing module-call extension: ok=%v err=%v", op.OperationID, ok, err)
 		}
@@ -366,10 +382,10 @@ func TestLoadArgspecsPreservesDistinctRawSourceIDs(t *testing.T) {
 	root := t.TempDir()
 	first := filepath.Join(root, "first.json")
 	second := filepath.Join(root, "second.json")
-	if err := os.WriteFile(first, []byte(`{"argspec":"uws.ansible.1.0","collection":"acme.one","modules":{"acme.one.first":{"parameters":{}}}}`), 0o644); err != nil {
+	if err := os.WriteFile(first, []byte(`{"argspec":"ramen.ansible.1.0","collection":"acme.one","modules":{"acme.one.first":{"parameters":{}}}}`), 0o644); err != nil {
 		t.Fatalf("write first argspec: %v", err)
 	}
-	if err := os.WriteFile(second, []byte(`{"argspec":"uws.ansible.1.0","collection":"acme.two","modules":{"acme.two.second":{"parameters":{}}}}`), 0o644); err != nil {
+	if err := os.WriteFile(second, []byte(`{"argspec":"ramen.ansible.1.0","collection":"acme.two","modules":{"acme.two.second":{"parameters":{}}}}`), 0o644); err != nil {
 		t.Fatalf("write second argspec: %v", err)
 	}
 	idx, err := LoadArgspecs([]ArgspecInput{
@@ -1067,13 +1083,13 @@ func TestConvertStaticImportTasksLowersInOrderWithProvenance(t *testing.T) {
 			t.Fatalf("imported task %q did not inherit import when guard: %#v", id, step)
 		}
 		op := findOperation(doc, id)
-		prov, _ := op.Extensions["x-ansible"].(map[string]any)
+		prov, _ := op.Extensions[ExtensionAnsibleProvenance].(map[string]any)
 		if !slices.Contains(asStringSlice(prov["tags"]), "setup") {
 			t.Fatalf("imported task %q did not inherit import tags: %#v", id, prov)
 		}
 	}
 	op := findOperation(doc, "nested_imported")
-	prov, _ := op.Extensions["x-ansible"].(map[string]any)
+	prov, _ := op.Extensions[ExtensionAnsibleProvenance].(map[string]any)
 	if prov["sourceFile"] == "" || prov["line"] == nil || len(asStringSlice(prov["importStack"])) == 0 {
 		t.Fatalf("nested provenance missing source/import stack: %#v", prov)
 	}
@@ -1086,8 +1102,8 @@ func TestConvertStaticImportTasksLowersInOrderWithProvenance(t *testing.T) {
 		t.Fatalf("parse HCL output: %v", err)
 	}
 	hclOp := findOperation(&hclDoc, "nested_imported")
-	if hclOp == nil || hclOp.Extensions["x-ansible"] == nil {
-		t.Fatalf("HCL round-trip lost x-ansible provenance: %#v", hclOp)
+	if hclOp == nil || hclOp.Extensions[ExtensionAnsibleProvenance] == nil {
+		t.Fatalf("HCL round-trip lost x-ramen-ansible-provenance provenance: %#v", hclOp)
 	}
 }
 
@@ -1146,7 +1162,7 @@ func TestConvertStaticRolesVarsHandlersAndListenAliases(t *testing.T) {
 		t.Fatalf("handler listen alias did not gate on notifier: %#v", restart)
 	}
 	op := findOperation(doc, "install_role_package")
-	prov, _ := op.Extensions["x-ansible"].(map[string]any)
+	prov, _ := op.Extensions[ExtensionAnsibleProvenance].(map[string]any)
 	if prov["role"] != "web" {
 		t.Fatalf("role provenance = %#v", prov)
 	}
@@ -1421,6 +1437,13 @@ func TestAnsibleConversionCorpusDrift(t *testing.T) {
 				}
 				if string(actual) != string(expected) {
 					t.Fatalf("%s drifted for %s\n--- expected\n%s\n--- actual\n%s", rel, name, expected, actual)
+				}
+				if strings.HasPrefix(rel, "workflows/") {
+					for _, retired := range []string{retiredArgspecVersion, retiredProfileName, retiredExtensionModule, retiredExtensionProvenance} {
+						if strings.Contains(string(actual), retired) {
+							t.Fatalf("%s for %s contains retired identifier %q", rel, name, retired)
+						}
+					}
 				}
 			}
 		})

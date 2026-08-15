@@ -18,11 +18,15 @@ func TestLoadArgspecsRejectsInvalidSchemaDocuments(t *testing.T) {
 	}{
 		{
 			name:    "unknown field",
-			content: `{"argspec":"uws.ansible.1.0","collection":"acme.tools","modules":{"acme.tools.file":{"parameters":{},"unexpected":true}}}`,
+			content: `{"argspec":"ramen.ansible.1.0","collection":"acme.tools","modules":{"acme.tools.file":{"parameters":{},"unexpected":true}}}`,
 		},
 		{
 			name:    "missing required field",
-			content: `{"argspec":"uws.ansible.1.0","collection":"acme.tools"}`,
+			content: `{"argspec":"ramen.ansible.1.0","collection":"acme.tools"}`,
+		},
+		{
+			name:    "retired UWS discriminator",
+			content: `{"argspec":"uws.ansible.1.0","collection":"acme.tools","modules":{"acme.tools.file":{"parameters":{}}}}`,
 		},
 	}
 	for _, tc := range tests {
@@ -38,7 +42,7 @@ func TestLoadArgspecsRejectsInvalidSchemaDocuments(t *testing.T) {
 
 func TestLoadArgspecsRejectsCollectionMismatch(t *testing.T) {
 	path := writeArgspecFixture(t, `{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "other.tools.file": {"parameters": {}}
@@ -52,7 +56,7 @@ func TestLoadArgspecsRejectsCollectionMismatch(t *testing.T) {
 
 func TestLoadArgspecsRejectsAmbiguousAliasOwnership(t *testing.T) {
 	path := writeArgspecFixture(t, `{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "acme.tools.file": {
@@ -71,7 +75,7 @@ func TestLoadArgspecsRejectsAmbiguousAliasOwnership(t *testing.T) {
 
 func TestConvertNormalizesArgspecAliasesAndOmitsConflicts(t *testing.T) {
 	argspecPath := writeArgspecFixture(t, `{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "acme.tools.file": {
@@ -133,7 +137,7 @@ func TestConvertNormalizesArgspecAliasesAndOmitsConflicts(t *testing.T) {
 
 func TestConvertArgspecViolationsOmitAffectedTasks(t *testing.T) {
 	argspecPath := writeArgspecFixture(t, `{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "acme.tools.account": {
@@ -185,7 +189,7 @@ func TestConvertArgspecViolationsOmitAffectedTasks(t *testing.T) {
 
 func TestConvertLoopAndWithItemsFailsClosed(t *testing.T) {
 	argspecPath := writeArgspecFixture(t, `{
-  "argspec": "uws.ansible.1.0",
+  "argspec": "ramen.ansible.1.0",
   "collection": "acme.tools",
   "modules": {
     "acme.tools.file": {

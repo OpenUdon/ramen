@@ -1,5 +1,5 @@
 {
-    "argspec": "uws.ansible.1.0",
+    "argspec": "ramen.ansible.1.0",
     "collection": "ansible.builtin",
     "info": {
         "source": "hand-curated test fixture"

@@ -15,7 +15,13 @@ operations:
             state: stopped
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-ramen-ansible-provenance:
         column: 11
         line: 17
         play: Fail closed cases
@@ -23,13 +29,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Doubly guarded child
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.service
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: Singly guarded child
       operationId: singly_guarded_child
       outputs:
@@ -40,7 +40,13 @@ operations:
             state: started
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-ramen-ansible-provenance:
         column: 11
         line: 22
         play: Fail closed cases
@@ -48,13 +54,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Singly guarded child
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.service
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: Consumer of skipped producer
       operationId: consumer_of_skipped_producer
       outputs:
@@ -64,7 +64,13 @@ operations:
             cmd: UWS-TODO({{ produced.stdout }})
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.shell
+      x-ramen-ansible-provenance:
         column: 7
         line: 33
         play: Fail closed cases
@@ -72,13 +78,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Consumer of skipped producer
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.shell
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: Consumer before future producer
       operationId: consumer_before_future_producer
       outputs:
@@ -88,7 +88,13 @@ operations:
             cmd: UWS-TODO({{ future_result.stdout }})
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.shell
+      x-ramen-ansible-provenance:
         column: 7
         line: 38
         play: Fail closed cases
@@ -96,13 +102,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Consumer before future producer
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.shell
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: Future producer
       operationId: future_producer
       outputs:
@@ -112,7 +112,13 @@ operations:
             cmd: echo future
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.shell
+      x-ramen-ansible-provenance:
         column: 7
         line: 42
         play: Fail closed cases
@@ -120,13 +126,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: Future producer
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.shell
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
     - description: guarded restart
       operationId: guarded_restart
       outputs:
@@ -137,7 +137,13 @@ operations:
             state: restarted
       successCriteria:
         - condition: $response.body.failed != true
-      x-ansible:
+      x-ramen-ansible-module:
+        argspec:
+            collection: ansible.builtin
+            sourceId: builtin
+            url: testdata/argspec/ansible-builtin.argspec.json
+        module: ansible.builtin.service
+      x-ramen-ansible-provenance:
         column: 7
         line: 58
         play: Fail closed cases
@@ -145,13 +151,7 @@ operations:
         sourceFile: ../../testdata/ansible-conversion/failclosed/input/playbook.yml
         task: guarded restart
         version: ramen.ansible.provenance.v1
-      x-uws-ansible-module:
-        argspec:
-            collection: ansible.builtin
-            sourceId: builtin
-            url: testdata/argspec/ansible-builtin.argspec.json
-        module: ansible.builtin.service
-      x-uws-operation-profile: uws.ansible-module-call.1.0
+      x-uws-operation-profile: ramen.ansible-module-call.1.0
 uws: 1.5.0
 workflows:
     - steps:
@@ -163,7 +163,7 @@ workflows:
                       steps:
                         - operationRef: doubly_guarded_child
                           stepId: doubly_guarded_child
-                          x-ansible:
+                          x-ramen-ansible-provenance:
                             column: 11
                             line: 17
                             play: Fail closed cases
@@ -174,7 +174,7 @@ workflows:
                       when: $variables.env == "prod"
                   stepId: doubly_guarded_child_guard_2
                   type: switch
-                  x-ansible:
+                  x-ramen-ansible-provenance:
                     column: 11
                     line: 17
                     play: Fail closed cases
@@ -185,7 +185,7 @@ workflows:
               when: $variables.env == "prod"
           stepId: doubly_guarded_child_guard_1
           type: switch
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 11
             line: 17
             play: Fail closed cases
@@ -196,7 +196,7 @@ workflows:
         - operationRef: singly_guarded_child
           stepId: singly_guarded_child
           when: $variables.env == "prod"
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 11
             line: 22
             play: Fail closed cases
@@ -206,7 +206,7 @@ workflows:
             version: ramen.ansible.provenance.v1
         - operationRef: consumer_of_skipped_producer
           stepId: consumer_of_skipped_producer
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 33
             play: Fail closed cases
@@ -216,7 +216,7 @@ workflows:
             version: ramen.ansible.provenance.v1
         - operationRef: consumer_before_future_producer
           stepId: consumer_before_future_producer
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 38
             play: Fail closed cases
@@ -226,7 +226,7 @@ workflows:
             version: ramen.ansible.provenance.v1
         - operationRef: future_producer
           stepId: future_producer
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 42
             play: Fail closed cases
@@ -242,7 +242,7 @@ workflows:
                       steps:
                         - operationRef: guarded_restart
                           stepId: guarded_restart
-                          x-ansible:
+                          x-ramen-ansible-provenance:
                             column: 7
                             line: 58
                             play: Fail closed cases
@@ -253,7 +253,7 @@ workflows:
                       when: $variables.env == "prod"
                   stepId: guarded_restart_guard_2
                   type: switch
-                  x-ansible:
+                  x-ramen-ansible-provenance:
                     column: 7
                     line: 58
                     play: Fail closed cases
@@ -264,7 +264,7 @@ workflows:
               when: $steps.consumer_of_skipped_producer.outputs.changed == true
           stepId: guarded_restart_guard_1
           type: switch
-          x-ansible:
+          x-ramen-ansible-provenance:
             column: 7
             line: 58
             play: Fail closed cases
