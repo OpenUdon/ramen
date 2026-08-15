@@ -332,6 +332,7 @@ func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 
 	tfDir := filepath.Join(root, "tf")
 	apiPath := filepath.Join(root, "api.yaml")
+	providerSchemaPath := filepath.Join(root, "provider-schema.json")
 	mustWriteCLIFile(t, filepath.Join(tfDir, "main.tf"), []byte(`
 resource "aws_instance" "web" {
   name = "web"
@@ -349,10 +350,27 @@ paths:
         "200":
           description: ok
 `))
+	mustWriteCLIFile(t, providerSchemaPath, []byte(`{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "registry.terraform.io/hashicorp/aws": {
+      "resource_schemas": {
+        "aws_instance": {
+          "block": {
+            "attributes": {
+              "name": {"required": true}
+            }
+          }
+        }
+      }
+    }
+  }
+}`))
 	command = exec.Command(binary,
 		"convert", "tf",
 		"--config-dir", "tf",
 		"--openapi", "aws=api.yaml",
+		"--provider-schema", "aws=provider-schema.json",
 		"--action", "create",
 		"--out", "tf-out",
 	)
@@ -367,6 +385,10 @@ paths:
 	}
 	if !strings.Contains(string(tfProject), tfconvert.TerraformProvenanceVersion) {
 		t.Fatalf("installed Terraform output lacks provenance discriminator:\n%s", tfProject)
+	}
+	conversionEvidence, err := os.ReadFile(filepath.Join(root, "tf-out", "expected", "conversion.json"))
+	if err != nil || !strings.Contains(string(conversionEvidence), `"provider_schemas"`) || !strings.Contains(string(conversionEvidence), `"registry.terraform.io/hashicorp/aws"`) {
+		t.Fatalf("installed Terraform conversion lacks offline provider schema evidence: err=%v\n%s", err, conversionEvidence)
 	}
 	command = exec.Command(binary, "validate", "--project", "tf-out")
 	command.Dir = root
@@ -384,6 +406,61 @@ paths:
 	output, err := command.CombinedOutput()
 	if err == nil || !strings.Contains(string(output), "validate.terraform_metadata_invalid") {
 		t.Fatalf("installed CLI accepted unversioned Terraform metadata: err=%v\n%s", err, output)
+	}
+}
+
+func TestCLIConvertProviderSchemaRespectsStrictAndPartialModes(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	apiPath := filepath.Join(root, "api.yaml")
+	schemaPath := filepath.Join(root, "schema.json")
+	mustWriteCLIFile(t, filepath.Join(configDir, "main.tf"), []byte(`resource "aws_instance" "web" { mystery = true }`))
+	mustWriteCLIFile(t, apiPath, []byte(`openapi: 3.0.0
+info: {title: Instances, version: v1}
+paths:
+  /instances:
+    post:
+      operationId: createAwsInstance
+      responses:
+        "200": {description: ok}
+`))
+	mustWriteCLIFile(t, schemaPath, []byte(`{
+  "format_version": "1.0",
+  "provider_schemas": {
+    "aws": {"resource_schemas": {"aws_instance": {"block": {"attributes": {"name": {"required": true}}}}}}
+  }
+}`))
+	strictOut := filepath.Join(root, "strict")
+	cmd := helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "aws="+apiPath, "--provider-schema", "aws="+schemaPath, "--action", "create", "--out", strictOut)
+	output, err := cmd.CombinedOutput()
+	exitErr, ok := err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 3 || !strings.Contains(string(output), "strict mode failed") {
+		t.Fatalf("provider schema strict exit = %v, want 3\n%s", err, output)
+	}
+	if _, err := os.Stat(filepath.Join(strictOut, "expected", "manifest.json")); err != nil {
+		t.Fatalf("strict provider schema conversion lacks reports: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(strictOut, "project.uws.yaml")); !os.IsNotExist(err) {
+		t.Fatalf("strict provider schema mismatch wrote semantic payload: %v", err)
+	}
+	partialOut := filepath.Join(root, "partial")
+	cmd = helperCommand("convert", "tf", "--config-dir", configDir, "--openapi", "aws="+apiPath, "--provider-schema", "aws="+schemaPath, "--action", "create", "--mode", "partial", "--out", partialOut)
+	if output, err = cmd.CombinedOutput(); err != nil {
+		t.Fatalf("partial provider schema conversion failed: %v\n%s", err, output)
+	}
+	diagnostics, err := os.ReadFile(filepath.Join(partialOut, "expected", "diagnostics.json"))
+	if err != nil || !strings.Contains(string(diagnostics), "provider_schema.attribute_unknown") || !strings.Contains(string(diagnostics), "provider_schema.required_attribute_missing") {
+		t.Fatalf("partial provider schema diagnostics missing: err=%v\n%s", err, diagnostics)
+	}
+	if _, err := os.Stat(filepath.Join(partialOut, "project.uws.yaml")); err != nil {
+		t.Fatalf("partial provider schema conversion lacks review payload: %v", err)
+	}
+
+	cmd = helperCommand("convert", "tf", "--provider-schema", "broken")
+	output, err = cmd.CombinedOutput()
+	exitErr, ok = err.(*exec.ExitError)
+	if !ok || exitErr.ExitCode() != 2 || !strings.Contains(string(output), "--provider-schema must be ID=PATH") {
+		t.Fatalf("invalid provider schema flag = %v, want usage exit 2\n%s", err, output)
 	}
 }
 
