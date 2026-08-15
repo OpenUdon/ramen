@@ -4,10 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 )
+
+const maxArgspecBytes = 16 << 20
 
 // argspecDocument is Ramen's embedded ramen.ansible.1.0 wire shape.
 type argspecDocument struct {
@@ -46,7 +49,7 @@ type moduleRef struct {
 func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 	idx := &ArgspecIndex{bySource: map[string]ArgspecInput{}, byCollection: map[string]string{}, byFQCN: map[string]moduleRef{}}
 	for _, input := range inputs {
-		data, err := os.ReadFile(input.Path)
+		data, err := readArgspecData(input.Path)
 		if err != nil {
 			return nil, fmt.Errorf("argspec %s: %w", input.ID, err)
 		}
@@ -79,6 +82,25 @@ func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 		}
 	}
 	return idx, nil
+}
+
+func readArgspecData(path string) ([]byte, error) {
+	label := filepath.Base(filepath.Clean(path))
+	info, err := os.Lstat(path)
+	if err != nil {
+		return nil, fmt.Errorf("file %q could not be inspected: %s", label, inventoryIOReason(err))
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("file %q must be a regular file; directories and symlinks are not read", label)
+	}
+	if info.Size() > maxArgspecBytes {
+		return nil, fmt.Errorf("file %q exceeds the %d-byte limit", label, maxArgspecBytes)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("file %q could not be read: %s", label, inventoryIOReason(err))
+	}
+	return data, nil
 }
 
 // Lookup resolves an FQCN to the argspec source that declares it.

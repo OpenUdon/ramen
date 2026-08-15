@@ -29,6 +29,7 @@ type ArgspecInput struct {
 type Options struct {
 	PlaybookPath string
 	Argspecs     []ArgspecInput
+	ArgspecDirs  []string
 	OutDir       string
 	// Mode is "strict" or "partial". Empty preserves IgnoreUnsupported.
 	Mode string

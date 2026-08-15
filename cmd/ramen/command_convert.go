@@ -31,7 +31,7 @@ func runConvertCommand(ctx context.Context, args []string) {
 
 func convertUsage(out *os.File, command string) {
 	fmt.Fprintf(out, "Usage: %s [tf] [--config-dir DIR] --api-source KIND:ID=PATH [--openapi ID=PATH] [--provider-schema ID=PATH] [--action create|update|delete|replace] [--target ADDRESS] [--out DIR] [--mode strict|partial] [--strict]\n", command)
-	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial] [--strict|--ignore-unsupported]\n\n", command)
+	fmt.Fprintf(out, "       %s ansible --playbook FILE [--argspec ID=PATH] [--argspec-dir DIR] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial] [--strict|--ignore-unsupported]\n\n", command)
 	fmt.Fprintf(out, "Converts Terraform/OpenTofu configuration (default or `tf`) or an Ansible playbook (`ansible`) into native Ramen/UWS project artifacts. It does not execute Terraform, providers, Ansible modules, API source operations, or UWS workflows.\n\n")
 }
 
@@ -45,17 +45,19 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	ignoreUnsupported := fs.Bool("ignore-unsupported", false, "Deprecated alias for --mode partial")
 	targetUWS := fs.String("target-uws", "1.5", "UWS version declared by the emitted document: 1.5, 1.6, or 1.7. Module leaves are extension-owned at every version, so the shape does not change")
 	var argspecs repeatedStringFlag
+	var argspecDirs repeatedStringFlag
 	var rolesPaths repeatedStringFlag
 	var collectionsPaths repeatedStringFlag
 	var inventoryPaths repeatedStringFlag
 	var extraVars repeatedStringFlag
 	fs.Var(&argspecs, "argspec", "Collection argspec document as ID=PATH (repeatable; ramen.ansible.1.0 shape)")
+	fs.Var(&argspecDirs, "argspec-dir", "Directory recursively containing bounded regular *.argspec.json documents (repeatable; source IDs derive from collection names)")
 	fs.Var(&rolesPaths, "roles-path", "Static Ansible roles search path for resolving play roles/import_role (repeatable)")
 	fs.Var(&collectionsPaths, "collections-path", "Static Ansible collections search path for resolving FQCN collection roles (repeatable)")
 	fs.Var(&inventoryPaths, "inventory", "Bounded static INI/YAML/JSON inventory file; resolves all, exact host, or exact group targets without connecting (repeatable)")
 	fs.Var(&extraVars, "extra-var", "Literal static extra variable NAME=VALUE or @file at highest precedence (repeatable; values are redacted from reports)")
 	fs.Usage = func() {
-		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial]\n\n")
+		fmt.Fprintf(fs.Output(), "Usage: ramen convert ansible --playbook FILE [--argspec ID=PATH] [--argspec-dir DIR] [--project-dir DIR] [--roles-path DIR] [--collections-path DIR] [--inventory FILE] [--extra-var NAME=VALUE] [--target-uws 1.5|1.6|1.7] [--out DIR] [--mode strict|partial]\n\n")
 		fmt.Fprintf(fs.Output(), "Converts an Ansible playbook into a reviewable UWS workflow. Ansible module leaves are emitted as extension-owned operations carrying ramen.ansible-module-call.1.0; --target-uws only selects the uws version the document declares, defaulting to 1.5. Unsupported constructs are reported explicitly. Strict mode (the transitional default) exits 3 and suppresses workflows; partial mode omits unsupported constructs and exits 0. --strict and --ignore-unsupported are deprecated mode aliases.\n\n")
 		fs.PrintDefaults()
 	}
@@ -93,6 +95,7 @@ func runConvertAnsibleCommand(ctx context.Context, args []string) {
 	result, err := ansibleconvert.Convert(ctx, ansibleconvert.Options{
 		PlaybookPath:      *playbook,
 		Argspecs:          specs,
+		ArgspecDirs:       []string(argspecDirs),
 		OutDir:            *outDir,
 		Mode:              mode,
 		Strict:            *strict,

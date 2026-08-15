@@ -19,6 +19,11 @@ import (
 // module, or workflow execution happens here.
 func Convert(_ context.Context, opts Options) (*Result, error) {
 	opts = normalizeOptions(opts)
+	discoveredArgspecs, err := DiscoverArgspecs(opts.ArgspecDirs)
+	if err != nil {
+		return nil, err
+	}
+	opts.Argspecs = append(opts.Argspecs, discoveredArgspecs...)
 	switch opts.TargetUWS {
 	case TargetUWS15, TargetUWS16, TargetUWS17:
 	default:
@@ -280,6 +285,9 @@ func writeReview(result *Result, doc *uws1.Document, opts Options) error {
 	fmt.Fprintf(&b, "- Playbook: `%s`\n", opts.PlaybookPath)
 	fmt.Fprintf(&b, "- Project directory: `%s`\n", opts.ProjectDir)
 	fmt.Fprintf(&b, "- Argspec documents: `%d`\n", len(opts.Argspecs))
+	if len(opts.ArgspecDirs) > 0 {
+		fmt.Fprintf(&b, "- Argspec directories: `%s`\n", reviewList(opts.ArgspecDirs))
+	}
 	fmt.Fprintf(&b, "- Roles paths: `%s`\n", reviewList(opts.RolesPaths))
 	fmt.Fprintf(&b, "- Collections paths: `%s`\n", reviewList(opts.CollectionsPaths))
 	fmt.Fprintf(&b, "- Inventory inputs: `%s`\n", reviewList(opts.InventoryPaths))

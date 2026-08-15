@@ -89,7 +89,7 @@ func TestCLIConvertHelpIncludesContract(t *testing.T) {
 	if err != nil {
 		t.Fatalf("convert ansible --help failed: %v\n%s", err, output)
 	}
-	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "resolving play roles/import_role", "exact group targets without connecting", "values are redacted from reports"} {
+	for _, expected := range []string{"Usage: ramen convert ansible", "--playbook", "--argspec", "--argspec-dir", "--project-dir", "--roles-path", "--collections-path", "--inventory", "--extra-var", "--target-uws", "--mode", "--ignore-unsupported", "ansible-module", "*.argspec.json", "resolving play roles/import_role", "exact group targets without connecting", "values are redacted from reports"} {
 		if !strings.Contains(string(output), expected) {
 			t.Fatalf("convert ansible help missing %q:\n%s", expected, output)
 		}
@@ -297,7 +297,7 @@ func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 	}
 
 	playbook := filepath.Join(root, "playbook.yml")
-	argspec := filepath.Join(root, "argspec.json")
+	argspec := filepath.Join(root, "argspecs", "builtin.argspec.json")
 	mustWriteCLIFile(t, playbook, []byte(`- name: embedded schemas
   hosts: web
   tasks:
@@ -323,7 +323,7 @@ func TestInstalledCLIConvertUsesEmbeddedSchemas(t *testing.T) {
 	command := exec.Command(binary,
 		"convert", "ansible",
 		"--playbook", "playbook.yml",
-		"--argspec", "builtin=argspec.json",
+		"--argspec-dir", "argspecs",
 		"--inventory", "inventory.ini",
 		"--extra-var", "pkg=nginx",
 		"--out", "out",
