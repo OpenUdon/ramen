@@ -1,1 +1,5 @@
-null
+{
+  "version": "ramen.convert.diagnostics.v1",
+  "converter": "terraform",
+  "diagnostics": []
+}

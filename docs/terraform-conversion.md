@@ -44,6 +44,26 @@ unsafe overlaps and unowned pre-existing generated directories. Credentials
 remain symbolic binding names; values are never copied from provider
 configuration into generated artifacts.
 
+## Semantic-Loss Gate
+
+Strict mode inventories source facts that the current adapter cannot represent
+faithfully. Each fact produces a source-aware strict diagnostic and a matching
+`unsupported` manifest coverage item. The current gate covers:
+
+- resource, data-source, ephemeral-resource, and module-call `count` or
+  `for_each` instances;
+- resource lifecycle policy;
+- module-call inputs, provider mappings, and output bindings;
+- ephemeral resources;
+- `moved`, `import`, and `removed` state-transition blocks;
+- configuration `check` assertions.
+
+Strict conversion retains reports and exits `3` when any of these facts are
+present. `--mode partial` may be used to inspect the lowerable base objects,
+but the reports continue to identify every omitted semantic. Ramen does not
+evaluate expressions, expand instances, download modules, inspect state, or
+load providers in this gate.
+
 ## Outputs
 
 The output package includes:

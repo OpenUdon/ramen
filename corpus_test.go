@@ -378,6 +378,7 @@ func TestDiagnosticCorpusProducesExpectedDiagnostics(t *testing.T) {
 				APISources: sources,
 				Action:     "create",
 				OutDir:     t.TempDir(),
+				Mode:       "partial",
 			})
 			if err != nil {
 				t.Fatalf("convert: %v", err)

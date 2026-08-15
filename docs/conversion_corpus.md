@@ -49,6 +49,14 @@ HCL become corpus entries. Re-running the generator yields more entries
 automatically as coverage grows; the generator, not the data, is the durable
 asset.
 
+M62 also excludes any fixture carrying an unrepresented Terraform semantic
+such as `count`, `for_each`, lifecycle policy, an unexpanded module call,
+ephemeral resources, state-transition blocks, or checks. That fail-closed gate
+reduces the current clean corpus from 160 to 135 entries. Representative loss
+cases remain active in `testdata/diagnostic-corpus`; later bounded expansion can
+promote them back only after their semantics are represented rather than
+silenced.
+
 T01 consumes this strict-valid clean corpus as silver NL-to-Ramen training data.
 Silver rows are useful converted examples, not parity-backed correctness
 claims.

@@ -59,44 +59,6 @@
       "source_repo": "terraform-provider-aws"
     },
     {
-      "path": "aws/iam/Role/list_basic",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_role"
-      ],
-      "data_sources": [
-        "aws_partition"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/Role/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/iam/Role/list_include_resource",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_role"
-      ],
-      "data_sources": [
-        "aws_partition"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/Role/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
       "path": "aws/iam/Role/tags",
       "provider": "aws",
       "service": "iam",
@@ -194,40 +156,6 @@
       "source_repo": "terraform-provider-aws"
     },
     {
-      "path": "aws/iam/RolePolicy/list_basic",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_iam_role_policy"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/RolePolicy/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/iam/RolePolicy/list_include_resource",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_iam_role_policy"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/RolePolicy/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
       "path": "aws/iam/User/basic",
       "provider": "aws",
       "service": "iam",
@@ -257,54 +185,6 @@
         }
       ],
       "source_dir": "internal/service/iam/testdata/User/basic_v6.35.1",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/iam/User/list_basic",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_user"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/User/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/iam/User/list_include_resource",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_user"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/User/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/iam/User/list_path_prefix",
-      "provider": "aws",
-      "service": "iam",
-      "resource_types": [
-        "aws_iam_user"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/iam/testdata/User/list_path_prefix",
       "source_repo": "terraform-provider-aws"
     },
     {
@@ -486,81 +366,6 @@
       "source_repo": "terraform-provider-aws"
     },
     {
-      "path": "aws/lambda/Function/list_basic",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_iam_role_policy",
-        "aws_lambda_function"
-      ],
-      "data_sources": [
-        "aws_partition"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Function/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Function/list_include_resource",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_iam_role_policy",
-        "aws_lambda_function"
-      ],
-      "data_sources": [
-        "aws_partition"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Function/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Function/list_region_override",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_iam_role_policy",
-        "aws_lambda_function"
-      ],
-      "data_sources": [
-        "aws_partition"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Function/list_region_override",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
       "path": "aws/lambda/Function/region_override",
       "provider": "aws",
       "service": "lambda",
@@ -661,138 +466,6 @@
       "source_repo": "terraform-provider-aws"
     },
     {
-      "path": "aws/lambda/Permission/basic",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Permission/basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Permission/basic_v6.9.0",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Permission/basic_v6.9.0",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Permission/list_basic",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Permission/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Permission/list_include_resource",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Permission/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Permission/list_region_override",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Permission/list_region_override",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/Permission/region_override",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/Permission/region_override",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
       "path": "aws/lambda/tmpl/function_basic",
       "provider": "aws",
       "service": "lambda",
@@ -815,28 +488,6 @@
         }
       ],
       "source_dir": "internal/service/lambda/testdata/tmpl/function_basic.gtpl",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/lambda/tmpl/permission_basic",
-      "provider": "aws",
-      "service": "lambda",
-      "resource_types": [
-        "aws_iam_role",
-        "aws_lambda_function",
-        "aws_lambda_permission"
-      ],
-      "smithy_models": [
-        {
-          "id": "iam",
-          "path": "testdata/api-sources/aws-iam-smithy-model.json"
-        },
-        {
-          "id": "lambda",
-          "path": "testdata/api-sources/aws-lambda-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/lambda/testdata/tmpl/permission_basic.gtpl",
       "source_repo": "terraform-provider-aws"
     },
     {
@@ -885,54 +536,6 @@
         }
       ],
       "source_dir": "internal/service/s3/testdata/Bucket/basic_v6.0.0",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/Bucket/list_basic",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/Bucket/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/Bucket/list_include_resource",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/Bucket/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/Bucket/list_region_override",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/Bucket/list_region_override",
       "source_repo": "terraform-provider-aws"
     },
     {
@@ -1082,40 +685,6 @@
       "source_repo": "terraform-provider-aws"
     },
     {
-      "path": "aws/s3/BucketPublicAccessBlock/list_basic",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket",
-        "aws_s3_bucket_public_access_block"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/BucketPublicAccessBlock/list_region_override",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket",
-        "aws_s3_bucket_public_access_block"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/BucketPublicAccessBlock/list_region_override",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
       "path": "aws/s3/BucketPublicAccessBlock/region_override",
       "provider": "aws",
       "service": "s3",
@@ -1181,57 +750,6 @@
         }
       ],
       "source_dir": "internal/service/s3/testdata/BucketVersioning/basic_v6.9.0",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/BucketVersioning/list_basic",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket",
-        "aws_s3_bucket_versioning"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_basic",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/BucketVersioning/list_include_resource",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket",
-        "aws_s3_bucket_versioning"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_include_resource",
-      "source_repo": "terraform-provider-aws"
-    },
-    {
-      "path": "aws/s3/BucketVersioning/list_region_override",
-      "provider": "aws",
-      "service": "s3",
-      "resource_types": [
-        "aws_s3_bucket",
-        "aws_s3_bucket_versioning"
-      ],
-      "smithy_models": [
-        {
-          "id": "s3",
-          "path": "testdata/api-sources/aws-s3-smithy-model.json"
-        }
-      ],
-      "source_dir": "internal/service/s3/testdata/BucketVersioning/list_region_override",
       "source_repo": "terraform-provider-aws"
     },
     {

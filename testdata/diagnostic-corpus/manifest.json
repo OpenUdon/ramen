@@ -2,6 +2,18 @@
   "version": "ramen.diagnostic-corpus.v1",
   "entries": [
     {
+      "path": "aws/s3/count_bucket",
+      "smithy_models": [
+        {
+          "id": "s3",
+          "path": "testdata/api-sources/aws-s3-smithy-model.json"
+        }
+      ],
+      "expected_diagnostics": [
+        "terraform.count_unsupported"
+      ]
+    },
+    {
       "path": "aws/s3/unsupported_object",
       "smithy_models": [
         {
