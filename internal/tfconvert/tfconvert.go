@@ -151,6 +151,7 @@ func Convert(ctx context.Context, opts Options) (*Result, error) {
 	conversion.collectSemanticGaps()
 	conversion.emitSemanticGapDiagnostics()
 	conversion.selectObjects()
+	conversion.validateProviderConfigurations()
 	conversion.validateAction()
 	conversion.mapObjects()
 	conversion.ensureCredentialBindings()
@@ -1665,6 +1666,8 @@ func terraformReportDiagnostics(diagnostics []Diagnostic) []convertreport.Diagno
 		switch {
 		case diagnostic.APISourceID != "":
 			subjectKind, subjectID = "api_source", diagnostic.APISourceID
+		case diagnostic.ProviderSchemaID != "" && diagnostic.Address == "":
+			subjectKind, subjectID = "provider_schema", diagnostic.ProviderSchemaID
 		case diagnostic.Address != "":
 			subjectKind, subjectID = "resource", diagnostic.Address
 		case diagnostic.ModuleAddress != "":
@@ -1686,7 +1689,7 @@ func terraformReportDiagnostics(diagnostics []Diagnostic) []convertreport.Diagno
 }
 
 func writeTerraformManifest(result *Result, c conversionState, diagnostics []convertreport.Diagnostic) error {
-	inputs := make([]convertreport.Input, 0, len(c.doc.SourceFiles)+len(c.opts.APISources))
+	inputs := make([]convertreport.Input, 0, len(c.doc.SourceFiles)+len(c.opts.APISources)+len(c.opts.ProviderSchemas))
 	for _, source := range c.doc.SourceFiles {
 		path := source.Path
 		if !filepath.IsAbs(path) {
@@ -1702,6 +1705,13 @@ func writeTerraformManifest(result *Result, c conversionState, diagnostics []con
 		input, err := convertreport.FileInput("api-source:"+source.Kind, source.ID, source.Path)
 		if err != nil {
 			return fmt.Errorf("record API source input %s: %w", source.ID, err)
+		}
+		inputs = append(inputs, input)
+	}
+	for _, source := range c.opts.ProviderSchemas {
+		input, err := convertreport.FileInput("terraform-provider-schema", source.ID, source.Path)
+		if err != nil {
+			input = convertreport.Input{Kind: "terraform-provider-schema", ID: source.ID, Path: filepath.Base(filepath.Clean(source.Path))}
 		}
 		inputs = append(inputs, input)
 	}
@@ -1752,6 +1762,12 @@ func writeTerraformManifest(result *Result, c conversionState, diagnostics []con
 				})
 			}
 		}
+	}
+	for _, schema := range c.providerSchemas {
+		coverageItems = append(coverageItems, convertreport.CoverageItem{
+			Kind: "provider-schema", ID: schema.ID, Disposition: "converted",
+			Reason: "offline client configuration schema selected as validation evidence",
+		})
 	}
 	for _, gap := range c.semanticGaps {
 		coverageItems = append(coverageItems, convertreport.CoverageItem{
@@ -2066,13 +2082,14 @@ func renderProject(c conversionState) string {
 }
 
 type conversionArtifact struct {
-	Version   string           `json:"version"`
-	ConfigDir string           `json:"config_dir"`
-	Action    string           `json:"action,omitempty"`
-	Strict    bool             `json:"strict"`
-	Symbols   []symbolFact     `json:"symbols,omitempty"`
-	Bindings  []binding        `json:"bindings,omitempty"`
-	Objects   []selectedObject `json:"objects,omitempty"`
+	Version         string                   `json:"version"`
+	ConfigDir       string                   `json:"config_dir"`
+	Action          string                   `json:"action,omitempty"`
+	Strict          bool                     `json:"strict"`
+	ProviderSchemas []providerSchemaEvidence `json:"provider_schemas,omitempty"`
+	Symbols         []symbolFact             `json:"symbols,omitempty"`
+	Bindings        []binding                `json:"bindings,omitempty"`
+	Objects         []selectedObject         `json:"objects,omitempty"`
 }
 
 type mappingArtifact struct {
@@ -2101,13 +2118,14 @@ type planArtifact struct {
 
 func renderConversionArtifact(c conversionState) conversionArtifact {
 	return conversionArtifact{
-		Version:   "ramen.tfconvert.conversion.v1",
-		ConfigDir: c.opts.ConfigDir,
-		Action:    c.opts.Action,
-		Strict:    c.opts.Strict,
-		Symbols:   c.symbols,
-		Bindings:  c.bindings,
-		Objects:   c.selected,
+		Version:         "ramen.tfconvert.conversion.v1",
+		ConfigDir:       c.opts.ConfigDir,
+		Action:          c.opts.Action,
+		Strict:          c.opts.Strict,
+		ProviderSchemas: renderProviderSchemaEvidence(c.providerSchemas),
+		Symbols:         c.symbols,
+		Bindings:        c.bindings,
+		Objects:         c.selected,
 	}
 }
 
@@ -2787,6 +2805,13 @@ func renderReview(c conversionState) string {
 		for _, auth := range mapping.Auth {
 			fmt.Fprintf(&b, "  - Auth `%s`: %s\n", auth.Scheme, auth.Description)
 		}
+	}
+	b.WriteString("\n## Offline Provider Schema Evidence\n\n")
+	if len(c.providerSchemas) == 0 {
+		b.WriteString("- none supplied; conversion used Terraform facts and API source documents only\n")
+	}
+	for _, schema := range c.providerSchemas {
+		fmt.Fprintf(&b, "- `%s` -> `%s` from `%s` (%d resource types, %d data-source types); validation evidence only, not an API operation contract\n", schema.ID, schema.Address, filepath.Base(schema.Path), len(schema.ResourceTypes), len(schema.DataTypes))
 	}
 	b.WriteString("\n## Provider Bindings\n\n")
 	if len(c.bindings) == 0 {

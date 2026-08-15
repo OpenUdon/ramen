@@ -7,6 +7,8 @@ import (
 	"path"
 	"slices"
 	"strings"
+
+	"github.com/OpenUdon/tfconfig"
 )
 
 const (
@@ -56,6 +58,15 @@ type providerSchemaDoc struct {
 	Schema        providerSchemaRecord
 	ResourceTypes []string
 	DataTypes     []string
+}
+
+type providerSchemaEvidence struct {
+	ID              string   `json:"id"`
+	Address         string   `json:"address"`
+	FormatVersion   string   `json:"format_version"`
+	Source          string   `json:"source"`
+	ResourceTypes   []string `json:"resource_types,omitempty"`
+	DataSourceTypes []string `json:"data_source_types,omitempty"`
 }
 
 func (c *conversionState) loadProviderSchemas() {
@@ -153,4 +164,146 @@ func (c *conversionState) addProviderSchemaDiagnostic(id, code, message string) 
 		Code: code, Severity: "error", Message: message,
 		ProviderSchemaID: id, StrictFailure: true,
 	})
+}
+
+func (c *conversionState) validateProviderConfigurations() {
+	if len(c.providerSchemas) == 0 {
+		return
+	}
+	for _, mod := range c.doc.Modules {
+		for _, resource := range mod.Resources {
+			c.validateProviderObject("resource", fullAddress(mod.Address, resource.Address), mod.Address, resource.Type, resource.Provider, resource.Config, resource.Range)
+		}
+		for _, dataSource := range mod.DataSources {
+			c.validateProviderObject("data_source", fullAddress(mod.Address, dataSource.Address), mod.Address, dataSource.Type, dataSource.Provider, dataSource.Config, dataSource.Range)
+		}
+	}
+}
+
+func (c *conversionState) validateProviderObject(kind, address, moduleAddress, objectType string, provider *tfconfig.ProviderRef, config []tfconfig.Attribute, objectRange *tfconfig.SourceRange) {
+	localName := providerLocalNameForSchema(provider, objectType)
+	doc, ok := c.providerSchemaForLocalName(localName)
+	if !ok {
+		return
+	}
+	var objectSchema providerSchemaType
+	switch kind {
+	case "resource":
+		objectSchema, ok = doc.Schema.ResourceSchemas[objectType]
+	case "data_source":
+		objectSchema, ok = doc.Schema.DataSourceSchemas[objectType]
+	}
+	if !ok {
+		code := "provider_schema.resource_type_missing"
+		label := "resource"
+		if kind == "data_source" {
+			code = "provider_schema.data_source_type_missing"
+			label = "data source"
+		}
+		c.addProviderObjectDiagnostic(doc.ID, code, fmt.Sprintf("offline provider schema %q does not define %s type %q", doc.ID, label, objectType), address, moduleAddress, objectRange)
+		return
+	}
+
+	configured := map[string]*tfconfig.SourceRange{}
+	for _, attribute := range config {
+		root := providerSchemaRootPath(attribute.Path)
+		if root == "" {
+			continue
+		}
+		if _, exists := configured[root]; !exists {
+			configured[root] = firstRange(attribute.Range, attribute.Value.Range)
+		}
+		mode, exists := objectSchema.Block.Attributes[root]
+		if exists {
+			if !validProviderSchemaAttributeMode(mode) {
+				c.addProviderObjectDiagnostic(doc.ID, "provider_schema.attribute_mode_invalid", fmt.Sprintf("offline provider schema %q has an invalid required/optional/computed mode for %s.%s", doc.ID, objectType, root), address, moduleAddress, firstRange(attribute.Range, objectRange))
+				continue
+			}
+			if mode.Computed && !mode.Optional && !mode.Required {
+				c.addProviderObjectDiagnostic(doc.ID, "provider_schema.computed_only_configured", fmt.Sprintf("%s configures computed-only provider attribute %q according to offline schema %q", address, root, doc.ID), address, moduleAddress, firstRange(attribute.Range, objectRange))
+			}
+			continue
+		}
+		if _, exists := objectSchema.Block.BlockTypes[root]; exists {
+			continue
+		}
+		c.addProviderObjectDiagnostic(doc.ID, "provider_schema.attribute_unknown", fmt.Sprintf("%s configures attribute or block %q that is absent from offline schema %q for %s", address, root, doc.ID, objectType), address, moduleAddress, firstRange(attribute.Range, objectRange))
+	}
+
+	for _, name := range sortedSchemaKeys(objectSchema.Block.Attributes) {
+		mode := objectSchema.Block.Attributes[name]
+		if !validProviderSchemaAttributeMode(mode) {
+			c.addProviderObjectDiagnostic(doc.ID, "provider_schema.attribute_mode_invalid", fmt.Sprintf("offline provider schema %q has an invalid required/optional/computed mode for %s.%s", doc.ID, objectType, name), address, moduleAddress, objectRange)
+			continue
+		}
+		if mode.Required {
+			if _, exists := configured[name]; !exists {
+				c.addProviderObjectDiagnostic(doc.ID, "provider_schema.required_attribute_missing", fmt.Sprintf("%s omits required provider attribute %q according to offline schema %q", address, name, doc.ID), address, moduleAddress, objectRange)
+			}
+		}
+	}
+	for _, name := range sortedSchemaKeys(objectSchema.Block.BlockTypes) {
+		block := objectSchema.Block.BlockTypes[name]
+		if block.MinItems > 0 {
+			if _, exists := configured[name]; !exists {
+				c.addProviderObjectDiagnostic(doc.ID, "provider_schema.required_block_missing", fmt.Sprintf("%s omits provider block %q with min_items %d according to offline schema %q", address, name, block.MinItems, doc.ID), address, moduleAddress, objectRange)
+			}
+		}
+	}
+}
+
+func providerLocalNameForSchema(provider *tfconfig.ProviderRef, objectType string) string {
+	if provider != nil {
+		if localName := strings.TrimSpace(provider.LocalName); localName != "" {
+			return localName
+		}
+		if localName := providerLocalName(provider.Address); localName != "" {
+			return localName
+		}
+	}
+	localName, _, _ := strings.Cut(strings.TrimSpace(objectType), "_")
+	return localName
+}
+
+func (c *conversionState) providerSchemaForLocalName(localName string) (providerSchemaDoc, bool) {
+	for _, schema := range c.providerSchemas {
+		if schema.ID == localName || path.Base(schema.Address) == localName {
+			return schema, true
+		}
+	}
+	return providerSchemaDoc{}, false
+}
+
+func providerSchemaRootPath(attributePath string) string {
+	attributePath = strings.TrimSpace(attributePath)
+	if index := strings.IndexAny(attributePath, ".["); index >= 0 {
+		return attributePath[:index]
+	}
+	return attributePath
+}
+
+func validProviderSchemaAttributeMode(attribute providerSchemaAttribute) bool {
+	if attribute.Required {
+		return !attribute.Optional && !attribute.Computed
+	}
+	return attribute.Optional || attribute.Computed
+}
+
+func (c *conversionState) addProviderObjectDiagnostic(id, code, message, address, moduleAddress string, rng *tfconfig.SourceRange) {
+	c.addDiagnostic(Diagnostic{
+		Code: code, Severity: "error", Message: message, Address: address,
+		ModuleAddress: moduleAddress, ProviderSchemaID: id,
+		SourceRange: convertRange(rng), StrictFailure: true,
+	})
+}
+
+func renderProviderSchemaEvidence(docs []providerSchemaDoc) []providerSchemaEvidence {
+	out := make([]providerSchemaEvidence, 0, len(docs))
+	for _, doc := range docs {
+		out = append(out, providerSchemaEvidence{
+			ID: doc.ID, Address: doc.Address, FormatVersion: providerSchemaFormatVersion,
+			Source: path.Base(doc.Path), ResourceTypes: slices.Clone(doc.ResourceTypes), DataSourceTypes: slices.Clone(doc.DataTypes),
+		})
+	}
+	return out
 }

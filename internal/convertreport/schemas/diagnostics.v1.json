@@ -39,7 +39,7 @@
       "type": "object",
       "required": ["kind", "id"],
       "properties": {
-        "kind": {"enum": ["configuration", "module", "resource", "data_source", "play", "task", "argspec", "api_source", "conversion"]},
+        "kind": {"enum": ["configuration", "module", "resource", "data_source", "play", "task", "argspec", "api_source", "provider_schema", "conversion"]},
         "id": {"type": "string", "minLength": 1},
         "module": {"type": "string", "minLength": 1}
       },
