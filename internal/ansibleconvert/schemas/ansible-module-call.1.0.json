@@ -1,0 +1,58 @@
+{
+  "$id": "https://github.com/OpenUdon/ramen/internal/ansibleconvert/schemas/ansible-module-call.1.0.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ramen Ansible Module Call Profile 1.0",
+  "description": "Wire metadata schema for Ramen-owned Ansible module leaf operations produced by static conversion.",
+  "type": "object",
+  "required": [
+    "x-ramen-ansible-module"
+  ],
+  "properties": {
+    "x-ramen-ansible-module": {
+      "$ref": "#/$defs/operation-ansible-module"
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "operation-ansible-module": {
+      "type": "object",
+      "required": [
+        "module"
+      ],
+      "properties": {
+        "module": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+\\.[a-z0-9_]+\\.[a-z0-9_]+$",
+          "description": "Ansible module fully qualified collection name (exactly namespace.collection.module, lowercase per Ansible Galaxy naming rules), such as ansible.builtin.apt."
+        },
+        "argspec": {
+          "$ref": "#/$defs/argspec-reference"
+        }
+      },
+      "additionalProperties": false
+    },
+    "argspec-reference": {
+      "type": "object",
+      "required": [
+        "sourceId",
+        "url",
+        "collection"
+      ],
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": ".*\\S.*"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^\\S+$"
+        },
+        "collection": {
+          "type": "string",
+          "pattern": "^[a-z0-9_]+\\.[a-z0-9_]+$"
+        }
+      },
+      "additionalProperties": false
+    }
+  }
+}
