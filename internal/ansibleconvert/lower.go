@@ -745,6 +745,11 @@ func (lw *lowerer) lowerLoopItems(task *Task, ctx *exprContext) (string, bool) {
 		}
 		return lowered, true
 	case []any:
+		if !isStaticAnsibleValue(loop) {
+			lw.addDiag(Diagnostic{Code: CodeJinjaUnsupported, Severity: "error", StrictFailure: true, Task: task.Name,
+				Message: "literal loop items contain dynamic template values; the task was not lowered"})
+			return "", false
+		}
 		lw.varCounter++
 		name := fmt.Sprintf("%s_items", sanitizeID(task.Name))
 		if name == "_items" || lw.vars[name] {

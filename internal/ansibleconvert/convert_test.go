@@ -486,6 +486,83 @@ func TestConvertLoopLowersForEach(t *testing.T) {
 	}
 }
 
+func TestConvertLiteralWithListAndWithDict(t *testing.T) {
+	result, doc := runConvert(t, "legacyloops")
+	if result.StrictFailures != 0 {
+		t.Fatalf("literal legacy loops should lower: %#v", result.Diagnostics)
+	}
+	listStep := findStep(doc.Workflows[0].Steps, "list_loop")
+	if listStep == nil || listStep.ForEach != "$variables.list_loop_items" {
+		t.Fatalf("with_list step = %#v", listStep)
+	}
+	listItems, _ := doc.Components.Variables["list_loop_items"].([]any)
+	if !reflect.DeepEqual(listItems, []any{"/tmp/b", "/tmp/a"}) {
+		t.Fatalf("with_list items = %#v", listItems)
+	}
+	dictStep := findStep(doc.Workflows[0].Steps, "dictionary_loop")
+	if dictStep == nil || dictStep.ForEach != "$variables.dictionary_loop_items" {
+		t.Fatalf("with_dict step = %#v", dictStep)
+	}
+	dictItems, _ := doc.Components.Variables["dictionary_loop_items"].([]any)
+	wantItems := []any{
+		map[string]any{"key": "alpha", "value": "/tmp/a"},
+		map[string]any{"key": "beta", "value": "/tmp/b"},
+	}
+	if !reflect.DeepEqual(dictItems, wantItems) {
+		t.Fatalf("with_dict items = %#v, want %#v", dictItems, wantItems)
+	}
+	op := findOperation(doc, "dictionary_loop")
+	body, _ := op.Request["body"].(map[string]any)
+	if body["cmd"] != "$item.key" || body["chdir"] != "$item.value" {
+		t.Fatalf("with_dict item references = %#v", body)
+	}
+}
+
+func TestConvertMixedAndDynamicLegacyLoopsFailClosed(t *testing.T) {
+	root := t.TempDir()
+	playbook := filepath.Join(root, "playbook.yml")
+	if err := os.WriteFile(playbook, []byte(`- name: unsupported loops
+  hosts: localhost
+  tasks:
+    - name: mixed loops
+      ansible.builtin.shell: {cmd: echo mixed}
+      loop: []
+      with_list: []
+    - name: dynamic dictionary
+      ansible.builtin.shell: {cmd: "{{ item.key }}"}
+      with_dict: "{{ mapping }}"
+    - name: plugin loop
+      ansible.builtin.shell: {cmd: echo plugin}
+      with_fileglob: ["*.conf"]
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbook,
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		Mode: "partial", OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StrictFailures < 3 || result.UWSPath != "" {
+		t.Fatalf("unsupported loops result = %#v", result)
+	}
+	for _, fragment := range []string{"loop/with_list", "with_dict", "with_fileglob"} {
+		var found bool
+		for _, diag := range result.Diagnostics {
+			if diag.StrictFailure && strings.Contains(diag.Message, fragment) {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing %q diagnostic: %#v", fragment, result.Diagnostics)
+		}
+	}
+}
+
 func TestConvertTier3EmitsStrictDiagnostics(t *testing.T) {
 	result, doc := runConvert(t, "tier3")
 	if result.StrictFailures < 5 {
@@ -852,11 +929,11 @@ func TestConvertBadTaskShapesWriteDiagnosticsAndPartialArtifacts(t *testing.T) {
       ansible.builtin.shell:
         - echo bad
 
-    - name: Unsupported legacy loop
+    - name: Unsupported plugin loop
       ansible.builtin.shell:
         cmd: echo bad
-      with_dict:
-        key: value
+      with_fileglob:
+        - "*.conf"
 `), 0o644); err != nil {
 		t.Fatalf("write playbook: %v", err)
 	}
@@ -883,7 +960,7 @@ func TestConvertBadTaskShapesWriteDiagnosticsAndPartialArtifacts(t *testing.T) {
 	if result.StrictFailures < 4 {
 		t.Fatalf("expected strict diagnostics for bad shapes and legacy loop, got %d: %#v", result.StrictFailures, result.Diagnostics)
 	}
-	for _, want := range []string{"no module invocation", "multiple module keys", "unsupported argument shape", "with_dict"} {
+	for _, want := range []string{"no module invocation", "multiple module keys", "unsupported argument shape", "with_fileglob"} {
 		var found bool
 		for _, d := range result.Diagnostics {
 			if d.StrictFailure && strings.Contains(d.Message, want) {

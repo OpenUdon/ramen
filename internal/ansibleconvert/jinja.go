@@ -86,6 +86,12 @@ func lowerReference(inner string, ctx *exprContext) (string, bool, string) {
 		return "$inputs." + inner, true, ""
 	case dottedRE.MatchString(inner):
 		head, rest, _ := strings.Cut(inner, ".")
+		if head == "item" {
+			if !ctx.inLoop {
+				return "", false, "item field referenced outside a task loop"
+			}
+			return "$item." + rest, true, ""
+		}
 		if strings.HasPrefix(inner, "ansible_facts.") || strings.HasPrefix(head, "ansible_") {
 			return "", false, fmt.Sprintf("fact reference %q requires a facts-gathering step; not lowered automatically", inner)
 		}

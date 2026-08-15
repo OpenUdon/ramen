@@ -230,17 +230,38 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 		Line:        node.Line,
 		Column:      node.Column,
 	}
-	if m.has("loop") && m.has("with_items") {
+	loopDirectives := presentLoopDirectives(m)
+	if len(loopDirectives) > 1 {
 		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(
 			task.Name,
-			"loop/with_items",
+			strings.Join(loopDirectives, "/"),
 			"cannot be specified together because their precedence is ambiguous",
 			"",
 		))
-	} else if loop := m.value("loop"); loop != nil {
-		task.Loop = loop
-	} else if loop := m.value("with_items"); loop != nil {
-		task.Loop = loop
+	} else if len(loopDirectives) == 1 {
+		directive := loopDirectives[0]
+		switch loop := m.value(directive).(type) {
+		case []any:
+			if directive == "with_dict" {
+				task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, directive, "must be a literal mapping", ""))
+			} else {
+				task.Loop = loop
+			}
+		case map[string]any:
+			if directive == "with_dict" {
+				task.Loop = staticDictionaryItems(loop)
+			} else {
+				task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, directive, "must be a literal list", ""))
+			}
+		case string:
+			if directive == "loop" || directive == "with_items" {
+				task.Loop = loop
+			} else {
+				task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, directive, "must be a literal collection", ""))
+			}
+		default:
+			task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, directive, "must be a static expression or literal collection", ""))
+		}
 	}
 	for _, directive := range unsupportedWithDirectives(m) {
 		task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, directive, "uses a legacy loop form that is not lowered; use loop or with_items for static item lists", ""))
@@ -429,12 +450,35 @@ func isTaskDirectiveKey(key string) bool {
 func unsupportedWithDirectives(m nodeMap) []string {
 	var directives []string
 	for key := range m.values {
-		if strings.HasPrefix(key, "with_") && key != "with_items" {
+		if strings.HasPrefix(key, "with_") && key != "with_items" && key != "with_list" && key != "with_dict" {
 			directives = append(directives, key)
 		}
 	}
 	sort.Strings(directives)
 	return directives
+}
+
+func presentLoopDirectives(m nodeMap) []string {
+	var out []string
+	for _, name := range []string{"loop", "with_items", "with_list", "with_dict"} {
+		if m.has(name) {
+			out = append(out, name)
+		}
+	}
+	return out
+}
+
+func staticDictionaryItems(values map[string]any) []any {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	out := make([]any, 0, len(keys))
+	for _, key := range keys {
+		out = append(out, map[string]any{"key": key, "value": values[key]})
+	}
+	return out
 }
 
 type nodeMap struct {

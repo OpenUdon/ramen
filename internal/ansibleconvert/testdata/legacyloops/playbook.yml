@@ -1,0 +1,17 @@
+- name: Literal legacy loops
+  hosts: localhost
+  tasks:
+    - name: List loop
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+      with_list:
+        - /tmp/b
+        - /tmp/a
+    - name: Dictionary loop
+      ansible.builtin.shell:
+        cmd: "{{ item.key }}"
+        chdir: "{{ item.value }}"
+      with_dict:
+        beta: /tmp/b
+        alpha: /tmp/a
