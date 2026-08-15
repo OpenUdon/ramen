@@ -58,7 +58,8 @@ A language feature is lowerable only when all of these are true:
 Current promoted examples include bounded literal Terraform instances and
 exactly-once local modules, optional provider-schema validation, exact static
 Ansible inventory targets, literal variable precedence, simple literal
-includes, and literal list/dictionary loops. Composite Terraform expressions,
+includes whose scope is representable without private role variables, and
+literal list/dictionary loops. Composite Terraform expressions,
 module outputs/instances/downloads, dynamic Ansible host patterns, plugins,
 vault, complex Jinja, nested host/task loops, and per-host handler gates remain
 explicit gaps.

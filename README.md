@@ -139,7 +139,10 @@ Ansible conversion can resolve bounded regular INI/YAML/JSON inventory files
 for `all`, one exact host, or one exact group and apply literal extra vars at
 the highest static precedence. This chooses client-requested host facts only;
 Ramen still never opens an inventory connection, SSH session, or module runtime,
-and inline extra-var values are redacted from conversion reports.
+and inline extra-var values are redacted from conversion reports. Empty host
+selections and credential-shaped non-runtime inventory or nested extra-variable
+keys fail closed. Simple default-private `include_role` remains lowerable only
+when its role has no non-empty defaults or vars.
 
 `ramen run` is an adjacent imperative UWS runbook command; it does not create
 desired-state resources. Default release builds include mock execution only.

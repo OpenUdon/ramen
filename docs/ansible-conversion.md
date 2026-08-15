@@ -52,17 +52,19 @@ client-side while SSH and module execution stay runtime-owned.
   `.yml`, or `.json` files. Each file is limited to 8 MiB; at most 32 inputs,
   4,096 hosts, and 1,024 groups are accepted. `all`, one exact host, or one
   exact group play target resolves to a sorted host-object collection. Exact
-  group children are expanded recursively. Globs, unions/intersections,
-  exclusions, ranges, templated targets, cycles, empty selections, executable
-  inventory, directories, and symlinks fail closed. Ramen reads no inventory
+  group-child membership is validated and precomputed once. Globs,
+  unions/intersections, exclusions, ranges, templated targets, cycles, empty
+  selections, executable inventory, directories, and symlinks fail closed.
+  Ramen reads no inventory
   plugin and opens no connection.
 - `--extra-var NAME=VALUE` or `--extra-var @file` is repeatable and enters
   static lowering at the highest precedence. File inputs must be bounded
   regular YAML/JSON maps; inline values are literal YAML values. Dynamic
   values, conflicting duplicates, malformed maps, directories, and symlinks
-  fail closed. Secret-like literal variable names require a symbolic runtime
-  credential binding. Reports retain names, safe filenames, and file digests,
-  never inline values.
+  fail closed. Secret-like literal variable names and credential-shaped keys
+  nested in maps/lists require a symbolic runtime credential binding. Reports
+  retain names, safe filenames, key paths, and file digests, never inline
+  values.
 - Argspec documents must use the `ramen.ansible.1.0` shape:
   - top-level `argspec: ramen.ansible.1.0`
   - collection name, such as `ansible.builtin`
@@ -136,8 +138,10 @@ steps, registers that refer to already-lowered producers, and notified
 handlers. Static `pre_tasks`, `tasks`, and `post_tasks` lower in play order.
 Literal `import_tasks` and simple literal `include_tasks` files are expanded in
 place, including nested content. Literal `include_role` with only a role name
-reuses static role resolution. Include templating, apply/extra options, loops,
-register/notify, and `include_vars` remain strict.
+reuses static role resolution when the default-private role has no non-empty
+`defaults/main.yml` or `vars/main.yml`; otherwise the include fails closed
+rather than exposing those variables to the play. Include templating,
+apply/extra options, loops, register/notify, and `include_vars` remain strict.
 Static roles load `tasks/main.yml`, `handlers/main.yml`, `defaults/main.yml`,
 and `vars/main.yml`; missing role tasks, missing imported files, cycles,
 ambiguous role matches, and templated paths are strict diagnostics. Handler
@@ -152,7 +156,9 @@ priority or plugin behavior. Static task-local `vars` lower into task step
 fan out over a deterministic `components.variables` host-object list, bind
 `inputs.host` to `$item.host`, and resolve unshadowed inventory variables as
 `$item.vars.<name>`. Variables beginning `ansible_` remain connection/runtime
-facts and are not embedded in those host objects.
+facts and are not embedded in those host objects. Credential-shaped
+non-runtime inventory keys, including nested keys, fail ingestion before host
+objects are lowered.
 
 When statically expressible, a single `changed_when` replaces the default
 `changed` output expression, a single mechanically invertible `failed_when`
@@ -197,7 +203,7 @@ declared `uws` version differs.
 | `failed_when` | A single mechanically invertible condition replaces the default failure criterion in `successCriteria`. |
 | `until` + `retries` + `delay` | The `until` conditions append to `successCriteria`; static `retries` emits `onFailure` retry with `retryLimit: retries - 1`; static `delay` becomes `retryAfter`. |
 | `notify` / handlers | One notifier gates the handler step on `$steps.<notifier>.outputs.changed == true`; multiple notifiers lower to one `switch` that runs the handler at most once. |
-| Static import/include tasks and roles | Literal import forms plus bounded literal `include_tasks`/`include_role` resolve before lowering; supported wrapper guards, tags, vars, retry, and condition directives are inherited. |
+| Static import/include tasks and roles | Literal import forms plus bounded literal `include_tasks` resolve before lowering; default-private literal `include_role` also resolves when its role has no non-empty defaults/vars. Supported wrapper guards, tags, vars, retry, and condition directives are inherited. |
 | Static inventory host fan-out | Non-local tasks get `forEach: $variables.inventory_*_hosts`, `inputs.host: $item.host`, and unshadowed host variables under `$item.vars.*`; connection behavior stays runtime-owned. |
 
 ## Support Matrix
@@ -228,8 +234,8 @@ Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:
 
 - complex Jinja2 expressions, filters, and runtime facts
-- templated or option-bearing `include_tasks`/`include_role`, include loops,
-  and `include_vars`
+- templated or option-bearing `include_tasks`/`include_role`, private included
+  roles with non-empty defaults/vars, include loops, and `include_vars`
 - unknown modules or modules missing from supplied argspecs
 - `delegate_to`, `run_once`, and target-changing directives
 - block `rescue` or `always`
