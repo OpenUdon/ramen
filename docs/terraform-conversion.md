@@ -14,7 +14,7 @@ ramen convert tf \
   --action create \
   --target ADDRESS \
   --out DIR \
-  --strict
+  --mode strict
 ```
 
 Conversion is an experimental migration and review aid. The generated native
@@ -34,8 +34,9 @@ is not sent to the trusted executor.
   repeated.
 - `--out DIR` selects the review package directory and defaults to
   `.ramen/convert`.
-- `--strict` returns a failure when strict diagnostics remain. Static review
-  artifacts and diagnostics retain the existing converter behavior.
+- `--mode strict|partial` selects the common conversion gate. During the
+  transition, omitted mode defaults to `partial`. `--strict` remains a
+  deprecated alias for `--mode strict`.
 
 Inputs and staged API source documents are untrusted. Source staging rejects
 unsafe overlaps and unowned pre-existing generated directories. Credentials
@@ -52,11 +53,20 @@ The output package includes:
 - `project.md` and `expected/review.md`, the human review boundary;
 - `expected/conversion.json`, `mappings.json`, `plan.json`, and `plan.md`;
 - `expected/diagnostics.json` and `diagnostics.md`;
+- `expected/manifest.json`, the deterministic common conversion record;
 - staged local API source documents required by the native project.
+
+Strict failures retain `project.md`, the `expected/` review evidence, staged
+API source inputs, diagnostics, and manifest, but suppress both native project
+formats and both workflow formats. A rerun into the same output directory also
+removes stale semantic payloads from an earlier partial conversion. Strict
+failure exits `3`; operational failures exit `1` and usage errors exit `2`.
 
 The supporting conversion, mapping, plan, diagnostics, and source-staging
 artifacts keep their existing formats. The schemas described below cover the
 native project profile and UWS-carried Terraform review metadata.
+The shared report envelope is defined in the
+[static conversion contract](conversion.md).
 
 ## Native Project Contract
 

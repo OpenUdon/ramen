@@ -13,7 +13,7 @@ Features that need unsupported semantics are strict diagnostics
 rather than approximations:
 
 ```bash
-ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.5 --out DIR --ignore-unsupported
+ramen convert ansible --playbook FILE --argspec ID=PATH --project-dir DIR --roles-path DIR --collections-path DIR --inventory FILE --extra-var NAME=VALUE --target-uws 1.5 --out DIR --mode strict
 ```
 
 The command does not execute Ansible, modules, inventory connections, API
@@ -62,6 +62,9 @@ source operations, or UWS workflows. It is a conversion and review aid only.
   with `x-uws-operation-profile: ramen.ansible-module-call.1.0` and
   `x-ramen-ansible-module`. UWS 1.6 briefly offered an `ansible-module` source
   type and UWS 1.7 removed it.
+- `--mode strict|partial` selects the common conversion gate. During the
+  transition, omitted mode defaults to `strict`. `--strict` and
+  `--ignore-unsupported` remain deprecated aliases for strict and partial.
 
 This namespace change is a hard break. Ramen rejects
 `uws.ansible.1.0`, `uws.ansible-module-call.1.0`, and
@@ -78,12 +81,12 @@ With at least one lowered task, `DIR` contains:
 - `expected/diagnostics.json`
 - `expected/diagnostics.md`
 - `expected/review.md`
+- `expected/manifest.json`
 
 If unsupported constructs produce strict-failure diagnostics, or if no task can
 be lowered, the workflow files are not written by default, but
 `expected/diagnostics.*` and `expected/review.md` are still written. Rerun with
-`--ignore-unsupported` to write a partial workflow that omits unsupported
-constructs.
+`--mode partial` to write a partial workflow that omits unsupported constructs.
 
 `expected/review.md` includes the conversion summary, artifact paths, lowered
 operation table, diagnostics summary, and strict-gate status.
@@ -95,11 +98,16 @@ prints each strict-failure diagnostic, writes diagnostics and review markdown,
 does not write UWS/HCL workflow artifacts, and exits with code `3`. Usage
 errors exit with code `2`; unexpected converter errors exit with code `1`.
 
-Use `--ignore-unsupported` only when a partial workflow is acceptable. In that
+Use `--mode partial` only when a partial workflow is acceptable. In that
 mode, Ramen still records diagnostics, but writes UWS/HCL artifacts with the
 unsupported tasks, handlers, or control-flow constructs omitted.
 Task-level argspec and `noLog` failures always omit their affected task from
-partial output. `--ignore-unsupported` does not restore an invalid operation.
+partial output. Partial mode does not restore an invalid operation.
+
+The JSON diagnostics and manifest use the shared embedded contracts documented
+in the [static conversion contract](conversion.md). The manifest records input
+and artifact digests, lowering coverage, the effective mode, and explicit
+non-execution evidence without storing raw inline extra-variable values.
 
 ## Supported Subset
 
@@ -174,7 +182,7 @@ declared `uws` version differs.
 | Partially supported | OR-guarded tasks, host fan-out, `throttle`, retries without `until`, static variables and role vars | Lowered only when a stable UWS meaning exists; otherwise emits diagnostics. |
 | Runtime-owned | `become`, `become_user`, `become_method`, `environment`, `no_log`, inventory connection behavior, module invocation, credentials | Recorded as informational diagnostics or provenance; not emitted as UWS execution policy. |
 | Review-only | `x-ramen-ansible-provenance` provenance, argspec references, project/role/collection/inventory inputs, extra-vars inputs | Included for review and reproducibility; they do not define UWS execution semantics. |
-| Unsupported / fail-closed | Complex Jinja2, runtime facts, dynamic includes, unknown modules, `delegate_to`, `run_once`, `rescue`, `always`, non-static task vars, `ignore_errors`, unsafe handler/host fan-out combinations | Emits strict diagnostics and omits the affected task/handler unless `--ignore-unsupported` allows a partial artifact. |
+| Unsupported / fail-closed | Complex Jinja2, runtime facts, dynamic includes, unknown modules, `delegate_to`, `run_once`, `rescue`, `always`, non-static task vars, `ignore_errors`, unsafe handler/host fan-out combinations | Emits strict diagnostics and omits the affected task/handler unless `--mode partial` allows a partial artifact. |
 
 Lowered operations and steps carry provenance-only `x-ramen-ansible-provenance` extensions with
 the source file, line, column, play, section, task name, optional role, optional

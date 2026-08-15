@@ -122,10 +122,11 @@ ramen convert
 ramen convert ansible --playbook playbook.yml --argspec-dir argspecs
 ```
 
-See the [Terraform/OpenTofu conversion contract](docs/terraform-conversion.md)
-and [Ansible conversion contract](docs/ansible-conversion.md) for their static
-inputs, Ramen-owned metadata, validation, artifacts, and compatibility
-boundaries.
+See the shared [static conversion contract](docs/conversion.md), the
+[Terraform/OpenTofu conversion contract](docs/terraform-conversion.md), and the
+[Ansible conversion contract](docs/ansible-conversion.md) for their modes,
+reports, static inputs, Ramen-owned metadata, validation, artifacts, and
+compatibility boundaries.
 
 `ramen run` is an adjacent imperative UWS runbook command; it does not create
 desired-state resources. Default release builds include mock execution only.
