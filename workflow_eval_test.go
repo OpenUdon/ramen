@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/OpenUdon/ramen/internal/convertreport"
 	"github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -110,7 +111,7 @@ func assertWorkflowEvalDiagnostics(t *testing.T, entry workflowEvalEntry) {
 	if err := json.Unmarshal(data, &diags); err != nil {
 		t.Fatalf("parse %s diagnostics: %v", entry.ID, err)
 	}
-	if diags.Version != "ramen.ansible-convert.v1" {
+	if diags.Version != convertreport.DiagnosticsVersion {
 		t.Fatalf("%s diagnostics version = %q", entry.ID, diags.Version)
 	}
 	strictFailures := 0

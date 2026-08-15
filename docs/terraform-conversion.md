@@ -4,8 +4,9 @@
 Terraform/OpenTofu HCL facts into a native UWS/Ramen desired-state project and
 review artifacts. The converter reads HCL through `tfconfig`, matches objects
 to local API source operations through `tfmapping` and `apitools`, and never
-loads or executes Terraform/OpenTofu, providers, modules, backends, API
-operations, or UWS workflows.
+executes Terraform/OpenTofu, providers, modules, backends, API operations, or
+UWS workflows. `tfconfig` may read already-present local module source; Ramen
+never downloads a module.
 
 ```bash
 ramen convert tf \
@@ -50,10 +51,14 @@ Strict mode inventories source facts that the current adapter cannot represent
 faithfully. Each fact produces a source-aware strict diagnostic and a matching
 `unsupported` manifest coverage item. The current gate covers:
 
-- resource, data-source, ephemeral-resource, and module-call `count` or
-  `for_each` instances;
+- dynamic, negative, oversized, wrong-shaped, or otherwise unresolved
+  resource/data-source `count` and `for_each` instances;
+- instance expressions that use `count.index`, `each.key`, or `each.value`
+  anywhere other than an exact whole-attribute reference;
+- all ephemeral-resource and module-call instances;
 - resource lifecycle policy;
-- module-call inputs, provider mappings, and output bindings;
+- module calls outside the loaded, exactly-once, statically resolvable local
+  subset described below;
 - ephemeral resources;
 - `moved`, `import`, and `removed` state-transition blocks;
 - configuration `check` assertions.
@@ -61,8 +66,38 @@ faithfully. Each fact produces a source-aware strict diagnostic and a matching
 Strict conversion retains reports and exits `3` when any of these facts are
 present. `--mode partial` may be used to inspect the lowerable base objects,
 but the reports continue to identify every omitted semantic. Ramen does not
-evaluate expressions, expand instances, download modules, inspect state, or
-load providers in this gate.
+run an expression runtime, download modules, inspect state, or load providers
+in this gate.
+
+## Bounded Static Expansion
+
+Ramen expands a deliberately small instance subset when the `tfconfig` facts
+are sufficient without Terraform evaluation:
+
+- literal non-negative integer `count` and literal object/map `for_each`;
+- literal string-set `for_each` when the selected `tfconfig` revision exposes
+  the collection as a set;
+- no more than 256 instances for one resource or data-source declaration;
+- canonical addresses such as `aws_instance.web[0]` and
+  `aws_instance.web["blue"]`, with no additional base object;
+- exact whole-attribute `count.index`, `each.key`, and `each.value`
+  substitution. Templates, arithmetic, indexing, function calls, and other
+  composite expressions remain strict semantic loss.
+
+A base `--target` selects all statically expanded instances; a canonical
+instance address selects that instance. Dependencies retain canonical
+instance addresses and a reference to an expanded declaration conservatively
+depends on its instances.
+
+Ramen also lowers an already-loaded local module call when it has no `count`,
+`for_each`, `depends_on`, or consumed module output; its parent call chain is
+supported; every declared input resolves from a literal call value, an exact
+parent-variable reference, or a literal child default; and provider mappings
+resolve statically. Child objects retain their module address while using the
+mapped parent provider binding. Missing/remote module source, sensitive or
+unresolved values, non-exact variable expressions, output consumers, and
+module instances keep `terraform.module_call_unsupported` (and the applicable
+instance diagnostic) instead of producing an equivalence claim.
 
 ## Outputs
 
