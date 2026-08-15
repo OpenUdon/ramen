@@ -111,7 +111,7 @@ var taskDirectives = map[string]bool{
 	"include_role": true, "include_vars": true,
 }
 
-var dynamicIncludeKeys = []string{"include_tasks", "include_role", "include_vars"}
+var dynamicIncludeKeys = []string{"include_vars"}
 
 // ParsePlaybook parses playbook YAML into the IR. Parsing is shape-only; no
 // Jinja2 evaluation, no file inclusion, no module execution.
@@ -285,12 +285,29 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 			task.StrictDirectiveDiagnostics = append(task.StrictDirectiveDiagnostics, strictDirectiveDiagnostic(task.Name, "throttle", "must be a static positive integer", reason))
 		}
 	}
+	recordTaskDirectivePosture(task, m)
 
 	for _, key := range dynamicIncludeKeys {
 		if m.has(key) {
 			task.DynamicInclude = key
 			return task, nil
 		}
+	}
+	if m.has("include_tasks") {
+		if path, ok := staticIncludeTasksPath(m.value("include_tasks")); ok && task.Loop == nil && task.Register == "" && len(task.Notify) == 0 {
+			task.StaticImport = path
+		} else {
+			task.DynamicInclude = "include_tasks with templating, loop, register, notify, or dynamic options"
+		}
+		return task, nil
+	}
+	if m.has("include_role") {
+		if role, ok := staticIncludeRoleName(m.value("include_role")); ok && task.Loop == nil && task.Register == "" && len(task.Notify) == 0 {
+			task.ImportRole = role
+		} else {
+			task.DynamicInclude = "include_role with templating, loop, register, notify, or dynamic options"
+		}
+		return task, nil
 	}
 	if m.has("import_tasks") {
 		task.StaticImport = stringValue(m.value("import_tasks"))
@@ -316,19 +333,6 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 			return nil, fmt.Errorf("always: %w", err)
 		}
 	}
-
-	// Record directive posture for review.
-	for key := range m.values {
-		switch key {
-		case "become", "become_user", "become_method", "environment", "no_log":
-			task.InfoDirectives = append(task.InfoDirectives, key)
-		case "delegate_to", "run_once":
-			task.HardDirectives = append(task.HardDirectives, key)
-		}
-	}
-	sort.Strings(task.InfoDirectives)
-	sort.Strings(task.HardDirectives)
-	sort.Strings(task.TodoDirectives)
 
 	// The remaining non-directive key is the module invocation.
 	var moduleKeys []string
@@ -370,6 +374,52 @@ func parseTask(node *yaml.Node, sourceFile, playName, section, role string, impo
 		}
 	}
 	return task, nil
+}
+
+func recordTaskDirectivePosture(task *Task, m nodeMap) {
+	for key := range m.values {
+		switch key {
+		case "become", "become_user", "become_method", "environment", "no_log":
+			task.InfoDirectives = append(task.InfoDirectives, key)
+		case "delegate_to", "run_once":
+			task.HardDirectives = append(task.HardDirectives, key)
+		}
+	}
+	sort.Strings(task.InfoDirectives)
+	sort.Strings(task.HardDirectives)
+	sort.Strings(task.TodoDirectives)
+}
+
+func staticIncludeTasksPath(value any) (string, bool) {
+	switch v := value.(type) {
+	case string:
+		v = strings.TrimSpace(v)
+		return v, v != "" && !containsTemplate(v)
+	case map[string]any:
+		if len(v) != 1 {
+			return "", false
+		}
+		path := stringValue(v["file"])
+		return path, path != "" && !containsTemplate(path)
+	default:
+		return "", false
+	}
+}
+
+func staticIncludeRoleName(value any) (string, bool) {
+	switch v := value.(type) {
+	case string:
+		v = strings.TrimSpace(v)
+		return v, v != "" && !containsTemplate(v)
+	case map[string]any:
+		if len(v) != 1 {
+			return "", false
+		}
+		name := stringValue(v["name"])
+		return name, name != "" && !containsTemplate(name)
+	default:
+		return "", false
+	}
 }
 
 func isTaskDirectiveKey(key string) bool {

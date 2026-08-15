@@ -10,7 +10,7 @@
         cmd: "echo {{ users | join(',') }}"
 
     - name: Dynamic include
-      include_tasks: extra.yml
+      include_tasks: "{{ extra_file }}"
 
     - name: Custom module
       acme.custom.widget:

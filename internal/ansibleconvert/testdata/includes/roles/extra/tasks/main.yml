@@ -1,0 +1,4 @@
+- name: Included role task
+  ansible.builtin.file:
+    path: /tmp/included-role
+    state: directory

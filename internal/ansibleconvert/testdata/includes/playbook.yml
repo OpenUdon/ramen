@@ -1,0 +1,11 @@
+- name: Literal include expansion
+  hosts: localhost
+  tasks:
+    - name: Include task file
+      include_tasks: tasks/extra.yml
+      when: enabled == true
+      vars:
+        local_value: included
+    - name: Include role
+      include_role:
+        name: extra

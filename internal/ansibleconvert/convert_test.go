@@ -1183,6 +1183,77 @@ func TestConvertFQCNCollectionRoleResolution(t *testing.T) {
 	}
 }
 
+func TestConvertLiteralIncludeTasksAndRole(t *testing.T) {
+	result, doc := runConvertWithOptions(t, "includes", Options{
+		ProjectDir: filepath.Join("testdata", "includes"),
+	})
+	if result.StrictFailures != 0 {
+		t.Fatalf("literal includes should lower: %#v", result.Diagnostics)
+	}
+	if got := []string{doc.Workflows[0].Steps[0].OperationRef, doc.Workflows[0].Steps[1].OperationRef}; !slices.Equal(got, []string{"included_task", "included_role_task"}) {
+		t.Fatalf("include operation order = %#v", got)
+	}
+	step := findStep(doc.Workflows[0].Steps, "included_task")
+	if step == nil || step.When != "$inputs.enabled == true" || step.Inputs["local_value"] != "included" {
+		t.Fatalf("included task wrapper = %#v", step)
+	}
+	op := findOperation(doc, "included_task")
+	body, _ := op.Request["body"].(map[string]any)
+	if body["cmd"] != "$inputs.local_value" {
+		t.Fatalf("included task body = %#v", body)
+	}
+	roleOp := findOperation(doc, "included_role_task")
+	prov, _ := roleOp.Extensions[ExtensionAnsibleProvenance].(map[string]any)
+	if prov["role"] != "extra" {
+		t.Fatalf("included role provenance = %#v", prov)
+	}
+}
+
+func TestConvertDynamicIncludeOptionsRemainStrict(t *testing.T) {
+	root := t.TempDir()
+	playbook := filepath.Join(root, "playbook.yml")
+	if err := os.WriteFile(playbook, []byte(`- name: dynamic includes
+  hosts: localhost
+  tasks:
+    - name: templated tasks
+      include_tasks: "{{ file_name }}"
+    - name: applied role
+      include_role:
+        name: extra
+        apply:
+          tags: always
+    - name: looped tasks
+      include_tasks: tasks.yml
+      loop: [one]
+`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbook,
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		Mode: "partial", OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StrictFailures < 3 || result.UWSPath != "" {
+		t.Fatalf("dynamic include result = %#v", result)
+	}
+	for _, name := range []string{"templated tasks", "applied role", "looped tasks"} {
+		var found bool
+		for _, diag := range result.Diagnostics {
+			if diag.Task == name && diag.Code == CodeDynamicInclude && diag.StrictFailure {
+				found = true
+			}
+		}
+		if !found {
+			t.Fatalf("missing dynamic include diagnostic for %q: %#v", name, result.Diagnostics)
+		}
+	}
+}
+
 func TestConvertStaticVariablePrecedenceKeepsPlayVarsAboveVarsFiles(t *testing.T) {
 	result, doc := runConvertWithOptions(t, "varconflict", Options{
 		ProjectDir: filepath.Join("testdata", "varconflict"),
