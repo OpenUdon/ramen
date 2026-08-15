@@ -4,17 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
-
-	"github.com/OpenUdon/uws/validation"
-	"github.com/OpenUdon/uws/versions"
 )
 
-// argspecDocument is the uws.ansible.1.0 wire shape (versions/ansible.1.0.json
-// in the uws repo).
+// argspecDocument is Ramen's embedded ramen.ansible.1.0 wire shape.
 type argspecDocument struct {
 	Argspec    string                   `json:"argspec"`
 	Collection string                   `json:"collection"`
@@ -47,24 +42,23 @@ type moduleRef struct {
 	Module   argspecModule
 }
 
-// LoadArgspecs reads and indexes the supplied uws.ansible.1.0 documents.
+// LoadArgspecs reads and indexes the supplied ramen.ansible.1.0 documents.
 func LoadArgspecs(inputs []ArgspecInput) (*ArgspecIndex, error) {
 	idx := &ArgspecIndex{bySource: map[string]ArgspecInput{}, byCollection: map[string]string{}, byFQCN: map[string]moduleRef{}}
 	for _, input := range inputs {
-		schemaPath := versions.PathForAnsibleArgspec(filepath.Dir(input.Path), "")
-		if err := validation.ValidateFile(schemaPath, input.Path); err != nil {
-			return nil, fmt.Errorf("argspec %s: schema validation failed: %w", input.ID, err)
-		}
 		data, err := os.ReadFile(input.Path)
 		if err != nil {
 			return nil, fmt.Errorf("argspec %s: %w", input.ID, err)
+		}
+		if err := ValidateArgspecDocument(data); err != nil {
+			return nil, fmt.Errorf("argspec %s: schema validation failed: %w", input.ID, err)
 		}
 		var doc argspecDocument
 		if err := json.Unmarshal(data, &doc); err != nil {
 			return nil, fmt.Errorf("argspec %s: %w", input.ID, err)
 		}
-		if doc.Argspec != "uws.ansible.1.0" {
-			return nil, fmt.Errorf("argspec %s: unsupported argspec %q (want uws.ansible.1.0)", input.ID, doc.Argspec)
+		if doc.Argspec != ArgspecVersion {
+			return nil, fmt.Errorf("argspec %s: unsupported argspec %q (want %s)", input.ID, doc.Argspec, ArgspecVersion)
 		}
 		if _, dup := idx.bySource[input.ID]; dup {
 			return nil, fmt.Errorf("argspec %s: duplicate source ID", input.ID)

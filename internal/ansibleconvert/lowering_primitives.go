@@ -63,7 +63,7 @@ func (lw *lowerer) wrapGuardedStep(step *uws1.Step, conditions []string, task *T
 				Steps: []*uws1.Step{inner},
 			}},
 			Extensions: map[string]any{
-				"x-ansible": ansibleProvenance(task),
+				ExtensionAnsibleProvenance: ansibleProvenance(task),
 			},
 		}
 		inner = wrapper
@@ -82,7 +82,7 @@ func (lw *lowerer) wrapGuardedStepDNF(step *uws1.Step, dnf conditionDNF, task *T
 		StepID: lw.uniqueID(step.StepID + "_guard_or"),
 		Type:   uws1.WorkflowTypeSwitch,
 		Extensions: map[string]any{
-			"x-ansible": ansibleProvenance(task),
+			ExtensionAnsibleProvenance: ansibleProvenance(task),
 		},
 	}
 	for i, group := range dnf {

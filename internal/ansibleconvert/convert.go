@@ -10,7 +10,6 @@ import (
 	"strings"
 
 	"github.com/OpenUdon/ramen/internal/convertcore"
-	"github.com/OpenUdon/uws/ansiblemodulecall"
 	"github.com/OpenUdon/uws/uws1"
 )
 
@@ -245,7 +244,7 @@ func operationReviewBinding(op *uws1.Operation) (source, module string) {
 	if source != "" || module != "" {
 		return source, module
 	}
-	payload, ok, err := ansiblemodulecall.ReadOperationExtension(op.Extensions)
+	payload, ok, err := ReadOperationExtension(op.Extensions)
 	if err != nil || !ok || payload == nil {
 		return source, module
 	}

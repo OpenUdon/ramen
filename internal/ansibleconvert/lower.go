@@ -7,7 +7,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/OpenUdon/uws/ansiblemodulecall"
 	"github.com/OpenUdon/uws/uws1"
 )
 
@@ -340,7 +339,12 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 		Outputs:         map[string]string{"changed": "$response.body.changed"},
 		SuccessCriteria: []*uws1.Criterion{{Condition: "$response.body.failed != true"}},
 	}
-	lw.bindAnsibleOperation(op, sourceID, task.Module)
+	if err := lw.bindAnsibleOperation(op, sourceID, task.Module); err != nil {
+		lw.addDiag(Diagnostic{Code: CodeArgspecViolation, Severity: "error", StrictFailure: true, Task: task.Name,
+			Message: fmt.Sprintf("module %s metadata is invalid: %v", task.Module, err)})
+		lt.skipped = true
+		return nil
+	}
 	if len(task.ChangedWhen) > 0 {
 		if len(task.ChangedWhen) != 1 {
 			lw.addDiag(Diagnostic{Code: CodeDirectiveTodo, Severity: "error", StrictFailure: true, Task: task.Name,
@@ -478,14 +482,14 @@ func targetUWSDocumentVersion(target string) string {
 // The managed host does not expose the collection module as a pre-existing
 // named operation; the control node supplies its implementation. UWS 1.6
 // briefly offered a first-class ansible-module source type; UWS 1.7 removed it.
-func (lw *lowerer) bindAnsibleOperation(op *uws1.Operation, sourceID, module string) {
+func (lw *lowerer) bindAnsibleOperation(op *uws1.Operation, sourceID, module string) error {
 	op.Extensions = map[string]any{
-		uws1.ExtensionOperationProfile: ansiblemodulecall.ProfileName,
+		uws1.ExtensionOperationProfile: ProfileName,
 	}
 	input, _ := lw.idx.Source(sourceID)
-	_ = ansiblemodulecall.SetOperationExtension(&op.Extensions, &ansiblemodulecall.OperationAnsibleModule{
+	return SetOperationExtension(&op.Extensions, &OperationAnsibleModule{
 		Module: module,
-		Argspec: &ansiblemodulecall.ArgspecReference{
+		Argspec: &ArgspecReference{
 			SourceID:   sourceID,
 			URL:        input.Path,
 			Collection: lw.idx.Collection(sourceID),
@@ -536,7 +540,7 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 		StepID: lw.uniqueID(stepID + "_notify"),
 		Type:   uws1.WorkflowTypeSwitch,
 		Extensions: map[string]any{
-			"x-ansible": ansibleProvenance(handler),
+			ExtensionAnsibleProvenance: ansibleProvenance(handler),
 		},
 	}
 	for i, notifier := range active {
@@ -545,7 +549,7 @@ func (lw *lowerer) lowerHandler(handler *Task, notifiers []*loweredTask) *uws1.S
 			OperationRef: lt.opID,
 			Inputs:       cloneMapAny(step.Inputs),
 			Extensions: map[string]any{
-				"x-ansible": ansibleProvenance(handler),
+				ExtensionAnsibleProvenance: ansibleProvenance(handler),
 			},
 		}
 		c := &uws1.Case{Steps: []*uws1.Step{inner}}
@@ -779,8 +783,8 @@ func attachAnsibleProvenance(op *uws1.Operation, step *uws1.Step, task *Task) {
 	if op.Extensions == nil {
 		op.Extensions = map[string]any{}
 	}
-	op.Extensions["x-ansible"] = prov
-	step.Extensions = map[string]any{"x-ansible": prov}
+	op.Extensions[ExtensionAnsibleProvenance] = prov
+	step.Extensions = map[string]any{ExtensionAnsibleProvenance: prov}
 }
 
 func ansibleProvenance(task *Task) map[string]any {

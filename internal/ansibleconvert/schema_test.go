@@ -68,7 +68,7 @@ func TestModuleCallSchemaRejectsInvalidDocuments(t *testing.T) {
 		"invalid FQCN":      `{"x-ramen-ansible-module":{"module":"apt"}}`,
 		"empty reference":   `{"x-ramen-ansible-module":{"module":"ansible.builtin.apt","argspec":{}}}`,
 		"bad source ID":     `{"x-ramen-ansible-module":{"module":"ansible.builtin.apt","argspec":{"sourceId":" ","url":"argspec.json","collection":"ansible.builtin"}}}`,
-		"bad URL":           `{"x-ramen-ansible-module":{"module":"ansible.builtin.apt","argspec":{"sourceId":"builtin","url":"bad path.json","collection":"ansible.builtin"}}}`,
+		"empty URL":         `{"x-ramen-ansible-module":{"module":"ansible.builtin.apt","argspec":{"sourceId":"builtin","url":"","collection":"ansible.builtin"}}}`,
 		"bad collection":    `{"x-ramen-ansible-module":{"module":"ansible.builtin.apt","argspec":{"sourceId":"builtin","url":"argspec.json","collection":"builtin"}}}`,
 	}
 	for name, document := range tests {

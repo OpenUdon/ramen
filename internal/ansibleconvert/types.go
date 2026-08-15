@@ -1,6 +1,6 @@
 // Package ansibleconvert converts Ansible playbooks into reviewable UWS
 // workflow artifacts. Module operations are extension-owned calls carrying
-// uws.ansible-module-call.1.0 for every supported UWS target. Conversion is
+// ramen.ansible-module-call.1.0 for every supported UWS target. Conversion is
 // review-first and fail-closed: constructs that cannot be
 // faithfully lowered (complex Jinja2, dynamic includes, unknown modules)
 // become diagnostics, not guesses. The converter never executes Ansible,
@@ -10,14 +10,14 @@ package ansibleconvert
 // Supported values for Options.TargetUWS. These select only the uws version
 // declared by the emitted document; the shape is identical across all three,
 // because Ansible module leaves are always extension-owned operations carrying
-// uws.ansible-module-call.1.0.
+// ramen.ansible-module-call.1.0.
 const (
 	TargetUWS15 = "1.5"
 	TargetUWS16 = "1.6"
 	TargetUWS17 = "1.7"
 )
 
-// ArgspecInput names a collection argspec document (uws.ansible.1.0 shape)
+// ArgspecInput names a collection argspec document (ramen.ansible.1.0 shape)
 // supplied on the command line as ID=PATH. The ID is the raw argspec lookup
 // key and is preserved in emitted module-call review references.
 type ArgspecInput struct {
