@@ -1,6 +1,8 @@
 package ansibleconvert
 
 import (
+	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -94,6 +96,53 @@ func TestApplyInventoryTargetFailureSuppressesPlay(t *testing.T) {
 	}
 }
 
+func TestStaticInventoryRejectsEmptySelections(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "empty.yml")
+	if err := os.WriteFile(path, []byte("all:\n  children:\n    empty: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	inv, diags := loadStaticInventory([]string{path})
+	if len(diags) != 0 || inv == nil || inv.invalid {
+		t.Fatalf("inventory=%#v diagnostics=%#v", inv, diags)
+	}
+	for _, pattern := range []string{"all", "empty"} {
+		if _, err := inv.selectHosts(pattern); err == nil || !strings.Contains(err.Error(), "no hosts") {
+			t.Fatalf("selectHosts(%q) error = %v, want empty-selection failure", pattern, err)
+		}
+	}
+	pb := &Playbook{Plays: []*Play{{Name: "empty", Hosts: "all"}}}
+	diags = applyInventoryTargets(pb, inv, true)
+	if len(diags) != 1 || diags[0].Code != CodeInventoryPattern || !pb.Plays[0].InventoryFailed || pb.Plays[0].InventoryResolved {
+		t.Fatalf("play=%#v diagnostics=%#v", pb.Plays[0], diags)
+	}
+}
+
+func TestConvertRejectsEmptyAllSelection(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	inventoryPath := filepath.Join(root, "inventory.yml")
+	if err := os.WriteFile(playbookPath, []byte("- name: empty target\n  hosts: all\n  tasks:\n    - name: Must not become a no-op\n      ansible.builtin.file:\n        path: /tmp/never\n        state: directory\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inventoryPath, []byte("all: {}\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath:   playbookPath,
+		InventoryPaths: []string{inventoryPath},
+		Argspecs: []ArgspecInput{
+			{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")},
+		},
+		OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StrictFailures == 0 || result.UWSPath != "" || result.HCLPath != "" || !hasDiagnostic(result.Diagnostics, CodeInventoryPattern, "empty target", "selects no hosts") {
+		t.Fatalf("result=%#v", result)
+	}
+}
+
 func TestLoadStaticInventoryRejectsGroupCycle(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "cycle.yml")
 	data := []byte("all:\n  children:\n    one:\n      children:\n        two:\n          children:\n            one: {}\n")
@@ -169,5 +218,91 @@ func TestLoadStaticInventoryKeepsConnectionCredentialsRuntimeOwned(t *testing.T)
 	}
 	if vars["tier"] != "frontend" || vars["ansible_password"] != nil || !runtimeNames["ansible_password"] {
 		t.Fatalf("vars=%#v runtimeNames=%#v", vars, runtimeNames)
+	}
+}
+
+func TestInventoryCredentialLiteralsNeverEnterPartialArtifacts(t *testing.T) {
+	root := t.TempDir()
+	playbookPath := filepath.Join(root, "playbook.yml")
+	inventoryPath := filepath.Join(root, "inventory.yml")
+	playbook := `- name: local safe work
+  hosts: localhost
+  tasks:
+    - name: Keep local task
+      ansible.builtin.file:
+        path: /tmp/safe
+        state: directory
+- name: remote rejected work
+  hosts: all
+  tasks:
+    - name: Reject remote task
+      ansible.builtin.file:
+        path: /tmp/remote
+        state: directory
+`
+	inventory := `all:
+  vars:
+    config:
+      password: inventory-do-not-disclose
+  hosts:
+    node-1: {}
+`
+	if err := os.WriteFile(playbookPath, []byte(playbook), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(inventoryPath, []byte(inventory), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	result, err := Convert(context.Background(), Options{
+		PlaybookPath: playbookPath, InventoryPaths: []string{inventoryPath},
+		Argspecs: []ArgspecInput{{ID: "builtin", Path: filepath.Join("testdata", "argspec", "ansible-builtin.argspec.json")}},
+		Mode:     "partial", OutDir: filepath.Join(root, "out"),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.StrictFailures == 0 || result.UWSPath == "" || result.HCLPath == "" {
+		t.Fatalf("result=%#v", result)
+	}
+	for _, path := range []string{result.UWSPath, result.HCLPath, result.ReviewMD, result.ManifestPath, result.DiagnosticsJSON, result.DiagnosticsMD} {
+		data, readErr := os.ReadFile(path)
+		if readErr != nil {
+			t.Fatal(readErr)
+		}
+		if strings.Contains(string(data), "inventory-do-not-disclose") {
+			t.Fatalf("artifact %s disclosed rejected inventory credential:\n%s", path, data)
+		}
+	}
+}
+
+func TestStaticInventoryPrecomputesSharedGroupMembershipAtBounds(t *testing.T) {
+	inv := newStaticInventory()
+	leaf := inv.group("leaf")
+	for hostIndex := 0; hostIndex < maxInventoryHosts; hostIndex++ {
+		host := fmt.Sprintf("node-%04d", hostIndex)
+		inv.hosts[host] = map[string]any{}
+		leaf.hosts[host] = true
+	}
+	for groupIndex := 1; groupIndex < maxInventoryGroups; groupIndex++ {
+		name := fmt.Sprintf("parent-%04d", groupIndex)
+		group := inv.group(name)
+		group.children["leaf"] = true
+		group.vars["tier"] = "shared"
+	}
+	if err := inv.precomputeGroupHosts(); err != nil {
+		t.Fatal(err)
+	}
+	if len(inv.groupHostBits) != maxInventoryGroups || len(inv.sortedHosts) != maxInventoryHosts {
+		t.Fatalf("cached groups/hosts = %d/%d", len(inv.groupHostBits), len(inv.sortedHosts))
+	}
+	hosts, err := inv.selectHosts("parent-0001")
+	if err != nil || len(hosts) != maxInventoryHosts || hosts[0] != "node-0000" || hosts[len(hosts)-1] != "node-4095" {
+		t.Fatalf("selection len=%d first/last=%q/%q error=%v", len(hosts), hosts[0], hosts[len(hosts)-1], err)
+	}
+	for _, host := range inv.sortedHosts {
+		vars, _, err := inv.varsForHost(host)
+		if err != nil || vars["tier"] != "shared" {
+			t.Fatalf("varsForHost(%q) = %#v, %v", host, vars, err)
+		}
 	}
 }

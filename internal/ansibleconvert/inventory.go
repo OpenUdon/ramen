@@ -20,9 +20,12 @@ const (
 )
 
 type staticInventory struct {
-	hosts   map[string]map[string]any
-	groups  map[string]*staticInventoryGroup
-	invalid bool
+	hosts         map[string]map[string]any
+	groups        map[string]*staticInventoryGroup
+	sortedHosts   []string
+	hostIndexes   map[string]int
+	groupHostBits map[string][]uint64
+	invalid       bool
 }
 
 type staticInventoryGroup struct {
@@ -101,12 +104,9 @@ func loadStaticInventory(paths []string) (*staticInventory, []Diagnostic) {
 		inv.invalid = true
 	}
 	if !inv.invalid {
-		for _, name := range sortedGroupNames(inv.groups) {
-			if err := inv.collectGroupHosts(name, map[string]bool{}, map[string]bool{}); err != nil {
-				diags = append(diags, inventoryDiagnostic(fmt.Sprintf("inventory group graph is invalid: %v", err)))
-				inv.invalid = true
-				break
-			}
+		if err := inv.precomputeGroupHosts(); err != nil {
+			diags = append(diags, inventoryDiagnostic(fmt.Sprintf("inventory group graph is invalid: %v", err)))
+			inv.invalid = true
 		}
 	}
 	return inv, diags
@@ -190,15 +190,12 @@ func (inv *staticInventory) varsForHost(host string) (map[string]any, map[string
 		mergeInventoryRuntimeFiltered(out, all.vars, runtimeNames, false)
 	}
 	groupLayer := map[string]any{}
+	hostIndex := inv.hostIndexes[host]
 	for _, name := range sortedGroupNames(inv.groups) {
 		if name == "all" {
 			continue
 		}
-		selected := map[string]bool{}
-		if err := inv.collectGroupHosts(name, selected, map[string]bool{}); err != nil {
-			return nil, nil, err
-		}
-		if !selected[host] {
+		if !inv.groupContainsHost(name, hostIndex) {
 			continue
 		}
 		for varName, value := range inv.groups[name].vars {
@@ -243,7 +240,10 @@ func (inv *staticInventory) selectHosts(pattern string) ([]string, error) {
 		return nil, fmt.Errorf("only all, one exact host, or one exact group is supported")
 	}
 	if pattern == "all" {
-		return sortedBoolKeys(hostNames(inv.hosts)), nil
+		if len(inv.sortedHosts) == 0 {
+			return nil, fmt.Errorf("inventory selects no hosts")
+		}
+		return append([]string(nil), inv.sortedHosts...), nil
 	}
 	_, hostMatch := inv.hosts[pattern]
 	_, groupMatch := inv.groups[pattern]
@@ -256,36 +256,78 @@ func (inv *staticInventory) selectHosts(pattern string) ([]string, error) {
 	if !groupMatch {
 		return nil, fmt.Errorf("no exact host or group has that name")
 	}
-	selected := map[string]bool{}
-	if err := inv.collectGroupHosts(pattern, selected, map[string]bool{}); err != nil {
-		return nil, err
-	}
-	hosts := sortedBoolKeys(selected)
+	hosts := inv.hostsForGroup(pattern)
 	if len(hosts) == 0 {
 		return nil, fmt.Errorf("group %q selects no hosts", pattern)
 	}
 	return hosts, nil
 }
 
-func (inv *staticInventory) collectGroupHosts(name string, selected, visiting map[string]bool) error {
-	if visiting[name] {
-		return fmt.Errorf("group children contain a cycle at %q", name)
+func (inv *staticInventory) precomputeGroupHosts() error {
+	inv.sortedHosts = sortedHostNames(inv.hosts)
+	inv.hostIndexes = make(map[string]int, len(inv.sortedHosts))
+	for index, host := range inv.sortedHosts {
+		inv.hostIndexes[host] = index
 	}
-	group := inv.groups[name]
-	if group == nil {
-		return fmt.Errorf("child group %q is not defined", name)
+	inv.groupHostBits = make(map[string][]uint64, len(inv.groups))
+	states := make(map[string]uint8, len(inv.groups))
+	var build func(string) ([]uint64, error)
+	build = func(name string) ([]uint64, error) {
+		switch states[name] {
+		case 1:
+			return nil, fmt.Errorf("group children contain a cycle at %q", name)
+		case 2:
+			return inv.groupHostBits[name], nil
+		}
+		group := inv.groups[name]
+		if group == nil {
+			return nil, fmt.Errorf("child group %q is not defined", name)
+		}
+		states[name] = 1
+		bits := make([]uint64, (len(inv.sortedHosts)+63)/64)
+		for host := range group.hosts {
+			index, ok := inv.hostIndexes[host]
+			if !ok {
+				return nil, fmt.Errorf("group %q references undefined host %q", name, host)
+			}
+			bits[index/64] |= uint64(1) << uint(index%64)
+		}
+		for _, child := range sortedBoolKeys(group.children) {
+			childBits, err := build(child)
+			if err != nil {
+				return nil, err
+			}
+			for index := range bits {
+				bits[index] |= childBits[index]
+			}
+		}
+		states[name] = 2
+		inv.groupHostBits[name] = bits
+		return bits, nil
 	}
-	visiting[name] = true
-	for host := range group.hosts {
-		selected[host] = true
-	}
-	for child := range group.children {
-		if err := inv.collectGroupHosts(child, selected, visiting); err != nil {
+	for _, name := range sortedGroupNames(inv.groups) {
+		if _, err := build(name); err != nil {
 			return err
 		}
 	}
-	delete(visiting, name)
 	return nil
+}
+
+func (inv *staticInventory) groupContainsHost(group string, hostIndex int) bool {
+	bits := inv.groupHostBits[group]
+	word := hostIndex / 64
+	return hostIndex >= 0 && word < len(bits) && bits[word]&(uint64(1)<<uint(hostIndex%64)) != 0
+}
+
+func (inv *staticInventory) hostsForGroup(group string) []string {
+	bits := inv.groupHostBits[group]
+	hosts := make([]string, 0)
+	for index, host := range inv.sortedHosts {
+		if bits[index/64]&(uint64(1)<<uint(index%64)) != 0 {
+			hosts = append(hosts, host)
+		}
+	}
+	return hosts
 }
 
 func parseINIInventory(inv *staticInventory, data []byte) error {
@@ -564,11 +606,12 @@ func stripINIComment(line string) string {
 	return line
 }
 
-func hostNames(hosts map[string]map[string]any) map[string]bool {
-	out := make(map[string]bool, len(hosts))
+func sortedHostNames(hosts map[string]map[string]any) []string {
+	out := make([]string, 0, len(hosts))
 	for host := range hosts {
-		out[host] = true
+		out = append(out, host)
 	}
+	sort.Strings(out)
 	return out
 }
 
