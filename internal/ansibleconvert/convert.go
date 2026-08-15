@@ -32,6 +32,8 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse playbook: %w", err)
 	}
+	inventory, inventoryDiags := loadStaticInventory(opts.InventoryPaths)
+	inventoryDiags = append(inventoryDiags, applyInventoryTargets(playbook, inventory, len(opts.InventoryPaths) > 0)...)
 	resolveDiags := resolveStatic(playbook, opts)
 	idx, err := LoadArgspecs(opts.Argspecs)
 	if err != nil {
@@ -42,7 +44,8 @@ func Convert(_ context.Context, opts Options) (*Result, error) {
 		HostFanOut: len(opts.InventoryPaths) > 0,
 		TargetUWS:  opts.TargetUWS,
 	})
-	diags := append(parseDiags, resolveDiags...)
+	diags := append(parseDiags, inventoryDiags...)
+	diags = append(diags, resolveDiags...)
 	diags = append(diags, lowerDiags...)
 	if len(doc.Operations) == 0 {
 		diags = append(diags, Diagnostic{Code: CodePlaybookShape, Severity: "error", StrictFailure: true,

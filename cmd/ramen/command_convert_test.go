@@ -177,13 +177,17 @@ func TestCLIConvertAnsibleWritesReviewArtifacts(t *testing.T) {
 	outDir := filepath.Join(root, "ansible")
 	playbookPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "nginx", "playbook.yml")
 	argspecPath := filepath.Join("..", "..", "internal", "ansibleconvert", "testdata", "argspec", "ansible-builtin.argspec.json")
+	inventoryPath := filepath.Join(root, "inventory.ini")
+	if err := os.WriteFile(inventoryPath, []byte("[webservers]\nweb-01\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	cmd := helperCommand("convert", "ansible",
 		"--playbook", playbookPath,
 		"--argspec", "builtin="+argspecPath,
 		"--project-dir", root,
 		"--roles-path", filepath.Join(root, "roles"),
 		"--collections-path", filepath.Join(root, "collections"),
-		"--inventory", filepath.Join(root, "inventory.ini"),
+		"--inventory", inventoryPath,
 		"--extra-var", "env=test",
 		"--ignore-unsupported",
 		"--out", outDir)

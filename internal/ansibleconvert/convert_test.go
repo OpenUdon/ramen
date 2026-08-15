@@ -296,15 +296,15 @@ func TestConvertInventoryHostFanOutLowersInputsAndForEach(t *testing.T) {
 		t.Fatalf("emitted UWS document does not validate: %v", err)
 	}
 	workflow := doc.Workflows[0]
-	if workflow.Inputs == nil || workflow.Inputs.Properties["hosts"].Type != "array" || workflow.Inputs.Properties["hosts"].Items.Type != "string" {
-		t.Fatalf("workflow inputs = %#v, want hosts string array", workflow.Inputs)
+	if workflow.Inputs != nil {
+		t.Fatalf("workflow inputs = %#v, want static inventory to avoid runtime hosts input", workflow.Inputs)
 	}
 	step := findStep(workflow.Steps, "ensure_nginx_is_present")
 	if step == nil {
 		t.Fatalf("host fan-out step missing: %#v", workflow.Steps)
 	}
-	if step.ForEach != "$inputs.hosts" {
-		t.Fatalf("forEach = %q, want $inputs.hosts", step.ForEach)
+	if step.ForEach != "$variables.inventory_configure_remote_hosts_hosts" {
+		t.Fatalf("forEach = %q, want deterministic static inventory hosts", step.ForEach)
 	}
 	if step.Inputs["host"] != "$item" {
 		t.Fatalf("step inputs = %#v, want host bound to $item", step.Inputs)
@@ -316,7 +316,7 @@ func TestConvertInventoryHostFanOutWithHandlerFailsClosed(t *testing.T) {
 		InventoryPaths: []string{filepath.Join("testdata", "inventory.ini")},
 	})
 
-	if step := findStep(doc.Workflows[0].Steps, "install_nginx"); step == nil || step.ForEach != "$inputs.hosts" {
+	if step := findStep(doc.Workflows[0].Steps, "install_nginx"); step == nil || step.ForEach != "$variables.inventory_configure_nginx_hosts" {
 		t.Fatalf("install step did not fan out over hosts: %#v", step)
 	}
 	if step := findStep(doc.Workflows[0].Steps, "restart_nginx"); step != nil {

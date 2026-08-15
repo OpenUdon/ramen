@@ -29,6 +29,13 @@ type Play struct {
 	SourceFile string
 	Line       int
 	Column     int
+	// Inventory fields are populated only from bounded static inventory.
+	// InventoryFailed prevents partial conversion from widening a play whose
+	// requested target could not be resolved.
+	InventoryHosts    []string
+	InventoryResolved bool
+	InventoryFailed   bool
+	InventoryVariable string
 }
 
 // Task is one task (or handler) entry. Exactly one of Module or Block is set

@@ -17,6 +17,7 @@ type loweredTask struct {
 	opID       string
 	isHandler  bool
 	hostFanOut bool
+	hostSource string
 	skipped    bool
 }
 
@@ -76,13 +77,39 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 			lw.vars[name] = true
 		}
 		if playNeedsHostFanOut(play.Hosts) {
-			if opts.HostFanOut {
+			if play.InventoryFailed {
+				// The inventory diagnostic is emitted by the bounded loader; do not
+				// advertise the legacy runtime-input posture for a failed selection.
+			} else if play.InventoryResolved {
+				lw.addDiag(Diagnostic{Code: CodeHostsRuntimeOwned, Severity: "info",
+					Message: fmt.Sprintf("play %q targets hosts %q; static inventory selected %d host(s), while connection details remain runtime-owned", play.Name, strings.TrimSpace(play.Hosts), len(play.InventoryHosts))})
+			} else if opts.HostFanOut {
 				lw.addDiag(Diagnostic{Code: CodeHostsRuntimeOwned, Severity: "info",
 					Message: fmt.Sprintf("play %q targets hosts %q; task steps fan out over $inputs.hosts and connection details remain runtime-owned", play.Name, strings.TrimSpace(play.Hosts))})
 			} else {
 				lw.addDiag(Diagnostic{Code: CodeHostsRuntimeOwned, Severity: "info",
 					Message: fmt.Sprintf("play %q targets hosts %q; host fan-out and connection are runtime-owned (stage-1 inventory posture)", play.Name, strings.TrimSpace(play.Hosts))})
 			}
+		}
+		if play.InventoryResolved && playNeedsHostFanOut(play.Hosts) {
+			base := "inventory_" + sanitizeID(play.Name) + "_hosts"
+			if base == "inventory__hosts" {
+				base = "inventory_hosts"
+			}
+			name := base
+			for suffix := 2; ; suffix++ {
+				if _, exists := variables[name]; !exists {
+					break
+				}
+				name = fmt.Sprintf("%s_%d", base, suffix)
+			}
+			play.InventoryVariable = name
+			hosts := make([]any, len(play.InventoryHosts))
+			for i, host := range play.InventoryHosts {
+				hosts[i] = host
+			}
+			variables[name] = hosts
+			lw.vars[name] = true
 		}
 	}
 
@@ -92,18 +119,21 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 	notifiersByHandler := map[string][]*loweredTask{}
 	needsHostsInput := false
 	for _, play := range pb.Plays {
+		if play.InventoryFailed {
+			continue
+		}
 		hostFanOut := opts.HostFanOut && playNeedsHostFanOut(play.Hosts)
-		if hostFanOut {
+		if hostFanOut && play.InventoryVariable == "" {
 			needsHostsInput = true
 		}
 		for _, task := range play.PreTasks {
-			flat = append(flat, lw.flatten(task, nil, hostFanOut)...)
+			flat = append(flat, lw.flatten(task, nil, hostFanOut, play.InventoryVariable)...)
 		}
 		for _, task := range play.Tasks {
-			flat = append(flat, lw.flatten(task, nil, hostFanOut)...)
+			flat = append(flat, lw.flatten(task, nil, hostFanOut, play.InventoryVariable)...)
 		}
 		for _, task := range play.PostTasks {
-			flat = append(flat, lw.flatten(task, nil, hostFanOut)...)
+			flat = append(flat, lw.flatten(task, nil, hostFanOut, play.InventoryVariable)...)
 		}
 	}
 
@@ -186,7 +216,7 @@ func LowerPlaybookWithOptions(pb *Playbook, idx *ArgspecIndex, opts LowerOptions
 
 // flatten expands block constructs into a linear task list, inheriting the
 // block-level when onto children that have none.
-func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) []*loweredTask {
+func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool, hostSource string) []*loweredTask {
 	if task.DynamicInclude != "" {
 		lw.addDiag(Diagnostic{Code: CodeDynamicInclude, Severity: "error", StrictFailure: true, Task: task.Name,
 			Message: fmt.Sprintf("%s cannot be statically lowered; inline the tasks or convert them separately", task.DynamicInclude)})
@@ -219,7 +249,7 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) 
 		}
 		var out []*loweredTask
 		for _, child := range task.Block {
-			out = append(out, lw.flatten(child, when, hostFanOut)...)
+			out = append(out, lw.flatten(child, when, hostFanOut, hostSource)...)
 		}
 		return out
 	}
@@ -233,7 +263,7 @@ func (lw *lowerer) flatten(task *Task, inheritedWhen []string, hostFanOut bool) 
 		base = sanitizeID(shortModuleName(task.Module))
 	}
 	stepID := lw.uniqueID(base)
-	return []*loweredTask{{task: task, stepID: stepID, opID: stepID, hostFanOut: hostFanOut}}
+	return []*loweredTask{{task: task, stepID: stepID, opID: stepID, hostFanOut: hostFanOut, hostSource: hostSource}}
 }
 
 // lowerTask converts one flattened task into an operation plus its workflow
@@ -294,7 +324,11 @@ func (lw *lowerer) lowerTask(lt *loweredTask) *uws1.Step {
 			lt.skipped = true
 			return nil
 		}
-		step.ForEach = "$inputs.hosts"
+		if lt.hostSource != "" {
+			step.ForEach = "$variables." + lt.hostSource
+		} else {
+			step.ForEach = "$inputs.hosts"
+		}
 		if step.Inputs == nil {
 			step.Inputs = map[string]any{}
 		}
