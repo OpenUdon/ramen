@@ -1,0 +1,72 @@
+{
+  "$id": "https://github.com/OpenUdon/ramen/internal/tfconvert/schemas/terraform-conversion.v1.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Ramen Terraform Conversion Metadata v1",
+  "description": "Review-only Terraform/OpenTofu provenance and unresolved-operation metadata emitted by static conversion.",
+  "type": "object",
+  "required": ["x-ramen-terraform"],
+  "properties": {
+    "x-ramen-terraform": {"$ref": "#/$defs/terraform-provenance"},
+    "x-ramen-credential-bindings": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/nonblank-string"},
+      "uniqueItems": true
+    },
+    "x-ramen-todo": {"$ref": "#/$defs/nonblank-string"}
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "nonblank-string": {
+      "type": "string",
+      "pattern": ".*\\S.*"
+    },
+    "terraform-provenance": {
+      "type": "object",
+      "required": ["version", "object", "attributes"],
+      "properties": {
+        "version": {"const": "ramen.terraform.provenance.v1"},
+        "object": {"$ref": "#/$defs/terraform-object"},
+        "attributes": {
+          "type": "object",
+          "additionalProperties": true
+        },
+        "identity_attributes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/identity-attribute"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "terraform-object": {
+      "type": "object",
+      "required": ["address", "kind", "type", "name"],
+      "properties": {
+        "address": {"$ref": "#/$defs/nonblank-string"},
+        "kind": {"enum": ["resource", "data_source"]},
+        "type": {"$ref": "#/$defs/nonblank-string"},
+        "name": {"$ref": "#/$defs/nonblank-string"}
+      },
+      "additionalProperties": false
+    },
+    "identity-attribute": {
+      "type": "object",
+      "required": ["name", "terraform_path"],
+      "properties": {
+        "name": {"$ref": "#/$defs/nonblank-string"},
+        "terraform_path": {"$ref": "#/$defs/nonblank-string"},
+        "request_keys": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/nonblank-string"},
+          "uniqueItems": true
+        },
+        "response_paths": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/nonblank-string"},
+          "uniqueItems": true
+        },
+        "required": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    }
+  }
+}

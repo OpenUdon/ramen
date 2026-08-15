@@ -89,12 +89,22 @@ paths:
 		}
 	}
 	uwsText := readFileForTest(t, result.UWSPath)
-	for _, expected := range []string{"createAwsInstance", "getAwsAmi", "openapi/aws.yaml", "terraform_conversion_draft", "x-ramen-terraform", "attributes:", "ami:", "name:", "owners:"} {
+	for _, expected := range []string{"createAwsInstance", "getAwsAmi", "openapi/aws.yaml", "terraform_conversion_draft", "x-ramen-terraform", TerraformProvenanceVersion, "attributes:", "ami:", "name:", "owners:"} {
 		if !strings.Contains(uwsText, expected) {
 			t.Fatalf("UWS missing %q:\n%s", expected, uwsText)
 		}
 	}
 	uws := readUWSDocForTest(t, result.UWSPath)
+	for _, operation := range uws.Operations {
+		applicable, err := ValidateTerraformOperation(operation)
+		if !applicable || err != nil {
+			t.Fatalf("generated operation %q Terraform metadata: applicable=%t err=%v", operation.OperationID, applicable, err)
+		}
+		metadata, ok, err := ReadTerraformRequestMetadata(operation.Request)
+		if err != nil || !ok || metadata.Provenance == nil || metadata.Provenance.Version != TerraformProvenanceVersion {
+			t.Fatalf("generated operation %q metadata = %#v ok=%t err=%v", operation.OperationID, metadata, ok, err)
+		}
+	}
 	if _, ok := operationBySourceIDForTest(t, uws, "createAwsInstance").Request["body"]; ok {
 		t.Fatalf("unmapped OpenAPI operation should not put Terraform review attrs into request.body:\n%s", uwsText)
 	}
@@ -1003,6 +1013,22 @@ paths:
 	review := readFileForTest(t, result.ReviewPath)
 	if !strings.Contains(review, "todo.") {
 		t.Fatalf("review should include unresolved TODO:\n%s", review)
+	}
+	uws := readUWSDocForTest(t, result.UWSPath)
+	if len(uws.Operations) == 0 {
+		t.Fatal("unresolved conversion emitted no operations")
+	}
+	for _, operation := range uws.Operations {
+		if operation.ExtensionProfile() != TerraformReviewTODOProfile {
+			t.Fatalf("unresolved operation profile = %q", operation.ExtensionProfile())
+		}
+		metadata, ok, err := ReadTerraformRequestMetadata(operation.Request)
+		if err != nil || !ok || metadata.TODO == "" {
+			t.Fatalf("unresolved operation metadata = %#v ok=%t err=%v", metadata, ok, err)
+		}
+	}
+	if text := readFileForTest(t, result.UWSPath); strings.Contains(text, retiredTerraformReviewTODOProfile) {
+		t.Fatalf("unresolved workflow retained retired profile:\n%s", text)
 	}
 }
 

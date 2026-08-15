@@ -11,7 +11,9 @@ import (
 
 	"github.com/OpenUdon/apitools"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/internal/tfconvert"
 	"github.com/OpenUdon/ramen/project"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 const Version = "ramen.validate.v1"
@@ -70,6 +72,7 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 		return result, nil
 	}
 	result.ProjectPath = doc.Path
+	result.Diagnostics = append(result.Diagnostics, validateTerraformMetadata(doc.UWS)...)
 	result.Diagnostics = append(result.Diagnostics, validateProfile(doc.Profile)...)
 	sources, sourceDiagnostics := loadAPISources(ctx, mergeAPISources(doc.Profile, opts.APISources))
 	result.Diagnostics = append(result.Diagnostics, sourceDiagnostics...)
@@ -84,6 +87,30 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	}
 	finalize(result)
 	return result, nil
+}
+
+func validateTerraformMetadata(doc *uws1.Document) []Diagnostic {
+	if doc == nil {
+		return nil
+	}
+	var diagnostics []Diagnostic
+	for _, operation := range doc.Operations {
+		applicable, err := tfconvert.ValidateTerraformOperation(operation)
+		if !applicable || err == nil {
+			continue
+		}
+		operationID := ""
+		if operation != nil {
+			operationID = operation.OperationID
+		}
+		diagnostics = append(diagnostics, Diagnostic{
+			Code:        "validate.terraform_metadata_invalid",
+			Severity:    "error",
+			Message:     err.Error(),
+			OperationID: operationID,
+		})
+	}
+	return diagnostics
 }
 
 func validateProfile(profile project.Profile) []Diagnostic {

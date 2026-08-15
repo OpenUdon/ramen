@@ -41,6 +41,46 @@ func TestRunValidatesNativeProjectAndAPISourceOperations(t *testing.T) {
 	}
 }
 
+func TestValidateTerraformMetadataRejectsLegacyAndAcceptsVersionedReviewOperation(t *testing.T) {
+	provenance := map[string]any{
+		"version": "ramen.terraform.provenance.v1",
+		"object": map[string]any{
+			"address": "example_resource.test",
+			"kind":    "resource",
+			"type":    "example_resource",
+			"name":    "test",
+		},
+		"attributes": map[string]any{"name": "test"},
+	}
+	valid := &uws1.Document{Operations: []*uws1.Operation{{
+		OperationID: "review",
+		Request: map[string]any{
+			"x-ramen-terraform": provenance,
+			"x-ramen-todo":      "operation.unresolved",
+		},
+		Extensions: map[string]any{uws1.ExtensionOperationProfile: "ramen.terraform-review-todo.1.0"},
+	}}}
+	if diagnostics := validateTerraformMetadata(valid); len(diagnostics) != 0 {
+		t.Fatalf("valid Terraform metadata diagnostics = %#v", diagnostics)
+	}
+
+	legacy := &uws1.Document{Operations: []*uws1.Operation{{
+		OperationID: "review",
+		Request: map[string]any{
+			"x-ramen-terraform": map[string]any{
+				"object":     provenance["object"],
+				"attributes": provenance["attributes"],
+			},
+			"x-ramen-todo": "operation.unresolved",
+		},
+		Extensions: map[string]any{uws1.ExtensionOperationProfile: "ramen-review-todo"},
+	}}}
+	diagnostics := validateTerraformMetadata(legacy)
+	if len(diagnostics) != 1 || diagnostics[0].Code != "validate.terraform_metadata_invalid" || diagnostics[0].OperationID != "review" {
+		t.Fatalf("legacy Terraform metadata diagnostics = %#v", diagnostics)
+	}
+}
+
 func TestRunRejectsUnknownRequestBindingEncoding(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")

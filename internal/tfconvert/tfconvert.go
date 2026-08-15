@@ -966,6 +966,21 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := validateAPISourceStagingSafety(result.OutDir, c.apiSources); err != nil {
 		return err
 	}
+	workflowDoc, err := renderUWSDocument(c)
+	if err != nil {
+		return err
+	}
+	nativeDoc, err := renderUWSDocument(c)
+	if err != nil {
+		return err
+	}
+	nativeDoc.Info.Title = "ramen_native_project"
+	nativeDoc.Info.Description = "Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration."
+	for _, doc := range []*uws1.Document{workflowDoc, nativeDoc} {
+		if err := validateGeneratedTerraformDocument(doc); err != nil {
+			return err
+		}
+	}
 	if err := os.MkdirAll(filepath.Join(result.OutDir, "workflows"), 0o755); err != nil {
 		return err
 	}
@@ -984,7 +999,7 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeFile(result.ProjectPath, renderProject(c)); err != nil {
 		return err
 	}
-	if err := writeNativeProject(result.NativeProjectPath, result.NativeProjectHCLPath, c); err != nil {
+	if err := writeNativeProject(result.NativeProjectPath, result.NativeProjectHCLPath, nativeDoc); err != nil {
 		return err
 	}
 	diagJSON, err := json.MarshalIndent(c.diagnostics, "", "  ")
@@ -1010,7 +1025,7 @@ func writeArtifacts(result *Result, c conversionState) error {
 	if err := writeFile(result.PlanMDPath, renderPlanMarkdown(c)); err != nil {
 		return err
 	}
-	if err := writeUWSDocument(result.UWSPath, result.UWSHCLPath, c); err != nil {
+	if err := writeUWSDocument(result.UWSPath, result.UWSHCLPath, workflowDoc); err != nil {
 		return err
 	}
 	return writeFile(result.ReviewPath, renderReview(c))
@@ -1418,14 +1433,11 @@ func renderPlanMarkdown(c conversionState) string {
 	return b.String()
 }
 
-func writeUWSDocument(yamlPath, hclPath string, c conversionState) error {
-	return writeDocumentFormats(renderUWSDocument(c), yamlPath, hclPath)
+func writeUWSDocument(yamlPath, hclPath string, doc *uws1.Document) error {
+	return writeDocumentFormats(doc, yamlPath, hclPath)
 }
 
-func writeNativeProject(yamlPath, hclPath string, c conversionState) error {
-	doc := renderUWSDocument(c)
-	doc.Info.Title = "ramen_native_project"
-	doc.Info.Description = "Native UWS/Ramen desired-state project generated from static Terraform/OpenTofu configuration."
+func writeNativeProject(yamlPath, hclPath string, doc *uws1.Document) error {
 	return writeDocumentFormats(doc, yamlPath, hclPath)
 }
 
@@ -1447,7 +1459,7 @@ func hclSibling(path string) string {
 	}
 }
 
-func renderUWSDocument(c conversionState) *uws1.Document {
+func renderUWSDocument(c conversionState) (*uws1.Document, error) {
 	doc := &uws1.Document{
 		UWS: "1.4.0",
 		Info: &uws1.Info{
@@ -1472,20 +1484,25 @@ func renderUWSDocument(c conversionState) *uws1.Document {
 		if operationID == "" {
 			operationID = normalizeName(firstNonEmpty(mapping.TodoID, "review_operation"))
 		}
+		unresolved := mapping.OperationID == "" || mapping.SourcePath == ""
+		todo := ""
+		if unresolved {
+			todo = firstNonEmpty(mapping.TodoID, "operation.unresolved")
+		}
+		request, err := operationRequest(mapping, todo)
+		if err != nil {
+			return nil, fmt.Errorf("render Terraform operation %s: %w", operationID, err)
+		}
 		op := &uws1.Operation{
 			OperationID: operationID,
 			Description: fmt.Sprintf("Review %s %s for Terraform %s %s", mapping.Purpose, mapping.Action, mapping.Object.Kind, mapping.Object.Address),
-			Request:     operationRequest(mapping),
+			Request:     request,
 		}
-		if mapping.OperationID != "" && mapping.SourcePath != "" {
+		if !unresolved {
 			op.SourceDescription = sourceDescriptionForMapping(doc, sourceNames, mapping)
 			op.SourceOperationID = mapping.OperationID
 		} else {
-			op.Extensions = map[string]any{uws1.ExtensionOperationProfile: "ramen-review-todo"}
-			if op.Request == nil {
-				op.Request = map[string]any{}
-			}
-			op.Request["x-ramen-todo"] = firstNonEmpty(mapping.TodoID, "operation.unresolved")
+			op.Extensions = map[string]any{uws1.ExtensionOperationProfile: TerraformReviewTODOProfile}
 		}
 		doc.Operations = append(doc.Operations, op)
 		doc.Workflows[0].Steps = append(doc.Workflows[0].Steps, &uws1.Step{
@@ -1499,7 +1516,33 @@ func renderUWSDocument(c conversionState) *uws1.Document {
 			},
 		})
 	}
-	return doc
+	return doc, nil
+}
+
+func validateGeneratedTerraformDocument(doc *uws1.Document) error {
+	if doc == nil {
+		return fmt.Errorf("generated Terraform conversion document is nil")
+	}
+	if err := doc.Validate(); err != nil {
+		return fmt.Errorf("validate generated Terraform UWS document: %w", err)
+	}
+	profile, err := project.ProfileFromDocument(doc)
+	if err != nil {
+		return fmt.Errorf("validate generated Terraform project profile: %w", err)
+	}
+	if err := project.ValidateProfile(profile); err != nil {
+		return fmt.Errorf("validate generated Terraform project profile: %w", err)
+	}
+	for _, operation := range doc.Operations {
+		applicable, err := ValidateTerraformOperation(operation)
+		if err != nil {
+			return fmt.Errorf("validate generated Terraform operation: %w", err)
+		}
+		if !applicable {
+			return fmt.Errorf("generated Terraform operation %q is missing conversion metadata", operation.OperationID)
+		}
+	}
+	return nil
 }
 
 func renderNativeProfile(c conversionState) project.Profile {
@@ -1765,22 +1808,13 @@ func sourceDescriptionType(kind string) uws1.SourceDescriptionType {
 	}
 }
 
-func operationRequest(mapping objectMapping) map[string]any {
+func operationRequest(mapping objectMapping, todo string) (map[string]any, error) {
 	body := map[string]any{}
 	header := map[string]any{}
 	cookie := map[string]any{}
 	path := map[string]any{}
 	query := map[string]any{}
 	terraformAttrs := map[string]any{}
-	terraform := map[string]any{
-		"object": map[string]any{
-			"address": mapping.Object.Address,
-			"kind":    mapping.Object.Kind,
-			"type":    mapping.Object.Type,
-			"name":    mapping.Object.Name,
-		},
-		"attributes": terraformAttrs,
-	}
 	var credentials []string
 	for _, attr := range mapping.Object.Config {
 		if strings.TrimSpace(attr.Path) == "" {
@@ -1790,9 +1824,6 @@ func operationRequest(mapping objectMapping) map[string]any {
 		for _, requestKey := range terraformAPIRequestKeys(mapping, attr.Path) {
 			setRequestBinding(requestLocationForKey(mapping.Operation, requestKey), requestKey, attr.Value, path, query, header, cookie, body)
 		}
-	}
-	if len(mapping.IdentityAttributes) > 0 {
-		terraform["identity_attributes"] = mapping.IdentityAttributes
 	}
 	for requestKey, value := range awsQueryProtocolStaticBindings(mapping) {
 		setRequestBinding(requestLocationForKey(mapping.Operation, requestKey), requestKey, value, path, query, header, cookie, body)
@@ -1810,7 +1841,7 @@ func operationRequest(mapping objectMapping) map[string]any {
 			setRequestBinding(credentialRequestLocation(auth), requestKey, bindingName, path, query, header, cookie, body)
 		}
 	}
-	request := map[string]any{"x-ramen-terraform": terraform}
+	request := map[string]any{}
 	if len(path) > 0 {
 		request["path"] = path
 	}
@@ -1828,9 +1859,45 @@ func operationRequest(mapping objectMapping) map[string]any {
 	}
 	if len(credentials) > 0 {
 		slices.Sort(credentials)
-		request["x-ramen-credential-bindings"] = credentials
+		credentials = slices.Compact(credentials)
 	}
-	return request
+	metadata := TerraformRequestMetadata{
+		Provenance: &TerraformProvenance{
+			Version: TerraformProvenanceVersion,
+			Object: TerraformObject{
+				Address: mapping.Object.Address,
+				Kind:    mapping.Object.Kind,
+				Type:    mapping.Object.Type,
+				Name:    mapping.Object.Name,
+			},
+			Attributes:         terraformAttrs,
+			IdentityAttributes: terraformIdentityAttributes(mapping.IdentityAttributes),
+		},
+		CredentialBindings: credentials,
+		TODO:               todo,
+	}
+	if err := SetTerraformRequestMetadata(&request, metadata); err != nil {
+		return nil, err
+	}
+	return request, nil
+}
+
+func terraformIdentityAttributes(values []tfmapping.IdentityAttribute) []TerraformIdentityAttribute {
+	out := make([]TerraformIdentityAttribute, 0, len(values))
+	for _, value := range values {
+		requestKeys := slices.Clone(value.RequestKeys)
+		responsePaths := slices.Clone(value.ResponsePaths)
+		slices.Sort(requestKeys)
+		slices.Sort(responsePaths)
+		out = append(out, TerraformIdentityAttribute{
+			Name:          value.Name,
+			TerraformPath: value.TerraformPath,
+			RequestKeys:   slices.Compact(requestKeys),
+			ResponsePaths: slices.Compact(responsePaths),
+			Required:      value.Required,
+		})
+	}
+	return out
 }
 
 func setRequestBinding(location, key string, value any, path, query, header, cookie, body map[string]any) {
