@@ -46,6 +46,7 @@ const (
 	defaultKubernetesProviderDir = "../terraform-provider-kubernetes"
 	defaultKubernetesOpenAPIDir  = "testdata/api-sources"
 	defaultOpenTofuDir           = "../opentofu"
+	defaultRamenDir              = "."
 	defaultOutDir                = "testdata/corpus"
 )
 
@@ -126,6 +127,7 @@ func main() {
 	kubernetesProviderDir := flag.String("kubernetes-provider-dir", defaultKubernetesProviderDir, "Path to the terraform-provider-kubernetes checkout")
 	kubernetesOpenAPIDir := flag.String("kubernetes-openapi-dir", defaultKubernetesOpenAPIDir, "Directory of Kubernetes OpenAPI/Swagger JSON files")
 	openTofuDir := flag.String("opentofu-dir", defaultOpenTofuDir, "Path to the OpenTofu checkout for optional static documentation/example Terraform inputs")
+	ramenDir := flag.String("ramen-dir", defaultRamenDir, "Path to the Ramen checkout containing explicitly registered local corpus inputs")
 	providers := flag.String("providers", "aws,google,azurerm,cloudflare,kubernetes", "Comma-separated providers to scan: aws, google, azurerm, cloudflare, kubernetes")
 	outDir := flag.String("out", defaultOutDir, "Corpus output directory (relative to repo root)")
 	action := flag.String("action", "create", "Desired action passed to ramen convert")
@@ -144,6 +146,7 @@ func main() {
 		KubernetesProviderDir: *kubernetesProviderDir,
 		KubernetesOpenAPIDir:  *kubernetesOpenAPIDir,
 		OpenTofuDir:           *openTofuDir,
+		RamenDir:              *ramenDir,
 		Providers:             *providers,
 		OutDir:                *outDir,
 		Action:                *action,
@@ -166,6 +169,7 @@ type runOptions struct {
 	KubernetesProviderDir string
 	KubernetesOpenAPIDir  string
 	OpenTofuDir           string
+	RamenDir              string
 	Providers             string
 	OutDir                string
 	Action                string
@@ -249,6 +253,12 @@ func run(opts runOptions) error {
 		}
 		emittedDirs[spec.Name] = providerEmittedDirs
 	}
+
+	ramenEntries, err := processRamenInputs(ctx, opts, registry, emittedDirs, st)
+	if err != nil {
+		return err
+	}
+	entries = append(entries, ramenEntries...)
 
 	if dirExists(opts.OpenTofuDir) {
 		openTofuEntries, openTofuDirs, err := processOpenTofuInputs(ctx, opts, registry, providerSpecs, st)
@@ -504,6 +514,122 @@ func processOpenTofuInputs(ctx context.Context, opts runOptions, registry tfmapp
 	return entries, emittedDirs, nil
 }
 
+type ramenCorpusInput struct {
+	Provider   string
+	Service    string
+	InputPath  string
+	EntryRel   string
+	SourceKind string
+	SourceID   string
+	SourcePath string
+	SourceRepo string
+}
+
+var ramenCorpusInputs = []ramenCorpusInput{
+	{
+		Provider:   "kubernetes",
+		Service:    "core",
+		InputPath:  "testdata/parity/kubernetes/k12/hcl/main.tf",
+		EntryRel:   "resources/cluster_role_binding_v1/example_1",
+		SourceKind: tfmapping.APISourceKindOpenAPI,
+		SourceID:   "rbac",
+		SourcePath: "testdata/parity/kubernetes/k12/openapi/rbac.json",
+		SourceRepo: "ramen",
+	},
+}
+
+func processRamenInputs(ctx context.Context, opts runOptions, registry tfmapping.Registry, emittedDirs map[string]map[string]bool, st *stats) ([]entryMeta, error) {
+	enabled := enabledProviders(opts.Providers)
+	var entries []entryMeta
+	for _, registered := range ramenCorpusInputs {
+		if !enabled[registered.Provider] {
+			continue
+		}
+		input, sourcePath, err := loadRamenCorpusInput(opts.RamenDir, registered)
+		if err != nil {
+			return nil, err
+		}
+		mapping, err := mappedProviderTypes(registry, registered.Provider)
+		if err != nil {
+			return nil, err
+		}
+		entryPath := filepath.Join(registered.Provider, registered.Service, registered.EntryRel)
+		entryDir := filepath.Join(opts.OutDir, entryPath)
+		providerDirs := emittedDirs[registered.Provider]
+		if providerDirs == nil {
+			providerDirs = map[string]bool{}
+			emittedDirs[registered.Provider] = providerDirs
+		}
+		if providerDirs[entryDir] {
+			return nil, fmt.Errorf("Ramen-local corpus entry %s collides with a discovered provider input", filepath.ToSlash(entryPath))
+		}
+		meta, emitted, err := processConfigDir(ctx, processArgs{
+			input:          input,
+			provider:       registered.Provider,
+			service:        registered.Service,
+			providerDir:    opts.RamenDir,
+			outDir:         opts.OutDir,
+			action:         opts.Action,
+			sourceKind:     registered.SourceKind,
+			sourceRepo:     registered.SourceRepo,
+			sourceIDs:      map[string]string{registered.Service: registered.SourceID},
+			mappedKinds:    mapping.mappedKinds,
+			serviceForType: mapping.serviceForType,
+			serviceSource:  map[string]string{registered.Service: sourcePath},
+		}, st)
+		if err != nil {
+			return nil, err
+		}
+		if !emitted {
+			return nil, fmt.Errorf("registered Ramen-local corpus input %s did not produce a clean entry", registered.InputPath)
+		}
+		entries = append(entries, meta)
+		providerDirs[entryDir] = true
+		st.emitted++
+		st.perService[registered.Provider+"/"+registered.Service]++
+	}
+	return entries, nil
+}
+
+func enabledProviders(value string) map[string]bool {
+	enabled := map[string]bool{}
+	for _, provider := range strings.Split(value, ",") {
+		provider = strings.ToLower(strings.TrimSpace(provider))
+		if provider != "" {
+			enabled[provider] = true
+		}
+	}
+	return enabled
+}
+
+func loadRamenCorpusInput(root string, registered ramenCorpusInput) (configInput, string, error) {
+	if registered.Provider == "" || registered.Service == "" || registered.EntryRel == "" || registered.SourceKind == "" || registered.SourceID == "" || registered.SourceRepo != "ramen" {
+		return configInput{}, "", fmt.Errorf("invalid Ramen-local corpus registration for %q", registered.InputPath)
+	}
+	for name, rel := range map[string]string{
+		"input":  registered.InputPath,
+		"entry":  registered.EntryRel,
+		"source": registered.SourcePath,
+	} {
+		if rel == "" || filepath.IsAbs(rel) || rel == ".." || strings.HasPrefix(filepath.Clean(rel), ".."+string(filepath.Separator)) {
+			return configInput{}, "", fmt.Errorf("Ramen-local corpus %s path %q must stay relative to its declared root", name, rel)
+		}
+	}
+	inputPath := filepath.Join(root, filepath.FromSlash(registered.InputPath))
+	data, err := os.ReadFile(inputPath)
+	if err != nil {
+		return configInput{}, "", fmt.Errorf("read registered Ramen-local corpus input %s: %w", registered.InputPath, err)
+	}
+	sourcePath := filepath.Join(root, filepath.FromSlash(registered.SourcePath))
+	if info, err := os.Stat(sourcePath); err != nil || info.IsDir() {
+		if err == nil {
+			err = fmt.Errorf("path is a directory")
+		}
+		return configInput{}, "", fmt.Errorf("read registered Ramen-local API source %s: %w", registered.SourcePath, err)
+	}
+	return configInput{Path: inputPath, EntryRel: filepath.ToSlash(registered.EntryRel), Content: data}, sourcePath, nil
+}
+
 func providerForTerraformTypes(types []string) string {
 	providers := map[string]bool{}
 	for _, typ := range types {
@@ -527,6 +653,7 @@ type processArgs struct {
 	action         string
 	sourceKind     string
 	sourceRepo     string
+	sourceIDs      map[string]string
 	entryPrefix    string
 	mappedKinds    map[string]map[string]bool
 	serviceForType map[string]string
@@ -553,7 +680,7 @@ func processConfigDir(ctx context.Context, a processArgs, st *stats) (entryMeta,
 			return entryMeta{}, false, nil
 		}
 	}
-	sources, ok := sourcesForTypes(resources, a.sourceKind, a.serviceForType, a.serviceSource)
+	sources, ok := sourcesForTypes(resources, a.sourceKind, a.serviceForType, a.serviceSource, a.sourceIDs)
 	if !ok {
 		st.droppedNoModel++
 		return entryMeta{}, false, nil
@@ -949,7 +1076,7 @@ func extractTypesFromBytes(data []byte) (resources, datas []string) {
 	return sortedKeys(rset), sortedKeys(dset)
 }
 
-func sourcesForTypes(types []string, kind string, serviceForType map[string]string, serviceSource map[string]string) ([]apiSourceRef, bool) {
+func sourcesForTypes(types []string, kind string, serviceForType map[string]string, serviceSource, sourceIDs map[string]string) ([]apiSourceRef, bool) {
 	seen := map[string]bool{}
 	var out []apiSourceRef
 	for _, rt := range types {
@@ -965,7 +1092,11 @@ func sourcesForTypes(types []string, kind string, serviceForType map[string]stri
 			continue
 		}
 		seen[svc] = true
-		out = append(out, apiSourceRef{Kind: kind, ID: svc, Path: filepath.ToSlash(path)})
+		id := svc
+		if sourceIDs[svc] != "" {
+			id = sourceIDs[svc]
+		}
+		out = append(out, apiSourceRef{Kind: kind, ID: id, Path: filepath.ToSlash(path)})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
 	return out, true

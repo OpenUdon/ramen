@@ -3,8 +3,40 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestRamenCorpusInputsAreExplicitAndLoadable(t *testing.T) {
+	if len(ramenCorpusInputs) != 1 {
+		t.Fatalf("registered Ramen-local inputs = %d, want 1", len(ramenCorpusInputs))
+	}
+	registered := ramenCorpusInputs[0]
+	if registered.Provider != "kubernetes" || registered.Service != "core" || registered.SourceID != "rbac" || registered.EntryRel != "resources/cluster_role_binding_v1/example_1" {
+		t.Fatalf("unexpected K12 registration: %#v", registered)
+	}
+	input, sourcePath, err := loadRamenCorpusInput(filepath.Join("..", ".."), registered)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if input.EntryRel != registered.EntryRel || !strings.HasSuffix(filepath.ToSlash(input.Path), registered.InputPath) {
+		t.Fatalf("loaded input = %#v", input)
+	}
+	if !strings.HasSuffix(filepath.ToSlash(sourcePath), registered.SourcePath) {
+		t.Fatalf("source path = %q", sourcePath)
+	}
+}
+
+func TestLoadRamenCorpusInputRejectsMissingAndEscapingPaths(t *testing.T) {
+	registered := ramenCorpusInputs[0]
+	if _, _, err := loadRamenCorpusInput(t.TempDir(), registered); err == nil || !strings.Contains(err.Error(), "read registered Ramen-local corpus input") {
+		t.Fatalf("missing input error = %v", err)
+	}
+	registered.InputPath = "../outside.tf"
+	if _, _, err := loadRamenCorpusInput(".", registered); err == nil || !strings.Contains(err.Error(), "must stay relative") {
+		t.Fatalf("escaping input error = %v", err)
+	}
+}
 
 func TestCompareCorpusTreesEqual(t *testing.T) {
 	got := t.TempDir()
