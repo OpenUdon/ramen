@@ -1,7 +1,10 @@
 package tfconvert
 
 import (
+	"encoding/json"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
 )
 
@@ -28,6 +31,62 @@ const validTerraformMetadataDocument = `{
   },
   "x-ramen-credential-bindings": ["aws.default"]
 }`
+
+func TestTerraformSchemaFixedObjectsMatchWireTypes(t *testing.T) {
+	var schema map[string]any
+	if err := json.Unmarshal(embeddedTerraformSchema, &schema); err != nil {
+		t.Fatal(err)
+	}
+	definitions, ok := schema["$defs"].(map[string]any)
+	if !ok {
+		t.Fatal("Terraform schema has no $defs object")
+	}
+	tests := []struct {
+		name   string
+		node   map[string]any
+		goType reflect.Type
+	}{
+		{name: "metadata", node: schema, goType: reflect.TypeFor[TerraformRequestMetadata]()},
+		{name: "terraform-provenance", node: terraformSchemaDefinition(t, definitions, "terraform-provenance"), goType: reflect.TypeFor[TerraformProvenance]()},
+		{name: "terraform-object", node: terraformSchemaDefinition(t, definitions, "terraform-object"), goType: reflect.TypeFor[TerraformObject]()},
+		{name: "identity-attribute", node: terraformSchemaDefinition(t, definitions, "identity-attribute"), goType: reflect.TypeFor[TerraformIdentityAttribute]()},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			assertTerraformSchemaPropertiesMatchWireType(t, test.node, test.goType)
+		})
+	}
+}
+
+func terraformSchemaDefinition(t *testing.T, definitions map[string]any, name string) map[string]any {
+	t.Helper()
+	node, ok := definitions[name].(map[string]any)
+	if !ok {
+		t.Fatalf("Terraform schema definition %q is missing or not an object", name)
+	}
+	return node
+}
+
+func assertTerraformSchemaPropertiesMatchWireType(t *testing.T, node map[string]any, goType reflect.Type) {
+	t.Helper()
+	properties, ok := node["properties"].(map[string]any)
+	if !ok {
+		t.Fatal("schema object has no properties")
+	}
+	if len(properties) != goType.NumField() {
+		t.Fatalf("schema/type property count differs for %s: schema=%d type=%d", goType.Name(), len(properties), goType.NumField())
+	}
+	for i := range goType.NumField() {
+		field := goType.Field(i)
+		name := field.Tag.Get("json")
+		if comma := strings.IndexByte(name, ','); comma >= 0 {
+			name = name[:comma]
+		}
+		if _, ok := properties[name]; !ok {
+			t.Errorf("schema object is missing %s.%s wire property %q", goType.Name(), field.Name, name)
+		}
+	}
+}
 
 func TestEmbeddedTerraformSchemaValidatesOutsideRepository(t *testing.T) {
 	old, err := os.Getwd()

@@ -133,8 +133,10 @@ Terraform-specific value and the TODO request metadata. An unresolved
 operation must not pretend to have a source binding.
 
 `ramen validate --project` validates Terraform metadata whenever an operation
-carries a Terraform request key or the current/retired review profile. Invalid
-metadata emits `validate.terraform_metadata_invalid`.
+carries `x-ramen-terraform`, an unknown `x-ramen-terraform-*` key, or the
+current/retired review profile. Generic `x-ramen-credential-bindings` or
+`x-ramen-todo` request metadata alone does not activate the Terraform contract.
+Invalid metadata emits `validate.terraform_metadata_invalid`.
 
 ## Compatibility Break
 

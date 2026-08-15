@@ -45,7 +45,7 @@
         },
         "url": {
           "type": "string",
-          "minLength": 1
+          "pattern": ".*\\S.*"
         },
         "collection": {
           "type": "string",

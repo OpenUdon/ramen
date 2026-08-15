@@ -3,6 +3,7 @@ package ansibleconvert
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"github.com/OpenUdon/uws/uws1"
 )
@@ -68,6 +69,9 @@ func ReadOperationExtension(extensions map[string]any) (*OperationAnsibleModule,
 	if err := json.Unmarshal(payload, &out); err != nil {
 		return nil, false, fmt.Errorf("unmarshal %s extension: %w", ExtensionAnsibleModule, err)
 	}
+	if err := validateOperationAnsibleModule(&out); err != nil {
+		return nil, false, err
+	}
 	return &out, true, nil
 }
 
@@ -76,6 +80,9 @@ func ReadOperationExtension(extensions map[string]any) (*OperationAnsibleModule,
 func SetOperationExtension(dst *map[string]any, value *OperationAnsibleModule) error {
 	if value == nil {
 		return nil
+	}
+	if err := validateOperationAnsibleModule(value); err != nil {
+		return err
 	}
 	envelope, err := json.Marshal(map[string]any{ExtensionAnsibleModule: value})
 	if err != nil {
@@ -92,6 +99,17 @@ func SetOperationExtension(dst *map[string]any, value *OperationAnsibleModule) e
 		*dst = make(map[string]any)
 	}
 	(*dst)[ExtensionAnsibleModule] = generic[ExtensionAnsibleModule]
+	return nil
+}
+
+func validateOperationAnsibleModule(value *OperationAnsibleModule) error {
+	if value == nil || value.Argspec == nil {
+		return nil
+	}
+	separator := strings.LastIndex(value.Module, ".")
+	if separator <= 0 || value.Argspec.Collection != value.Module[:separator] {
+		return fmt.Errorf("%s argspec collection %q does not match module %q", ExtensionAnsibleModule, value.Argspec.Collection, value.Module)
+	}
 	return nil
 }
 

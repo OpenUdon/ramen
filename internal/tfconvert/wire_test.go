@@ -78,6 +78,29 @@ func TestTerraformOperationValidation(t *testing.T) {
 	}
 }
 
+func TestReadTerraformRequestMetadataRequiresTerraformMarker(t *testing.T) {
+	tests := map[string]map[string]any{
+		"standard request": {
+			"body": map[string]any{"name": "example"},
+		},
+		"native credentials": {
+			"body":                    map[string]any{"name": "example"},
+			RequestCredentialBindings: []any{"example.default"},
+		},
+		"unrelated review todo": {
+			RequestReviewTODO: "review.required",
+		},
+	}
+	for name, request := range tests {
+		t.Run(name, func(t *testing.T) {
+			metadata, present, err := ReadTerraformRequestMetadata(request)
+			if metadata != nil || present || err != nil {
+				t.Fatalf("unmarked request activated Terraform metadata: metadata=%#v present=%t err=%v", metadata, present, err)
+			}
+		})
+	}
+}
+
 func TestTerraformOperationRejectsLegacyAndInconsistentMetadata(t *testing.T) {
 	validEnvelope := func(t *testing.T) map[string]any {
 		t.Helper()
@@ -97,8 +120,14 @@ func TestTerraformOperationRejectsLegacyAndInconsistentMetadata(t *testing.T) {
 		"unknown Terraform key": {
 			OperationID: "review", Request: map[string]any{RequestTerraformProvenance + "-future": true},
 		},
+		"review profile without provenance": {
+			OperationID: "review", Request: map[string]any{RequestCredentialBindings: []any{"example.default"}}, Extensions: map[string]any{uws1.ExtensionOperationProfile: TerraformReviewTODOProfile},
+		},
 		"resolved with todo profile": {
 			OperationID: "create", SourceDescription: "example", SourceOperationID: "create", Request: validEnvelope(t), Extensions: map[string]any{uws1.ExtensionOperationProfile: TerraformReviewTODOProfile},
+		},
+		"resolved with malformed profile": {
+			OperationID: "create", SourceDescription: "example", SourceOperationID: "create", Request: validEnvelope(t), Extensions: map[string]any{uws1.ExtensionOperationProfile: 42},
 		},
 		"unresolved without todo": {
 			OperationID: "review", Request: validEnvelope(t), Extensions: map[string]any{uws1.ExtensionOperationProfile: TerraformReviewTODOProfile},

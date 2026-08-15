@@ -186,7 +186,9 @@ Ansible module calls are not source-bound. The emitted operation carries
 structure as usual, with the module FQCN and argspec review reference under
 `x-ramen-ansible-module`. The Ramen profile selects that metadata through the
 UWS core `x-uws-operation-profile` key; the bound runtime owns module
-execution.
+execution. When an argspec reference is present, its source ID and URL must be
+non-blank and its collection must match the `namespace.collection` portion of
+the module FQCN.
 
 Unsupported or review-only constructs become diagnostics instead of guessed
 workflow behavior, including:

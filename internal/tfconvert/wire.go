@@ -101,6 +101,7 @@ func ValidateTerraformOperation(operation *uws1.Operation) (bool, error) {
 		return false, nil
 	}
 	profile := operation.ExtensionProfile()
+	_, hasProfile := operation.Extensions[uws1.ExtensionOperationProfile]
 	applicable := hasTerraformContractMarker(operation.Request) || profile == TerraformReviewTODOProfile || profile == retiredTerraformReviewTODOProfile
 	if !applicable {
 		return false, nil
@@ -119,7 +120,7 @@ func ValidateTerraformOperation(operation *uws1.Operation) (bool, error) {
 		if !operation.HasCompleteSourceBinding() {
 			return true, fmt.Errorf("Terraform conversion operation %q has an incomplete source binding", operation.OperationID)
 		}
-		if profile != "" {
+		if hasProfile {
 			return true, fmt.Errorf("source-bound Terraform conversion operation %q must not carry %s", operation.OperationID, uws1.ExtensionOperationProfile)
 		}
 		if strings.TrimSpace(metadata.TODO) != "" {
@@ -157,5 +158,5 @@ func terraformMetadataEnvelope(request map[string]any) (map[string]any, bool) {
 			}
 		}
 	}
-	return envelope, len(envelope) > 0
+	return envelope, hasTerraformContractMarker(request)
 }
