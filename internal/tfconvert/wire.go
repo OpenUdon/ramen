@@ -101,15 +101,14 @@ func ValidateTerraformOperation(operation *uws1.Operation) (bool, error) {
 		return false, nil
 	}
 	profile := operation.ExtensionProfile()
-	_, hasEnvelope := terraformMetadataEnvelope(operation.Request)
-	metadata, present, err := ReadTerraformRequestMetadata(operation.Request)
-	applicable := hasEnvelope || profile == TerraformReviewTODOProfile || profile == retiredTerraformReviewTODOProfile
+	applicable := hasTerraformContractMarker(operation.Request) || profile == TerraformReviewTODOProfile || profile == retiredTerraformReviewTODOProfile
 	if !applicable {
 		return false, nil
 	}
 	if profile == retiredTerraformReviewTODOProfile {
 		return true, fmt.Errorf("retired Terraform review profile %q is not accepted; use %q", retiredTerraformReviewTODOProfile, TerraformReviewTODOProfile)
 	}
+	metadata, present, err := ReadTerraformRequestMetadata(operation.Request)
 	if err != nil {
 		return true, err
 	}
@@ -135,6 +134,15 @@ func ValidateTerraformOperation(operation *uws1.Operation) (bool, error) {
 		return true, fmt.Errorf("unresolved Terraform conversion operation %q must carry %s", operation.OperationID, RequestReviewTODO)
 	}
 	return true, nil
+}
+
+func hasTerraformContractMarker(request map[string]any) bool {
+	for key := range request {
+		if key == RequestTerraformProvenance || strings.HasPrefix(key, RequestTerraformProvenance+"-") {
+			return true
+		}
+	}
+	return false
 }
 
 func terraformMetadataEnvelope(request map[string]any) (map[string]any, bool) {

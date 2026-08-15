@@ -65,6 +65,17 @@ func TestTerraformOperationValidation(t *testing.T) {
 	if applicable, err := ValidateTerraformOperation(unrelated); applicable || err != nil {
 		t.Fatalf("unrelated operation: applicable=%t err=%v", applicable, err)
 	}
+
+	nativeWithCredentials := &uws1.Operation{
+		OperationID: "nativeWithCredentials",
+		Request: map[string]any{
+			"body":                    map[string]any{"name": "example"},
+			RequestCredentialBindings: []any{"example.default"},
+		},
+	}
+	if applicable, err := ValidateTerraformOperation(nativeWithCredentials); applicable || err != nil {
+		t.Fatalf("native credential operation: applicable=%t err=%v", applicable, err)
+	}
 }
 
 func TestTerraformOperationRejectsLegacyAndInconsistentMetadata(t *testing.T) {

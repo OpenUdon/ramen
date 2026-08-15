@@ -101,11 +101,6 @@ x-ramen-desired-state:
             - aws_hmac
           operation_id: CreateUser
           purpose: create
-          request_bindings:
-            - operation_id: CreateUser
-              operation_role: create
-              request_path: UserName
-              source_path: name
           source_id: iam
           source_kind: aws-smithy
           source_path: ../../../../api-sources/aws-iam-smithy-model.json
@@ -114,11 +109,6 @@ x-ramen-desired-state:
             - aws_hmac
           operation_id: GetUser
           purpose: read
-          request_bindings:
-            - operation_id: GetUser
-              operation_role: read
-              request_path: UserName
-              source_path: name
           source_id: iam
           source_kind: aws-smithy
           source_path: ../../../../api-sources/aws-iam-smithy-model.json
@@ -127,11 +117,6 @@ x-ramen-desired-state:
             - aws_hmac
           operation_id: DeleteUser
           purpose: delete
-          request_bindings:
-            - operation_id: DeleteUser
-              operation_role: delete
-              request_path: UserName
-              source_path: name
           source_id: iam
           source_kind: aws-smithy
           source_path: ../../../../api-sources/aws-iam-smithy-model.json
