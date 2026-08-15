@@ -7,6 +7,8 @@ Ramen owns desired-state reconciliation:
 - API source operation inventory consumption through public `apitools`;
 - Terraform/OpenTofu HCL conversion through public `tfconfig` via
   `ramen convert`;
+- optional read-only Terraform provider-schema snapshot validation during
+  conversion, without provider loading or API-operation authority;
 - resource-to-operation mapping, including public `tfmapping` for conversion
   compatibility;
 - dependency graph construction;
@@ -41,7 +43,9 @@ is summarized in [openudon-evidence-alignment.md](openudon-evidence-alignment.md
 
 Ramen does not import Terraform code, OpenTofu internals, Terraform providers,
 provider plugins, provider SDKs, or private udon packages in default public
-builds. The optional udon adapter is behind the explicit `udon` build tag.
+builds. Reading an inert, operator-supplied provider-schema JSON snapshot does
+not load or execute its provider. The optional udon adapter is behind the
+explicit `udon` build tag.
 
 See [compatibility.md](compatibility.md) for the pre-1.0 compatibility and
 artifact-version policy.

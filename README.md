@@ -128,6 +128,11 @@ See the shared [static conversion contract](docs/conversion.md), the
 reports, static inputs, Ramen-owned metadata, validation, artifacts, and
 compatibility boundaries.
 
+Terraform conversion can also accept repeatable
+`--provider-schema ID=PATH` snapshots for offline client-configuration
+validation. This never runs a provider and does not replace the required API
+source that defines server operations.
+
 `ramen run` is an adjacent imperative UWS runbook command; it does not create
 desired-state resources. Default release builds include mock execution only.
 Platform teams integrate a trusted runtime through the supported

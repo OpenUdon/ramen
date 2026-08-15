@@ -84,7 +84,7 @@ func (c *conversionState) loadProviderSchemas() {
 			continue
 		}
 		seen[input.ID] = true
-		info, err := os.Stat(input.Path)
+		info, err := os.Lstat(input.Path)
 		if err != nil {
 			c.addProviderSchemaDiagnostic(input.ID, "provider_schema.load_error", fmt.Sprintf("read provider schema %s: %v", input.Path, err))
 			continue

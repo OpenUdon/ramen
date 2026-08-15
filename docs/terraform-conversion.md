@@ -12,6 +12,7 @@ never downloads a module.
 ramen convert tf \
   --config-dir DIR \
   --api-source KIND:ID=PATH \
+  --provider-schema PROVIDER=SCHEMA.json \
   --action create \
   --target ADDRESS \
   --out DIR \
@@ -30,6 +31,11 @@ is not sent to the trusted executor.
 - `--api-source KIND:ID=PATH` supplies a local API source. Supported kinds are
   `openapi`, `aws-smithy`, and `google-discovery`; the flag may be repeated.
 - `--openapi ID=PATH` is the retained OpenAPI shorthand.
+- `--provider-schema ID=PATH` optionally supplies a local JSON snapshot
+  compatible with `terraform providers schema -json`. The ID is a full
+  provider address or an unambiguous final provider name such as `aws`. The
+  flag may be repeated. Ramen reads this file only; it never invokes
+  Terraform/OpenTofu or a provider plugin to obtain a schema.
 - `--action create|update|delete|replace` selects the desired mapping action.
 - `--target ADDRESS` restricts conversion to a Terraform address and may be
   repeated.
@@ -44,6 +50,25 @@ Inputs and staged API source documents are untrusted. Source staging rejects
 unsafe overlaps and unowned pre-existing generated directories. Credentials
 remain symbolic binding names; values are never copied from provider
 configuration into generated artifacts.
+
+## Offline Provider-Schema Evidence
+
+An optional provider-schema snapshot validates the Terraform client-language
+side of conversion. Format `1.0` snapshots select one provider deterministically
+by exact address or unique final name and are limited to a 32 MiB regular JSON
+file. For matching resource and data-source types, Ramen validates root
+attributes and nested block names, required attributes/blocks, computed-only
+configuration, and provider attribute-mode consistency. Mismatches are stable
+`provider_schema.*` strict diagnostics with Terraform source identity.
+
+The snapshot is evidence, not the server contract. It cannot select an API
+operation, define request/response bindings or authentication, grant execution
+authority, or replace `--api-source`. API source documents remain authoritative
+for server operations; Ramen's mapping metadata remains authoritative for
+desired-state lifecycle and binding behavior. Selected evidence is summarized
+in `expected/conversion.json` and review Markdown, while the common manifest
+records the safe input filename and SHA-256 digest. The complete provider schema
+is neither staged nor copied into generated semantic artifacts.
 
 ## Semantic-Loss Gate
 

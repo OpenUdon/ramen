@@ -36,8 +36,10 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
    Required, optional, computed, sensitive, identity, enum, immutable,
    response-derived identity, create-only, updateable, replace-on-change,
    read-only, and ignored paths. The public `tfmapping.SchemaPath` contract is
-   the place for this metadata; command packages consume it without importing
-   provider schemas.
+   the place for native execution metadata. Conversion may use an offline
+   provider-schema snapshot to validate Terraform client configuration, but it
+   does not import that snapshot into `tfmapping` or treat it as lifecycle/API
+   authority.
 
 2. **Request and response binding**
    Attribute-to-request paths for create/update/delete/read and response-to-state
@@ -76,9 +78,12 @@ or depend on Terraform/OpenTofu runtime behavior. The target is narrower:
 
 ## Provider-Clone Boundary
 
-Ramen may read provider fixture files as inert test input, but it must not link
-provider runtime code into public builds. The boundary test in `boundary_test.go`
-enforces the current rule:
+Ramen may read provider fixture files and explicit provider-schema JSON
+snapshots as inert conversion/test input, but it must not link provider runtime
+code into public builds. A snapshot validates only the foreign client
+configuration; API sources and reviewed Ramen mapping metadata remain
+authoritative for execution. The boundary test in `boundary_test.go` enforces
+the current rule:
 
 - no Terraform provider packages, Terraform/OpenTofu runtime internals,
   provider plugins, or `tfconfig/_upstream` imports;

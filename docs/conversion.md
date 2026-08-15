@@ -8,6 +8,10 @@ owned by a bound runtime.
 
 Neither converter executes Terraform, OpenTofu, providers, Ansible, modules,
 inventory connections, API operations, or UWS workflows.
+Terraform conversion may read an operator-supplied offline provider-schema
+snapshot as client-configuration validation evidence; it never obtains one by
+running Terraform/OpenTofu or a provider, and API source documents remain the
+server-operation contract.
 
 ## Modes And Exits
 
