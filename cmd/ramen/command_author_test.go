@@ -181,11 +181,15 @@ func TestCLIAuthorInputErrorsExitTwo(t *testing.T) {
 	}{
 		{name: "missing context", args: []string{"author", "--goal", "Manage widgets"}, expected: "Usage: ramen author"},
 		{name: "invalid json", args: []string{"author", "--context", filepath.Join(root, "bad.json"), "--goal", "Manage widgets"}, expected: "author.context_parse_error"},
+		{name: "v1 context", args: []string{"author", "--context", filepath.Join(root, "v1.json"), "--goal", "Manage widgets"}, expected: `author.context_version_invalid: got "authoring.prompt-context.v1", want "authoring.prompt-context.v2"`},
 		{name: "missing file", args: []string{"author", "--context", filepath.Join(root, "missing.json"), "--goal", "Manage widgets"}, expected: "author.context_read_error"},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if tt.name == "invalid json" {
 				mustWriteCLIFile(t, filepath.Join(root, "bad.json"), []byte(`{`))
+			}
+			if tt.name == "v1 context" {
+				mustWriteCLIFile(t, filepath.Join(root, "v1.json"), []byte(`{"version":"authoring.prompt-context.v1"}`))
 			}
 			cmd := helperCommand(tt.args...)
 			output, err := cmd.CombinedOutput()

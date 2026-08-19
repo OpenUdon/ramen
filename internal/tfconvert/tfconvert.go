@@ -300,7 +300,7 @@ type objectMapping struct {
 	Lifecycle          *tfmapping.LifecycleSemantics
 	TodoID             string
 	Ambiguous          bool
-	Auth               []apitools.AuthRequirementSummary
+	AuthSets           [][]apitools.AuthRequirementSummary
 }
 
 type operationTarget = tfmapping.OperationTarget
@@ -412,7 +412,16 @@ func (c *conversionState) loadAPISources(ctx context.Context) {
 			c.addDiagnostic(Diagnostic{Code: "api_source.load_error", Severity: "error", Message: err.Error(), APISourceKind: input.Kind, APISourceID: input.ID, StrictFailure: true})
 			continue
 		}
+		indexDiagnostics := make([]apitools.Diagnostic, 0, len(inventory.Diagnostics))
 		for _, diag := range inventory.Diagnostics {
+			// Prompt-prose sanitization is reported by the authoring API. Static
+			// conversion uses the bounded source index and checks the selected
+			// operation's readiness separately, so unrelated prompt diagnostics
+			// must not invalidate the entire provider source.
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(diag.Code)), "prompt.") {
+				continue
+			}
+			indexDiagnostics = append(indexDiagnostics, diag)
 			c.addDiagnostic(Diagnostic{
 				Code:          "api_source." + strings.ReplaceAll(diag.Code, ".", "_"),
 				Severity:      normalizeSeverity(diag.Severity),
@@ -423,6 +432,7 @@ func (c *conversionState) loadAPISources(ctx context.Context) {
 				StrictFailure: diag.Severity == "error",
 			})
 		}
+		inventory.Diagnostics = indexDiagnostics
 		index, err := apitools.NewOperationIndex(inventory)
 		if err != nil {
 			c.addDiagnostic(Diagnostic{Code: "api_source.index_error", Severity: "error", Message: fmt.Sprintf("%s:%s: %v", input.Kind, input.ID, err), APISourceKind: input.Kind, APISourceID: input.ID, StrictFailure: true})
@@ -1238,7 +1248,8 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 			mapping.SourcePath = doc.PackagePath
 			mapping.OperationID = operation.OperationID
 			mapping.Operation = operation
-			mapping.Auth = apitools.AuthRequirementsForOperation(provider, operation)
+			mapping.AuthSets = apitools.AuthRequirementSetsForOperation(provider, operation)
+			c.requireAuthAlternativeSelection(&mapping)
 			c.addFallbackDiagnosticIfNeeded(obj, purpose, action, target, doc.Kind)
 			c.mappings = append(c.mappings, mapping)
 			return true
@@ -1275,7 +1286,8 @@ func (c *conversionState) mapObjectPurpose(obj selectedObject, purpose, action s
 		mapping.SourcePath = doc.PackagePath
 		mapping.OperationID = selection.Operation.OperationID
 		mapping.Operation = selection.Operation
-		mapping.Auth = apitools.AuthRequirementsForOperation(provider, selection.Operation)
+		mapping.AuthSets = apitools.AuthRequirementSetsForOperation(provider, selection.Operation)
+		c.requireAuthAlternativeSelection(&mapping)
 		c.addMappingDiagnostic(obj, purpose, action, tfmapping.Diagnostic{
 			Code:     tfmapping.DiagnosticCodeFallbackOnly,
 			Severity: tfmapping.DiagnosticSeverityInfo,
@@ -1315,6 +1327,32 @@ func (c *conversionState) addFallbackDiagnosticIfNeeded(obj selectedObject, purp
 		Severity: tfmapping.DiagnosticSeverityInfo,
 		Message:  fmt.Sprintf("selected %s API source fallback for %s because preferred %s source was not selected", selectedKind, obj.Address, target.SourceKinds[0]),
 	}, "")
+}
+
+func (c *conversionState) requireAuthAlternativeSelection(mapping *objectMapping) {
+	if mapping == nil || len(mapping.AuthSets) <= 1 {
+		return
+	}
+	if mapping.TodoID == "" {
+		mapping.TodoID = todoID(mapping.Object.Address, mapping.Purpose, "security-alternative")
+	}
+	c.addDiagnostic(Diagnostic{
+		Code:          "security.alternative_required",
+		Severity:      "warning",
+		Message:       fmt.Sprintf("operation %s exposes %d alternative security requirement sets; select exactly one alternative before execution", mapping.OperationID, len(mapping.AuthSets)),
+		Address:       mapping.Object.Address,
+		ModuleAddress: mapping.Object.ModuleAddress,
+		SourceRange:   convertRange(mapping.Object.Range),
+		TodoID:        mapping.TodoID,
+		StrictFailure: true,
+	})
+}
+
+func selectedAuthRequirements(mapping objectMapping) []apitools.AuthRequirementSummary {
+	if len(mapping.AuthSets) != 1 {
+		return nil
+	}
+	return mapping.AuthSets[0]
 }
 
 func (c *conversionState) addMappingDiagnostics(obj selectedObject, purpose, action string, diagnostics []tfmapping.Diagnostic, todoID string) {
@@ -1533,7 +1571,7 @@ func (c *conversionState) ensureCredentialBindings() {
 		existing[binding.Name] = true
 	}
 	for _, mapping := range c.mappings {
-		for _, auth := range mapping.Auth {
+		for _, auth := range selectedAuthRequirements(mapping) {
 			name := credentialBindingName(mapping.Object, auth)
 			if name == "" || existing[name] {
 				continue
@@ -2093,19 +2131,20 @@ type conversionArtifact struct {
 }
 
 type mappingArtifact struct {
-	Address            string                        `json:"address"`
-	Kind               string                        `json:"kind"`
-	Type               string                        `json:"type"`
-	Purpose            string                        `json:"purpose"`
-	Action             string                        `json:"action"`
-	SourceKind         string                        `json:"source_kind,omitempty"`
-	SourceID           string                        `json:"source_id,omitempty"`
-	SourcePath         string                        `json:"source_path,omitempty"`
-	OperationID        string                        `json:"operation_id,omitempty"`
-	IdentityAttributes []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
-	TodoID             string                        `json:"todo_id,omitempty"`
-	Ambiguous          bool                          `json:"ambiguous,omitempty"`
-	Credentials        []string                      `json:"credentials,omitempty"`
+	Address                string                        `json:"address"`
+	Kind                   string                        `json:"kind"`
+	Type                   string                        `json:"type"`
+	Purpose                string                        `json:"purpose"`
+	Action                 string                        `json:"action"`
+	SourceKind             string                        `json:"source_kind,omitempty"`
+	SourceID               string                        `json:"source_id,omitempty"`
+	SourcePath             string                        `json:"source_path,omitempty"`
+	OperationID            string                        `json:"operation_id,omitempty"`
+	IdentityAttributes     []tfmapping.IdentityAttribute `json:"identity_attributes,omitempty"`
+	TodoID                 string                        `json:"todo_id,omitempty"`
+	Ambiguous              bool                          `json:"ambiguous,omitempty"`
+	Credentials            []string                      `json:"credentials,omitempty"`
+	CredentialAlternatives [][]string                    `json:"credential_alternatives,omitempty"`
 }
 
 type planArtifact struct {
@@ -2138,27 +2177,39 @@ func renderMappingArtifacts(c conversionState) []mappingArtifact {
 }
 
 func mappingArtifactFor(mapping objectMapping) mappingArtifact {
-	var credentials []string
-	for _, auth := range mapping.Auth {
-		if name := credentialBindingName(mapping.Object, auth); name != "" {
-			credentials = append(credentials, name)
+	alternatives := make([][]string, 0, len(mapping.AuthSets))
+	for _, authSet := range mapping.AuthSets {
+		credentials := []string{}
+		for _, auth := range authSet {
+			if name := credentialBindingName(mapping.Object, auth); name != "" {
+				credentials = append(credentials, name)
+			}
 		}
+		slices.Sort(credentials)
+		alternatives = append(alternatives, slices.Compact(credentials))
 	}
-	slices.Sort(credentials)
+	var credentials []string
+	var unresolvedAlternatives [][]string
+	if len(alternatives) == 1 {
+		credentials = slices.Clone(alternatives[0])
+	} else if len(alternatives) > 1 {
+		unresolvedAlternatives = alternatives
+	}
 	return mappingArtifact{
-		Address:            mapping.Object.Address,
-		Kind:               mapping.Object.Kind,
-		Type:               mapping.Object.Type,
-		Purpose:            mapping.Purpose,
-		Action:             mapping.Action,
-		SourceKind:         mapping.SourceKind,
-		SourceID:           mapping.SourceID,
-		SourcePath:         mapping.SourcePath,
-		OperationID:        mapping.OperationID,
-		IdentityAttributes: slices.Clone(mapping.IdentityAttributes),
-		TodoID:             mapping.TodoID,
-		Ambiguous:          mapping.Ambiguous,
-		Credentials:        credentials,
+		Address:                mapping.Object.Address,
+		Kind:                   mapping.Object.Kind,
+		Type:                   mapping.Object.Type,
+		Purpose:                mapping.Purpose,
+		Action:                 mapping.Action,
+		SourceKind:             mapping.SourceKind,
+		SourceID:               mapping.SourceID,
+		SourcePath:             mapping.SourcePath,
+		OperationID:            mapping.OperationID,
+		IdentityAttributes:     slices.Clone(mapping.IdentityAttributes),
+		TodoID:                 mapping.TodoID,
+		Ambiguous:              mapping.Ambiguous,
+		Credentials:            credentials,
+		CredentialAlternatives: unresolvedAlternatives,
 	}
 }
 
@@ -2363,19 +2414,22 @@ func renderNativeProfile(c conversionState) project.Profile {
 			res.MappingLifecycle = nativeMappingLifecycle(mapping.Lifecycle)
 		}
 		artifact := mappingArtifactFor(mapping)
-		for _, credential := range artifact.Credentials {
+		selectedCredentials := slices.Clone(artifact.Credentials)
+		unresolvedAlternatives := cloneCredentialAlternatives(artifact.CredentialAlternatives)
+		for _, credential := range selectedCredentials {
 			if !slices.Contains(res.CredentialBindings, credential) {
 				res.CredentialBindings = append(res.CredentialBindings, credential)
 			}
 		}
 		if strings.TrimSpace(mapping.Purpose) != "" && strings.TrimSpace(mapping.OperationID) != "" {
 			res.Operations[mapping.Purpose] = project.OperationRole{
-				Purpose:            mapping.Purpose,
-				SourceKind:         mapping.SourceKind,
-				SourceID:           mapping.SourceID,
-				SourcePath:         mapping.SourcePath,
-				OperationID:        mapping.OperationID,
-				CredentialBindings: artifact.Credentials,
+				Purpose:                       mapping.Purpose,
+				SourceKind:                    mapping.SourceKind,
+				SourceID:                      mapping.SourceID,
+				SourcePath:                    mapping.SourcePath,
+				OperationID:                   mapping.OperationID,
+				CredentialBindings:            selectedCredentials,
+				CredentialBindingAlternatives: unresolvedAlternatives,
 			}
 		}
 	}
@@ -2386,6 +2440,14 @@ func renderNativeProfile(c conversionState) project.Profile {
 	}
 	slices.SortFunc(profile.Resources, func(a, b project.Resource) int { return cmp.Compare(a.Address, b.Address) })
 	return profile
+}
+
+func cloneCredentialAlternatives(alternatives [][]string) [][]string {
+	out := make([][]string, 0, len(alternatives))
+	for _, alternative := range alternatives {
+		out = append(out, slices.Clone(alternative))
+	}
+	return out
 }
 
 func nativeIdentityAttributes(attrs []tfmapping.IdentityAttribute) []project.IdentityAttribute {
@@ -2589,7 +2651,7 @@ func operationRequest(mapping objectMapping, todo string) (map[string]any, error
 	for requestKey, value := range awsQueryProtocolStaticBindings(mapping) {
 		setRequestBinding(requestLocationForKey(mapping.Operation, requestKey), requestKey, value, path, query, header, cookie, body)
 	}
-	for _, auth := range mapping.Auth {
+	for _, auth := range selectedAuthRequirements(mapping) {
 		bindingName := credentialBindingName(mapping.Object, auth)
 		if bindingName == "" {
 			continue
@@ -2802,8 +2864,14 @@ func renderReview(c conversionState) string {
 		for _, identity := range mapping.IdentityAttributes {
 			fmt.Fprintf(&b, "  - Identity `%s`: Terraform `%s`, request `%s`, response `%s`\n", identity.Name, identity.TerraformPath, strings.Join(identity.RequestKeys, ", "), strings.Join(identity.ResponsePaths, ", "))
 		}
-		for _, auth := range mapping.Auth {
-			fmt.Fprintf(&b, "  - Auth `%s`: %s\n", auth.Scheme, auth.Description)
+		for index, authSet := range mapping.AuthSets {
+			if len(authSet) == 0 {
+				fmt.Fprintf(&b, "  - Auth alternative %d: anonymous\n", index+1)
+				continue
+			}
+			for _, auth := range authSet {
+				fmt.Fprintf(&b, "  - Auth alternative %d `%s`: %s\n", index+1, auth.Scheme, auth.Description)
+			}
 		}
 	}
 	b.WriteString("\n## Offline Provider Schema Evidence\n\n")

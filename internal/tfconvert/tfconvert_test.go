@@ -786,7 +786,6 @@ provider "aws" {
   alias  = "west"
   region = "us-west-2"
 }
-
 resource "aws_s3_bucket" "test" {
   provider = aws.west
   bucket   = "tf-acc-openudon-alias"
@@ -814,6 +813,60 @@ resource "aws_s3_bucket" "test" {
 	}
 	if strings.Contains(workflow, `Authorization = "aws_hmac"`) {
 		t.Fatalf("workflow collapsed aliased AWS credential to default aws_hmac:\n%s", workflow)
+	}
+}
+
+func TestConvertFailsClosedOnSecurityAlternatives(t *testing.T) {
+	root := t.TempDir()
+	configDir := filepath.Join(root, "tf")
+	openAPIPath := filepath.Join(root, "s3.yaml")
+	writeFileForTest(t, filepath.Join(configDir, "main.tf"), `
+resource "aws_s3_bucket" "test" {
+  bucket = "tf-acc-openudon-security-alternatives"
+}
+`)
+	spec := strings.Replace(s3OpenAPIWithHMACForTest(), `security:
+  - hmac: []`, `security:
+  - hmac: []
+  - bearer: []`, 1)
+	spec = strings.Replace(spec, `    hmac:
+      type: apiKey
+      name: Authorization
+      in: header
+`, `    hmac:
+      type: apiKey
+      name: Authorization
+      in: header
+    bearer:
+      type: http
+      scheme: bearer
+`, 1)
+	writeFileForTest(t, openAPIPath, spec)
+
+	partial, err := Convert(context.Background(), Options{
+		ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "s3", Path: openAPIPath}},
+		Action: "create", OutDir: filepath.Join(root, "partial"), Mode: convertreport.ModePartial,
+	})
+	if err != nil {
+		t.Fatalf("partial conversion failed: %v", err)
+	}
+	if !hasDiagnostic(partial.Diagnostics, "security.alternative_required") {
+		t.Fatalf("security alternative diagnostic missing: %#v", partial.Diagnostics)
+	}
+	native := readFileForTest(t, partial.NativeProjectPath)
+	if !strings.Contains(native, "credential_binding_alternatives:") || strings.Contains(native, "x-ramen-credential-bindings:") {
+		t.Fatalf("partial project flattened security alternatives:\n%s", native)
+	}
+
+	strict, err := Convert(context.Background(), Options{
+		ConfigDir: configDir, OpenAPIs: []OpenAPIInput{{ID: "s3", Path: openAPIPath}},
+		Action: "create", OutDir: filepath.Join(root, "strict"), Strict: true,
+	})
+	if err == nil || !IsStrictFailure(err) || strict == nil || !strict.StrictFailed {
+		t.Fatalf("strict conversion result/error = %#v / %v", strict, err)
+	}
+	if !hasDiagnostic(strict.Diagnostics, "security.alternative_required") {
+		t.Fatalf("strict diagnostics = %#v", strict.Diagnostics)
 	}
 }
 

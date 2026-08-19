@@ -622,6 +622,13 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 			continue
 		}
 		for _, diag := range inventory.Diagnostics {
+			// Prompt-only sanitization diagnostics remain available to authoring
+			// callers. Runtime project validation consumes the bounded operation
+			// index, not prompt prose, so those diagnostics do not make an otherwise
+			// valid API source noisy or invalid here.
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(diag.Code)), "prompt.") {
+				continue
+			}
 			diagnostics = append(diagnostics, Diagnostic{Code: "validate.api_source_" + strings.ReplaceAll(diag.Code, ".", "_"), Severity: normalizeSeverity(diag.Severity), Message: diag.Message, APISourceKind: input.Kind, APISourceID: input.ID})
 		}
 		ops := map[string]bool{}

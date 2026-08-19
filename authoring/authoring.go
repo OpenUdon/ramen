@@ -721,6 +721,14 @@ func (r runtime) Draft(_ context.Context, s state, _ []promptcontext.Context, _ 
 
 func (runtime) Readiness(s state, _ []promptcontext.Context) []session.ReadinessIssue {
 	var issues []session.ReadinessIssue
+	if s.Context.Version != promptcontext.Version {
+		issues = append(issues, session.ReadinessIssue{
+			Code:     "ramen.authoring.prompt_context_version_invalid",
+			Severity: sharedreadiness.SeverityBlocking,
+			Slot:     "prompt_context.version",
+			Message:  fmt.Sprintf("Prompt context version %q is unsupported; want %q and v1 inputs are not compatible.", s.Context.Version, promptcontext.Version),
+		})
+	}
 	if strings.TrimSpace(s.Goal) == "" {
 		issues = append(issues, session.ReadinessIssue{
 			Code:     missingGoalCode,
@@ -738,7 +746,35 @@ func (runtime) Readiness(s state, _ []promptcontext.Context) []session.Readiness
 			SuggestedAnswer: "Add at least one source document and operation candidate.",
 		})
 	}
+	if unresolvedCredentialAlternatives(s) {
+		issues = append(issues, session.ReadinessIssue{
+			Code:            "ramen.authoring.security_alternative_required",
+			Severity:        sharedreadiness.SeverityBlocking,
+			Slot:            "prompt_context.operations.security",
+			Message:         "Select exactly one operation security alternative before building a runnable Ramen project.",
+			SuggestedAnswer: "Use ramen icot to select one numbered security alternative or save an explicitly incomplete draft.",
+		})
+	}
 	return issues
+}
+
+func unresolvedCredentialAlternatives(s state) bool {
+	if len(s.Resources) > 0 {
+		for _, resource := range s.Resources {
+			for _, role := range resource.Operations {
+				if len(role.CredentialBindingAlternatives) > 1 {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	for _, operation := range s.Context.Operations {
+		if len(operation.CredentialBindingSets) > 1 {
+			return true
+		}
+	}
+	return false
 }
 
 func (runtime) Ready(s state, issues []session.ReadinessIssue) bool {
@@ -973,6 +1009,28 @@ func localUWSOperationID(role string, resource project.Resource) string {
 	return slug(role) + "_" + slug(firstNonEmpty(resource.Type, resource.Name, "resource"))
 }
 
+func selectedOperationCredentialBindings(operation promptcontext.OperationCandidate) []string {
+	if len(operation.CredentialBindingSets) != 1 {
+		return nil
+	}
+	return append([]string(nil), operation.CredentialBindingSets[0].Bindings...)
+}
+
+func unresolvedOperationCredentialAlternatives(operation promptcontext.OperationCandidate) [][]string {
+	if len(operation.CredentialBindingSets) <= 1 {
+		return nil
+	}
+	out := make([][]string, 0, len(operation.CredentialBindingSets))
+	for _, set := range operation.CredentialBindingSets {
+		bindings := append([]string(nil), set.Bindings...)
+		if len(bindings) == 0 {
+			bindings = []string{}
+		}
+		out = append(out, bindings)
+	}
+	return out
+}
+
 func defaultResource(s state, source promptcontext.SourceDocument, operation promptcontext.OperationCandidate, sourceID, sourceKind, sourceOperationID, resourceName string) project.Resource {
 	sourcePath := firstNonEmpty(source.URI, source.ID)
 	roleName := operationRoleForVerb(operation.Verb)
@@ -990,6 +1048,8 @@ func defaultResource(s state, source promptcontext.SourceDocument, operation pro
 	attributes := attributesForSchema(schema, resourceName)
 	requestBindings := requestBindingsForSchemaRole(schema, sourceOperationID, roleName)
 	resourceRedaction := redactionForSchema(schema)
+	credentialBindings := selectedOperationCredentialBindings(operation)
+	credentialAlternatives := unresolvedOperationCredentialAlternatives(operation)
 	return project.Resource{
 		Address:    "resource." + resourceName,
 		Kind:       "resource",
@@ -999,21 +1059,23 @@ func defaultResource(s state, source promptcontext.SourceDocument, operation pro
 		Attributes: attributes,
 		Operations: map[string]project.OperationRole{
 			roleName: {
-				Purpose:            roleName,
-				Method:             method,
-				SourceKind:         sourceKind,
-				SourceID:           sourceID,
-				SourcePath:         sourcePath,
-				OperationID:        sourceOperationID,
-				CredentialBindings: append([]string(nil), operation.CredentialBindings...),
+				Purpose:                       roleName,
+				Method:                        method,
+				SourceKind:                    sourceKind,
+				SourceID:                      sourceID,
+				SourcePath:                    sourcePath,
+				OperationID:                   sourceOperationID,
+				CredentialBindings:            append([]string(nil), credentialBindings...),
+				CredentialBindingAlternatives: credentialAlternatives,
 			},
 		},
-		IdentityAttributes: identity,
-		Schema:             schema,
-		RequestBindings:    requestBindings,
-		RequiredOperations: []string{roleName},
-		CredentialBindings: append([]string(nil), operation.CredentialBindings...),
-		Redaction:          resourceRedaction,
+		IdentityAttributes:            identity,
+		Schema:                        schema,
+		RequestBindings:               requestBindings,
+		RequiredOperations:            []string{roleName},
+		CredentialBindings:            append([]string(nil), credentialBindings...),
+		CredentialBindingAlternatives: credentialAlternatives,
+		Redaction:                     resourceRedaction,
 	}
 }
 
@@ -1077,6 +1139,8 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 	if roleName == "read" {
 		responseBindings = responseBindingsForSchema(responseSchema, sourceOperationID)
 	}
+	credentialBindings := selectedOperationCredentialBindings(operation)
+	credentialAlternatives := unresolvedOperationCredentialAlternatives(operation)
 	return project.Resource{
 		Address:    "resource." + resourceName,
 		Kind:       "resource",
@@ -1086,22 +1150,24 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 		Attributes: attributes,
 		Operations: map[string]project.OperationRole{
 			roleName: {
-				Purpose:            roleName,
-				Method:             method,
-				SourceKind:         sourceKind,
-				SourceID:           sourceID,
-				SourcePath:         sourcePath,
-				OperationID:        sourceOperationID,
-				CredentialBindings: append([]string(nil), operation.CredentialBindings...),
+				Purpose:                       roleName,
+				Method:                        method,
+				SourceKind:                    sourceKind,
+				SourceID:                      sourceID,
+				SourcePath:                    sourcePath,
+				OperationID:                   sourceOperationID,
+				CredentialBindings:            append([]string(nil), credentialBindings...),
+				CredentialBindingAlternatives: credentialAlternatives,
 			},
 		},
-		IdentityAttributes: identity,
-		Schema:             schema,
-		RequestBindings:    requestBindings,
-		ResponseBindings:   responseBindings,
-		RequiredOperations: []string{roleName},
-		CredentialBindings: append([]string(nil), operation.CredentialBindings...),
-		Redaction:          redactionForSchema(schema),
+		IdentityAttributes:            identity,
+		Schema:                        schema,
+		RequestBindings:               requestBindings,
+		ResponseBindings:              responseBindings,
+		RequiredOperations:            []string{roleName},
+		CredentialBindings:            append([]string(nil), credentialBindings...),
+		CredentialBindingAlternatives: credentialAlternatives,
+		Redaction:                     redactionForSchema(schema),
 		Metadata: map[string]any{
 			"goal":           strings.TrimSpace(goal),
 			"operation_role": roleName,
@@ -1144,16 +1210,17 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 		opSourcePath := firstNonEmpty(opSource.URI, op.Metadata["source_path"], sourcePath)
 		opID := firstNonEmpty(op.OperationID, op.ID)
 		operations[role] = project.OperationRole{
-			Purpose:            role,
-			Method:             strings.ToUpper(strings.TrimSpace(op.Verb)),
-			SourceKind:         opSourceKind,
-			SourceID:           opSourceID,
-			SourcePath:         opSourcePath,
-			OperationID:        opID,
-			CredentialBindings: append([]string(nil), op.CredentialBindings...),
+			Purpose:                       role,
+			Method:                        strings.ToUpper(strings.TrimSpace(op.Verb)),
+			SourceKind:                    opSourceKind,
+			SourceID:                      opSourceID,
+			SourcePath:                    opSourcePath,
+			OperationID:                   opID,
+			CredentialBindings:            append([]string(nil), selectedOperationCredentialBindings(op)...),
+			CredentialBindingAlternatives: unresolvedOperationCredentialAlternatives(op),
 		}
 		required = append(required, role)
-		credentials = append(credentials, op.CredentialBindings...)
+		credentials = append(credentials, selectedOperationCredentialBindings(op)...)
 		if sourceSupportedLongRunningOperation(op) {
 			hasSourceLRO = true
 		}

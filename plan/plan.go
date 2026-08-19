@@ -1798,6 +1798,12 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 			continue
 		}
 		for _, diag := range inventory.Diagnostics {
+			// Prompt-sanitization diagnostics are owned by authoring. Planning
+			// consumes the bounded operation index and must not fail because an
+			// unrelated operation description was shortened for a prompt.
+			if strings.HasPrefix(strings.ToLower(strings.TrimSpace(diag.Code)), "prompt.") {
+				continue
+			}
 			diagnostics = append(diagnostics, Diagnostic{Code: "api_source." + strings.ReplaceAll(diag.Code, ".", "_"), Severity: normalizeSeverity(diag.Severity), Message: diag.Message, APISourceKind: input.Kind, APISourceID: input.ID})
 		}
 		ops := slices.Clone(inventory.Operations)

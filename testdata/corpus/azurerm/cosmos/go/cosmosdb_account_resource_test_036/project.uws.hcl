@@ -14,39 +14,41 @@
     description       = "Review create create for Terraform resource azurerm_cosmosdb_account.test"
     request {
       body {
-        accountName = "\\\"acctest-ca-1\\\""
         createUpdateParameters {
-          kind = "\\\"GlobalDocumentDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"GlobalDocumentDB\""
+          location = "\"eastus\""
           properties {
-            databaseAccountOfferType = "\\\"Standard\\\""
+            databaseAccountOfferType = "\"Standard\""
           }
         }
-        resourceGroupName = "\\\"ramen-corpus-rg\\\""
+        resourceGroupName = "\"ramen-corpus-rg\""
         updateParameters {
-          kind = "\\\"GlobalDocumentDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"GlobalDocumentDB\""
+          location = "\"eastus\""
         }
+      }
+      path {
+        accountName = "\"acctest-ca-1\""
       }
       x-ramen-terraform {
         attributes {
           backup {
             interval_in_minutes = "120"
             retention_in_hours = "10"
-            type = "\\\"Periodic\\\""
+            type = "\"Periodic\""
           }
           consistency_policy {
-            consistency_level = "\\\"Session\\\""
+            consistency_level = "\"Session\""
           }
           geo_location {
             failover_priority = "0"
-            location = "\\\"eastus\\\""
+            location = "\"eastus\""
           }
-          kind = "\\\"GlobalDocumentDB\\\""
-          location = "\\\"eastus\\\""
-          name = "\\\"acctest-ca-1\\\""
-          offer_type = "\\\"Standard\\\""
-          resource_group_name = "\\\"ramen-corpus-rg\\\""
+          kind = "\"GlobalDocumentDB\""
+          location = "\"eastus\""
+          name = "\"acctest-ca-1\""
+          offer_type = "\"Standard\""
+          resource_group_name = "\"ramen-corpus-rg\""
         }
         identity_attributes = [
           {
@@ -117,20 +119,20 @@
             backup = {
               interval_in_minutes = "120"
               retention_in_hours = "10"
-              type = "\\\"Periodic\\\""
+              type = "\"Periodic\""
             }
             consistency_policy = {
-              consistency_level = "\\\"Session\\\""
+              consistency_level = "\"Session\""
             }
             geo_location = {
               failover_priority = "0"
-              location = "\\\"eastus\\\""
+              location = "\"eastus\""
             }
-            kind = "\\\"GlobalDocumentDB\\\""
-            location = "\\\"eastus\\\""
-            name = "\\\"acctest-ca-1\\\""
-            offer_type = "\\\"Standard\\\""
-            resource_group_name = "\\\"ramen-corpus-rg\\\""
+            kind = "\"GlobalDocumentDB\""
+            location = "\"eastus\""
+            name = "\"acctest-ca-1\""
+            offer_type = "\"Standard\""
+            resource_group_name = "\"ramen-corpus-rg\""
           }
           identity_attributes = [
             {

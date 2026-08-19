@@ -1103,8 +1103,8 @@ paths:
 	if len(ctx.Operations) != 1 || ctx.Operations[0].ResponseSchemaID == "" {
 		t.Fatalf("operation response schema id missing: %#v", ctx.Operations)
 	}
-	if got := ctx.Operations[0].CredentialBindings; len(got) != 1 || got[0] != "cloudflare_api_token" {
-		t.Fatalf("credential bindings = %#v", got)
+	if got := ctx.Operations[0].CredentialBindingSets; len(got) != 1 || len(got[0].Bindings) != 1 || got[0].Bindings[0] != "cloudflare_api_token" {
+		t.Fatalf("credential binding sets = %#v", got)
 	}
 	if len(ctx.Credentials) != 1 || ctx.Credentials[0].Name != "cloudflare_api_token" {
 		t.Fatalf("credentials = %#v", ctx.Credentials)
@@ -1119,6 +1119,48 @@ paths:
 	}
 	if !fields["result.name"] || !fields["result.uuid"] {
 		t.Fatalf("response schema fields = %#v", schema.Fields)
+	}
+}
+
+func TestPromptContextFromAPISourcesPreservesSecurityAlternatives(t *testing.T) {
+	sourcePath := filepath.Join(t.TempDir(), "security.yaml")
+	mustWriteAuthoringTestFile(t, sourcePath, []byte(`openapi: 3.0.0
+info: {title: Security Alternatives, version: v1}
+components:
+  securitySchemes:
+    api_key: {type: apiKey, in: header, name: X-API-Key}
+    client_certificate: {type: mutualTLS}
+paths:
+  /widgets:
+    get:
+      operationId: listWidgets
+      security:
+        - api_key: []
+          client_certificate: []
+        - {}
+      responses:
+        "200": {description: ok}
+`))
+	ctx, err := PromptContextFromAPISources(context.Background(), "List widgets", []APISourceInput{{
+		Kind: "openapi", ID: "widgets", Path: sourcePath,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(ctx.Operations) != 1 {
+		t.Fatalf("operations = %#v", ctx.Operations)
+	}
+	sets := ctx.Operations[0].CredentialBindingSets
+	if len(sets) != 2 || strings.Join(sets[0].Bindings, ",") != "api_key,client_certificate" || len(sets[1].Bindings) != 0 {
+		t.Fatalf("credential alternatives = %#v", sets)
+	}
+	for _, credential := range ctx.Credentials {
+		if credential.Required {
+			t.Fatalf("credential %q marked globally required despite anonymous alternative: %#v", credential.Name, ctx.Credentials)
+		}
+	}
+	if _, err := BuildProject(Options{Goal: "List widgets", ProjectName: "widgets", Context: ctx}); err == nil || !strings.Contains(err.Error(), "security_alternative_required") {
+		t.Fatalf("BuildProject accepted unresolved security alternatives: %v", err)
 	}
 }
 

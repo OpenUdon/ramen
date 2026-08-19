@@ -83,6 +83,7 @@ func Normalize(s *Session) {
 	if s.Intent.SelectedOperationID != "" {
 		if op, ok := selectedOperation(*s); ok {
 			resource := ramenauthoring.APILifecycleResource(s.Context, op, s.Boundary.Outcome, s.Intent.ProjectName)
+			applyPersistedSecuritySelections(s, &resource)
 			if s.Intent.FallbackBehavior != "" {
 				if resource.Metadata == nil {
 					resource.Metadata = map[string]any{}
@@ -256,6 +257,28 @@ func ensureTechnicalNodes(s *Session) {
 		}, s.Boundary.MutationScope, "observed read-only operation set")
 	}
 	technicalDependency := []string{nodeOperation}
+	var securityDependencies []string
+	roles := make([]string, 0, len(resource.Operations))
+	for role := range resource.Operations {
+		roles = append(roles, role)
+	}
+	slices.Sort(roles)
+	for _, roleName := range roles {
+		role := resource.Operations[roleName]
+		if len(role.CredentialBindingAlternatives) <= 1 {
+			continue
+		}
+		id := securityAlternativeNodeID(resource.Address, roleName)
+		ensureNode(s, interview.Node{
+			ID: id, Title: "Security alternative",
+			Prompt: "Choose one security alternative for " + roleName + ": " + strings.Join(credentialAlternativeChoices(role.CredentialBindingAlternatives), "; "),
+			Status: interview.StatusOpen, Dependencies: technicalDependency, Priority: 65, Required: true, Deferrable: true,
+			Rationale: "Alternative security sets are OR choices; bindings inside one set are required together.",
+		})
+		setNodeForced(&s.Interview, id, true)
+		securityDependencies = append(securityDependencies, id)
+	}
+	technicalDependency = append(technicalDependency, securityDependencies...)
 	for _, path := range resource.Schema {
 		kind := "desired input"
 		if path.Identity {
@@ -658,6 +681,9 @@ func applyProductAnswer(s *Session, nodeID, value string) error {
 			return fmt.Errorf("proposal decision must be approve or save-draft")
 		}
 	default:
+		if strings.HasPrefix(nodeID, "mapping.security.") {
+			return applySecurityAlternativeAnswer(s, nodeID, value)
+		}
 		if strings.HasPrefix(nodeID, "mapping.") || nodeID == nodeCredentials || nodeID == nodeRuntime {
 			if !strings.EqualFold(value, "accept") && !strings.EqualFold(value, "environment") {
 				return fmt.Errorf("decision %q must be accepted or explicitly deferred", nodeID)
@@ -665,6 +691,92 @@ func applyProductAnswer(s *Session, nodeID, value string) error {
 		}
 	}
 	return nil
+}
+
+func securityAlternativeNodeID(resourceAddress, role string) string {
+	return technicalNodeID("security", resourceAddress+"|"+role)
+}
+
+func securityAlternativeMetadataKey(resourceAddress, role string) string {
+	return "security_alternative." + resourceAddress + "." + role
+}
+
+func credentialAlternativeChoices(alternatives [][]string) []string {
+	out := make([]string, 0, len(alternatives))
+	for index, alternative := range alternatives {
+		label := "anonymous"
+		if len(alternative) > 0 {
+			label = strings.Join(alternative, " + ")
+		}
+		out = append(out, fmt.Sprintf("%d=%s", index+1, label))
+	}
+	return out
+}
+
+func applySecurityAlternativeAnswer(s *Session, nodeID, value string) error {
+	if s == nil || len(s.Intent.Resources) == 0 {
+		return fmt.Errorf("security alternative %q has no active resource", nodeID)
+	}
+	resource := &s.Intent.Resources[0]
+	roles := make([]string, 0, len(resource.Operations))
+	for role := range resource.Operations {
+		roles = append(roles, role)
+	}
+	slices.Sort(roles)
+	for _, roleName := range roles {
+		role := resource.Operations[roleName]
+		if securityAlternativeNodeID(resource.Address, roleName) != nodeID {
+			continue
+		}
+		index := -1
+		if numeric, err := strconv.Atoi(value); err == nil && numeric > 0 && numeric <= len(role.CredentialBindingAlternatives) {
+			index = numeric - 1
+		} else {
+			matched := -1
+			for candidate, alternative := range role.CredentialBindingAlternatives {
+				label := "anonymous"
+				if len(alternative) > 0 {
+					label = strings.Join(alternative, " + ")
+				}
+				if strings.EqualFold(value, label) {
+					if matched >= 0 {
+						return fmt.Errorf("security alternative label %q is ambiguous; choose its numbered alternative", value)
+					}
+					matched = candidate
+				}
+			}
+			index = matched
+		}
+		if index < 0 {
+			return fmt.Errorf("security alternative %q is not one of the listed choices", value)
+		}
+		if s.Metadata == nil {
+			s.Metadata = map[string]string{}
+		}
+		s.Metadata[securityAlternativeMetadataKey(resource.Address, roleName)] = strconv.Itoa(index + 1)
+		return nil
+	}
+	return fmt.Errorf("security alternative node %q does not match an active operation role", nodeID)
+}
+
+func applyPersistedSecuritySelections(s *Session, resource *project.Resource) {
+	if s == nil || resource == nil {
+		return
+	}
+	var selected []string
+	for roleName, role := range resource.Operations {
+		value := strings.TrimSpace(s.Metadata[securityAlternativeMetadataKey(resource.Address, roleName)])
+		if value != "" && len(role.CredentialBindingAlternatives) > 1 {
+			if numeric, err := strconv.Atoi(value); err == nil && numeric > 0 && numeric <= len(role.CredentialBindingAlternatives) {
+				role.CredentialBindings = append([]string(nil), role.CredentialBindingAlternatives[numeric-1]...)
+				role.CredentialBindingAlternatives = nil
+				resource.Operations[roleName] = role
+			}
+		}
+		selected = append(selected, role.CredentialBindings...)
+	}
+	resource.CredentialBindings = normalizeStrings(selected)
+	resource.CredentialBindingAlternatives = nil
 }
 
 func ensureNode(s *Session, desired interview.Node) {

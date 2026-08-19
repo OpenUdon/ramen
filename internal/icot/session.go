@@ -158,6 +158,7 @@ func NormalizeSession(session Session) Session {
 		session.Version = SessionVersion
 	}
 	session.Interview = interview.Normalize(session.Interview)
+	session.Context = promptcontext.Normalize(session.Context)
 	session.Boundary.Outcome = strings.TrimSpace(session.Boundary.Outcome)
 	session.Boundary.ActiveTitle = strings.TrimSpace(session.Boundary.ActiveTitle)
 	session.Boundary.ActorTrigger = strings.TrimSpace(session.Boundary.ActorTrigger)
@@ -193,6 +194,9 @@ func ValidateSession(session Session) error {
 	session = NormalizeSession(session)
 	if session.Version != SessionVersion {
 		return fmt.Errorf("unsupported Ramen iCoT session version %q; want %q; v1 inputs are not compatible", session.Version, SessionVersion)
+	}
+	if session.Context.Version != promptcontext.Version {
+		return fmt.Errorf("unsupported authoring prompt-context version %q; want %q; v1 inputs are not compatible", session.Context.Version, promptcontext.Version)
 	}
 	if err := interview.Validate(session.Interview); err != nil {
 		return err

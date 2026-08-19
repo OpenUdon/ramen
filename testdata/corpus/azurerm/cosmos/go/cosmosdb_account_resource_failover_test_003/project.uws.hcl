@@ -14,31 +14,33 @@
     description       = "Review create create for Terraform resource azurerm_cosmosdb_account.test"
     request {
       body {
-        accountName = "\\\"acctest-1\\\""
         createUpdateParameters {
-          location = "\\\"eastus\\\""
+          location = "\"eastus\""
           properties {
-            databaseAccountOfferType = "\\\"Standard\\\""
+            databaseAccountOfferType = "\"Standard\""
           }
         }
-        resourceGroupName = "\\\"ramen-corpus-rg\\\""
+        resourceGroupName = "\"ramen-corpus-rg\""
         updateParameters {
-          location = "\\\"eastus\\\""
+          location = "\"eastus\""
         }
+      }
+      path {
+        accountName = "\"acctest-1\""
       }
       x-ramen-terraform {
         attributes {
           consistency_policy {
-            consistency_level = "\\\"Eventual\\\""
+            consistency_level = "\"Eventual\""
           }
           geo_location {
             failover_priority = "0"
-            location = "\\\"eastus\\\""
+            location = "\"eastus\""
           }
-          location = "\\\"eastus\\\""
-          name = "\\\"acctest-1\\\""
-          offer_type = "\\\"Standard\\\""
-          resource_group_name = "\\\"ramen-corpus-rg\\\""
+          location = "\"eastus\""
+          name = "\"acctest-1\""
+          offer_type = "\"Standard\""
+          resource_group_name = "\"ramen-corpus-rg\""
         }
         identity_attributes = [
           {
@@ -107,16 +109,16 @@
           address = "azurerm_cosmosdb_account.test"
           attributes = {
             consistency_policy = {
-              consistency_level = "\\\"Eventual\\\""
+              consistency_level = "\"Eventual\""
             }
             geo_location = {
               failover_priority = "0"
-              location = "\\\"eastus\\\""
+              location = "\"eastus\""
             }
-            location = "\\\"eastus\\\""
-            name = "\\\"acctest-1\\\""
-            offer_type = "\\\"Standard\\\""
-            resource_group_name = "\\\"ramen-corpus-rg\\\""
+            location = "\"eastus\""
+            name = "\"acctest-1\""
+            offer_type = "\"Standard\""
+            resource_group_name = "\"ramen-corpus-rg\""
           }
           identity_attributes = [
             {

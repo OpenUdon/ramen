@@ -7,7 +7,6 @@ operations:
       operationId: azurerm_cosmosdb_account_test_create
       request:
         body:
-            accountName: '"acctest-ca-1"'
             createUpdateParameters:
                 kind: '"GlobalDocumentDB"'
                 location: '"eastus"'
@@ -17,6 +16,8 @@ operations:
             updateParameters:
                 kind: '"GlobalDocumentDB"'
                 location: '"eastus"'
+        path:
+            accountName: '"acctest-ca-1"'
         x-ramen-terraform:
             attributes:
                 backup:

@@ -7,7 +7,6 @@ operations:
       operationId: azurerm_cosmosdb_account_test_create
       request:
         body:
-            accountName: '"acctest-1"'
             createUpdateParameters:
                 location: '"eastus"'
                 properties:
@@ -15,6 +14,8 @@ operations:
             resourceGroupName: '"ramen-corpus-rg"'
             updateParameters:
                 location: '"eastus"'
+        path:
+            accountName: '"acctest-1"'
         x-ramen-terraform:
             attributes:
                 consistency_policy:

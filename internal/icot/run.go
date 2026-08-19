@@ -229,7 +229,7 @@ func finalize(ctx context.Context, session *Session, opts RunOptions) (Artifact,
 		authoringOptions.APISources = append(authoringOptions.APISources, project.APISource{Kind: source.Kind, ID: source.ID, Path: source.TargetPath})
 	}
 	document, err := ramenauthoring.BuildProject(authoringOptions)
-	if session.Approval == "save-draft" && len(session.Intent.Resources) == 0 {
+	if session.Approval == "save-draft" {
 		document, err = ramenauthoring.BuildIncompleteProject(authoringOptions)
 	}
 	if err != nil {

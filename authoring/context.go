@@ -133,20 +133,20 @@ func PromptContextFromAPISources(ctx context.Context, goal string, inputs []APIS
 			}
 		}
 		out.Operations = append(out.Operations, promptcontext.OperationCandidate{
-			ID:                 firstNonEmpty(op.ID, op.OperationID),
-			SourceID:           sourceID,
-			OperationID:        firstNonEmpty(op.OperationID, op.ID),
-			Name:               op.OperationID,
-			Verb:               op.Method,
-			Path:               op.Path,
-			Summary:            firstNonEmpty(op.Summary, op.Description),
-			RequestSchemaID:    requestSchemaID,
-			ResponseSchemaID:   responseSchemaID,
-			CredentialBindings: credentialBindings(op.Security, input),
-			Tags:               append([]string(nil), op.Tags...),
-			Confidence:         confidenceForScore(op.Score),
-			SelectionRationale: selectionRationale(op.Score),
-			Metadata:           metadata,
+			ID:                    firstNonEmpty(op.ID, op.OperationID),
+			SourceID:              sourceID,
+			OperationID:           firstNonEmpty(op.OperationID, op.ID),
+			Name:                  op.OperationID,
+			Verb:                  op.Method,
+			Path:                  op.Path,
+			Summary:               firstNonEmpty(op.Summary, op.Description),
+			RequestSchemaID:       requestSchemaID,
+			ResponseSchemaID:      responseSchemaID,
+			CredentialBindingSets: credentialBindingSets(op.SecurityRequirementSets, input),
+			Tags:                  append([]string(nil), op.Tags...),
+			Confidence:            confidenceForScore(op.Score),
+			SelectionRationale:    selectionRationale(op.Score),
+			Metadata:              metadata,
 		})
 	}
 	for _, credential := range credentialsForOperations(inventory.Operations) {
@@ -370,43 +370,77 @@ func appendMissingPropertyFieldHints(fields []promptcontext.FieldHint, propertie
 }
 
 func credentialsForOperations(operations []apitools.OperationSummary) []promptcontext.CredentialBinding {
-	seen := map[string]bool{}
+	indexes := map[string]int{}
 	var out []promptcontext.CredentialBinding
 	for _, op := range operations {
-		for _, security := range op.Security {
-			name := normalizedCredentialName(security, APISourceInput{ID: op.DocumentName})
-			if name == "" || seen[name] {
-				continue
+		source := APISourceInput{ID: op.DocumentName}
+		for _, set := range op.SecurityRequirementSets {
+			for _, security := range set.Requirements {
+				name := normalizedCredentialName(security, source)
+				if name == "" {
+					continue
+				}
+				required := credentialRequiredInEveryAlternative(name, op.SecurityRequirementSets, source)
+				if index, ok := indexes[name]; ok {
+					out[index].Required = out[index].Required && required
+					continue
+				}
+				indexes[name] = len(out)
+				out = append(out, promptcontext.CredentialBinding{
+					Name:     name,
+					Kind:     firstNonEmpty(security.Type, security.Scheme),
+					Scope:    security.In,
+					Required: required,
+					Summary:  security.Description,
+					Metadata: map[string]string{
+						"scheme_name": strings.TrimSpace(security.Name),
+					},
+				})
 			}
-			seen[name] = true
-			out = append(out, promptcontext.CredentialBinding{
-				Name:     name,
-				Kind:     firstNonEmpty(security.Type, security.Scheme),
-				Scope:    security.In,
-				Required: true,
-				Summary:  security.Description,
-				Metadata: map[string]string{
-					"scheme_name": strings.TrimSpace(security.Name),
-				},
-			})
 		}
 	}
 	return out
 }
 
-func credentialBindings(security []apitools.SecuritySummary, source APISourceInput) []string {
-	seen := map[string]bool{}
-	var out []string
-	for _, item := range security {
-		name := normalizedCredentialName(item, source)
-		if name == "" || seen[name] {
-			continue
-		}
-		seen[name] = true
-		out = append(out, name)
+func credentialBindingSets(sets []apitools.SecurityRequirementSetSummary, source APISourceInput) []promptcontext.CredentialBindingSet {
+	if len(sets) == 0 {
+		return nil
 	}
-	slices.Sort(out)
+	out := make([]promptcontext.CredentialBindingSet, 0, len(sets))
+	for _, set := range sets {
+		seen := map[string]bool{}
+		bindings := promptcontext.CredentialBindingSet{Bindings: []string{}}
+		for _, item := range set.Requirements {
+			name := normalizedCredentialName(item, source)
+			if name == "" || seen[name] {
+				continue
+			}
+			seen[name] = true
+			bindings.Bindings = append(bindings.Bindings, name)
+		}
+		slices.Sort(bindings.Bindings)
+		out = append(out, bindings)
+	}
 	return out
+}
+
+func credentialRequiredInEveryAlternative(name string, sets []apitools.SecurityRequirementSetSummary, source APISourceInput) bool {
+	if len(sets) == 0 {
+		return false
+	}
+	for _, set := range sets {
+		found := false
+		for _, security := range set.Requirements {
+			if normalizedCredentialName(security, source) == name {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 func normalizedCredentialName(security apitools.SecuritySummary, source APISourceInput) string {

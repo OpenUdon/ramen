@@ -7,7 +7,6 @@ operations:
       operationId: azurerm_cosmosdb_account_test_create
       request:
         body:
-            accountName: '"acctest-ca-1"'
             createUpdateParameters:
                 kind: '"MongoDB"'
                 location: '"eastus"'
@@ -17,6 +16,8 @@ operations:
             updateParameters:
                 kind: '"MongoDB"'
                 location: '"eastus"'
+        path:
+            accountName: '"acctest-ca-1"'
         x-ramen-terraform:
             attributes:
                 automatic_failover_enabled: "true"

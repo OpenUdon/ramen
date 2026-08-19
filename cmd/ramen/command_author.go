@@ -56,7 +56,7 @@ type authorCLIResult struct {
 
 func runAuthorCommand(ctx context.Context, args []string) {
 	fs := flag.NewFlagSet("author", flag.ExitOnError)
-	contextPath := fs.String("context", "", "authoring.prompt-context.v1 JSON input path")
+	contextPath := fs.String("context", "", "authoring.prompt-context.v2 JSON input path")
 	goal := fs.String("goal", "", "Desired-state project goal; omitted goals return needs_input")
 	projectName := fs.String("project-name", "", "Optional generated project name")
 	outDir := fs.String("out", "./.ramen/author", "Output directory for project.uws.yaml")

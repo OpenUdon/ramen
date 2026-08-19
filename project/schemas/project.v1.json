@@ -114,6 +114,10 @@
         "mapping_lifecycle": {"$ref": "#/$defs/mapping-lifecycle"},
         "required_operations": {"$ref": "#/$defs/string-array"},
         "credential_bindings": {"$ref": "#/$defs/string-array"},
+        "credential_binding_alternatives": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/string-array"}
+        },
         "runtime_hints": {"$ref": "#/$defs/runtime-hints"},
         "redaction": {"$ref": "#/$defs/redaction"},
         "ai": {"$ref": "#/$defs/ai-metadata"},
@@ -142,6 +146,10 @@
         "source_path": {"type": "string"},
         "operation_id": {"type": "string"},
         "credential_bindings": {"$ref": "#/$defs/string-array"},
+        "credential_binding_alternatives": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/string-array"}
+        },
         "ai": {"$ref": "#/$defs/ai-metadata"}
       },
       "additionalProperties": false

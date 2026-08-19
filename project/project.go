@@ -67,27 +67,28 @@ type APISource struct {
 }
 
 type Resource struct {
-	Address            string                   `json:"address"`
-	Kind               string                   `json:"kind"`
-	Type               string                   `json:"type"`
-	Name               string                   `json:"name,omitempty"`
-	Provider           string                   `json:"provider,omitempty"`
-	Attributes         map[string]any           `json:"attributes,omitempty"`
-	Lifecycle          Lifecycle                `json:"lifecycle,omitempty"`
-	Dependencies       []string                 `json:"dependencies,omitempty"`
-	Operations         map[string]OperationRole `json:"operations,omitempty"`
-	IdentityAttributes []IdentityAttribute      `json:"identity_attributes,omitempty"`
-	Schema             []SchemaPath             `json:"schema,omitempty"`
-	RequestBindings    []RequestBinding         `json:"request_bindings,omitempty"`
-	ResponseBindings   []ResponseBinding        `json:"response_bindings,omitempty"`
-	Normalizers        []Normalizer             `json:"normalizers,omitempty"`
-	MappingLifecycle   *MappingLifecycle        `json:"mapping_lifecycle,omitempty"`
-	RequiredOperations []string                 `json:"required_operations,omitempty"`
-	CredentialBindings []string                 `json:"credential_bindings,omitempty"`
-	RuntimeHints       *RuntimeHints            `json:"runtime_hints,omitempty"`
-	Redaction          Redaction                `json:"redaction,omitempty"`
-	AI                 *AIMetadata              `json:"ai,omitempty"`
-	Metadata           map[string]any           `json:"metadata,omitempty"`
+	Address                       string                   `json:"address"`
+	Kind                          string                   `json:"kind"`
+	Type                          string                   `json:"type"`
+	Name                          string                   `json:"name,omitempty"`
+	Provider                      string                   `json:"provider,omitempty"`
+	Attributes                    map[string]any           `json:"attributes,omitempty"`
+	Lifecycle                     Lifecycle                `json:"lifecycle,omitempty"`
+	Dependencies                  []string                 `json:"dependencies,omitempty"`
+	Operations                    map[string]OperationRole `json:"operations,omitempty"`
+	IdentityAttributes            []IdentityAttribute      `json:"identity_attributes,omitempty"`
+	Schema                        []SchemaPath             `json:"schema,omitempty"`
+	RequestBindings               []RequestBinding         `json:"request_bindings,omitempty"`
+	ResponseBindings              []ResponseBinding        `json:"response_bindings,omitempty"`
+	Normalizers                   []Normalizer             `json:"normalizers,omitempty"`
+	MappingLifecycle              *MappingLifecycle        `json:"mapping_lifecycle,omitempty"`
+	RequiredOperations            []string                 `json:"required_operations,omitempty"`
+	CredentialBindings            []string                 `json:"credential_bindings,omitempty"`
+	CredentialBindingAlternatives [][]string               `json:"credential_binding_alternatives,omitempty"`
+	RuntimeHints                  *RuntimeHints            `json:"runtime_hints,omitempty"`
+	Redaction                     Redaction                `json:"redaction,omitempty"`
+	AI                            *AIMetadata              `json:"ai,omitempty"`
+	Metadata                      map[string]any           `json:"metadata,omitempty"`
 }
 
 type Lifecycle struct {
@@ -98,14 +99,15 @@ type Lifecycle struct {
 }
 
 type OperationRole struct {
-	Purpose            string      `json:"purpose,omitempty"`
-	Method             string      `json:"method,omitempty"`
-	SourceKind         string      `json:"source_kind,omitempty"`
-	SourceID           string      `json:"source_id,omitempty"`
-	SourcePath         string      `json:"source_path,omitempty"`
-	OperationID        string      `json:"operation_id,omitempty"`
-	CredentialBindings []string    `json:"credential_bindings,omitempty"`
-	AI                 *AIMetadata `json:"ai,omitempty"`
+	Purpose                       string      `json:"purpose,omitempty"`
+	Method                        string      `json:"method,omitempty"`
+	SourceKind                    string      `json:"source_kind,omitempty"`
+	SourceID                      string      `json:"source_id,omitempty"`
+	SourcePath                    string      `json:"source_path,omitempty"`
+	OperationID                   string      `json:"operation_id,omitempty"`
+	CredentialBindings            []string    `json:"credential_bindings,omitempty"`
+	CredentialBindingAlternatives [][]string  `json:"credential_binding_alternatives,omitempty"`
+	AI                            *AIMetadata `json:"ai,omitempty"`
 }
 
 type RuntimeHints struct {
@@ -421,6 +423,7 @@ func normalizeProfilePaths(profile *Profile, dir string) {
 		resource.Dependencies = slices.Compact(resource.Dependencies)
 		slices.Sort(resource.CredentialBindings)
 		resource.CredentialBindings = slices.Compact(resource.CredentialBindings)
+		resource.CredentialBindingAlternatives = normalizeCredentialBindingAlternatives(resource.CredentialBindingAlternatives)
 		slices.Sort(resource.RequiredOperations)
 		resource.RequiredOperations = slices.Compact(resource.RequiredOperations)
 		for purpose, role := range resource.Operations {
@@ -432,11 +435,38 @@ func normalizeProfilePaths(profile *Profile, dir string) {
 			role.OperationID = strings.TrimSpace(role.OperationID)
 			slices.Sort(role.CredentialBindings)
 			role.CredentialBindings = slices.Compact(role.CredentialBindings)
+			role.CredentialBindingAlternatives = normalizeCredentialBindingAlternatives(role.CredentialBindingAlternatives)
 			resource.Operations[purpose] = role
 		}
 		slices.Sort(resource.Lifecycle.IgnorePaths)
 		resource.Lifecycle.IgnorePaths = slices.Compact(resource.Lifecycle.IgnorePaths)
 	}
+}
+
+func normalizeCredentialBindingAlternatives(alternatives [][]string) [][]string {
+	if len(alternatives) == 0 {
+		return nil
+	}
+	out := make([][]string, 0, len(alternatives))
+	for _, alternative := range alternatives {
+		bindings := append([]string(nil), alternative...)
+		for i := range bindings {
+			bindings[i] = strings.TrimSpace(bindings[i])
+		}
+		slices.Sort(bindings)
+		bindings = slices.Compact(bindings)
+		filtered := bindings[:0]
+		for _, binding := range bindings {
+			if binding != "" {
+				filtered = append(filtered, binding)
+			}
+		}
+		if len(filtered) == 0 {
+			filtered = []string{}
+		}
+		out = append(out, filtered)
+	}
+	return out
 }
 
 func resolveRelativePath(dir, path string) string {

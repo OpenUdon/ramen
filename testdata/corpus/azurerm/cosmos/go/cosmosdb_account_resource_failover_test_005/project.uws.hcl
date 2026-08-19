@@ -14,37 +14,39 @@
     description       = "Review create create for Terraform resource azurerm_cosmosdb_account.test"
     request {
       body {
-        accountName = "\\\"acctest-1\\\""
         createUpdateParameters {
-          kind = "\\\"MongoDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"MongoDB\""
+          location = "\"eastus\""
           properties {
-            databaseAccountOfferType = "\\\"Standard\\\""
+            databaseAccountOfferType = "\"Standard\""
           }
         }
-        resourceGroupName = "\\\"ramen-corpus-rg\\\""
+        resourceGroupName = "\"ramen-corpus-rg\""
         updateParameters {
-          kind = "\\\"MongoDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"MongoDB\""
+          location = "\"eastus\""
         }
+      }
+      path {
+        accountName = "\"acctest-1\""
       }
       x-ramen-terraform {
         attributes {
           capabilities {
-            name = "\\\"EnableMongo\\\""
+            name = "\"EnableMongo\""
           }
           consistency_policy {
-            consistency_level = "\\\"BoundedStaleness\\\""
+            consistency_level = "\"BoundedStaleness\""
           }
           geo_location {
             failover_priority = "0"
-            location = "\\\"eastus\\\""
+            location = "\"eastus\""
           }
-          kind = "\\\"MongoDB\\\""
-          location = "\\\"eastus\\\""
-          name = "\\\"acctest-1\\\""
-          offer_type = "\\\"Standard\\\""
-          resource_group_name = "\\\"ramen-corpus-rg\\\""
+          kind = "\"MongoDB\""
+          location = "\"eastus\""
+          name = "\"acctest-1\""
+          offer_type = "\"Standard\""
+          resource_group_name = "\"ramen-corpus-rg\""
         }
         identity_attributes = [
           {
@@ -113,20 +115,20 @@
           address = "azurerm_cosmosdb_account.test"
           attributes = {
             capabilities = {
-              name = "\\\"EnableMongo\\\""
+              name = "\"EnableMongo\""
             }
             consistency_policy = {
-              consistency_level = "\\\"BoundedStaleness\\\""
+              consistency_level = "\"BoundedStaleness\""
             }
             geo_location = {
               failover_priority = "0"
-              location = "\\\"eastus\\\""
+              location = "\"eastus\""
             }
-            kind = "\\\"MongoDB\\\""
-            location = "\\\"eastus\\\""
-            name = "\\\"acctest-1\\\""
-            offer_type = "\\\"Standard\\\""
-            resource_group_name = "\\\"ramen-corpus-rg\\\""
+            kind = "\"MongoDB\""
+            location = "\"eastus\""
+            name = "\"acctest-1\""
+            offer_type = "\"Standard\""
+            resource_group_name = "\"ramen-corpus-rg\""
           }
           identity_attributes = [
             {

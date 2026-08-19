@@ -14,28 +14,30 @@
     description       = "Review create create for Terraform resource azurerm_cosmosdb_account.test"
     request {
       body {
-        accountName = "\\\"acctest-ca-1\\\""
         createUpdateParameters {
-          kind = "\\\"MongoDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"MongoDB\""
+          location = "\"eastus\""
           properties {
-            databaseAccountOfferType = "\\\"Standard\\\""
+            databaseAccountOfferType = "\"Standard\""
           }
         }
-        resourceGroupName = "\\\"ramen-corpus-rg\\\""
+        resourceGroupName = "\"ramen-corpus-rg\""
         updateParameters {
-          kind = "\\\"MongoDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"MongoDB\""
+          location = "\"eastus\""
         }
+      }
+      path {
+        accountName = "\"acctest-ca-1\""
       }
       x-ramen-terraform {
         attributes {
           automatic_failover_enabled = "true"
           capabilities {
-            name = "\\\"EnableMongo\\\""
+            name = "\"EnableMongo\""
           }
           consistency_policy {
-            consistency_level = "\\\"Session\\\""
+            consistency_level = "\"Session\""
           }
           dynamic "geo_location" {
             content {
@@ -45,12 +47,12 @@
             }
             for_each = "var.geo_location"
           }
-          kind = "\\\"MongoDB\\\""
-          location = "\\\"eastus\\\""
+          kind = "\"MongoDB\""
+          location = "\"eastus\""
           multiple_write_locations_enabled = "true"
-          name = "\\\"acctest-ca-1\\\""
-          offer_type = "\\\"Standard\\\""
-          resource_group_name = "\\\"ramen-corpus-rg\\\""
+          name = "\"acctest-ca-1\""
+          offer_type = "\"Standard\""
+          resource_group_name = "\"ramen-corpus-rg\""
         }
         identity_attributes = [
           {
@@ -120,10 +122,10 @@
           attributes = {
             automatic_failover_enabled = "true"
             capabilities = {
-              name = "\\\"EnableMongo\\\""
+              name = "\"EnableMongo\""
             }
             consistency_policy = {
-              consistency_level = "\\\"Session\\\""
+              consistency_level = "\"Session\""
             }
             dynamic = {
               geo_location = {
@@ -135,12 +137,12 @@
                 for_each = "var.geo_location"
               }
             }
-            kind = "\\\"MongoDB\\\""
-            location = "\\\"eastus\\\""
+            kind = "\"MongoDB\""
+            location = "\"eastus\""
             multiple_write_locations_enabled = "true"
-            name = "\\\"acctest-ca-1\\\""
-            offer_type = "\\\"Standard\\\""
-            resource_group_name = "\\\"ramen-corpus-rg\\\""
+            name = "\"acctest-ca-1\""
+            offer_type = "\"Standard\""
+            resource_group_name = "\"ramen-corpus-rg\""
           }
           identity_attributes = [
             {

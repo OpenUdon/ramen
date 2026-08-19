@@ -55,6 +55,13 @@ func TestValidateSessionRejectsOrphanMutationEvidence(t *testing.T) {
 	}
 }
 
+func TestValidateSessionRejectsV1PromptContext(t *testing.T) {
+	s := SeedSession("List widgets", "widgets", t.TempDir(), "never", nil, nil, promptcontext.Context{Version: "authoring.prompt-context.v1"})
+	if err := ValidateSession(s); err == nil || !strings.Contains(err.Error(), "prompt-context version") || !strings.Contains(err.Error(), "v1 inputs are not compatible") {
+		t.Fatalf("ValidateSession error = %v", err)
+	}
+}
+
 func TestValidateSessionRejectsReviewApprovalBypass(t *testing.T) {
 	state := Session{
 		Version: SessionVersion, NetworkPolicy: "never", Approval: "approve",

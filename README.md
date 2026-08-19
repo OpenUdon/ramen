@@ -160,6 +160,13 @@ controls safe defaults, while forced or uncertain decisions are always shown.
 Broad goals must select one active workflow; later workflows remain
 non-executable candidates in the generated project.
 
+`ramen author` and `ramen icot` consume
+`authoring.prompt-context.v2`. API authentication remains an outer OR of inner
+AND symbolic binding sets, including explicit anonymous alternatives. When an
+operation offers more than one set, iCoT forces one numbered, resume-safe
+selection before request mappings; direct authoring and static conversion fail
+closed instead of unioning credentials. Prompt-context v1 is rejected.
+
 Remote source lookup is separate and bounded by `--network never|ask|allow`.
 Interactive mode defaults to `ask`; agent mode is effectively `never` unless
 `allow` is explicit. No project or selected source is written until the full
