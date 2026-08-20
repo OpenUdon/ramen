@@ -3,8 +3,8 @@ module github.com/OpenUdon/ramen
 go 1.26.3
 
 require (
-	github.com/OpenUdon/apitools v0.0.0-20260820001033-3a9864901572
-	github.com/OpenUdon/authoring v0.0.0-20260819235644-d73b65ae179c
+	github.com/OpenUdon/apitools v0.0.0-20260820042238-d51b61ead067
+	github.com/OpenUdon/authoring v0.0.0-20260820042256-2f73e3526583
 	github.com/OpenUdon/evidence v0.0.0-20260603102736-08a9c38b00b7
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
 	github.com/OpenUdon/uws v0.0.0-20260815150806-ab7144ca6a41
