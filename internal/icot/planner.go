@@ -394,20 +394,7 @@ func ensureProposalNodes(s *Session) {
 
 // PlanFrontier returns the complete dependency-ready round.
 func PlanFrontier(s Session) ([]readiness.Question, error) {
-	Normalize(&s)
-	nodes, err := interview.Frontier(s.Interview)
-	if err != nil {
-		return nil, err
-	}
-	questions := make([]readiness.Question, 0, len(nodes))
-	for _, node := range nodes {
-		questions = append(questions, readiness.Question{
-			ID: node.ID, Prompt: node.Prompt, Slots: []string{node.ID}, Required: node.Required,
-			Forced: nodeRequiredForced(s.Interview, node.ID), Recommendation: node.Recommendation,
-			Priority: node.Priority, Rationale: node.Rationale, EvidenceRefs: append([]string(nil), node.EvidenceRefs...),
-		})
-	}
-	return sharedicot.PlanFrontier(questions).Questions, nil
+	return ramenInterviewBinding().Plan(&s, nil)
 }
 
 // ApplyRound atomically applies every answer in one displayed frontier.
@@ -415,89 +402,71 @@ func ApplyRound(s *Session, answers []sharedicot.RoundAnswer) error {
 	if s == nil {
 		return fmt.Errorf("Ramen iCoT session is required")
 	}
-	Normalize(s)
-	frontier, err := interview.Frontier(s.Interview)
-	if err != nil {
-		return err
-	}
-	frontierByID := map[string]interview.Node{}
-	for _, node := range frontier {
-		frontierByID[node.ID] = node
-	}
-	clone, err := cloneSession(*s)
-	if err != nil {
-		return err
-	}
-	clone.nodeIndex = make(map[string]int, len(clone.Interview.Nodes))
-	for i := range clone.Interview.Nodes {
-		clone.nodeIndex[clone.Interview.Nodes[i].ID] = i
-	}
-	deferred := map[string]interview.Deferral{}
-	for _, answer := range answers {
-		node, ok := frontierByID[answer.QuestionID]
-		if !ok {
-			return fmt.Errorf("node %q is not in the current frontier", answer.QuestionID)
-		}
-		value := strings.TrimSpace(answer.Value)
-		if value == "" {
-			return fmt.Errorf("answer for %q is required", node.ID)
-		}
-		if containsInlineSecret(value) {
-			return fmt.Errorf("answer for %q contains an inline secret-like value; use an environment credential binding", node.ID)
-		}
-		if containsUnsafePlaceholder(value) {
-			return fmt.Errorf("answer for %q contains an unresolved placeholder; replace it with a concrete value or a ${var.name} binding", node.ID)
-		}
-		if (node.ID == nodeSafety || node.ID == nodeProposal) && (strings.TrimSpace(answer.Source) == "" || answer.Source == readiness.DefaultRecommendationSource || strings.EqualFold(strings.TrimSpace(answer.Source), "default")) {
-			return fmt.Errorf("confirmation for %q must be an explicit user decision and cannot use a default", node.ID)
-		}
-		if strings.HasPrefix(strings.ToLower(value), "defer:") {
-			if !node.Deferrable {
-				return fmt.Errorf("node %q cannot be deferred", node.ID)
+	return ramenInterviewBinding().Apply(s, answers, nil)
+}
+
+func ramenInterviewBinding() sharedicot.InterviewBinding[Session, promptcontext.Context] {
+	return sharedicot.InterviewBinding[Session, promptcontext.Context]{
+		State: func(s *Session) *interview.State { return &s.Interview },
+		Clone: cloneSession,
+		Prepare: func(s *Session, _ []promptcontext.Context) error {
+			Normalize(s)
+			return interview.Validate(s.Interview)
+		},
+		Question: func(s Session, _ []promptcontext.Context, node interview.Node) readiness.Question {
+			return readiness.Question{
+				ID: node.ID, Prompt: node.Prompt, Slots: []string{node.ID}, Required: node.Required,
+				Forced: nodeRequiredForced(s.Interview, node.ID), Recommendation: node.Recommendation,
+				Priority: node.Priority, Rationale: node.Rationale, EvidenceRefs: append([]string(nil), node.EvidenceRefs...),
 			}
-			deferral, err := parseDeferral(node.ID, value, len(clone.Interview.Deferrals)+len(deferred)+1)
-			if err != nil {
-				return err
+		},
+		Resolve: func(s *Session, _ []promptcontext.Context, node interview.Node, answer sharedicot.RoundAnswer) (interview.Resolution, error) {
+			value := strings.TrimSpace(answer.Value)
+			if value == "" {
+				return interview.Resolution{}, fmt.Errorf("answer for %q is required", node.ID)
 			}
-			deferred[node.ID] = deferral
-			continue
-		}
-		if err := applyProductAnswer(&clone, node.ID, value); err != nil {
-			return err
-		}
+			if containsInlineSecret(value) {
+				return interview.Resolution{}, fmt.Errorf("answer for %q contains an inline secret-like value; use an environment credential binding", node.ID)
+			}
+			if containsUnsafePlaceholder(value) {
+				return interview.Resolution{}, fmt.Errorf("answer for %q contains an unresolved placeholder; replace it with a concrete value or a ${var.name} binding", node.ID)
+			}
+			if (node.ID == nodeSafety || node.ID == nodeProposal) && (strings.TrimSpace(answer.Source) == "" || answer.Source == readiness.DefaultRecommendationSource || strings.EqualFold(strings.TrimSpace(answer.Source), "default")) {
+				return interview.Resolution{}, fmt.Errorf("confirmation for %q must be an explicit user decision and cannot use a default", node.ID)
+			}
+			evidenceID := fmt.Sprintf("evidence-%06d-%s", s.Interview.Round+1, node.ID)
+			if strings.HasPrefix(strings.ToLower(value), "defer:") {
+				if !node.Deferrable {
+					return interview.Resolution{}, fmt.Errorf("node %q cannot be deferred", node.ID)
+				}
+				deferral, err := parseDeferral(node.ID, value, len(s.Interview.Deferrals)+1)
+				if err != nil {
+					return interview.Resolution{}, err
+				}
+				deferral.ID = fmt.Sprintf("deferral-%06d-%s", s.Interview.Round+1, node.ID)
+				evidence := interview.Evidence{ID: evidenceID, Kind: interview.EvidenceDeferral, NodeID: node.ID, Summary: deferral.Impact, Value: deferral.Impact, Source: "operator", Attributes: map[string]string{"owner": deferral.Owner, "unblock_condition": deferral.UnblockCondition}}
+				return interview.Resolution{NodeID: node.ID, Deferral: &deferral, Evidence: []interview.Evidence{evidence}}, nil
+			}
+			if err := applyProductAnswer(s, node.ID, value); err != nil {
+				return interview.Resolution{}, err
+			}
+			evidenceKind := interview.EvidenceUserDecision
+			if answer.Source == readiness.DefaultRecommendationSource || answer.Source == "default" {
+				evidenceKind = interview.EvidenceRecommendation
+			}
+			attributes := map[string]string(nil)
+			if node.ID == nodeSafety {
+				attributes = map[string]string{"requires_confirmation": "true", "classification": "side-effect-posture", "confidence": "confirmed"}
+			} else if node.ID == nodeProposal {
+				attributes = map[string]string{"requires_confirmation": "true", "classification": "proposal-approval", "confidence": "confirmed"}
+			}
+			evidence := interview.Evidence{ID: evidenceID, Kind: evidenceKind, NodeID: node.ID, Summary: value, Value: value, Source: answer.Source, Attributes: attributes}
+			resolved := interview.Answer{ID: fmt.Sprintf("answer-%06d-%s", s.Interview.Round+1, node.ID), NodeID: node.ID, Value: value, Source: answer.Source, EvidenceRefs: []string{evidenceID}}
+			return interview.Resolution{NodeID: node.ID, Answer: &resolved, Evidence: []interview.Evidence{evidence}}, nil
+		},
+		Normalize: Normalize,
+		Validate:  ValidateSession,
 	}
-	for _, answer := range answers {
-		nodeID := answer.QuestionID
-		if deferral, ok := deferred[nodeID]; ok {
-			setSessionNodeStatus(&clone, nodeID, interview.StatusDeferred)
-			clone.Interview.Deferrals = append(clone.Interview.Deferrals, deferral)
-			addEvidence(&clone, nodeID, interview.EvidenceDeferral, deferral.Impact, "operator", map[string]string{"owner": deferral.Owner, "unblock_condition": deferral.UnblockCondition})
-			continue
-		}
-		value := strings.TrimSpace(answer.Value)
-		answerID := fmt.Sprintf("answer-%06d", len(clone.Interview.Answers)+1)
-		evidenceKind := interview.EvidenceUserDecision
-		if answer.Source == readiness.DefaultRecommendationSource || answer.Source == "default" {
-			evidenceKind = interview.EvidenceRecommendation
-		}
-		attributes := map[string]string(nil)
-		if nodeID == nodeSafety {
-			attributes = map[string]string{"requires_confirmation": "true", "classification": "side-effect-posture", "confidence": "confirmed"}
-		} else if nodeID == nodeProposal {
-			attributes = map[string]string{"requires_confirmation": "true", "classification": "proposal-approval", "confidence": "confirmed"}
-		}
-		evidenceID := addEvidence(&clone, nodeID, evidenceKind, value, answer.Source, attributes)
-		clone.Interview.Answers = append(clone.Interview.Answers, interview.Answer{ID: answerID, NodeID: nodeID, Value: value, Source: answer.Source, EvidenceRefs: []string{evidenceID}})
-		setSessionNodeStatus(&clone, nodeID, interview.StatusSettled)
-	}
-	clone.Interview.Round++
-	clone.Interview.NoProgressRounds = 0
-	Normalize(&clone)
-	if err := ValidateSession(clone); err != nil {
-		return err
-	}
-	*s = clone
-	return nil
 }
 
 func CheckReadiness(s Session) []session.ReadinessIssue {

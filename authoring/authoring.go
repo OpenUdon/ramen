@@ -14,9 +14,9 @@ import (
 	"strings"
 
 	"github.com/OpenUdon/apitools"
+	"github.com/OpenUdon/apitools/operationlifecycle"
 	sharedicot "github.com/OpenUdon/authoring/icot"
 	"github.com/OpenUdon/authoring/lifecycle"
-	"github.com/OpenUdon/authoring/operationlifecycle"
 	"github.com/OpenUdon/authoring/promptcontext"
 	sharedreadiness "github.com/OpenUdon/authoring/readiness"
 	sharedreport "github.com/OpenUdon/authoring/report"
@@ -1180,13 +1180,17 @@ func APIOperationResource(ctx promptcontext.Context, goal, projectName string) p
 // expanding a selected API operation into same-source lifecycle roles.
 func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.OperationCandidate, goal, projectName string) project.Resource {
 	ctx = promptcontext.Normalize(ctx)
-	expansion := operationlifecycle.Expand(ctx, seed, operationlifecycle.Options{Goal: goal, DesiredState: true})
-	expansion = preferKubernetesReplaceUpdate(ctx, expansion)
+	lifecycleOperations := lifecycleOperationSummaries(ctx)
+	expansion := operationlifecycle.Expand(lifecycleOperations, lifecycleOperationSummary(ctx, seed), operationlifecycle.Options{Goal: goal, DesiredState: true})
+	expansion = preferKubernetesReplaceUpdate(lifecycleOperations, expansion)
 	if len(expansion.Roles) == 0 {
 		return APIOperationResource(promptcontext.Context{Sources: ctx.Sources, Operations: []promptcontext.OperationCandidate{seed}, Schemas: ctx.Schemas, Credentials: ctx.Credentials, Metadata: ctx.Metadata}, goal, projectName)
 	}
 	primary := expansion.Roles[0]
-	operation := primary.Operation
+	operation, ok := promptOperationForLifecycleSummary(ctx, primary.Operation)
+	if !ok {
+		operation = seed
+	}
 	source := sourceForOperation(ctx, operation)
 	sourceID := firstNonEmpty(source.ID, operation.SourceID, "api")
 	sourceKind := normalizeProjectSourceKind(firstNonEmpty(source.Kind, operation.Metadata["source_kind"], "openapi"))
@@ -1203,7 +1207,10 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 	hasSourceLRO := false
 	for _, candidate := range expansion.Roles {
 		role := candidate.Role
-		op := candidate.Operation
+		op, ok := promptOperationForLifecycleSummary(ctx, candidate.Operation)
+		if !ok {
+			continue
+		}
 		opSource := sourceForOperation(ctx, op)
 		opSourceID := firstNonEmpty(opSource.ID, op.SourceID, sourceID)
 		opSourceKind := normalizeProjectSourceKind(firstNonEmpty(opSource.Kind, op.Metadata["source_kind"], sourceKind))
@@ -1249,7 +1256,11 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 	identity := identityAttributesForSchema(schema)
 	attributes := map[string]any{}
 	for _, candidate := range expansion.Roles {
-		for _, parameter := range operationParameters(candidate.Operation) {
+		op, ok := promptOperationForLifecycleSummary(ctx, candidate.Operation)
+		if !ok {
+			continue
+		}
+		for _, parameter := range operationParameters(op) {
 			if !parameter.Required {
 				continue
 			}
@@ -1300,7 +1311,51 @@ func APILifecycleResource(ctx promptcontext.Context, seed promptcontext.Operatio
 	}
 }
 
-func preferKubernetesReplaceUpdate(ctx promptcontext.Context, expansion operationlifecycle.Expansion) operationlifecycle.Expansion {
+func lifecycleOperationSummaries(ctx promptcontext.Context) []apitools.OperationSummary {
+	operations := make([]apitools.OperationSummary, 0, len(ctx.Operations))
+	for _, operation := range ctx.Operations {
+		operations = append(operations, lifecycleOperationSummary(ctx, operation))
+	}
+	return operations
+}
+
+func lifecycleOperationSummary(ctx promptcontext.Context, operation promptcontext.OperationCandidate) apitools.OperationSummary {
+	source := sourceForOperation(ctx, operation)
+	extensions := map[string]string{}
+	for key, value := range operation.Metadata {
+		if strings.HasPrefix(strings.ToLower(strings.TrimSpace(key)), "x-") && strings.TrimSpace(value) != "" {
+			extensions[key] = value
+		}
+	}
+	sourceKind := firstNonEmpty(source.Kind, operation.Metadata["source_kind"])
+	if strings.EqualFold(sourceKind, apitools.APISourceKindGoogleDiscovery) {
+		extensions["x-uws-source-kind"] = apitools.APISourceKindGoogleDiscovery
+	}
+	if len(extensions) == 0 {
+		extensions = nil
+	}
+	return apitools.OperationSummary{
+		ID: operation.ID, OperationID: operation.OperationID, DocumentName: operation.SourceID,
+		Method: operation.Verb, Path: operation.Path, Summary: firstNonEmpty(operation.Name, operation.Summary),
+		Tags: append([]string(nil), operation.Tags...), Extensions: extensions,
+	}
+}
+
+func promptOperationForLifecycleSummary(ctx promptcontext.Context, summary apitools.OperationSummary) (promptcontext.OperationCandidate, bool) {
+	operationID := firstNonEmpty(summary.OperationID, summary.ID)
+	for _, operation := range ctx.Operations {
+		if operation.SourceID == summary.DocumentName && firstNonEmpty(operation.OperationID, operation.ID) == operationID {
+			return operation, true
+		}
+	}
+	return promptcontext.OperationCandidate{}, false
+}
+
+func lifecycleSummarySource(operation apitools.OperationSummary) string {
+	return firstNonEmpty(operation.DocumentRelativePath, operation.DocumentPath, operation.DocumentURL, operation.DocumentName)
+}
+
+func preferKubernetesReplaceUpdate(operations []apitools.OperationSummary, expansion operationlifecycle.Expansion) operationlifecycle.Expansion {
 	for i, role := range expansion.Roles {
 		if role.Role != "update" {
 			continue
@@ -1315,9 +1370,9 @@ func preferKubernetesReplaceUpdate(ctx promptcontext.Context, expansion operatio
 			continue
 		}
 		replaceID := "replace" + strings.TrimPrefix(opID, "patch")
-		for _, op := range ctx.Operations {
+		for _, op := range operations {
 			candidateID := firstNonEmpty(op.OperationID, op.ID)
-			if candidateID != replaceID || op.SourceID != role.Operation.SourceID || op.Path != role.Operation.Path || !isKubernetesReplaceOperation(op, candidateID) {
+			if candidateID != replaceID || lifecycleSummarySource(op) != lifecycleSummarySource(role.Operation) || op.Path != role.Operation.Path || !isKubernetesReplaceOperation(op, candidateID) {
 				continue
 			}
 			expansion.Roles[i].Operation = op
@@ -1329,11 +1384,11 @@ func preferKubernetesReplaceUpdate(ctx promptcontext.Context, expansion operatio
 	return expansion
 }
 
-func isKubernetesPatchOperation(op promptcontext.OperationCandidate, opID string) bool {
+func isKubernetesPatchOperation(op apitools.OperationSummary, opID string) bool {
 	return strings.HasPrefix(opID, "patch") && isKubernetesAPIPath(op.Path)
 }
 
-func isKubernetesReplaceOperation(op promptcontext.OperationCandidate, opID string) bool {
+func isKubernetesReplaceOperation(op apitools.OperationSummary, opID string) bool {
 	return strings.HasPrefix(opID, "replace") && isKubernetesAPIPath(op.Path)
 }
 

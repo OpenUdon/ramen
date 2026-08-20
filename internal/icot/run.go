@@ -96,26 +96,19 @@ func Run(ctx context.Context, opts RunOptions) (RunResult, error) {
 	if !opts.Agent && !opts.PrintOnly && strings.TrimSpace(opts.AutosavePath) != "" {
 		autosave = func(current Session) error { return SaveSession(opts.AutosavePath, current) }
 	}
+	interviewBinding := ramenInterviewBinding()
 	sharedResult, runErr := sharedicot.Run[Session, promptcontext.Context, Artifact](ctx, in, out, sharedicot.Options[Session, promptcontext.Context, Artifact]{
 		Session: state, Documents: []promptcontext.Context{state.Context}, DefaultMode: opts.DefaultMode,
+		Interview: &interviewBinding,
 		Normalize: func(current *Session) { Normalize(current) },
 		CheckReadiness: func(current Session, _ []promptcontext.Context) []sharedsession.ReadinessIssue {
 			return CheckReadiness(current)
 		},
 		Ready: func(current Session, issues []sharedsession.ReadinessIssue) bool { return Ready(current, issues) },
-		PlanFrontier: func(current Session, _ []promptcontext.Context, _ []sharedsession.ReadinessIssue) []readiness.Question {
-			frontier, err := PlanFrontier(current)
-			if err != nil {
-				return []readiness.Question{{ID: "interview.invalid", Prompt: err.Error(), Required: true, Forced: true, Priority: 1000}}
-			}
-			if containsQuestion(frontier, nodeProposal) {
-				writeProposal(out, BuildProposal(current))
-			}
-			return frontier
-		},
-		ApplyRound: func(current *Session, answers []sharedicot.RoundAnswer, _ []promptcontext.Context) error {
-			if err := ApplyRound(current, answers); err != nil {
-				return err
+		AfterRound: func(current *Session, _ []sharedicot.RoundAnswer, _ []promptcontext.Context) error {
+			frontier, err := PlanFrontier(*current)
+			if err == nil && containsQuestion(frontier, nodeProposal) {
+				writeProposal(out, BuildProposal(*current))
 			}
 			if spec := strings.TrimSpace(current.Metadata["pending_source_input"]); spec != "" {
 				source, err := parseLocalSourceSpec(spec)
