@@ -28,7 +28,7 @@ func runPlanCommand(ctx context.Context, args []string) {
 	var varFiles repeatedStringFlag
 	var cliVars repeatedStringFlag
 	var policyFiles repeatedStringFlag
-	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, google-discovery, or browser-profile")
 	fs.Var(&targets, "target", "Repeatable native resource address to include with dependency closure")
 	fs.Var(&excludes, "exclude", "Repeatable native resource address to exclude with dependent closure")
 	fs.Var(&replaces, "replace", "Repeatable native resource address to force replacement in the plan")

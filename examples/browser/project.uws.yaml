@@ -1,0 +1,126 @@
+uws: 1.9.0
+info:
+  title: Ramen offline browser desired-state example
+  version: 1.0.0
+sourceDescriptions:
+  - name: member-ui
+    type: browser-profile
+    url: browser.yaml
+operations:
+  - operationId: authenticate_member
+    x-uws-operation-profile: uws.browser-authentication-call.1.1
+    x-uws-browser-authentication:
+      profile: authentication.yaml
+      flow: member_login
+      session: member_portal
+      credentialBindings:
+        username: member_username
+    timeout: 120
+  - operationId: read_status_uws
+    sourceDescription: member-ui
+    sourceOperationId: read_status
+    request:
+      body:
+        member_id: member-example
+    dependsOn: [authenticate_member]
+    x-uws-browser-session:
+      session: member_portal
+  - operationId: update_note_uws
+    sourceDescription: member-ui
+    sourceOperationId: update_note
+    request:
+      body:
+        member_id: member-example
+        note: reviewed-example-note
+    dependsOn: [authenticate_member]
+    x-uws-browser-session:
+      session: member_portal
+workflows:
+  - workflowId: review_read
+    type: sequence
+    description: Review the read-only browser operation selected by Ramen.
+    steps:
+      - stepId: read_status
+        operationRef: read_status_uws
+x-ramen-desired-state:
+  version: ramen.project.v1
+  api_sources:
+    - kind: browser-profile
+      id: member-ui
+      path: browser.yaml
+  resources:
+    - address: member_status.example
+      kind: resource
+      type: member_status
+      name: example
+      attributes:
+        member_id: member-example
+        note: reviewed-example-note
+      credential_bindings: [member_username]
+      operations:
+        read:
+          purpose: read
+          source_kind: browser-profile
+          source_id: member-ui
+          source_path: browser.yaml
+          operation_id: read_status
+          uws_operation_ref: read_status_uws
+          credential_bindings: [member_username]
+        update:
+          purpose: update
+          source_kind: browser-profile
+          source_id: member-ui
+          source_path: browser.yaml
+          operation_id: update_note
+          uws_operation_ref: update_note_uws
+          credential_bindings: [member_username]
+      request_bindings:
+        - operation_role: read
+          operation_id: read_status
+          path: member_id
+          request_path: member_id
+          location: body
+          required: true
+        - operation_role: update
+          operation_id: update_note
+          path: member_id
+          request_path: member_id
+          location: body
+          required: true
+        - operation_role: update
+          operation_id: update_note
+          path: note
+          request_path: note
+          location: body
+          required: true
+      response_bindings:
+        - operation_role: read
+          operation_id: read_status
+          response_path: status
+          state_path: status
+          computed: true
+        - operation_role: read
+          operation_id: read_status
+          response_path: item_count
+          state_path: item_count
+          computed: true
+        - operation_role: read
+          operation_id: read_status
+          response_path: completion_ratio
+          state_path: completion_ratio
+          computed: true
+        - operation_role: read
+          operation_id: read_status
+          response_path: enabled
+          state_path: enabled
+          computed: true
+        - operation_role: read
+          operation_id: read_status
+          response_path: goal_present
+          state_path: goal_present
+          computed: true
+      required_operations: [read]
+      redaction: {}
+  redaction: {}
+  metadata:
+    scope: credential-free-offline-browser-example

@@ -38,5 +38,11 @@ Public binaries remain mock-backed for execution. Live mutations require a
 separately trusted executor implementation and are outside the v0.1 release
 contract.
 
+Native browser desired-state support consumes the UWS browser 1.5-1.7 and
+browser-authentication 1.0-1.1 contracts. Ramen validates and digest-binds
+those artifacts, but browser authoring and UI approval remain OpenUdon-owned,
+and live browser/session/credential behavior remains trusted-runtime-owned.
+See [Browser Desired State](browser-desired-state.md).
+
 See [Terraform/OpenTofu conversion](terraform-conversion.md) for the exact
 review-metadata and reconversion boundary.

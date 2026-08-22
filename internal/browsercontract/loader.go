@@ -128,6 +128,14 @@ func readContainedFile(anchorDir, path, label string, limit int64) (string, []by
 		return "", nil, fmt.Errorf("resolve %s anchor: %w", label, err)
 	}
 	rel := filepath.FromSlash(path)
+	if !filepath.IsAbs(rel) {
+		cwdRelative, absErr := filepath.Abs(rel)
+		if absErr == nil {
+			if fromAnchor, relErr := filepath.Rel(anchor, cwdRelative); relErr == nil && (fromAnchor == "." || (fromAnchor != ".." && !strings.HasPrefix(fromAnchor, ".."+string(filepath.Separator)))) {
+				rel = fromAnchor
+			}
+		}
+	}
 	if filepath.IsAbs(rel) {
 		rel, err = filepath.Rel(anchor, filepath.Clean(rel))
 		if err != nil {

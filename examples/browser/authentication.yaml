@@ -1,0 +1,38 @@
+profile: uws.browser-authentication.1.1
+info:
+  title: Reviewed member login
+  applicationOrigins: [https://example.test]
+  authenticationOrigins: [https://login.example.test]
+observationKind: accessibility_snapshot
+evidence:
+  learnedAt: "2026-08-20T00:00:00Z"
+  source: reviewed_synthetic_fixture
+confidence: high
+expiresAfter: P30D
+verification:
+  lastVerifiedAt: "2026-08-20T00:00:00Z"
+  successfulRuns: 3
+contexts:
+  idp_popup:
+    kind: popup
+    parent: main
+    origin: https://login.example.test
+credentialSlots:
+  username: {kind: identifier}
+flows:
+  member_login:
+    description: Sign in through the reviewed identity popup.
+    sequence:
+      - click:
+          locator: {role: button, name: Continue}
+          opensContext: idp_popup
+      - type_credential:
+          locator: {role: textbox, name: Username}
+          slot: username
+          context: idp_popup
+      - wait_for:
+          locator: {role: heading, name: Dashboard}
+    effects: [establishes_session]
+    success:
+      origin: https://example.test
+      locator: {role: heading, name: Dashboard}

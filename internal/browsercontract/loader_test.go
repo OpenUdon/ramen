@@ -66,6 +66,27 @@ func TestLoadAuthenticationProfileSupportsCurrentRevisions(t *testing.T) {
 	}
 }
 
+func TestLoadProfileAcceptsProjectNormalizedPathFromRelativeProjectDirectory(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "browser.yaml")
+	writeBrowserContractTestFile(t, path, browserProfileFixture("uws.browser.1.7", false, "integer"))
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	relativeRoot, err := filepath.Rel(cwd, root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	profile, err := LoadProfile(relativeRoot, filepath.Join(relativeRoot, "browser.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if profile.Path != path || profile.Version != "uws.browser.1.7" {
+		t.Fatalf("profile = %#v", profile)
+	}
+}
+
 func TestLoadProfileRejectsUnsafeAndInvalidFiles(t *testing.T) {
 	root := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "outside.yaml")

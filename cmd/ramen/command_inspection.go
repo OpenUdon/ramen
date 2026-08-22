@@ -222,7 +222,7 @@ func runValidateCommand(ctx context.Context, args []string) {
 	jsonOutput := fs.Bool("json", false, "Print machine-readable validation diagnostics")
 	strict := fs.Bool("strict", false, "Treat validation warnings as errors")
 	var apiSources repeatedStringFlag
-	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, google-discovery, or browser-profile")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen validate --project DIR|FILE [--api-source KIND:ID=PATH] [--json] [--strict]\n")
 		fmt.Fprintf(fs.Output(), "\nValidates a native UWS/Ramen project, optional local API source operation references, and diagnostics without planning, executing, touching state, reading Terraform/OpenTofu HCL, or performing network access.\n\n")

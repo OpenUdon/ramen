@@ -1,0 +1,88 @@
+profile: uws.browser.1.7
+info:
+  title: Reviewed member status UI
+  origin: https://example.test
+  loginStateRequired: true
+observationKind: accessibility_snapshot
+evidence:
+  learnedAt: "2026-08-20T00:00:00Z"
+  source: reviewed_synthetic_fixture
+confidence: high
+expiresAfter: P30D
+verification:
+  lastVerifiedAt: "2026-08-20T00:00:00Z"
+  successfulRuns: 3
+contexts:
+  detail_frame:
+    kind: frame
+    parent: main
+    origin: https://example.test
+    path: /embedded/detail
+    name: Detail
+actions:
+  read_status:
+    description: Read reviewed member status fields.
+    parameters:
+      type: object
+      required: [member_id]
+      properties:
+        member_id: {type: string}
+    sequence:
+      - navigate: /members/{{member_id}}
+      - wait_for:
+          locator: {role: status, name: Ready}
+          context: detail_frame
+    outputs:
+      status:
+        type: string
+        source: a11y
+        locator: {role: status, name: Ready}
+        context: detail_frame
+      item_count:
+        type: integer
+        source: a11y
+        locator: {role: status, name: Item count}
+        context: detail_frame
+      completion_ratio:
+        type: number
+        source: a11y
+        locator: {role: status, name: Completion ratio}
+        context: detail_frame
+      enabled:
+        type: boolean
+        source: a11y
+        locator: {role: status, name: Enabled}
+        context: detail_frame
+      goal_present:
+        type: boolean
+        source: a11y
+        locator: {role: heading, name: Goal}
+        context: detail_frame
+        presence: true
+    sideEffects: [read_only]
+    confirmationPolicy: {required: false}
+  update_note:
+    description: Update one reviewed member note.
+    parameters:
+      type: object
+      required: [member_id, note]
+      properties:
+        member_id: {type: string}
+        note: {type: string}
+    sequence:
+      - navigate: /members/{{member_id}}/edit
+      - type_text:
+          locator: {role: textbox, name: Note}
+          value: "{{note}}"
+      - click:
+          locator: {role: button, name: Save}
+          wait_for: {role: status, name: Saved}
+    outputs:
+      status:
+        type: string
+        source: a11y
+        locator: {role: status, name: Saved}
+    sideEffects: [updates_record]
+    confirmationPolicy:
+      required: true
+      prompt: "Approve updating member {{member_id}}?"

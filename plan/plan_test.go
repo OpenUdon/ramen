@@ -91,6 +91,23 @@ func TestBuildNativeBrowserPlanProjectsAndDigestBindsContract(t *testing.T) {
 	}
 }
 
+func TestBrowserExampleBuildsOfflineFromRelativeProjectPath(t *testing.T) {
+	result, err := Build(context.Background(), Options{
+		ProjectPath: filepath.Join("..", "examples", "browser"),
+		StatePath:   filepath.Join(t.TempDir(), "state.db"),
+		Action:      "read",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Plan.Errored || len(result.Plan.Resources) != 1 || result.Plan.Resources[0].Mapping == nil || result.Plan.Resources[0].Mapping.Browser == nil {
+		t.Fatalf("offline browser example plan=%#v diagnostics=%#v", result.Plan, result.Diagnostics)
+	}
+	if result.Plan.Resources[0].Mapping.Browser.ProfileVersion != "uws.browser.1.7" || result.Plan.Resources[0].Mapping.Browser.Authentication == nil {
+		t.Fatalf("browser example projection=%#v", result.Plan.Resources[0].Mapping.Browser)
+	}
+}
+
 func TestBuildAWSIAMRoleCreateAndNoOpPlans(t *testing.T) {
 	root := t.TempDir()
 	configDir := filepath.Join(root, "tf")

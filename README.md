@@ -94,6 +94,12 @@ ramen state list --state /tmp/ramen-widget-state.db
 See [examples/widget](examples/widget) for the project, API source, and
 annotated workflow.
 
+The credential-free [browser example](examples/browser) demonstrates native
+UWS 1.9/browser 1.7 desired state, authentication 1.1, popup/frame contracts,
+scalar outputs, symbolic credentials and sessions, and mock-only handoff. See
+[Browser Desired State](docs/browser-desired-state.md) for the exact version,
+approval, and runtime boundary.
+
 ## Commands
 
 The native desired-state lifecycle is:

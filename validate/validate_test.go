@@ -11,6 +11,16 @@ import (
 	"github.com/OpenUdon/uws/uws1"
 )
 
+func TestBrowserExampleValidatesOfflineFromRelativeProjectPath(t *testing.T) {
+	result, err := Run(context.Background(), Options{ProjectPath: filepath.Join("..", "examples", "browser")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Valid || result.Summary.Diagnostics != 0 {
+		t.Fatalf("browser example result=%#v", result)
+	}
+}
+
 func TestRunValidatesNativeProjectAndAPISourceOperations(t *testing.T) {
 	root := t.TempDir()
 	sourcePath := writeValidateOpenAPI(t, root, "api.yaml", "createExample")

@@ -98,7 +98,7 @@ func runRefreshCommand(ctx context.Context, args []string) {
 	var apiSources repeatedStringFlag
 	var varFiles repeatedStringFlag
 	var cliVars repeatedStringFlag
-	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, google-discovery, or browser-profile")
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
@@ -214,7 +214,7 @@ func runApplyCommand(ctx context.Context, args []string) {
 	var apiSources repeatedStringFlag
 	var varFiles repeatedStringFlag
 	var cliVars repeatedStringFlag
-	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, or google-discovery")
+	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, google-discovery, or browser-profile")
 	fs.Var(&varFiles, "var-file", "Repeatable native Ramen values file; later files override earlier files")
 	fs.Var(&cliVars, "var", "Repeatable native Ramen variable assignment as name=value; overrides defaults and files")
 	fs.Usage = func() {
