@@ -145,6 +145,7 @@
         "source_id": {"type": "string"},
         "source_path": {"type": "string"},
         "operation_id": {"type": "string"},
+        "uws_operation_ref": {"type": "string"},
         "credential_bindings": {"$ref": "#/$defs/string-array"},
         "credential_binding_alternatives": {
           "type": "array",

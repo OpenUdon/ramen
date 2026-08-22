@@ -105,6 +105,7 @@ type OperationRole struct {
 	SourceID                      string      `json:"source_id,omitempty"`
 	SourcePath                    string      `json:"source_path,omitempty"`
 	OperationID                   string      `json:"operation_id,omitempty"`
+	UWSOperationRef               string      `json:"uws_operation_ref,omitempty"`
 	CredentialBindings            []string    `json:"credential_bindings,omitempty"`
 	CredentialBindingAlternatives [][]string  `json:"credential_binding_alternatives,omitempty"`
 	AI                            *AIMetadata `json:"ai,omitempty"`
@@ -355,6 +356,9 @@ func ValidateProfile(profile Profile) error {
 			if strings.TrimSpace(op.OperationID) == "" {
 				return fmt.Errorf("resource %s %s operation requires operation_id", resource.Address, purpose)
 			}
+			if strings.EqualFold(strings.TrimSpace(op.SourceKind), string(uws1.SourceDescriptionTypeBrowserProfile)) && strings.TrimSpace(op.UWSOperationRef) == "" {
+				return fmt.Errorf("resource %s %s browser-profile operation requires uws_operation_ref", resource.Address, purpose)
+			}
 			if err := validateAIMetadata(op.AI); err != nil {
 				return fmt.Errorf("resource %s %s operation ai metadata invalid: %w", resource.Address, purpose, err)
 			}
@@ -433,6 +437,7 @@ func normalizeProfilePaths(profile *Profile, dir string) {
 			role.SourceID = strings.TrimSpace(role.SourceID)
 			role.SourcePath = resolveRelativePath(dir, role.SourcePath)
 			role.OperationID = strings.TrimSpace(role.OperationID)
+			role.UWSOperationRef = strings.TrimSpace(role.UWSOperationRef)
 			slices.Sort(role.CredentialBindings)
 			role.CredentialBindings = slices.Compact(role.CredentialBindings)
 			role.CredentialBindingAlternatives = normalizeCredentialBindingAlternatives(role.CredentialBindingAlternatives)

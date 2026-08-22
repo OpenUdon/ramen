@@ -75,6 +75,38 @@ func TestLoadPreservesRemoteSourcePaths(t *testing.T) {
 	}
 }
 
+func TestBrowserOperationRoleRequiresAndNormalizesUWSReference(t *testing.T) {
+	profile := Profile{
+		Version: Version,
+		Resources: []Resource{{
+			Address: "example.browser",
+			Kind:    "resource",
+			Type:    "example_browser",
+			Operations: map[string]OperationRole{
+				"read": {SourceKind: "browser-profile", OperationID: "read_status"},
+			},
+		}},
+	}
+	if err := ValidateProfile(profile); err == nil || !strings.Contains(err.Error(), "uws_operation_ref") {
+		t.Fatalf("validation error = %v", err)
+	}
+
+	root := t.TempDir()
+	profile.Resources[0].Operations["read"] = OperationRole{
+		SourceKind:      "browser-profile",
+		OperationID:     "read_status",
+		UWSOperationRef: "  read_status_uws  ",
+	}
+	writeProjectDocumentForTest(t, filepath.Join(root, DefaultJSON), profile)
+	doc, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := doc.Profile.Resources[0].Operations["read"].UWSOperationRef; got != "read_status_uws" {
+		t.Fatalf("uws operation ref = %q", got)
+	}
+}
+
 func TestCandidateWorkflowsRoundTripAsNonExecutableMetadata(t *testing.T) {
 	root := t.TempDir()
 	writeProjectDocumentForTest(t, filepath.Join(root, DefaultJSON), Profile{

@@ -11,6 +11,7 @@ import (
 
 	"github.com/OpenUdon/apitools"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/internal/browsercontract"
 	"github.com/OpenUdon/ramen/internal/tfconvert"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/uws/uws1"
@@ -74,9 +75,9 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	result.ProjectPath = doc.Path
 	result.Diagnostics = append(result.Diagnostics, validateTerraformMetadata(doc.UWS)...)
 	result.Diagnostics = append(result.Diagnostics, validateProfile(doc.Profile)...)
-	sources, sourceDiagnostics := loadAPISources(ctx, mergeAPISources(doc.Profile, opts.APISources))
+	sources, sourceDiagnostics := loadAPISources(ctx, doc.Dir, mergeAPISources(doc.Profile, opts.APISources))
 	result.Diagnostics = append(result.Diagnostics, sourceDiagnostics...)
-	result.Diagnostics = append(result.Diagnostics, validateOperations(doc.Profile, sources)...)
+	result.Diagnostics = append(result.Diagnostics, validateOperations(doc, sources)...)
 	result.Diagnostics = append(result.Diagnostics, unusedSourceDiagnostics(doc.Profile)...)
 	if opts.Strict {
 		for i := range result.Diagnostics {
@@ -589,9 +590,10 @@ type sourceDoc struct {
 	ID         string
 	Path       string
 	Operations map[string]bool
+	Browser    *browsercontract.Profile
 }
 
-func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
+func loadAPISources(ctx context.Context, projectDir string, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
 	var docs []sourceDoc
 	var diagnostics []Diagnostic
 	seen := map[string]bool{}
@@ -609,6 +611,19 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 			continue
 		}
 		seen[key] = true
+		if input.Kind == string(uws1.SourceDescriptionTypeBrowserProfile) {
+			profile, err := browsercontract.LoadProfile(projectDir, input.Path)
+			if err != nil {
+				diagnostics = append(diagnostics, Diagnostic{Code: "validate.api_source_load_error", Severity: "error", Message: err.Error(), APISourceKind: input.Kind, APISourceID: input.ID})
+				continue
+			}
+			operations := make(map[string]bool, len(profile.Actions))
+			for operationID := range profile.Actions {
+				operations[operationID] = true
+			}
+			docs = append(docs, sourceDoc{Kind: input.Kind, ID: input.ID, Path: profile.Path, Operations: operations, Browser: profile})
+			continue
+		}
 		inventory, err := apitools.BuildAPISourceOperationInventory(ctx, apitools.APISourceInventoryOptions{
 			Documents: []apitools.APISourceDocument{{
 				Kind:         input.Kind,
@@ -648,9 +663,9 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 	return docs, diagnostics
 }
 
-func validateOperations(profile project.Profile, sources []sourceDoc) []Diagnostic {
+func validateOperations(doc *project.Document, sources []sourceDoc) []Diagnostic {
 	var diagnostics []Diagnostic
-	for _, resource := range profile.Resources {
+	for _, resource := range doc.Profile.Resources {
 		for purpose, role := range resource.Operations {
 			rolePurpose := firstNonEmpty(role.Purpose, purpose)
 			roleKind := normalizeAPISourceKind(role.SourceKind)
@@ -675,6 +690,13 @@ func validateOperations(profile project.Profile, sources []sourceDoc) []Diagnost
 			}
 			if !matchedSource.Operations[role.OperationID] {
 				diagnostics = append(diagnostics, Diagnostic{Code: "validate.operation_unknown", Severity: "error", Message: fmt.Sprintf("operation %s for resource %s was not found in API source %s:%s", role.OperationID, resource.Address, role.SourceKind, role.SourceID), Address: resource.Address, APISourceKind: role.SourceKind, APISourceID: role.SourceID, OperationID: role.OperationID})
+				continue
+			}
+			if matchedSource.Browser != nil {
+				_, err := browsercontract.ValidateRole(doc, resource, rolePurpose, role, project.APISource{Kind: matchedSource.Kind, ID: matchedSource.ID, Path: matchedSource.Path}, matchedSource.Browser)
+				if err != nil {
+					diagnostics = append(diagnostics, Diagnostic{Code: "validate.browser_contract_invalid", Severity: "error", Message: err.Error(), Address: resource.Address, APISourceKind: role.SourceKind, APISourceID: role.SourceID, OperationID: role.OperationID})
+				}
 			}
 		}
 	}
@@ -785,6 +807,8 @@ func normalizeAPISourceKind(kind string) string {
 		return "grpc-protobuf"
 	case "odata":
 		return "odata"
+	case "browser-profile":
+		return "browser-profile"
 	default:
 		return ""
 	}

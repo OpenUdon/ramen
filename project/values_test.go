@@ -28,7 +28,7 @@ func TestResolveProfileVariablesPrecedenceAndRedaction(t *testing.T) {
 				"token": "${var.token}",
 				"label": "role-${var.role_name}",
 			},
-			Operations: map[string]OperationRole{"create": {OperationID: "create-${var.role_name}"}},
+			Operations: map[string]OperationRole{"create": {OperationID: "create-${var.role_name}", UWSOperationRef: "uws-${var.role_name}"}},
 		}},
 	}
 	resolved, inputs, diagnostics := ResolveProfile(profile, root, ValuesOptions{VarFiles: []string{"values.json"}, Vars: []string{"role_name=from-cli"}})
@@ -41,6 +41,9 @@ func TestResolveProfileVariablesPrecedenceAndRedaction(t *testing.T) {
 	}
 	if got := resolved.Resources[0].Operations["create"].OperationID; got != "create-from-cli" {
 		t.Fatalf("operation id = %q", got)
+	}
+	if got := resolved.Resources[0].Operations["create"].UWSOperationRef; got != "uws-from-cli" {
+		t.Fatalf("UWS operation ref = %q", got)
 	}
 	if inputs.Version != InputsVersion || inputs.Digest == "" || len(inputs.Values) != 2 {
 		t.Fatalf("inputs = %#v", inputs)

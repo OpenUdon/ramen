@@ -238,7 +238,7 @@ func comprehensiveSchemaTestProfile() Profile {
 			Lifecycle:    Lifecycle{PreventDestroy: true, IgnorePaths: []string{"updated_at"}},
 			Dependencies: []string{"data.example.source"},
 			Operations: map[string]OperationRole{
-				"create": {Purpose: "create", Method: "POST", SourceKind: "openapi", SourceID: "widgets", SourcePath: "api.json", OperationID: "createWidget", CredentialBindings: []string{"widgets"}, AI: &AIMetadata{Confidence: &Confidence{Score: 0.9, Reason: "fixture"}}},
+				"create": {Purpose: "create", Method: "POST", SourceKind: "openapi", SourceID: "widgets", SourcePath: "api.json", OperationID: "createWidget", UWSOperationRef: "create_widget", CredentialBindings: []string{"widgets"}, AI: &AIMetadata{Confidence: &Confidence{Score: 0.9, Reason: "fixture"}}},
 			},
 			IdentityAttributes: []IdentityAttribute{{Name: "name", Path: "name", RequestKeys: []string{"name"}, ResponsePaths: []string{"result.name"}, Required: true}},
 			Schema:             []SchemaPath{{Path: "name", Type: "string", Required: true, Identity: true}},

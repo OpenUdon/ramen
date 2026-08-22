@@ -7,7 +7,7 @@ require (
 	github.com/OpenUdon/authoring v0.0.0-20260820042256-2f73e3526583
 	github.com/OpenUdon/evidence v0.0.0-20260603102736-08a9c38b00b7
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
-	github.com/OpenUdon/uws v0.0.0-20260815150806-ab7144ca6a41
+	github.com/OpenUdon/uws v0.0.0-20260819172405-e81d0dee410a
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
 	github.com/zclconf/go-cty v1.18.1
@@ -40,6 +40,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
+	github.com/theory/jsonpath v0.12.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	golang.org/x/crypto v0.48.0 // indirect
 	golang.org/x/mod v0.33.0 // indirect

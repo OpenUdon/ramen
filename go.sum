@@ -48,6 +48,8 @@ github.com/OpenUdon/uws v0.0.0-20260808013611-87644c104195 h1:7OtNWZTBNQgZrsbvNd
 github.com/OpenUdon/uws v0.0.0-20260808013611-87644c104195/go.mod h1:UhFjfGxPepPDdxpmIF+1GBmjhDWXPjgRggrhqDU5KK8=
 github.com/OpenUdon/uws v0.0.0-20260815150806-ab7144ca6a41 h1:9Xdgc0HIoQirgkxiC7wMARozXhH0zaXtiKo72EFCxdM=
 github.com/OpenUdon/uws v0.0.0-20260815150806-ab7144ca6a41/go.mod h1:UhFjfGxPepPDdxpmIF+1GBmjhDWXPjgRggrhqDU5KK8=
+github.com/OpenUdon/uws v0.0.0-20260819172405-e81d0dee410a h1:FzUGGTUafym+ez9S/4qUrWehlZgV3KDRhdfQoBO6Bio=
+github.com/OpenUdon/uws v0.0.0-20260819172405-e81d0dee410a/go.mod h1:Qa5BAWWPuYeYeN/HnmEnMvQc2hoKrygyaZyzHgsHqwo=
 github.com/agext/levenshtein v1.2.1 h1:QmvMAjj2aEICytGiWzmxoE0x2KZvE0fvmqMOfy2tjT8=
 github.com/agext/levenshtein v1.2.1/go.mod h1:JEDfjyjHDjOF/1e4FlBE/PkbqA9OfWu2ki2W0IB5558=
 github.com/antchfx/xmlquery v1.5.1 h1:T9I4Ns1EXiWHy0IqKupGhnfTQtJwlGrpXtauYOoNv78=
@@ -112,6 +114,8 @@ github.com/santhosh-tekuri/jsonschema/v6 v6.0.1 h1:PKK9DyHxif4LZo+uQSgXNqs0jj5+x
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.1/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
+github.com/theory/jsonpath v0.12.0 h1:NQeuE0ohHHhss0DoxU9Xu2IpTTrlx9x4mv4F3pcmDME=
+github.com/theory/jsonpath v0.12.0/go.mod h1:vl8nfJyq9MKMbcAiKv+7N9W3jDCH8qPr0mZoZj8wRk8=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 github.com/zclconf/go-cty v1.18.1 h1:yEGE8M4iIZlyKQURZNb2SnEyZlZHUcBCnx6KF81KuwM=
 github.com/zclconf/go-cty v1.18.1/go.mod h1:qpnV6EDNgC1sns/AleL1fvatHw72j+S+nS+MJ+T2CSg=

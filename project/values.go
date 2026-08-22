@@ -168,6 +168,8 @@ func ApplyValues(profile Profile, values map[string]resolvedValueInternal) (Prof
 			diagnostics = append(diagnostics, diags...)
 			role.OperationID, diags = interpolateString(role.OperationID, values, resource.Address, roleName+".operation_id")
 			diagnostics = append(diagnostics, diags...)
+			role.UWSOperationRef, diags = interpolateString(role.UWSOperationRef, values, resource.Address, roleName+".uws_operation_ref")
+			diagnostics = append(diagnostics, diags...)
 			resource.Operations[roleName] = role
 		}
 	}
