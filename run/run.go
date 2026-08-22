@@ -38,18 +38,19 @@ type Options struct {
 }
 
 type Result struct {
-	Version        string            `json:"version"`
-	DocumentPath   string            `json:"document_path"`
-	DocumentDigest string            `json:"document_digest"`
-	StatePath      string            `json:"state_path,omitempty"`
-	Workspace      string            `json:"workspace,omitempty"`
-	RunID          int64             `json:"run_id,omitempty"`
-	Check          bool              `json:"check"`
-	ApprovalDigest string            `json:"approval_digest"`
-	Governance     governance.Result `json:"governance,omitempty"`
-	Summary        Summary           `json:"summary"`
-	Executed       []ExecutedTarget  `json:"executed,omitempty"`
-	Errors         []string          `json:"errors,omitempty"`
+	Version          string            `json:"version"`
+	DocumentPath     string            `json:"document_path"`
+	DocumentDigest   string            `json:"document_digest"`
+	StatePath        string            `json:"state_path,omitempty"`
+	Workspace        string            `json:"workspace,omitempty"`
+	RunID            int64             `json:"run_id,omitempty"`
+	Check            bool              `json:"check"`
+	ApprovalDigest   string            `json:"approval_digest"`
+	Governance       governance.Result `json:"governance,omitempty"`
+	BrowserArtifacts []BrowserArtifact `json:"browser_artifacts,omitempty"`
+	Summary          Summary           `json:"summary"`
+	Executed         []ExecutedTarget  `json:"executed,omitempty"`
+	Errors           []string          `json:"errors,omitempty"`
 }
 
 type Summary struct {
@@ -78,19 +79,24 @@ func Execute(ctx context.Context, opts Options) (*Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	browserContract, err := loadBrowserRunContract(opts.DocumentPath, doc)
+	if err != nil {
+		return nil, fmt.Errorf("run.browser_contract_invalid: %w", err)
+	}
 	targets := normalizeTargets(opts.Targets)
 	if len(targets) == 0 {
 		targets = []string{"default"}
 	}
 	result := &Result{
-		Version:        Version,
-		DocumentPath:   opts.DocumentPath,
-		DocumentDigest: docDigest,
-		StatePath:      opts.StatePath,
-		Workspace:      strings.TrimSpace(opts.Workspace),
-		Check:          opts.Check,
-		Governance:     governance.Result{Version: governance.ResultVersion},
-		Summary:        Summary{Targets: len(targets)},
+		Version:          Version,
+		DocumentPath:     opts.DocumentPath,
+		DocumentDigest:   docDigest,
+		StatePath:        opts.StatePath,
+		Workspace:        strings.TrimSpace(opts.Workspace),
+		Check:            opts.Check,
+		Governance:       governance.Result{Version: governance.ResultVersion},
+		BrowserArtifacts: slices.Clone(browserContract.Artifacts),
+		Summary:          Summary{Targets: len(targets)},
 	}
 	result.Governance = evaluateGovernance(opts, targets)
 	result.ApprovalDigest = approvalDigest(*result, targets)
@@ -106,7 +112,7 @@ func Execute(ctx context.Context, opts Options) (*Result, error) {
 		return result, nil
 	}
 	if strings.TrimSpace(opts.ApprovalDigest) != "" && strings.TrimSpace(opts.ApprovalDigest) != result.ApprovalDigest {
-		return result, fmt.Errorf("run.approval_mismatch: approval digest does not match document, targets, workspace, or state path")
+		return result, fmt.Errorf("run.approval_mismatch: approval digest does not match document, browser artifacts, targets, workspace, or state path")
 	}
 	if strings.TrimSpace(opts.ApprovalDigest) == "" && !opts.AutoApprove {
 		return result, fmt.Errorf("run approval required for %d target(s); rerun with --auto-approve after review or supply --approval-digest %s", len(targets), result.ApprovalDigest)
@@ -127,7 +133,7 @@ func Execute(ctx context.Context, opts Options) (*Result, error) {
 	defer finishRun(store, result)
 	recorder := asyncrecord.New(store, runID)
 	for _, target := range targets {
-		executed := executeTarget(ctx, opts, doc, target, runID, store, recorder)
+		executed := executeTarget(ctx, opts, doc, browserContract, target, runID, store, recorder)
 		result.Executed = append(result.Executed, executed)
 		if executed.Error != "" {
 			result.Summary.Failed++
@@ -157,7 +163,7 @@ func rejectGovernance(result governance.Result) error {
 	return nil
 }
 
-func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, target string, runID int64, store *state.Store, recorder *asyncrecord.Recorder) ExecutedTarget {
+func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, browserContract *browserRunContract, target string, runID int64, store *state.Store, recorder *asyncrecord.Recorder) ExecutedTarget {
 	action := executor.Action{
 		Address:  "run." + target,
 		Type:     "uws_run",
@@ -175,6 +181,13 @@ func executeTarget(ctx context.Context, opts Options, doc *uws1.Document, target
 		OutDir:       opts.OutDir,
 		Capabilities: executor.RequirementsForAction(action),
 		Idempotency:  executor.IdempotencyForAction(action),
+	}
+	if browserContract != nil {
+		req.Capabilities = executor.RequirementsForBrowser(req.Capabilities, browserContract.Requirements)
+	}
+	if err := recheckBrowserRunContract(opts.DocumentPath, doc, browserContract); err != nil {
+		recordRunEvent(store, runID, target, action, "failed", err.Error(), nil)
+		return ExecutedTarget{Target: target, Action: "run", Error: err.Error()}
 	}
 	if err := executor.EnsureSupported(opts.Executor, req); err != nil {
 		recordRunEvent(store, runID, target, action, "failed", err.Error(), nil)
@@ -262,19 +275,21 @@ func loadDocument(path string) (*uws1.Document, string, error) {
 
 func approvalDigest(result Result, targets []string) string {
 	payload := struct {
-		Version        string            `json:"version"`
-		DocumentDigest string            `json:"document_digest"`
-		StatePath      string            `json:"state_path,omitempty"`
-		Workspace      string            `json:"workspace,omitempty"`
-		Targets        []string          `json:"targets"`
-		Governance     governance.Result `json:"governance,omitempty"`
+		Version          string            `json:"version"`
+		DocumentDigest   string            `json:"document_digest"`
+		StatePath        string            `json:"state_path,omitempty"`
+		Workspace        string            `json:"workspace,omitempty"`
+		Targets          []string          `json:"targets"`
+		Governance       governance.Result `json:"governance,omitempty"`
+		BrowserArtifacts []BrowserArtifact `json:"browser_artifacts,omitempty"`
 	}{
-		Version:        result.Version,
-		DocumentDigest: result.DocumentDigest,
-		StatePath:      result.StatePath,
-		Workspace:      result.Workspace,
-		Targets:        targets,
-		Governance:     result.Governance,
+		Version:          result.Version,
+		DocumentDigest:   result.DocumentDigest,
+		StatePath:        result.StatePath,
+		Workspace:        result.Workspace,
+		Targets:          targets,
+		Governance:       result.Governance,
+		BrowserArtifacts: result.BrowserArtifacts,
 	}
 	data, _ := json.Marshal(payload)
 	return digest.SHA256String(data)

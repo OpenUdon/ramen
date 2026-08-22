@@ -76,6 +76,9 @@ func runRunCommand(ctx context.Context, args []string) {
 	}
 	fmt.Printf("ramen: run targets=%d executed=%d skipped=%d failed=%d\n", result.Summary.Targets, result.Summary.Executed, result.Summary.Skipped, result.Summary.Failed)
 	fmt.Printf("  approval_digest: %s\n", result.ApprovalDigest)
+	if len(result.BrowserArtifacts) > 0 {
+		fmt.Printf("  browser_artifacts: %d\n", len(result.BrowserArtifacts))
+	}
 	if result.RunID != 0 {
 		fmt.Printf("  run: %d\n", result.RunID)
 	}

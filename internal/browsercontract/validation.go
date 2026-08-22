@@ -267,6 +267,11 @@ func selectedActionID(operation *uws1.Operation) (string, error) {
 	return id, nil
 }
 
+// SelectedActionID returns the browser action selected by a UWS operation.
+func SelectedActionID(operation *uws1.Operation) (string, error) {
+	return selectedActionID(operation)
+}
+
 func resolvePackageReference(anchorDir, reference string) (string, error) {
 	reference = strings.TrimSpace(reference)
 	if reference == "" || filepath.IsAbs(filepath.FromSlash(reference)) || strings.Contains(reference, "://") || strings.HasPrefix(strings.ToLower(reference), "urn:") {
@@ -304,6 +309,11 @@ func requireProfileVersion(uwsVersion, profileVersion string) error {
 		return fmt.Errorf("browser profile %s requires UWS %s or newer", profileVersion, required)
 	}
 	return nil
+}
+
+// ValidateProfileVersion checks the UWS version floor for a browser profile.
+func ValidateProfileVersion(uwsVersion, profileVersion string) error {
+	return requireProfileVersion(uwsVersion, profileVersion)
 }
 
 func versionAtLeast(actual, required string) bool {
