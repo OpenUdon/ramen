@@ -10,6 +10,8 @@ import (
 	"testing"
 
 	"github.com/OpenUdon/ramen/executor"
+	"github.com/OpenUdon/ramen/internal/asyncrecord"
+	"github.com/OpenUdon/ramen/internal/browsercontract"
 	tfplan "github.com/OpenUdon/ramen/plan"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
@@ -147,6 +149,66 @@ func TestBuildBrowserActionDocumentPreservesApprovedContract(t *testing.T) {
 	limited := &limitedApplyExecutor{}
 	if err := executor.EnsureSupported(limited, executor.Request{Action: action, Capabilities: requirements}); err == nil || len(limited.requests) != 0 {
 		t.Fatalf("limited executor did not fail before execution: err=%v requests=%d", err, len(limited.requests))
+	}
+}
+
+func TestBrowserArtifactIsRecheckedBeforeEveryExecutorHandoff(t *testing.T) {
+	for _, test := range []struct {
+		name                 string
+		changeOnCapabilities bool
+		changeOnFirstAttempt bool
+		wantCalls            int
+	}{
+		{name: "before first handoff", changeOnCapabilities: true, wantCalls: 0},
+		{name: "before retry handoff", changeOnFirstAttempt: true, wantCalls: 1},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			root := t.TempDir()
+			profilePath := filepath.Join(root, "browser.yaml")
+			profileBytes, err := os.ReadFile(filepath.Join("..", "examples", "browser", "browser.yaml"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeApplyTestFile(t, profilePath, string(profileBytes))
+			profile, err := browsercontract.LoadProfile(root, "browser.yaml")
+			if err != nil {
+				t.Fatal(err)
+			}
+			resource := browserResourceForApplyTest(profile.Version)
+			resource.Mapping.Browser.ProfileRef = "browser.yaml"
+			resource.Mapping.Browser.ProfilePath = profile.Path
+			resource.Mapping.Browser.ProfileDigest = profile.Digest
+			if test.changeOnFirstAttempt {
+				resource.RuntimeHints = &project.RuntimeHints{Retry: map[string]any{"max_attempts": 2}}
+			}
+
+			store, err := state.Open(context.Background(), filepath.Join(root, "state.db"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer store.Close()
+			runID, err := store.StartRun(context.Background(), "apply-browser-recheck-test")
+			if err != nil {
+				t.Fatal(err)
+			}
+			recorder := asyncrecord.New(store, runID)
+			exec := &changingBrowserApplyExecutor{
+				path:                 profilePath,
+				data:                 []byte(strings.Replace(string(profileBytes), "Reviewed member status UI", "Changed member status UI", 1)),
+				changeOnCapabilities: test.changeOnCapabilities,
+				changeOnFirstAttempt: test.changeOnFirstAttempt,
+			}
+			_, err = executeReadPlanAction(context.Background(), exec, store, recorder, runID, resource, nil, nil, root, "")
+			if exec.mutationErr != nil {
+				t.Fatal(exec.mutationErr)
+			}
+			if err == nil || !strings.Contains(err.Error(), "apply.browser_artifact_changed") {
+				t.Fatalf("handoff error = %v", err)
+			}
+			if exec.calls != test.wantCalls {
+				t.Fatalf("executor received %d handoff(s), want %d", exec.calls, test.wantCalls)
+			}
+		})
 	}
 }
 
@@ -1848,6 +1910,39 @@ resource "aws_iam_role" "role" {
 type limitedApplyExecutor struct {
 	requests  []executor.Request
 	executeFn func(context.Context, executor.Request) (executor.Result, error)
+}
+
+type changingBrowserApplyExecutor struct {
+	path                 string
+	data                 []byte
+	changeOnCapabilities bool
+	changeOnFirstAttempt bool
+	mutated              bool
+	mutationErr          error
+	calls                int
+}
+
+func (e *changingBrowserApplyExecutor) Capabilities() executor.CapabilityDescriptor {
+	if e.changeOnCapabilities {
+		e.mutate()
+	}
+	return (&executor.MockExecutor{}).Capabilities()
+}
+
+func (e *changingBrowserApplyExecutor) Execute(context.Context, executor.Request) (executor.Result, error) {
+	e.calls++
+	if e.changeOnFirstAttempt && e.calls == 1 {
+		e.mutate()
+		return executor.Result{}, fmt.Errorf("transient executor error")
+	}
+	return executor.Result{Success: true}, nil
+}
+
+func (e *changingBrowserApplyExecutor) mutate() {
+	if !e.mutated {
+		e.mutated = true
+		e.mutationErr = os.WriteFile(e.path, e.data, 0o644)
+	}
 }
 
 func (e *limitedApplyExecutor) Capabilities() executor.CapabilityDescriptor {

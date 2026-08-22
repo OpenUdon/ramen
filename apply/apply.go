@@ -343,7 +343,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			runStatus = "failed"
 			return result, err
 		}
-		execResult, _, err := executeExecutorRequest(ctx, opts.Executor, asyncRecorder, req)
+		execResult, _, err := executeExecutorRequest(ctx, opts.Executor, asyncRecorder, req, browserArtifactCheck(resource))
 		result.Feedback = append(result.Feedback, executor.FeedbackFromResult(req, execResult, err))
 		if err != nil {
 			runStatus = "failed"
@@ -1227,7 +1227,7 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readActionResult{Document: docPath}, err
 	}
-	execResult, requestEvidenceID, err := executeReadRequest(ctx, exec, recorder, req, true)
+	execResult, requestEvidenceID, err := executeReadRequest(ctx, exec, recorder, req, true, browserArtifactCheck(resource))
 	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
 	if requestEvidenceID != "" {
 		if recordErr := recorder.RecordConfirmationRead(ctx, req, execResult, err, requestEvidenceID); recordErr != nil {
@@ -1279,7 +1279,7 @@ func executeReadCheckWithIdentity(ctx context.Context, exec executor.Executor, s
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readCheckResult{}, err
 	}
-	execResult, requestEvidenceID, err := executeReadRequest(ctx, exec, recorder, req, phase != "baseline")
+	execResult, requestEvidenceID, err := executeReadRequest(ctx, exec, recorder, req, phase != "baseline", browserArtifactCheck(readResource))
 	execResult, err = stateprojection.ClassifyReadResult(execResult, err)
 	if requestEvidenceID != "" {
 		if recordErr := recorder.RecordConfirmationRead(ctx, req, execResult, err, requestEvidenceID); recordErr != nil {
@@ -1337,7 +1337,7 @@ func executeSettleBeforeDelete(ctx context.Context, exec executor.Executor, stor
 	}
 }
 
-func executeExecutorRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request) (executor.Result, string, error) {
+func executeExecutorRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request, beforeHandoff func() error) (executor.Result, string, error) {
 	requestEvidenceID, recordErr := recorder.RecordRequest(ctx, req)
 	if recordErr != nil {
 		return executor.Result{}, "", recordErr
@@ -1348,6 +1348,14 @@ func executeExecutorRequest(ctx context.Context, exec executor.Executor, recorde
 	var last executor.Result
 	var lastErr error
 	for attempt := 1; attempt <= attempts; attempt++ {
+		if beforeHandoff != nil {
+			if lastErr = beforeHandoff(); lastErr != nil {
+				if err := recorder.RecordResponse(ctx, req, last, lastErr, requestEvidenceID); err != nil {
+					return last, requestEvidenceID, err
+				}
+				return last, requestEvidenceID, lastErr
+			}
+		}
 		last, lastErr = exec.Execute(ctx, req)
 		if lastErr == nil && last.Success {
 			if err := recorder.RecordResponse(ctx, req, last, nil, requestEvidenceID); err != nil {
@@ -1384,13 +1392,13 @@ func executeExecutorRequest(ctx context.Context, exec executor.Executor, recorde
 	return last, requestEvidenceID, lastErr
 }
 
-func executeReadRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request, useWaiter bool) (executor.Result, string, error) {
+func executeReadRequest(ctx context.Context, exec executor.Executor, recorder *asyncrecord.Recorder, req executor.Request, useWaiter bool, beforeHandoff func() error) (executor.Result, string, error) {
 	if !useWaiter || len(req.Runtime.Waiter) == 0 {
-		return executeExecutorRequest(ctx, exec, recorder, req)
+		return executeExecutorRequest(ctx, exec, recorder, req, beforeHandoff)
 	}
 	until := strings.ToLower(strings.TrimSpace(fmt.Sprint(req.Runtime.Waiter["until"])))
 	if until == "" {
-		return executeExecutorRequest(ctx, exec, recorder, req)
+		return executeExecutorRequest(ctx, exec, recorder, req, beforeHandoff)
 	}
 	if until != "exists" && until != "missing" && until != "success" {
 		return executor.Result{}, "", fmt.Errorf("apply.waiter_unsupported: unsupported waiter predicate %q", until)
@@ -1400,7 +1408,7 @@ func executeReadRequest(ctx context.Context, exec executor.Executor, recorder *a
 	var last executor.Result
 	var lastRequestEvidenceID string
 	for attempt := 1; attempt <= attempts; attempt++ {
-		result, requestEvidenceID, err := executeExecutorRequest(ctx, exec, recorder, req)
+		result, requestEvidenceID, err := executeExecutorRequest(ctx, exec, recorder, req, beforeHandoff)
 		result, err = stateprojection.ClassifyReadResult(result, err)
 		last = result
 		lastRequestEvidenceID = requestEvidenceID
@@ -1797,6 +1805,18 @@ func RequirementsForResource(resource tfplan.ResourcePlan, action executor.Actio
 		requirement = executor.RequirementsForBrowser(requirement, features)
 	}
 	return executor.RequirementsForRuntimeHints(requirement, runtime)
+}
+
+func browserArtifactCheck(resource tfplan.ResourcePlan) func() error {
+	if resource.Mapping == nil || resource.Mapping.Browser == nil {
+		return nil
+	}
+	return func() error {
+		if err := browsercontract.RecheckProjection(resource.Mapping.Browser); err != nil {
+			return fmt.Errorf("apply.browser_artifact_changed: %w", err)
+		}
+		return nil
+	}
 }
 
 func browserMutation(sideEffects []string) bool {

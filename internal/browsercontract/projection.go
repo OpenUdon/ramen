@@ -2,6 +2,8 @@ package browsercontract
 
 import (
 	"encoding/json"
+	"fmt"
+	"path/filepath"
 	"slices"
 	"strings"
 
@@ -154,4 +156,67 @@ func cloneMap(value map[string]any) map[string]any {
 		return nil
 	}
 	return out
+}
+
+// RecheckProjection verifies that the external browser artifacts still match
+// the exact bytes bound into an approved plan. Callers use it immediately
+// before each trusted-executor handoff, including retries.
+func RecheckProjection(projection *Projection) error {
+	if projection == nil {
+		return nil
+	}
+	anchor, reference, err := projectionArtifactLocation(projection.ProfilePath, projection.ProfileRef, "browser profile")
+	if err != nil {
+		return err
+	}
+	profile, err := LoadProfile(anchor, reference)
+	if err != nil {
+		return err
+	}
+	if profile.Digest != projection.ProfileDigest || profile.Version != projection.ProfileVersion {
+		return fmt.Errorf("browser profile no longer matches the approved plan")
+	}
+	if projection.Authentication == nil {
+		return nil
+	}
+	auth := projection.Authentication
+	anchor, reference, err = projectionArtifactLocation(auth.ProfilePath, auth.ProfileRef, "browser authentication profile")
+	if err != nil {
+		return err
+	}
+	profileAuth, err := LoadAuthenticationProfile(anchor, reference)
+	if err != nil {
+		return err
+	}
+	if profileAuth.Digest != auth.ProfileDigest || profileAuth.Profile.Profile != auth.ProfileVersion {
+		return fmt.Errorf("browser authentication profile no longer matches the approved plan")
+	}
+	return nil
+}
+
+func projectionArtifactLocation(path, reference, label string) (string, string, error) {
+	path = strings.TrimSpace(path)
+	reference = strings.TrimSpace(reference)
+	if path == "" || reference == "" {
+		return "", "", fmt.Errorf("approved %s path and reference are required", label)
+	}
+	if strings.Contains(reference, "://") || strings.HasPrefix(strings.ToLower(reference), "urn:") {
+		return "", "", fmt.Errorf("approved %s reference must be package-relative", label)
+	}
+	reference = filepath.Clean(filepath.FromSlash(reference))
+	if reference == "." || reference == ".." || filepath.IsAbs(reference) || strings.HasPrefix(reference, ".."+string(filepath.Separator)) {
+		return "", "", fmt.Errorf("approved %s reference must remain within the project package", label)
+	}
+	resolved, err := filepath.Abs(filepath.Clean(path))
+	if err != nil {
+		return "", "", fmt.Errorf("resolve approved %s path: %w", label, err)
+	}
+	anchor := resolved
+	for range strings.Split(reference, string(filepath.Separator)) {
+		anchor = filepath.Dir(anchor)
+	}
+	if filepath.Clean(filepath.Join(anchor, reference)) != resolved {
+		return "", "", fmt.Errorf("approved %s path does not match its package reference", label)
+	}
+	return anchor, reference, nil
 }
