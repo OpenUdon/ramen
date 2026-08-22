@@ -14,9 +14,156 @@ import (
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/ramen/tfmapping"
+	"github.com/OpenUdon/uws/browserauthentication"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
+	"github.com/OpenUdon/uws/validation"
 )
+
+func TestBuildBrowserActionDocumentSelectsMinimumUWSVersion(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile string
+		session string
+		auth    *tfplan.AuthenticationProjection
+		want    string
+	}{
+		{name: "browser 1.5", profile: "uws.browser.1.5", want: "1.5.0"},
+		{name: "external session", profile: "uws.browser.1.5", session: "external", want: "1.7.0"},
+		{name: "browser 1.6", profile: "uws.browser.1.6", want: "1.8.0"},
+		{name: "browser 1.7", profile: "uws.browser.1.7", want: "1.9.0"},
+		{name: "authentication 1.0", profile: "uws.browser.1.5", session: "member", auth: &tfplan.AuthenticationProjection{
+			UWSOperationID: "authenticate", CallProfile: browserauthentication.CallProfileName,
+			ProfileVersion: browserauthentication.ProfileName, ProfileRef: "authentication.yaml",
+			Flow: "login", TimeoutSeconds: 120, Session: "member",
+		}, want: "1.7.0"},
+		{name: "authentication 1.1", profile: "uws.browser.1.5", session: "member", auth: &tfplan.AuthenticationProjection{
+			UWSOperationID: "authenticate", CallProfile: browserauthentication.ContextCallProfileName,
+			ProfileVersion: browserauthentication.ContextProfileName, ProfileRef: "authentication.yaml",
+			Flow: "login", TimeoutSeconds: 120, Session: "member",
+		}, want: "1.8.0"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			resource := browserResourceForApplyTest(test.profile)
+			resource.Mapping.Browser.Session = test.session
+			resource.Mapping.Browser.ExternalSession = test.session != "" && test.auth == nil
+			resource.Mapping.Browser.Authentication = test.auth
+			doc, err := BuildActionDocument(resource, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if doc.UWS != test.want {
+				t.Fatalf("UWS = %s, want %s", doc.UWS, test.want)
+			}
+		})
+	}
+}
+
+func TestBuildBrowserActionDocumentPreservesApprovedContract(t *testing.T) {
+	resource := browserResourceForApplyTest("uws.browser.1.7")
+	resource.Action = "update"
+	resource.Mapping.Purpose = "update"
+	resource.Mapping.OperationID = "change_status"
+	resource.Mapping.RequestBindings = []project.RequestBinding{{OperationRole: "update", OperationID: "change_status", Path: "item", RequestPath: "item", Location: "body"}}
+	browser := resource.Mapping.Browser
+	browser.ActionID = "change_status"
+	browser.UWSOperationID = "change_status_uws"
+	browser.Request = map[string]any{"body": map[string]any{"item": "reviewed-default"}}
+	browser.Session = "member_portal"
+	browser.SideEffects = []string{"state_change"}
+	browser.Confirmation = tfplan.ConfirmationProjection{Required: true, Prompt: "Approve change?"}
+	browser.Outputs = []tfplan.OutputProjection{
+		{Name: "enabled", Type: "boolean", Source: "a11y"},
+		{Name: "status", Type: "string", Source: "a11y"},
+	}
+	browser.Contexts = []tfplan.ContextProjection{{ID: "detail", Kind: "frame", Parent: "main", Origin: "https://example.test"}}
+	browser.Authentication = &tfplan.AuthenticationProjection{
+		UWSOperationID: "authenticate", CallProfile: browserauthentication.ContextCallProfileName,
+		ProfileVersion: browserauthentication.ContextProfileName, ProfileRef: "authentication.yaml",
+		ProfilePath: "/reviewed/authentication.yaml", ProfileDigest: "sha256:auth",
+		Flow: "login", TimeoutSeconds: 120, Session: "member_portal",
+		CredentialBindings: []tfplan.CredentialBindingProjection{{Slot: "username", Binding: "member_username"}},
+		Contexts:           []tfplan.ContextProjection{{ID: "idp_popup", Kind: "popup", Parent: "main", Origin: "https://login.example.test"}},
+	}
+
+	doc, err := BuildActionDocumentWithBindings(resource, nil, map[string]any{"item": "planned-item", "password": "do-not-pass"}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.UWS != "1.9.0" || len(doc.Operations) != 2 {
+		t.Fatalf("document = %#v", doc)
+	}
+	authOperation, browserOperation := doc.Operations[0], doc.Operations[1]
+	if authOperation.OperationID != "authenticate" || authOperation.ExtensionProfile() != browserauthentication.ContextCallProfileName || len(browserOperation.DependsOn) != 1 || browserOperation.DependsOn[0] != "authenticate" {
+		t.Fatalf("authentication dependency = %#v browser=%#v", authOperation, browserOperation)
+	}
+	auth, ok, err := browserauthentication.ReadAuthenticationExtension(authOperation.Extensions)
+	if err != nil || !ok || auth.Profile != "authentication.yaml" || auth.Flow != "login" || auth.CredentialBindings["username"] != "member_username" {
+		t.Fatalf("authentication extension = %#v ok=%t err=%v", auth, ok, err)
+	}
+	session, ok, err := browserauthentication.ReadSessionExtension(browserOperation.Extensions)
+	if err != nil || !ok || session.Session != "member_portal" {
+		t.Fatalf("session extension = %#v ok=%t err=%v", session, ok, err)
+	}
+	if body := browserOperation.Request["body"].(map[string]any); body["item"] != "planned-item" {
+		t.Fatalf("native binding did not overlay browser parameters: %#v", browserOperation.Request)
+	}
+	step := doc.Workflows[0].Steps[0]
+	if step.Body["item"] != "planned-item" || step.Outputs["enabled"] != "$response.body.enabled" || browserOperation.Outputs["status"] != "$response.body.status" {
+		t.Fatalf("browser step lowering = %#v operation outputs=%#v", step, browserOperation.Outputs)
+	}
+	data, err := json.Marshal(doc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "do-not-pass") || strings.Contains(string(data), "/reviewed/authentication.yaml") || strings.Contains(string(data), "/reviewed/browser.yaml") {
+		t.Fatalf("runtime/private data leaked into generated document: %s", data)
+	}
+	encoded, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	documentPath := filepath.Join(t.TempDir(), "browser-action.uws.json")
+	writeApplyTestFile(t, documentPath, string(encoded))
+	if _, err := validation.ValidateDocumentFile(documentPath); err != nil {
+		t.Fatalf("generated browser UWS schema validation: %v", err)
+	}
+
+	action := executorAction(resource)
+	requirements := RequirementsForResource(resource, action, executor.RuntimeHints{})
+	for _, feature := range []string{
+		executor.FeatureBrowserContexts, executor.FeatureBrowserScalarOutputs,
+		executor.FeatureBrowserNamedSession, executor.FeatureBrowserAuthentication,
+		executor.FeatureBrowserMutationApproval, executor.FeatureBrowserAuthenticationApproval,
+	} {
+		if !containsApplyTest(requirements.Features, feature) {
+			t.Fatalf("requirements %v missing %s", requirements.Features, feature)
+		}
+	}
+	if err := executor.EnsureSupported(&executor.MockExecutor{}, executor.Request{Action: action, Capabilities: requirements}); err != nil {
+		t.Fatalf("mock browser support: %v", err)
+	}
+	limited := &limitedApplyExecutor{}
+	if err := executor.EnsureSupported(limited, executor.Request{Action: action, Capabilities: requirements}); err == nil || len(limited.requests) != 0 {
+		t.Fatalf("limited executor did not fail before execution: err=%v requests=%d", err, len(limited.requests))
+	}
+}
+
+func browserResourceForApplyTest(profile string) tfplan.ResourcePlan {
+	return tfplan.ResourcePlan{
+		Address: "example.browser", Kind: "resource", Type: "example_browser", Action: "read", DesiredHash: "sha256:desired",
+		Mapping: &tfplan.MappingPlan{
+			Purpose: "read", SourceKind: "browser-profile", SourceID: "browser", OperationID: "read_status",
+			Browser: &tfplan.BrowserPlan{
+				UWSOperationID: "read_status_uws", ActionID: "read_status", ProfileVersion: profile,
+				ProfileRef: "browser.yaml", ProfilePath: "/reviewed/browser.yaml", ProfileDigest: "sha256:browser",
+				Outputs:     []tfplan.OutputProjection{{Name: "status", Type: "string", Source: "a11y"}},
+				SideEffects: []string{"read_only"},
+			},
+		},
+	}
+}
 
 func TestEncodeBindingValueBase64(t *testing.T) {
 	got := encodeBindingValue(project.RequestBinding{Encoding: "base64"}, "ramen h03 create")

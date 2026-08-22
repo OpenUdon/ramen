@@ -12,9 +12,84 @@ import (
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
+	"github.com/OpenUdon/uws/browserauthentication"
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
+
+func TestBuildNativeBrowserPlanProjectsAndDigestBindsContract(t *testing.T) {
+	root := t.TempDir()
+	projectPath := writeBrowserNativeProjectForPlanTest(t, root)
+	statePath := filepath.Join(root, "state.db")
+
+	first, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Action: "read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if first.Plan.Errored || len(first.Plan.Resources) != 1 {
+		t.Fatalf("browser plan = %#v diagnostics=%#v", first.Plan, first.Diagnostics)
+	}
+	mapping := first.Plan.Resources[0].Mapping
+	if mapping == nil || mapping.Browser == nil {
+		t.Fatalf("browser projection missing: %#v", mapping)
+	}
+	browser := mapping.Browser
+	if browser.UWSOperationID != "read_status_uws" || browser.ActionID != "read_status" || browser.ProfileVersion != "uws.browser.1.7" {
+		t.Fatalf("browser identity = %#v", browser)
+	}
+	if browser.Session != "member_portal" || browser.ExternalSession || browser.Authentication == nil {
+		t.Fatalf("browser session/authentication = %#v", browser)
+	}
+	if browser.ProfileDigest == "" || browser.Authentication.ProfileDigest == "" || browser.Authentication.ProfileVersion != browserauthentication.ContextProfileName {
+		t.Fatalf("browser digests = %#v", browser)
+	}
+	if len(browser.Outputs) != 4 || browser.Outputs[0].Name != "enabled" || browser.Outputs[3].Name != "status" {
+		t.Fatalf("sorted outputs = %#v", browser.Outputs)
+	}
+	if len(browser.Contexts) != 2 || browser.Contexts[0].ID != "detail_frame" || len(browser.Authentication.Contexts) != 1 {
+		t.Fatalf("contexts = %#v auth=%#v", browser.Contexts, browser.Authentication.Contexts)
+	}
+	if len(browser.Authentication.CredentialBindings) != 1 || browser.Authentication.CredentialBindings[0].Slot != "username" || browser.Authentication.CredentialBindings[0].Binding != "member_username" {
+		t.Fatalf("credential projection = %#v", browser.Authentication.CredentialBindings)
+	}
+	firstDesired := first.Plan.Resources[0].DesiredHash
+	firstApproval := first.Plan.Approval.Digest
+	encoded, err := json.Marshal(first.Plan)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var tampered Document
+	if err := json.Unmarshal(encoded, &tampered); err != nil {
+		t.Fatal(err)
+	}
+	tampered.Resources[0].Mapping.Browser.Session = "another_portal"
+	tampered.Resources[0].Mapping.Browser.Authentication.CredentialBindings[0].Binding = "another_username"
+	if err := VerifyApproval(tampered); err == nil {
+		t.Fatal("browser session and credential tampering retained approval")
+	}
+
+	browserPath := filepath.Join(root, "browser.yaml")
+	contents := readPlanTestFile(t, browserPath)
+	writePlanTestFile(t, browserPath, strings.Replace(contents, "Reviewed status", "Reviewed status changed", 1))
+	changedBrowser, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Action: "read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedBrowser.Plan.Resources[0].DesiredHash == firstDesired || changedBrowser.Plan.Approval.Digest == firstApproval {
+		t.Fatalf("browser profile change did not invalidate hashes")
+	}
+
+	authPath := filepath.Join(root, "authentication.yaml")
+	authContents := readPlanTestFile(t, authPath)
+	writePlanTestFile(t, authPath, strings.Replace(authContents, "Reviewed login", "Reviewed login changed", 1))
+	changedAuth, err := Build(context.Background(), Options{ProjectPath: projectPath, StatePath: statePath, Action: "read"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if changedAuth.Plan.Resources[0].DesiredHash == changedBrowser.Plan.Resources[0].DesiredHash || changedAuth.Plan.Approval.Digest == changedBrowser.Plan.Approval.Digest {
+		t.Fatalf("authentication profile change did not invalidate hashes")
+	}
+}
 
 func TestBuildAWSIAMRoleCreateAndNoOpPlans(t *testing.T) {
 	root := t.TempDir()
@@ -1528,6 +1603,121 @@ func writeNativeProjectForPlanTest(t *testing.T, dir string, profile project.Pro
 	data = append(data, '\n')
 	path := filepath.Join(dir, project.DefaultJSON)
 	writePlanTestFile(t, path, string(data))
+	return path
+}
+
+func writeBrowserNativeProjectForPlanTest(t *testing.T, dir string) string {
+	t.Helper()
+	writePlanTestFile(t, filepath.Join(dir, "browser.yaml"), `profile: uws.browser.1.7
+info:
+  title: Reviewed status
+  origin: https://example.test
+  loginStateRequired: true
+observationKind: accessibility_snapshot
+evidence: {learnedAt: "2026-08-20T00:00:00Z", source: reviewed_synthetic_fixture}
+confidence: high
+expiresAfter: P30D
+verification: {lastVerifiedAt: "2026-08-20T00:00:00Z", successfulRuns: 1}
+contexts:
+  statement_popup: {kind: popup, parent: main, origin: https://example.test}
+  detail_frame: {kind: frame, parent: statement_popup, origin: https://example.test, path: /embedded/detail, name: Detail}
+actions:
+  read_status:
+    parameters:
+      type: object
+      properties: {item: {type: string}}
+    sequence:
+      - navigate: /status
+      - click:
+          locator: {role: link, name: Open detail}
+          context: main
+          opensContext: statement_popup
+      - wait_for:
+          locator: {role: status, name: Ready}
+          context: detail_frame
+    outputs:
+      status: {type: string, source: a11y, locator: {role: status, name: Ready}}
+      ratio: {type: number, source: a11y, locator: {role: status, name: Ratio}}
+      enabled: {type: boolean, source: a11y, locator: {role: status, name: Enabled}}
+      goal_present: {type: boolean, source: a11y, locator: {role: heading, name: Goal}, presence: true}
+    sideEffects: [read_only]
+    confirmationPolicy: {required: false}
+`)
+	writePlanTestFile(t, filepath.Join(dir, "authentication.yaml"), `profile: uws.browser-authentication.1.1
+info:
+  title: Reviewed login
+  applicationOrigins: [https://example.test]
+  authenticationOrigins: [https://login.example.test]
+observationKind: accessibility_snapshot
+evidence: {learnedAt: "2026-08-20T00:00:00Z", source: reviewed_synthetic_fixture}
+confidence: high
+expiresAfter: P30D
+verification: {lastVerifiedAt: "2026-08-20T00:00:00Z", successfulRuns: 1}
+contexts:
+  idp_popup: {kind: popup, parent: main, origin: https://login.example.test}
+credentialSlots:
+  username: {kind: identifier}
+flows:
+  login:
+    sequence:
+      - click:
+          locator: {role: button, name: Continue}
+          opensContext: idp_popup
+      - type_credential:
+          locator: {role: textbox, name: Username}
+          slot: username
+          context: idp_popup
+      - wait_for:
+          locator: {role: heading, name: Dashboard}
+    effects: [establishes_session]
+    success:
+      origin: https://example.test
+      locator: {role: heading, name: Dashboard}
+`)
+	timeout := 120.0
+	authOperation := &uws1.Operation{
+		OperationID:              "authenticate",
+		OperationExecutionFields: uws1.OperationExecutionFields{Timeout: &timeout},
+		Extensions:               map[string]any{uws1.ExtensionOperationProfile: browserauthentication.ContextCallProfileName},
+	}
+	if err := browserauthentication.SetAuthenticationExtension(&authOperation.Extensions, &browserauthentication.OperationAuthentication{
+		Profile: "authentication.yaml", Flow: "login", Session: "member_portal", CredentialBindings: map[string]string{"username": "member_username"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	browserOperation := &uws1.Operation{
+		OperationID: "read_status_uws", SourceDescription: "browser", SourceOperationID: "read_status",
+		Request:                  map[string]any{"body": map[string]any{"item": "default"}},
+		OperationExecutionFields: uws1.OperationExecutionFields{DependsOn: []string{"authenticate"}},
+	}
+	if err := browserauthentication.SetSessionExtension(&browserOperation.Extensions, &browserauthentication.OperationSession{Session: "member_portal"}); err != nil {
+		t.Fatal(err)
+	}
+	doc := &uws1.Document{
+		UWS:                "1.9.0",
+		Info:               &uws1.Info{Title: "browser_native_project_fixture", Version: "1.0.0"},
+		SourceDescriptions: []*uws1.SourceDescription{{Name: "browser", URL: "browser.yaml", Type: uws1.SourceDescriptionTypeBrowserProfile}},
+		Operations:         []*uws1.Operation{authOperation, browserOperation},
+		Workflows:          []*uws1.Workflow{{WorkflowID: "main", Type: uws1.WorkflowTypeSequence, Steps: []*uws1.Step{{StepID: "read_status", OperationRef: "read_status_uws"}}}},
+		Extensions: map[string]any{project.ExtensionKey: project.Profile{
+			Version:    project.Version,
+			APISources: []project.APISource{{Kind: "browser-profile", ID: "browser", Path: "browser.yaml"}},
+			Resources: []project.Resource{{
+				Address: "example.browser", Kind: "resource", Type: "example_browser",
+				Attributes:         map[string]any{"item": "planned"},
+				CredentialBindings: []string{"member_username"},
+				Operations: map[string]project.OperationRole{"read": {
+					SourceKind: "browser-profile", SourceID: "browser", OperationID: "read_status", UWSOperationRef: "read_status_uws",
+				}},
+			}},
+		}},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, project.DefaultJSON)
+	writePlanTestFile(t, path, string(append(data, '\n')))
 	return path
 }
 

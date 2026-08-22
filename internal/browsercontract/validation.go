@@ -19,6 +19,7 @@ import (
 type Authentication struct {
 	Operation          *uws1.Operation
 	CallProfile        string
+	ProfileRef         string
 	Profile            *AuthenticationProfile
 	Flow               string
 	Session            string
@@ -30,6 +31,7 @@ type Authentication struct {
 // operation role.
 type Role struct {
 	Profile         *Profile
+	ProfileRef      string
 	ActionID        string
 	Action          Action
 	Operation       *uws1.Operation
@@ -93,7 +95,7 @@ func ValidateRole(doc *project.Document, resource project.Resource, purpose stri
 	if profile.LoginStateRequired && session == "" {
 		return nil, fmt.Errorf("browser profile %s requires x-uws-browser-session", profile.Version)
 	}
-	result := &Role{Profile: profile, ActionID: actionID, Action: action, Operation: operation, Session: session}
+	result := &Role{Profile: profile, ProfileRef: sourceDescription.URL, ActionID: actionID, Action: action, Operation: operation, Session: session}
 	auth, err := validateAuthenticationDependency(doc, resource, operationRole, operation, session)
 	if err != nil {
 		return nil, err
@@ -199,7 +201,24 @@ func validateAuthenticationDependency(doc *project.Document, resource project.Re
 			return nil, fmt.Errorf("authentication credential binding %s is not declared by the resource or operation role", binding)
 		}
 	}
-	return &Authentication{Operation: authOperation, CallProfile: callProfile, Profile: authProfile, Flow: call.Flow, Session: session, CredentialBindings: call.CredentialBindings, UsedSlots: usedSlots}, nil
+	return &Authentication{Operation: authOperation, CallProfile: callProfile, ProfileRef: call.Profile, Profile: authProfile, Flow: call.Flow, Session: session, CredentialBindings: call.CredentialBindings, UsedSlots: usedSlots}, nil
+}
+
+// LoadProjectRole loads and validates the browser contract selected by one
+// already-loaded native Ramen project role.
+func LoadProjectRole(doc *project.Document, resource project.Resource, purpose string, role project.OperationRole) (*Role, error) {
+	if doc == nil {
+		return nil, fmt.Errorf("browser contract validation requires a loaded project")
+	}
+	source := project.SourceForRole(doc.Profile, role)
+	if strings.TrimSpace(source.Kind) != string(uws1.SourceDescriptionTypeBrowserProfile) {
+		return nil, fmt.Errorf("operation role source is not browser-profile")
+	}
+	profile, err := LoadProfile(doc.Dir, source.Path)
+	if err != nil {
+		return nil, err
+	}
+	return ValidateRole(doc, resource, purpose, role, source, profile)
 }
 
 func operationByID(doc *uws1.Document, id string) (*uws1.Operation, error) {

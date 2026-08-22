@@ -16,10 +16,12 @@ import (
 	"github.com/OpenUdon/evidence/digest"
 	"github.com/OpenUdon/ramen/governance"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/internal/browsercontract"
 	"github.com/OpenUdon/ramen/project"
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
+	"github.com/OpenUdon/uws/uws1"
 )
 
 const Version = "ramen.plan.v1"
@@ -144,8 +146,17 @@ type MappingPlan struct {
 	Normalizers        []project.Normalizer          `json:"normalizers,omitempty"`
 	MappingLifecycle   *project.MappingLifecycle     `json:"mapping_lifecycle,omitempty"`
 	RequiredOperations []string                      `json:"required_operations,omitempty"`
+	Browser            *BrowserPlan                  `json:"browser,omitempty"`
 	AI                 *project.AIMetadata           `json:"ai,omitempty"`
 }
+
+// BrowserPlan is the stable browser contract projected by Ramen planning.
+type BrowserPlan = browsercontract.Projection
+type OutputProjection = browsercontract.OutputProjection
+type ContextProjection = browsercontract.ContextProjection
+type ConfirmationProjection = browsercontract.ConfirmationProjection
+type CredentialBindingProjection = browsercontract.CredentialBindingProjection
+type AuthenticationProjection = browsercontract.AuthenticationProjection
 
 type DesiredHashInput struct {
 	Address         string
@@ -171,6 +182,7 @@ type MappingHashInput struct {
 	Normalizers        []project.Normalizer
 	MappingLifecycle   *project.MappingLifecycle
 	RequiredOperations []string
+	Browser            *BrowserPlan `json:"Browser,omitempty"`
 }
 
 type Diagnostic struct {
@@ -189,6 +201,7 @@ type sourceDoc struct {
 	Path       string
 	Digest     string
 	Operations []apitools.OperationSummary
+	Browser    *browsercontract.Profile
 }
 
 type objectFact struct {
@@ -236,7 +249,7 @@ func Build(ctx context.Context, opts Options) (*Result, error) {
 	}
 	diagnostics = append(diagnostics, staticBlockDiagnostics(doc)...)
 
-	apiSources, apiDiagnostics := loadAPISources(ctx, opts.APISources)
+	apiSources, apiDiagnostics := loadAPISources(ctx, opts.ConfigDir, opts.APISources)
 	diagnostics = append(diagnostics, apiDiagnostics...)
 
 	var store *state.Store
@@ -342,7 +355,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 	}
 	proj.Profile = resolvedProfile
 	apiInputs := projectAPISourceInputs(proj.Profile, opts.APISources)
-	apiSources, apiDiagnostics := loadAPISources(ctx, apiInputs)
+	apiSources, apiDiagnostics := loadAPISources(ctx, proj.Dir, apiInputs)
 	diagnostics = append(diagnostics, apiDiagnostics...)
 
 	var store *state.Store
@@ -381,7 +394,7 @@ func buildProject(ctx context.Context, opts Options) (*Result, error) {
 		}
 		resource := resourcesByAddress[node.Address]
 		desiredAddresses[resource.Address] = true
-		resourcePlan := planProjectResource(ctx, store, proj.Profile, resource, node.DependsOn, opts.Action, apiSources, slices.Contains(opts.Replaces, resource.Address), inputs.Digest)
+		resourcePlan := planProjectResource(ctx, store, proj, resource, node.DependsOn, opts.Action, apiSources, slices.Contains(opts.Replaces, resource.Address), inputs.Digest)
 		diagnostics = append(diagnostics, resourcePlan.diagnostics...)
 		resources = append(resources, resourcePlan.resource)
 	}
@@ -618,11 +631,11 @@ func planResource(ctx context.Context, store *state.Store, obj objectFact, depen
 	}
 }
 
-func planProjectResource(ctx context.Context, store *state.Store, profile project.Profile, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool, inputsDigest string) plannedResource {
+func planProjectResource(ctx context.Context, store *state.Store, doc *project.Document, resource project.Resource, dependencies []string, requestedAction string, sources []sourceDoc, forcedReplace bool, inputsDigest string) plannedResource {
 	requestedAction = defaultProjectAction(resource, requestedAction)
 	lifecycle := analyzeProjectLifecycle(resource)
 	diagnostics := slices.Clone(lifecycle.Diagnostics)
-	desiredMapping, desiredMappingDiagnostics := mapProjectResource(profile, resource, desiredPurpose(requestedAction), requestedAction, sources, mappingRequired(requestedAction, requestedAction))
+	desiredMapping, desiredMappingDiagnostics := mapProjectResource(doc, resource, desiredPurpose(requestedAction), requestedAction, sources, mappingRequired(requestedAction, requestedAction))
 	diagnostics = append(diagnostics, desiredMappingDiagnostics...)
 	hash := desiredProjectHash(resource, lifecycle, desiredMapping, sources, inputsDigest)
 	action := "create"
@@ -695,7 +708,7 @@ func planProjectResource(ctx context.Context, store *state.Store, profile projec
 	}
 	mapping := desiredMapping
 	if mapping == nil || purpose != desiredMapping.Purpose || action != requestedAction {
-		actualMapping, actualDiagnostics := mapProjectResource(profile, resource, purpose, action, sources, mappingRequired(requestedAction, action))
+		actualMapping, actualDiagnostics := mapProjectResource(doc, resource, purpose, action, sources, mappingRequired(requestedAction, action))
 		mapping = actualMapping
 		diagnostics = append(diagnostics, actualDiagnostics...)
 	}
@@ -842,7 +855,7 @@ func mapResource(obj objectFact, purpose, action string, sources []sourceDoc, re
 	return mappingPlanForSpec(purpose, spec), diagnostics
 }
 
-func mapProjectResource(profile project.Profile, resource project.Resource, purpose, action string, sources []sourceDoc, required bool) (*MappingPlan, []Diagnostic) {
+func mapProjectResource(doc *project.Document, resource project.Resource, purpose, action string, sources []sourceDoc, required bool) (*MappingPlan, []Diagnostic) {
 	role, ok := projectOperationRole(resource, purpose, action)
 	if !ok {
 		severity := "warning"
@@ -856,7 +869,7 @@ func mapProjectResource(profile project.Profile, resource project.Resource, purp
 			Address:  resource.Address,
 		}}
 	}
-	source := project.SourceForRole(profile, role)
+	source := project.SourceForRole(doc.Profile, role)
 	sourceKind := firstNonEmpty(role.SourceKind, source.Kind)
 	sourceID := firstNonEmpty(role.SourceID, source.ID)
 	sourcePath := firstNonEmpty(role.SourcePath, source.Path)
@@ -868,7 +881,48 @@ func mapProjectResource(profile project.Profile, resource project.Resource, purp
 	mapping.OperationID = role.OperationID
 	mapping.AI = role.AI
 	diagnostics := validateProjectOperation(resource, mapping, sources, required)
+	if sourceKind == string(uws1.SourceDescriptionTypeBrowserProfile) && len(diagnostics) == 0 {
+		matched := matchingProjectSources(mapping, sources)
+		if len(matched) == 1 && matched[0].Browser != nil {
+			contract, err := browsercontract.ValidateRole(doc, resource, purpose, role, project.APISource{
+				Kind: matched[0].Kind, ID: matched[0].ID, Path: matched[0].Path,
+			}, matched[0].Browser)
+			if err != nil {
+				diagnostics = append(diagnostics, Diagnostic{
+					Code: "project.browser_contract_invalid", Severity: "error", Message: err.Error(),
+					Address: resource.Address, APISourceKind: sourceKind, APISourceID: sourceID,
+				})
+			} else {
+				mapping.Browser = browsercontract.NewProjection(contract)
+			}
+		}
+	}
 	return mapping, diagnostics
+}
+
+func matchingProjectSources(mapping *MappingPlan, sources []sourceDoc) []sourceDoc {
+	if mapping == nil || strings.TrimSpace(mapping.OperationID) == "" {
+		return nil
+	}
+	var matches []sourceDoc
+	for _, source := range sources {
+		if mapping.SourceKind != "" && source.Kind != mapping.SourceKind {
+			continue
+		}
+		if mapping.SourceID != "" && source.ID != mapping.SourceID {
+			continue
+		}
+		if mapping.SourceID == "" && mapping.SourcePath != "" && filepath.Clean(source.Path) != filepath.Clean(mapping.SourcePath) {
+			continue
+		}
+		for _, operation := range source.Operations {
+			if operation.OperationID == mapping.OperationID {
+				matches = append(matches, source)
+				break
+			}
+		}
+	}
+	return matches
 }
 
 func mappingPlanForSpec(purpose string, spec tfmapping.Mapping) *MappingPlan {
@@ -916,24 +970,7 @@ func validateProjectOperation(resource project.Resource, mapping *MappingPlan, s
 	if mapping == nil || strings.TrimSpace(mapping.OperationID) == "" {
 		return nil
 	}
-	var matches []sourceDoc
-	for _, source := range sources {
-		if mapping.SourceKind != "" && source.Kind != mapping.SourceKind {
-			continue
-		}
-		if mapping.SourceID != "" && source.ID != mapping.SourceID {
-			continue
-		}
-		if mapping.SourceID == "" && mapping.SourcePath != "" && filepath.Clean(source.Path) != filepath.Clean(mapping.SourcePath) {
-			continue
-		}
-		for _, op := range source.Operations {
-			if op.OperationID == mapping.OperationID {
-				matches = append(matches, source)
-				break
-			}
-		}
-	}
+	matches := matchingProjectSources(mapping, sources)
 	switch len(matches) {
 	case 0:
 		severity := "warning"
@@ -1186,6 +1223,7 @@ func desiredHash(obj objectFact, lifecycle lifecyclePlan, mapping *MappingPlan, 
 			Normalizers:        mapping.Normalizers,
 			MappingLifecycle:   mapping.MappingLifecycle,
 			RequiredOperations: mapping.RequiredOperations,
+			Browser:            mapping.Browser,
 		}
 		selectedDigest = selectedSourceDigest(mapping, sources)
 	}
@@ -1225,6 +1263,7 @@ func desiredProjectHash(resource project.Resource, lifecycle lifecyclePlan, mapp
 			Normalizers:        mapping.Normalizers,
 			MappingLifecycle:   mapping.MappingLifecycle,
 			RequiredOperations: mapping.RequiredOperations,
+			Browser:            mapping.Browser,
 		}
 		selectedDigest = selectedSourceDigest(mapping, sources)
 	}
@@ -1757,7 +1796,7 @@ func normalizeApprovers(approvers []governance.Approver) ([]governance.Approver,
 	return out, diagnostics
 }
 
-func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
+func loadAPISources(ctx context.Context, anchorDir string, inputs []APISourceInput) ([]sourceDoc, []Diagnostic) {
 	var docs []sourceDoc
 	var diagnostics []Diagnostic
 	seenIDs := map[string]bool{}
@@ -1767,7 +1806,7 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 		input.Path = strings.TrimSpace(input.Path)
 		switch {
 		case input.Kind == "":
-			diagnostics = append(diagnostics, Diagnostic{Code: "api_source.invalid", Severity: "error", Message: "--api-source kind is required and must be openapi, aws-smithy, or google-discovery"})
+			diagnostics = append(diagnostics, Diagnostic{Code: "api_source.invalid", Severity: "error", Message: "--api-source kind is required and must be openapi, aws-smithy, google-discovery, or browser-profile"})
 			continue
 		case input.ID == "":
 			diagnostics = append(diagnostics, Diagnostic{Code: "api_source.invalid", Severity: "error", Message: "--api-source ID is required", APISourceKind: input.Kind})
@@ -1780,6 +1819,20 @@ func loadAPISources(ctx context.Context, inputs []APISourceInput) ([]sourceDoc, 
 			continue
 		}
 		seenIDs[input.ID] = true
+		if input.Kind == string(uws1.SourceDescriptionTypeBrowserProfile) {
+			profile, err := browsercontract.LoadProfile(anchorDir, input.Path)
+			if err != nil {
+				diagnostics = append(diagnostics, Diagnostic{Code: "api_source.load_error", Severity: "error", Message: err.Error(), APISourceKind: input.Kind, APISourceID: input.ID})
+				continue
+			}
+			operations := make([]apitools.OperationSummary, 0, len(profile.Actions))
+			for id := range profile.Actions {
+				operations = append(operations, apitools.OperationSummary{ID: id, DocumentName: input.ID, DocumentPath: profile.Path, OperationID: id})
+			}
+			slices.SortFunc(operations, func(a, b apitools.OperationSummary) int { return cmp.Compare(a.OperationID, b.OperationID) })
+			docs = append(docs, sourceDoc{ID: input.ID, Kind: input.Kind, Path: profile.Path, Digest: profile.Digest, Operations: operations, Browser: profile})
+			continue
+		}
 		digest, digestErr := fileDigest(input.Path)
 		if digestErr != nil {
 			diagnostics = append(diagnostics, Diagnostic{Code: "api_source.load_error", Severity: "error", Message: digestErr.Error(), APISourceKind: input.Kind, APISourceID: input.ID})
@@ -2228,6 +2281,8 @@ func normalizeAPISourceKind(kind string) string {
 		return apitools.APISourceKindAWSSmithy
 	case apitools.APISourceKindGoogleDiscovery, "discovery", "google":
 		return apitools.APISourceKindGoogleDiscovery
+	case string(uws1.SourceDescriptionTypeBrowserProfile), "browser", "browser_profile":
+		return string(uws1.SourceDescriptionTypeBrowserProfile)
 	default:
 		return ""
 	}

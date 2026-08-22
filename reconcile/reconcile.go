@@ -14,6 +14,7 @@ import (
 	tfapply "github.com/OpenUdon/ramen/apply"
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/graph"
+	"github.com/OpenUdon/ramen/internal/browsercontract"
 	"github.com/OpenUdon/ramen/internal/redact"
 	"github.com/OpenUdon/ramen/internal/stateprojection"
 	tfplan "github.com/OpenUdon/ramen/plan"
@@ -153,7 +154,7 @@ func Refresh(ctx context.Context, opts Options) (*Result, error) {
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		}
-		req.Capabilities = executor.RequirementsForAction(action)
+		req.Capabilities = tfapply.RequirementsForResource(asAction(resource, "read"), action, req.Runtime)
 		req.Idempotency = executor.IdempotencyForAction(action)
 		req.Events = tfapply.ExecutorEventSink(store)
 		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
@@ -306,7 +307,7 @@ func Destroy(ctx context.Context, opts Options) (*Result, error) {
 			WorkingDir: workingDir,
 			OutDir:     opts.OutDir,
 		}
-		req.Capabilities = executor.RequirementsForAction(action)
+		req.Capabilities = tfapply.RequirementsForResource(resource, action, req.Runtime)
 		req.Idempotency = executor.IdempotencyForAction(action)
 		req.Events = tfapply.ExecutorEventSink(store)
 		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
@@ -609,7 +610,7 @@ func verifyImportRead(ctx context.Context, opts ImportOptions, store *state.Stor
 		Document:   doc,
 		WorkingDir: workingDir,
 	}
-	req.Capabilities = executor.RequirementsForAction(action)
+	req.Capabilities = tfapply.RequirementsForResource(resource, action, req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	req.Events = tfapply.ExecutorEventSink(store)
 	if err := executor.EnsureSupported(opts.Executor, req); err != nil {
@@ -776,6 +777,13 @@ func refreshReadMappings(ctx context.Context, opts Options) (map[string]*tfplan.
 	if err != nil {
 		return nil, fmt.Errorf("refresh.project_load_error: %w", err)
 	}
+	resolved, _, valueDiagnostics := project.ResolveProfile(doc.Profile, doc.Dir, project.ValuesOptions{VarFiles: opts.VarFiles, Vars: opts.Vars})
+	for _, diagnostic := range valueDiagnostics {
+		if diagnostic.Severity == "error" {
+			return nil, fmt.Errorf("refresh.project_values_error: %s", diagnostic.Message)
+		}
+	}
+	doc.Profile = resolved
 	out := map[string]*tfplan.MappingPlan{}
 	for _, resource := range doc.Profile.Resources {
 		if resource.Kind != "resource" {
@@ -797,6 +805,13 @@ func refreshReadMappings(ctx context.Context, opts Options) (map[string]*tfplan.
 			ResponseBindings:   slices.Clone(resource.ResponseBindings),
 			Normalizers:        slices.Clone(resource.Normalizers),
 			MappingLifecycle:   cloneProjectMappingLifecycle(resource.MappingLifecycle),
+		}
+		if source.Kind == "browser-profile" {
+			contract, err := browsercontract.LoadProjectRole(doc, resource, "read", role)
+			if err != nil {
+				return nil, fmt.Errorf("refresh.browser_contract_invalid: %s: %w", resource.Address, err)
+			}
+			out[resource.Address].Browser = browsercontract.NewProjection(contract)
 		}
 	}
 	return out, nil

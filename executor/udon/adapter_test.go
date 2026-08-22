@@ -6,13 +6,32 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/uws/uws1"
 	"github.com/genelet/udon/generator"
 	"github.com/genelet/udon/pkg/credentials"
 	"github.com/genelet/udon/pkg/uwsprofile"
 )
+
+func TestExecutorRejectsBrowserBeforeRuntimeInvocation(t *testing.T) {
+	projected := false
+	exec := Executor{OutputProjector: func(context.Context, executor.Request, string) (executor.Result, error) {
+		projected = true
+		return executor.Result{}, nil
+	}}
+	action := executor.Action{
+		Address: "example.browser", Type: "example_browser", Action: "read",
+		Mapping: executor.ActionMapping{SourceKind: "browser-profile", OperationID: "read_status"},
+	}
+	requirement := executor.RequirementsForBrowser(executor.RequirementsForAction(action), executor.BrowserRequirements{NamedSession: true})
+	_, err := exec.Execute(context.Background(), executor.Request{Action: action, Capabilities: requirement})
+	if err == nil || !strings.Contains(err.Error(), "unsupported protocol") || projected {
+		t.Fatalf("browser request reached Udon runtime: err=%v projected=%t", err, projected)
+	}
+}
 
 func TestEnsureUdonRequestSectionSchemasAddsQueryAPIParameter(t *testing.T) {
 	doc := &uws1.Document{

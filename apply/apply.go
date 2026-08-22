@@ -14,6 +14,7 @@ import (
 
 	"github.com/OpenUdon/ramen/executor"
 	"github.com/OpenUdon/ramen/internal/asyncrecord"
+	"github.com/OpenUdon/ramen/internal/browsercontract"
 	"github.com/OpenUdon/ramen/internal/requestbinding"
 	"github.com/OpenUdon/ramen/internal/stateprojection"
 	tfplan "github.com/OpenUdon/ramen/plan"
@@ -21,6 +22,7 @@ import (
 	"github.com/OpenUdon/ramen/state"
 	"github.com/OpenUdon/ramen/tfmapping"
 	"github.com/OpenUdon/tfconfig"
+	"github.com/OpenUdon/uws/browserauthentication"
 	"github.com/OpenUdon/uws/uws1"
 )
 
@@ -167,7 +169,11 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 
 	sourcePaths := sourcePathIndex(opts.APISources)
 	attrsByAddress := loadResourceAttributes(opts.ConfigDir, opts.ProjectPath, opts.VarFiles, opts.Vars)
-	readMappings := applyReadMappings(opts.ProjectPath)
+	readMappings, err := applyReadMappings(opts.ProjectPath, opts.VarFiles, opts.Vars)
+	if err != nil {
+		runStatus = "failed"
+		return result, err
+	}
 	workingDir := opts.ConfigDir
 	if opts.ProjectPath != "" {
 		workingDir = stateBaseDir(opts.ProjectPath, opts.ConfigDir)
@@ -319,7 +325,7 @@ func Apply(ctx context.Context, opts Options) (*Result, error) {
 			OutDir:     opts.OutDir,
 		}
 		req.Runtime = executorRuntimeHints(resource.RuntimeHints, false)
-		req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
+		req.Capabilities = RequirementsForResource(resource, action, req.Runtime)
 		req.Idempotency = executor.IdempotencyForAction(action)
 		if err := executor.EnsureSupported(opts.Executor, req); err != nil {
 			runStatus = "failed"
@@ -497,6 +503,9 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 	if strings.TrimSpace(resource.Mapping.OperationID) == "" {
 		return nil, fmt.Errorf("resource %s has no API source operation", resource.Address)
 	}
+	if resource.Mapping.Browser != nil {
+		return buildBrowserActionDocument(resource, attrs, identity)
+	}
 	sourceName := normalizeName(firstNonEmpty(resource.Mapping.SourceID, resource.Mapping.SourceKind, "api_source"))
 	operationID := normalizeName(resource.Address + "_" + resource.Action)
 	if operationID == "" {
@@ -576,6 +585,179 @@ func buildActionDocument(resource tfplan.ResourcePlan, sourcePaths map[string]st
 		return nil, err
 	}
 	return doc, nil
+}
+
+func buildBrowserActionDocument(resource tfplan.ResourcePlan, attrs, identity map[string]any) (*uws1.Document, error) {
+	browser := resource.Mapping.Browser
+	if browser == nil {
+		return nil, fmt.Errorf("resource %s has no browser plan", resource.Address)
+	}
+	if strings.TrimSpace(browser.UWSOperationID) == "" || strings.TrimSpace(browser.ActionID) == "" {
+		return nil, fmt.Errorf("resource %s has an incomplete browser operation projection", resource.Address)
+	}
+	uwsVersion, err := minimumBrowserUWS(browser)
+	if err != nil {
+		return nil, fmt.Errorf("resource %s: %w", resource.Address, err)
+	}
+	request := cloneRequestMap(browser.Request)
+	for _, binding := range resource.Mapping.RequestBindings {
+		if !requestBindingApplies(binding, resource.Action, resource.Mapping.OperationID) {
+			continue
+		}
+		value, ok := bindingValue(binding, attrs, identity)
+		if !ok {
+			continue
+		}
+		body, _ := request["body"].(map[string]any)
+		if body == nil {
+			body = map[string]any{}
+			request["body"] = body
+		}
+		setBrowserRequestValue(body, firstNonEmpty(binding.RequestPath, binding.Path), encodeBindingValue(binding, value))
+	}
+	stepBody := executorStepBody(request)
+	outputs := make(map[string]string, len(browser.Outputs))
+	for _, output := range browser.Outputs {
+		outputs[output.Name] = "$response.body." + output.Name
+	}
+	sourceName := normalizeName(firstNonEmpty(resource.Mapping.SourceID, "browser_profile"))
+	operation := &uws1.Operation{
+		OperationID:       browser.UWSOperationID,
+		SourceDescription: sourceName,
+		SourceOperationID: browser.ActionID,
+		Description:       fmt.Sprintf("Apply %s for %s", resource.Action, resource.Address),
+		Request:           request,
+		Outputs:           outputs,
+	}
+	if browser.Session != "" {
+		if err := browserauthentication.SetSessionExtension(&operation.Extensions, &browserauthentication.OperationSession{Session: browser.Session}); err != nil {
+			return nil, err
+		}
+	}
+	operations := []*uws1.Operation{operation}
+	if browser.Authentication != nil {
+		auth := browser.Authentication
+		timeout := auth.TimeoutSeconds
+		authOperation := &uws1.Operation{
+			OperationID:              auth.UWSOperationID,
+			OperationExecutionFields: uws1.OperationExecutionFields{Timeout: &timeout},
+			Extensions:               map[string]any{uws1.ExtensionOperationProfile: auth.CallProfile},
+		}
+		bindings := make(map[string]string, len(auth.CredentialBindings))
+		for _, binding := range auth.CredentialBindings {
+			bindings[binding.Slot] = binding.Binding
+		}
+		if err := browserauthentication.SetAuthenticationExtension(&authOperation.Extensions, &browserauthentication.OperationAuthentication{
+			Profile: auth.ProfileRef, Flow: auth.Flow, Session: auth.Session, CredentialBindings: bindings,
+		}); err != nil {
+			return nil, err
+		}
+		operation.DependsOn = []string{authOperation.OperationID}
+		operations = append([]*uws1.Operation{authOperation}, operations...)
+	}
+	doc := &uws1.Document{
+		UWS: uwsVersion,
+		Info: &uws1.Info{
+			Title:       "ramen_browser_action",
+			Description: "Executor-ready Ramen browser action generated from an approved desired-state plan.",
+			Version:     "1.0.0",
+		},
+		SourceDescriptions: []*uws1.SourceDescription{{
+			Name: sourceName, URL: filepath.ToSlash(browser.ProfileRef), Type: uws1.SourceDescriptionTypeBrowserProfile,
+		}},
+		Operations: operations,
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main", Type: uws1.WorkflowTypeSequence,
+			Description: "Execute one approved Ramen browser action.",
+			Steps: []*uws1.Step{{
+				StepID: browser.UWSOperationID, OperationRef: browser.UWSOperationID,
+				Body: stepBody, Outputs: outputs,
+			}},
+		}},
+		Extensions: map[string]any{
+			"x-ramen-plan-version": tfplan.Version,
+			"x-ramen-executor":     map[string]any{"idempotency": executor.IdempotencyForAction(executorAction(resource))},
+		},
+	}
+	if err := doc.Validate(); err != nil {
+		return nil, err
+	}
+	return doc, nil
+}
+
+func minimumBrowserUWS(browser *tfplan.BrowserPlan) (string, error) {
+	version := "1.5.0"
+	if browser == nil {
+		return "", fmt.Errorf("browser plan is required")
+	}
+	switch browser.ProfileVersion {
+	case "uws.browser.1.5":
+	case "uws.browser.1.6":
+		version = "1.8.0"
+	case "uws.browser.1.7":
+		version = "1.9.0"
+	default:
+		return "", fmt.Errorf("unsupported browser profile %q", browser.ProfileVersion)
+	}
+	if strings.TrimSpace(browser.ProfileRef) == "" {
+		return "", fmt.Errorf("browser profile reference is required")
+	}
+	if browser.ExternalSession && browser.Session == "" {
+		return "", fmt.Errorf("external browser session requires a symbolic session name")
+	}
+	if browser.Session != "" && versionLess(version, "1.7.0") {
+		version = "1.7.0"
+	}
+	if browser.Authentication != nil {
+		auth := browser.Authentication
+		if browser.ExternalSession || browser.Session == "" || auth.Session != browser.Session {
+			return "", fmt.Errorf("browser authentication requires the matching internal symbolic session")
+		}
+		if strings.TrimSpace(auth.UWSOperationID) == "" || strings.TrimSpace(auth.ProfileRef) == "" || auth.TimeoutSeconds <= 0 || auth.TimeoutSeconds > 600 {
+			return "", fmt.Errorf("browser authentication projection is incomplete")
+		}
+		required := ""
+		switch {
+		case auth.ProfileVersion == browserauthentication.ProfileName && auth.CallProfile == browserauthentication.CallProfileName:
+			required = "1.7.0"
+		case auth.ProfileVersion == browserauthentication.ContextProfileName && auth.CallProfile == browserauthentication.ContextCallProfileName:
+			required = "1.8.0"
+		default:
+			return "", fmt.Errorf("browser authentication profile/call pair is incompatible")
+		}
+		if versionLess(version, required) {
+			version = required
+		}
+	}
+	return version, nil
+}
+
+func versionLess(actual, required string) bool {
+	return strings.Compare(actual, required) < 0
+}
+
+func setBrowserRequestValue(target map[string]any, path string, value any) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return
+	}
+	parts := strings.Split(path, ".")
+	current := target
+	for _, part := range parts[:len(parts)-1] {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return
+		}
+		nested, _ := current[part].(map[string]any)
+		if nested == nil {
+			nested = map[string]any{}
+			current[part] = nested
+		}
+		current = nested
+	}
+	if last := strings.TrimSpace(parts[len(parts)-1]); last != "" {
+		current[last] = value
+	}
 }
 
 func hasNativeRequestBindingsForAction(resource tfplan.ResourcePlan) bool {
@@ -1040,7 +1222,7 @@ func executeReadPlanAction(ctx context.Context, exec executor.Executor, store *s
 		OutDir:     outDir,
 	}
 	req.Runtime = executorRuntimeHints(resource.RuntimeHints, true)
-	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
+	req.Capabilities = RequirementsForResource(resource, action, req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	if err := executor.EnsureSupported(exec, req); err != nil {
 		return readActionResult{Document: docPath}, err
@@ -1089,7 +1271,7 @@ func executeReadCheckWithIdentity(ctx context.Context, exec executor.Executor, s
 		OutDir:     outDir,
 	}
 	req.Runtime = executorRuntimeHints(resource.RuntimeHints, phase != "baseline" && phase != "settle")
-	req.Capabilities = executor.RequirementsForRuntimeHints(executor.RequirementsForAction(action), req.Runtime)
+	req.Capabilities = RequirementsForResource(readResource, action, req.Runtime)
 	req.Idempotency = executor.IdempotencyForAction(action)
 	if phase != "" {
 		req.Idempotency.Key += "-" + phase
@@ -1526,14 +1708,21 @@ func currentIdentity(ctx context.Context, store *state.Store, address string) (m
 	return identity, nil
 }
 
-func applyReadMappings(projectPath string) map[string]*tfplan.MappingPlan {
+func applyReadMappings(projectPath string, varFiles, vars []string) (map[string]*tfplan.MappingPlan, error) {
 	if strings.TrimSpace(projectPath) == "" {
-		return nil
+		return nil, nil
 	}
 	doc, err := project.Load(projectPath)
 	if err != nil {
-		return nil
+		return nil, fmt.Errorf("apply.read_mapping_load_error: %w", err)
 	}
+	resolved, _, diagnostics := project.ResolveProfile(doc.Profile, doc.Dir, project.ValuesOptions{VarFiles: varFiles, Vars: vars})
+	for _, diagnostic := range diagnostics {
+		if diagnostic.Severity == "error" {
+			return nil, fmt.Errorf("apply.read_mapping_values_error: %s", diagnostic.Message)
+		}
+	}
+	doc.Profile = resolved
 	out := map[string]*tfplan.MappingPlan{}
 	for _, resource := range doc.Profile.Resources {
 		if resource.Kind != "resource" {
@@ -1558,8 +1747,15 @@ func applyReadMappings(projectPath string) map[string]*tfplan.MappingPlan {
 			MappingLifecycle:   cloneMappingLifecycle(resource.MappingLifecycle),
 			RequiredOperations: slices.Clone(resource.RequiredOperations),
 		}
+		if source.Kind == string(uws1.SourceDescriptionTypeBrowserProfile) {
+			contract, err := browsercontract.LoadProjectRole(doc, resource, "read", role)
+			if err != nil {
+				return nil, fmt.Errorf("apply.browser_contract_invalid: %s: %w", resource.Address, err)
+			}
+			out[resource.Address].Browser = browsercontract.NewProjection(contract)
+		}
 	}
-	return out
+	return out, nil
 }
 
 func executorRuntimeHints(hints *project.RuntimeHints, includeWaiter bool) executor.RuntimeHints {
@@ -1573,6 +1769,43 @@ func executorRuntimeHints(hints *project.RuntimeHints, includeWaiter bool) execu
 		out.Waiter = cloneAnyMap(hints.Waiter)
 	}
 	return out
+}
+
+// RequirementsForResource derives the complete executor capability gate for a
+// planned resource, including its digest-bound browser contract.
+func RequirementsForResource(resource tfplan.ResourcePlan, action executor.Action, runtime executor.RuntimeHints) executor.CapabilityRequirement {
+	requirement := executor.RequirementsForAction(action)
+	if resource.Mapping != nil && resource.Mapping.Browser != nil {
+		browser := resource.Mapping.Browser
+		features := executor.BrowserRequirements{
+			Contexts:               len(browser.Contexts) > 0,
+			NamedSession:           browser.Session != "",
+			ExternalSession:        browser.ExternalSession,
+			Authentication:         browser.Authentication != nil,
+			MutationApproval:       browserMutation(browser.SideEffects),
+			AuthenticationApproval: browser.Authentication != nil,
+		}
+		if browser.Authentication != nil && len(browser.Authentication.Contexts) > 0 {
+			features.Contexts = true
+		}
+		for _, output := range browser.Outputs {
+			if output.Presence || (output.Type != "" && output.Type != "string") {
+				features.ScalarOutputs = true
+				break
+			}
+		}
+		requirement = executor.RequirementsForBrowser(requirement, features)
+	}
+	return executor.RequirementsForRuntimeHints(requirement, runtime)
+}
+
+func browserMutation(sideEffects []string) bool {
+	for _, effect := range sideEffects {
+		if strings.TrimSpace(effect) != "" && strings.TrimSpace(effect) != "read_only" {
+			return true
+		}
+	}
+	return false
 }
 
 func waiterPredicate(waiter map[string]any) string {
@@ -1938,6 +2171,8 @@ func sourceDescriptionType(kind string) uws1.SourceDescriptionType {
 		return uws1.SourceDescriptionTypeAWSSmithy
 	case "google-discovery":
 		return uws1.SourceDescriptionTypeGoogleDiscovery
+	case "browser-profile":
+		return uws1.SourceDescriptionTypeBrowserProfile
 	default:
 		return uws1.SourceDescriptionTypeOpenAPI
 	}

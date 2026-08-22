@@ -36,14 +36,21 @@ type ActionMapping struct {
 }
 
 const (
-	FeatureOutputIdentity  = "output.identity"
-	FeatureOutputComputed  = "output.computed"
-	FeatureMissingEvidence = "output.missing"
-	FeatureProgressEvents  = "progress.events"
-	FeatureIdempotency     = "idempotency"
-	FeatureRetry           = "retry"
-	FeatureWaiter          = "waiter"
-	FeaturePagination      = "pagination"
+	FeatureOutputIdentity                = "output.identity"
+	FeatureOutputComputed                = "output.computed"
+	FeatureMissingEvidence               = "output.missing"
+	FeatureProgressEvents                = "progress.events"
+	FeatureIdempotency                   = "idempotency"
+	FeatureRetry                         = "retry"
+	FeatureWaiter                        = "waiter"
+	FeaturePagination                    = "pagination"
+	FeatureBrowserContexts               = "browser.contexts"
+	FeatureBrowserScalarOutputs          = "browser.outputs.scalar"
+	FeatureBrowserNamedSession           = "browser.session.named"
+	FeatureBrowserExternalSession        = "browser.session.external"
+	FeatureBrowserAuthentication         = "browser.authentication"
+	FeatureBrowserMutationApproval       = "browser.approval.mutation"
+	FeatureBrowserAuthenticationApproval = "browser.approval.authentication"
 )
 
 type CapabilityDescriptor struct {
@@ -55,6 +62,18 @@ type CapabilityDescriptor struct {
 type CapabilityRequirement struct {
 	Protocol string   `json:"protocol,omitempty"`
 	Features []string `json:"features,omitempty"`
+}
+
+// BrowserRequirements describes only the browser features that a trusted
+// executor must explicitly advertise for one approved action.
+type BrowserRequirements struct {
+	Contexts               bool
+	ScalarOutputs          bool
+	NamedSession           bool
+	ExternalSession        bool
+	Authentication         bool
+	MutationApproval       bool
+	AuthenticationApproval bool
 }
 
 type Capable interface {
@@ -186,6 +205,28 @@ func RequirementsForRuntimeHints(req CapabilityRequirement, hints RuntimeHints) 
 	return req
 }
 
+// RequirementsForBrowser adds browser-specific capability gates without
+// weakening the generic protocol and output requirements.
+func RequirementsForBrowser(req CapabilityRequirement, browser BrowserRequirements) CapabilityRequirement {
+	for _, feature := range []struct {
+		required bool
+		name     string
+	}{
+		{browser.Contexts, FeatureBrowserContexts},
+		{browser.ScalarOutputs, FeatureBrowserScalarOutputs},
+		{browser.NamedSession, FeatureBrowserNamedSession},
+		{browser.ExternalSession, FeatureBrowserExternalSession},
+		{browser.Authentication, FeatureBrowserAuthentication},
+		{browser.MutationApproval, FeatureBrowserMutationApproval},
+		{browser.AuthenticationApproval, FeatureBrowserAuthenticationApproval},
+	} {
+		if feature.required && !contains(req.Features, feature.name) {
+			req.Features = append(req.Features, feature.name)
+		}
+	}
+	return req
+}
+
 func IdempotencyForAction(action Action) Idempotency {
 	payload := []string{
 		action.Address,
@@ -230,7 +271,7 @@ var _ Executor = (*MockExecutor)(nil)
 
 func (m *MockExecutor) Capabilities() CapabilityDescriptor {
 	return CapabilityDescriptor{
-		Protocols:   []string{"aws-smithy", "openapi", "google-discovery", "uws", "unknown"},
+		Protocols:   []string{"aws-smithy", "openapi", "google-discovery", "browser-profile", "uws", "unknown"},
 		AuthSchemes: []string{"mock"},
 		Features: []string{
 			FeatureOutputIdentity,
@@ -241,6 +282,13 @@ func (m *MockExecutor) Capabilities() CapabilityDescriptor {
 			FeatureRetry,
 			FeatureWaiter,
 			FeaturePagination,
+			FeatureBrowserContexts,
+			FeatureBrowserScalarOutputs,
+			FeatureBrowserNamedSession,
+			FeatureBrowserExternalSession,
+			FeatureBrowserAuthentication,
+			FeatureBrowserMutationApproval,
+			FeatureBrowserAuthenticationApproval,
 		},
 	}
 }

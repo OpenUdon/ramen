@@ -47,6 +47,29 @@ func TestRequirementsForRuntimeHints(t *testing.T) {
 	}
 }
 
+func TestRequirementsForBrowserAreExplicitAndMockSupported(t *testing.T) {
+	action := Action{
+		Address: "example.browser", Type: "example_browser", Action: "update",
+		Mapping: ActionMapping{SourceKind: "browser-profile", SourceID: "browser", OperationID: "change_status"},
+	}
+	requirement := RequirementsForBrowser(RequirementsForAction(action), BrowserRequirements{
+		Contexts: true, ScalarOutputs: true, NamedSession: true, ExternalSession: true,
+		Authentication: true, MutationApproval: true, AuthenticationApproval: true,
+	})
+	for _, feature := range []string{
+		FeatureBrowserContexts, FeatureBrowserScalarOutputs, FeatureBrowserNamedSession,
+		FeatureBrowserExternalSession, FeatureBrowserAuthentication,
+		FeatureBrowserMutationApproval, FeatureBrowserAuthenticationApproval,
+	} {
+		if !contains(requirement.Features, feature) {
+			t.Fatalf("requirements %v missing %s", requirement.Features, feature)
+		}
+	}
+	if err := EnsureSupported(&MockExecutor{}, Request{Action: action, Capabilities: requirement}); err != nil {
+		t.Fatalf("mock browser support: %v", err)
+	}
+}
+
 func TestRecordedExecutorReplayAndRecord(t *testing.T) {
 	action := Action{
 		Address: "example.one",

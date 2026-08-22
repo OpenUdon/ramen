@@ -55,6 +55,38 @@ func TestValidateRoleAcceptsExactAuthenticationContract(t *testing.T) {
 	}
 }
 
+func TestValidateRoleKeepsDistinctConfigurationsForSameBrowserAction(t *testing.T) {
+	doc, resource, role, source, profile := browserRoleFixture(t, "uws.browser.1.7", "1.9.0", true)
+	doc.UWS.Operations[0].Request = map[string]any{"body": map[string]any{"item": "first"}}
+	second := &uws1.Operation{
+		OperationID: "read_status_second", SourceDescription: "browser", SourceOperationID: "read_status",
+		Request: map[string]any{"body": map[string]any{"item": "second"}},
+	}
+	if err := browserauthentication.SetSessionExtension(&second.Extensions, &browserauthentication.OperationSession{Session: "other_portal"}); err != nil {
+		t.Fatal(err)
+	}
+	doc.UWS.Operations = append(doc.UWS.Operations, second)
+
+	firstContract, err := ValidateRole(doc, resource, "read", role, source, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	role.UWSOperationRef = second.OperationID
+	secondContract, err := ValidateRole(doc, resource, "read", role, source, profile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, secondProjection := NewProjection(firstContract), NewProjection(secondContract)
+	if first.ActionID != secondProjection.ActionID || first.UWSOperationID == secondProjection.UWSOperationID || first.Session == secondProjection.Session {
+		t.Fatalf("distinct operation configurations collapsed: first=%#v second=%#v", first, secondProjection)
+	}
+	firstItem := first.Request["body"].(map[string]any)["item"]
+	secondItem := secondProjection.Request["body"].(map[string]any)["item"]
+	if firstItem != "first" || secondItem != "second" {
+		t.Fatalf("requests first=%#v second=%#v", first.Request, secondProjection.Request)
+	}
+}
+
 func TestValidateRoleRejectsCrossDocumentMismatches(t *testing.T) {
 	t.Run("profile version floor", func(t *testing.T) {
 		doc, resource, role, source, profile := browserRoleFixture(t, "uws.browser.1.7", "1.8.0", true)
