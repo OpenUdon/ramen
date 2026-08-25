@@ -64,7 +64,7 @@ go run ./cmd/corpusgen
 go run ./cmd/corpusgen --check
 go run ./cmd/traininggen
 go run ./cmd/traininggen --check
-go test . -run TestTraining -count=1
+go test ./tests -run TestTraining -count=1
 ```
 
 Default generation and tests use local fixtures only. They do not run live

@@ -76,7 +76,7 @@ accepts or requests a concrete cross-repo shape.
 Ramen enforces the current boundary with:
 
 ```bash
-go test . -run TestNoForbiddenProviderRuntimeImports -count=1
+go test ./tests -run TestNoForbiddenProviderRuntimeImports -count=1
 ```
 
 Any later implementation that consumes a reviewed shared contract must also run

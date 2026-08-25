@@ -169,7 +169,7 @@ compatibility adapter, but it should not be the canonical source model.
   gates on strict native validation; records `source_repo`; preserves an
   existing semantically-equal `.hcl` and prunes stale entries (stable,
   idempotent regeneration); writes `manifest.json` + `COVERAGE.md`.
-- **`corpus_test.go`** — re-converts each entry and asserts `project.uws.yaml`
+- **`tests/corpus_test.go`** — re-converts each entry and asserts `project.uws.yaml`
   and `plan.json` match byte-for-byte (deterministic) and `project.uws.hcl` is
   *structurally* equal to the YAML (`HCLToJSON`/`YAMLToJSON` + `DeepEqual`, since
   HCL key order is not stable). CI regression gate.
@@ -502,6 +502,6 @@ bindings, and fixture intake inside those services.
 ```
 go run ./cmd/corpusgen          # rebuild the corpus + COVERAGE.md
 go run ./cmd/corpusgen --check  # regenerate in a temporary directory and compare
-go test .                       # corpus regression (byte YAML/plan, structural HCL)
+go test ./tests                 # corpus regression (byte YAML/plan, structural HCL)
 go build ./... && go vet ./... && go test ./...   # full ramen suite
 ```

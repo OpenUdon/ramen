@@ -76,7 +76,7 @@ baseline is:
 
 Recent authoring fixes also keep request and response schemas separate and
 preserve writable desired inputs when read responses echo the same field path.
-The full 32-row replay is now enforced by `icot_replay_test.go` using the
+The full 32-row replay is now enforced by `tests/icot_replay_test.go` using the
 committed `ramen.icot-replay.v2` inventory at
 `testdata/parity/icot-replay.json`. Each row traverses the v2 interview graph,
 whole-frontier answers, evidence ledger, proposal approval, transactional
@@ -126,7 +126,7 @@ or network access.
 
 ## Remaining Cross-Cutting Gaps
 
-- Keep `icot_replay_test.go`, `testdata/parity/icot-replay.json`, and this
+- Keep `tests/icot_replay_test.go`, `testdata/parity/icot-replay.json`, and this
   table in sync; the replay gate now checks row, project, fixture, and API
   source coverage.
 - Preserve the Azure SQL convention: lifecycle-authored create-or-update

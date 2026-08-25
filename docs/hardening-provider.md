@@ -86,7 +86,7 @@ Ramen may read provider fixture files and explicit provider-schema JSON
 snapshots as inert conversion/test input, but it must not link provider runtime
 code into public builds. A snapshot validates only the foreign client
 configuration; API sources and reviewed Ramen mapping metadata remain
-authoritative for execution. The boundary test in `boundary_test.go` enforces
+authoritative for execution. The boundary test in `tests/boundary_test.go` enforces
 the current rule:
 
 - no Terraform provider packages, Terraform/OpenTofu runtime internals,
