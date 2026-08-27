@@ -5,9 +5,10 @@ go 1.26.3
 require (
 	github.com/OpenUdon/apitools v0.0.0-20260820042238-d51b61ead067
 	github.com/OpenUdon/authoring v0.0.0-20260820042256-2f73e3526583
+	github.com/OpenUdon/browsertools v0.0.0-20260826234723-75fd5c3ab81f
 	github.com/OpenUdon/evidence v0.0.0-20260603102736-08a9c38b00b7
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
-	github.com/OpenUdon/uws v0.0.0-20260819172405-e81d0dee410a
+	github.com/OpenUdon/uws v0.0.0-20260826233246-9e676eaa469e
 	github.com/hashicorp/hcl/v2 v2.24.0
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.1
 	github.com/zclconf/go-cty v1.18.1

@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -16,7 +17,62 @@ import (
 	sharedreport "github.com/OpenUdon/authoring/report"
 	"github.com/OpenUdon/ramen/project"
 	uwsconvert "github.com/OpenUdon/uws/convert"
+	"github.com/OpenUdon/uws/uws1"
 )
+
+func TestMaterializeProjectPreservesContentTrustWhileRewritingSources(t *testing.T) {
+	sourceData := []byte("{}\n")
+	sourceDigest := fmt.Sprintf("%x", sha256.Sum256(sourceData))
+	profile := project.Profile{Version: project.Version, APISources: []project.APISource{{Kind: "openapi", ID: "widgets", Path: "original.json"}}}
+	doc := &uws1.Document{
+		UWS:  "1.9.1",
+		Info: &uws1.Info{Title: "content trust materialization", Version: "1.0.0"},
+		SourceDescriptions: []*uws1.SourceDescription{{
+			Name: "widgets", URL: "original.json", Type: uws1.SourceDescriptionTypeOpenAPI,
+		}},
+		Operations: []*uws1.Operation{{
+			OperationID: "read_widget", SourceDescription: "widgets", SourceOperationID: "readWidget",
+			Outputs: map[string]string{"body": "$response.body"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main", Type: uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{{StepID: "read", OperationRef: "read_widget", Outputs: map[string]string{"body": "$outputs.body"}}},
+		}},
+		ContentTrust: &uws1.ContentTrust{
+			SourceDescriptions: map[string]uws1.ContentTrustLevel{"widgets": uws1.ContentTrustUntrusted},
+			Operations: map[string]*uws1.OperationContentTrust{
+				"read_widget": {Outputs: map[string]uws1.ContentTrustLevel{"body": uws1.ContentTrustUntrusted}},
+			},
+		},
+		Extensions: map[string]any{project.ExtensionKey: profile},
+	}
+	want := doc.ContentTrust
+	outDir := t.TempDir()
+	result, err := MaterializeProject(context.Background(), MaterializeOptions{
+		Document: doc, OutDir: outDir, Draft: true,
+		Sources: []SourceMaterialization{{
+			Kind: "openapi", ID: "widgets", TargetPath: "sources/openapi/widgets.json", Content: sourceData, SHA256: sourceDigest,
+		}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{result.ProjectPath, result.ProjectHCLPath} {
+		loaded, err := project.Load(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(loaded.UWS.ContentTrust, want) {
+			t.Fatalf("%s contentTrust = %#v, want %#v", path, loaded.UWS.ContentTrust, want)
+		}
+		if loaded.UWS.SourceDescriptions[0].URL != "sources/openapi/widgets.json" {
+			t.Fatalf("%s source URL = %q", path, loaded.UWS.SourceDescriptions[0].URL)
+		}
+	}
+	if doc.SourceDescriptions[0].URL != "original.json" {
+		t.Fatalf("materialization mutated caller document: %#v", doc.SourceDescriptions[0])
+	}
+}
 
 func TestMaterializeProjectIsProposalGatedAndTransactional(t *testing.T) {
 	sourceRoot := t.TempDir()

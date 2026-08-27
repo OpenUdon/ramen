@@ -3,12 +3,43 @@ package project
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
 	uwsconvert "github.com/OpenUdon/uws/convert"
 	"github.com/OpenUdon/uws/uws1"
 )
+
+func TestLoadPreservesContentTrustAcrossNativeFormats(t *testing.T) {
+	doc := contentTrustProjectDocument()
+	formats := []struct {
+		name    string
+		file    string
+		marshal func(*uws1.Document) ([]byte, error)
+	}{
+		{name: "json", file: DefaultJSON, marshal: uwsconvert.MarshalJSON},
+		{name: "yaml", file: DefaultFile, marshal: uwsconvert.MarshalYAML},
+		{name: "hcl", file: DefaultHCL, marshal: uwsconvert.MarshalHCL},
+	}
+	for _, format := range formats {
+		t.Run(format.name, func(t *testing.T) {
+			root := t.TempDir()
+			data, err := format.marshal(doc)
+			if err != nil {
+				t.Fatal(err)
+			}
+			writeProjectTestFile(t, filepath.Join(root, format.file), string(data))
+			loaded, err := Load(root)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if !reflect.DeepEqual(loaded.UWS.ContentTrust, doc.ContentTrust) {
+				t.Fatalf("%s contentTrust = %#v, want %#v", format.name, loaded.UWS.ContentTrust, doc.ContentTrust)
+			}
+		})
+	}
+}
 
 func TestLoadResolvesDefaultProjectAndRelativeSourcePaths(t *testing.T) {
 	root := t.TempDir()
@@ -211,6 +242,37 @@ func writeProjectDocumentForTest(t *testing.T, path string, profile Profile) {
 		t.Fatal(err)
 	}
 	writeProjectTestFile(t, path, string(data))
+}
+
+func contentTrustProjectDocument() *uws1.Document {
+	return &uws1.Document{
+		UWS:  "1.9.1",
+		Info: &uws1.Info{Title: "content_trust_project", Version: "1.0.0"},
+		SourceDescriptions: []*uws1.SourceDescription{{
+			Name: "browser", URL: "browser-profiles/status.json", Type: uws1.SourceDescriptionTypeBrowserProfile,
+		}},
+		Operations: []*uws1.Operation{{
+			OperationID: "review", SourceDescription: "browser", SourceOperationID: "read_status",
+			Outputs: map[string]string{"status": "$response.body.status"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main", Type: uws1.WorkflowTypeSequence,
+			Inputs: &uws1.ParamSchema{Type: "object", Properties: map[string]*uws1.ParamSchema{"locale": {Type: "string"}}},
+			Steps:  []*uws1.Step{{StepID: "review", OperationRef: "review"}},
+		}},
+		Triggers: []*uws1.Trigger{{TriggerID: "incoming"}},
+		ContentTrust: &uws1.ContentTrust{
+			SourceDescriptions: map[string]uws1.ContentTrustLevel{"browser": uws1.ContentTrustUntrusted},
+			Operations: map[string]*uws1.OperationContentTrust{
+				"review": {Default: uws1.ContentTrustUntrusted, Outputs: map[string]uws1.ContentTrustLevel{"status": uws1.ContentTrustTrusted}},
+			},
+			Triggers: map[string]uws1.ContentTrustLevel{"incoming": uws1.ContentTrustUntrusted},
+			Workflows: map[string]*uws1.WorkflowContentTrust{
+				"main": {Default: uws1.ContentTrustUnknown, Inputs: map[string]uws1.ContentTrustLevel{"locale": uws1.ContentTrustTrusted}},
+			},
+		},
+		Extensions: map[string]any{ExtensionKey: Profile{Version: Version}},
+	}
 }
 
 func writeProjectTestFile(t *testing.T, path, content string) {

@@ -194,7 +194,7 @@ func MaterializeProject(ctx context.Context, opts MaterializeOptions) (Result, e
 	}
 	hclData = newlineTerminated(hclData)
 	yamlPath := project.DefaultFile
-	hclPath := "project.uws.hcl"
+	hclPath := project.DefaultHCL
 	if opts.Draft {
 		yamlPath = project.DraftFile
 		hclPath = project.DraftHCL

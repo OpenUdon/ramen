@@ -179,6 +179,11 @@ func TestProjectSchemaAllowsDocumentedArbitraryMaps(t *testing.T) {
 
 func TestProjectProfileSchemaAppliesAfterJSONYAMLAndHCLDecoding(t *testing.T) {
 	doc := schemaTestUWSDocument(comprehensiveSchemaTestProfile())
+	doc.UWS = "1.9.1"
+	doc.Operations[0].Outputs = map[string]string{"status": "$response.body.status"}
+	doc.ContentTrust = &uws1.ContentTrust{Operations: map[string]*uws1.OperationContentTrust{
+		"review": {Default: uws1.ContentTrustUnknown, Outputs: map[string]uws1.ContentTrustLevel{"status": uws1.ContentTrustTrusted}},
+	}}
 	tests := map[string]struct {
 		marshal   func(*uws1.Document) ([]byte, error)
 		unmarshal func([]byte, *uws1.Document) error
@@ -203,6 +208,9 @@ func TestProjectProfileSchemaAppliesAfterJSONYAMLAndHCLDecoding(t *testing.T) {
 			}
 			if profile.Version != Version || len(profile.Resources) != 1 {
 				t.Fatalf("decoded %s profile = %#v", name, profile)
+			}
+			if !reflect.DeepEqual(decoded.ContentTrust, doc.ContentTrust) {
+				t.Fatalf("decoded %s contentTrust = %#v, want %#v", name, decoded.ContentTrust, doc.ContentTrust)
 			}
 		})
 	}

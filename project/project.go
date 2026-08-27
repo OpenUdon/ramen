@@ -19,6 +19,7 @@ const (
 	DefaultFile  = "project.uws.yaml"
 	DefaultJSON  = "project.uws.json"
 	DefaultYAML  = "project.uws.yml"
+	DefaultHCL   = "project.uws.hcl"
 	DraftFile    = "project.uws.draft.yaml"
 	DraftHCL     = "project.uws.draft.hcl"
 	WorkflowYAML = "workflows/workflow.uws.yaml"
@@ -210,7 +211,7 @@ func Load(path string) (*Document, error) {
 	switch strings.ToLower(filepath.Ext(resolved)) {
 	default:
 		return nil, fmt.Errorf("unsupported native project document extension %q", filepath.Ext(resolved))
-	case ".json", ".yaml", ".yml":
+	case ".json", ".yaml", ".yml", ".hcl":
 	}
 	doc, err := validation.LoadDocumentFile(resolved)
 	if err != nil {
@@ -220,7 +221,11 @@ func Load(path string) (*Document, error) {
 	if schemaVersion == "" {
 		schemaVersion = "1.0.0"
 	}
-	if err := validation.ValidateFile(schemas.PathForVersion(filepath.Dir(resolved), schemaVersion), resolved); err != nil {
+	if strings.EqualFold(filepath.Ext(resolved), ".hcl") {
+		if _, err := validation.ValidateDocumentFile(resolved); err != nil {
+			return nil, fmt.Errorf("validate UWS project document %s: %w", resolved, err)
+		}
+	} else if err := validation.ValidateFile(schemas.PathForVersion(filepath.Dir(resolved), schemaVersion), resolved); err != nil {
 		return nil, fmt.Errorf("validate UWS project document %s: %w", resolved, err)
 	}
 	if err := doc.Validate(); err != nil {
@@ -250,7 +255,7 @@ func ResolvePath(path string) (string, error) {
 	if !info.IsDir() {
 		return path, nil
 	}
-	for _, name := range []string{DefaultFile, DefaultJSON, DefaultYAML, WorkflowYAML, WorkflowJSON, WorkflowYML} {
+	for _, name := range []string{DefaultFile, DefaultJSON, DefaultYAML, DefaultHCL, WorkflowYAML, WorkflowJSON, WorkflowYML} {
 		candidate := filepath.Join(path, filepath.FromSlash(name))
 		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
 			return candidate, nil
