@@ -164,7 +164,7 @@ paths:
 		t.Fatalf("validate help failed: %v\n%s", err, output)
 	}
 	text := string(output)
-	for _, expected := range []string{"Usage: ramen validate", "--project", "--api-source", "--json", "--strict", "without planning"} {
+	for _, expected := range []string{"Usage: ramen validate", "--project", "--api-source", "--json", "--strict", "content-trust declarations", "advisory warnings", "without planning"} {
 		if !strings.Contains(text, expected) {
 			t.Fatalf("validate help missing %q:\n%s", expected, text)
 		}
@@ -188,6 +188,56 @@ paths:
 	}
 	if !strings.Contains(string(output), `"valid": false`) || !strings.Contains(string(output), "validate.api_source_document_read") {
 		t.Fatalf("validate failure JSON missing diagnostics:\n%s", output)
+	}
+}
+
+func TestCLIValidateContentTrustDefaultAndStrictJSON(t *testing.T) {
+	projectPath := writeContentTrustBrowserProjectForCLITest(t, t.TempDir())
+
+	cmd := helperCommand("validate", "--project", projectPath, "--json")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("default content-trust validation failed: %v\n%s", err, output)
+	}
+	var result struct {
+		Valid       bool `json:"valid"`
+		Diagnostics []struct {
+			Code     string `json:"code"`
+			Severity string `json:"severity"`
+			Path     string `json:"path"`
+			Message  string `json:"message"`
+		} `json:"diagnostics"`
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("default content-trust JSON is not parseable: %v\n%s", err, output)
+	}
+	if !result.Valid || len(result.Diagnostics) != 1 {
+		t.Fatalf("default content-trust result = %#v\n%s", result, output)
+	}
+	diagnostic := result.Diagnostics[0]
+	if diagnostic.Code != "content_trust.untrusted_control" || diagnostic.Severity != "warning" || diagnostic.Path != "workflows[0].steps[1].when" || diagnostic.Message != "untrusted content can influence control flow" {
+		t.Fatalf("default content-trust diagnostic = %#v", diagnostic)
+	}
+
+	cmd = helperCommand("validate", "--project", projectPath)
+	output, err = cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("human content-trust validation failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(string(output), "content_trust.untrusted_control [workflows[0].steps[1].when]: untrusted content can influence control flow") {
+		t.Fatalf("human content-trust output omitted the stable path:\n%s", output)
+	}
+
+	cmd = helperCommand("validate", "--project", projectPath, "--json", "--strict")
+	output, err = cmd.CombinedOutput()
+	if err == nil {
+		t.Fatalf("strict content-trust validation unexpectedly succeeded:\n%s", output)
+	}
+	if err := json.Unmarshal(output, &result); err != nil {
+		t.Fatalf("strict content-trust JSON is not parseable: %v\n%s", err, output)
+	}
+	if result.Valid || len(result.Diagnostics) != 1 || result.Diagnostics[0].Severity != "error" {
+		t.Fatalf("strict content-trust result = %#v\n%s", result, output)
 	}
 }
 

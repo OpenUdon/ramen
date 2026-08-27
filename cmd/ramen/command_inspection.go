@@ -225,7 +225,7 @@ func runValidateCommand(ctx context.Context, args []string) {
 	fs.Var(&apiSources, "api-source", "Repeatable API source input as KIND:ID=PATH; kind is openapi, aws-smithy, google-discovery, or browser-profile")
 	fs.Usage = func() {
 		fmt.Fprintf(fs.Output(), "Usage: ramen validate --project DIR|FILE [--api-source KIND:ID=PATH] [--json] [--strict]\n")
-		fmt.Fprintf(fs.Output(), "\nValidates a native UWS/Ramen project, optional local API source operation references, and diagnostics without planning, executing, touching state, reading Terraform/OpenTofu HCL, or performing network access.\n\n")
+		fmt.Fprintf(fs.Output(), "\nValidates a native UWS/Ramen project, optional local API source operation references, and UWS 1.9.1 content-trust declarations without planning, executing, touching state, reading Terraform/OpenTofu HCL, or performing network access. Content-trust findings are advisory warnings unless --strict promotes them.\n\n")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -255,6 +255,10 @@ func runValidateCommand(ctx context.Context, args []string) {
 	} else {
 		fmt.Printf("ramen: validate valid=%t errors=%d warnings=%d diagnostics=%d\n", result.Valid, result.Summary.Errors, result.Summary.Warnings, result.Summary.Diagnostics)
 		for _, diag := range result.Diagnostics {
+			if diag.Path != "" {
+				fmt.Fprintf(os.Stderr, "%s [%s]: %s\n", diag.Code, diag.Path, diag.Message)
+				continue
+			}
 			fmt.Fprintf(os.Stderr, "%s: %s\n", diag.Code, diag.Message)
 		}
 	}

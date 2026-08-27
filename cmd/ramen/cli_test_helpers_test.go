@@ -225,3 +225,74 @@ func writeNativeProjectForCLITest(t *testing.T, dir string, profile project.Prof
 	mustWriteCLIFile(t, path, data)
 	return path
 }
+
+func writeContentTrustBrowserProjectForCLITest(t *testing.T, dir string) string {
+	t.Helper()
+	mustWriteCLIFile(t, filepath.Join(dir, "browser.yaml"), []byte(`profile: uws.browser.1.7
+info:
+  title: Reviewed count
+  origin: https://example.test
+  loginStateRequired: false
+observationKind: accessibility_snapshot
+evidence:
+  learnedAt: "2026-08-20T00:00:00Z"
+  source: reviewed_synthetic_fixture
+confidence: high
+expiresAfter: P30D
+verification:
+  lastVerifiedAt: "2026-08-20T00:00:00Z"
+  successfulRuns: 1
+actions:
+  read_status:
+    sequence:
+      - navigate: /status
+    outputs:
+      count:
+        type: integer
+        source: a11y
+        locator: {role: status, name: Count}
+    sideEffects: [read_only]
+    confirmationPolicy: {required: false}
+`))
+	profile := project.Profile{
+		Version:    project.Version,
+		APISources: []project.APISource{{Kind: "browser-profile", ID: "browser", Path: "browser.yaml"}},
+		Resources: []project.Resource{{
+			Address: "example.browser",
+			Kind:    "resource",
+			Type:    "example_browser",
+			Operations: map[string]project.OperationRole{
+				"read": {SourceKind: "browser-profile", SourceID: "browser", SourcePath: "browser.yaml", OperationID: "read_status", UWSOperationRef: "read_status_uws"},
+			},
+		}},
+	}
+	doc := &uws1.Document{
+		UWS:  "1.9.1",
+		Info: &uws1.Info{Title: "cli_content_trust_fixture", Version: "1.0.0"},
+		SourceDescriptions: []*uws1.SourceDescription{{
+			Name: "browser", URL: "browser.yaml", Type: uws1.SourceDescriptionTypeBrowserProfile,
+		}},
+		Operations: []*uws1.Operation{{
+			OperationID: "read_status_uws", SourceDescription: "browser", SourceOperationID: "read_status",
+			Outputs: map[string]string{"count": "$response.body#/count"},
+		}},
+		Workflows: []*uws1.Workflow{{
+			WorkflowID: "main", Type: uws1.WorkflowTypeSequence,
+			Steps: []*uws1.Step{
+				{StepID: "read", OperationRef: "read_status_uws", Outputs: map[string]string{"count": "$outputs.count"}},
+				{StepID: "check", OperationRef: "read_status_uws", StepExecutionFields: uws1.StepExecutionFields{When: "$steps.read.outputs.count == 1"}},
+			},
+		}},
+		ContentTrust: &uws1.ContentTrust{SourceDescriptions: map[string]uws1.ContentTrustLevel{
+			"browser": uws1.ContentTrustUntrusted,
+		}},
+		Extensions: map[string]any{project.ExtensionKey: profile},
+	}
+	data, err := uwsconvert.MarshalJSONIndent(doc, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(dir, project.DefaultJSON)
+	mustWriteCLIFile(t, path, data)
+	return path
+}

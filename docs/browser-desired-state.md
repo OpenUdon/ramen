@@ -16,8 +16,9 @@ does not perform browser automation.
 ## Version compatibility
 
 Ramen accepts browser profiles 1.5, 1.6, and 1.7 and browser-authentication
-profiles 1.0 and 1.1. Generated action documents use the highest applicable
-minimum:
+profiles 1.0 and 1.1. Native projects may use UWS 1.9.1 for the optional
+content-trust registry; this does not revise browser profile 1.7. Generated
+action documents use the highest applicable minimum:
 
 | Contract in use | Minimum UWS |
 |---|---:|
@@ -25,6 +26,7 @@ minimum:
 | A named or external session, or authentication 1.0 | 1.7 |
 | Browser 1.6 or authentication 1.1 | 1.8 |
 | Browser 1.7 scalar outputs | 1.9 |
+| Optional root `contentTrust` registry | 1.9.1 |
 
 Authentication profile/call versions must pair exactly: authentication 1.0
 uses call 1.0, and authentication 1.1 uses call 1.1.
@@ -63,6 +65,33 @@ Browser action parameters use the UWS operation `request.body`. Ramen request
 bindings overlay desired resource values into those direct action parameters.
 Browser 1.7 string, integer, number, boolean, and presence outputs become named
 `$response.body.<output>` operation and step outputs.
+
+## Advisory content-trust analysis
+
+When a UWS 1.9.1 native project declares `contentTrust`, `ramen validate`
+loads each contained browser profile through the same bounded regular-file and
+package-containment checks used by browser contract validation, then supplies
+Browsertools' resolver to the UWS analyzer. Browser-derived values default to
+untrusted. String outputs retain free-text capability; integer, number,
+boolean, presence, and inline-enum outputs are constrained scalars; structured
+outputs remain composite. Capability narrowing does not make provenance
+trusted: an untrusted integer can still produce an advisory warning when it
+controls a later step or reaches an authority-bearing channel.
+
+The UWS core expression form for a selected response member is an RFC 6901
+fragment such as `$response.body#/count`. Existing runtime-specific forms such
+as `$response.body.count` remain project data, but the analyzer reports them as
+opaque when it cannot recover their flow. Browser profile semantics are known
+through the resolver; unrelated extension-profile semantics remain unknown
+unless the core expression grammar is sufficient.
+
+Findings are warnings by default and expose only stable codes, document paths,
+and fixed messages. They do not include browser text, request/response values,
+credentials, sessions, or profile paths. `--strict` uses Ramen's existing
+warning promotion policy. Neither mode changes planning, approval digests,
+action lowering, apply/run handoff, state, or executor authority. Malformed
+trust declarations are ordinary UWS validation errors rather than advisory
+findings.
 
 ## Sessions and credentials are symbolic
 

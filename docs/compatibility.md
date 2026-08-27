@@ -26,6 +26,14 @@ project data belongs in documented `metadata` maps. Terraform conversion
 metadata is experimental and requires `ramen.terraform.provenance.v1`; old
 unversioned conversion packages must be regenerated rather than translated.
 
+UWS 1.9.1 adds an optional root `contentTrust` registry. Ramen preserves all
+four trust maps through native JSON, YAML, and HCL loading and rewriting. A
+declaration-free project retains its prior validation diagnostic shape.
+Analyzer findings add the optional `path` member to `ramen.validate.v1`
+diagnostics and remain warnings by default; the existing `--strict` policy may
+promote them. They do not alter plan, approval, apply, run, state, or executor
+artifacts. Malformed declarations fail ordinary UWS validation.
+
 ## Experimental Before v1
 
 Authoring, iCoT, Terraform/OpenTofu conversion, Ansible conversion, static

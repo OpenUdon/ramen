@@ -63,6 +63,17 @@ go install github.com/OpenUdon/ramen/cmd/ramen@v0.1.0
 ramen version --json
 ```
 
+Native UWS 1.9.1 JSON, YAML, and HCL projects may carry an optional
+`contentTrust` registry. `ramen validate` preserves that registry and runs the
+UWS advisory data-flow analyzer only when it is present. Findings have stable
+codes, document paths, and fixed messages; default validation reports them as
+warnings and remains valid. The existing explicit `--strict` flag promotes all
+warnings to errors. Ramen supplies Browsertools' resolver for contained
+`browser-profile` sources; other extension-owned flow remains unknown or
+opaque unless UWS core can recover it directly. Analysis does not plan,
+approve, apply, run, touch state, authorize an executor, or inspect runtime
+values.
+
 Linux, macOS, and Windows archives for amd64 and arm64 are attached to the
 GitHub v0.1.0 release with a `SHA256SUMS` file. Ramen requires the Go version
 declared in `go.mod` when used as a library.

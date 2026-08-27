@@ -1,12 +1,12 @@
 module github.com/OpenUdon/ramen
 
-go 1.26.3
+go 1.26.6
 
 require (
 	github.com/OpenUdon/apitools v0.0.0-20260820042238-d51b61ead067
 	github.com/OpenUdon/authoring v0.0.0-20260820042256-2f73e3526583
 	github.com/OpenUdon/browsertools v0.0.0-20260826234723-75fd5c3ab81f
-	github.com/OpenUdon/evidence v0.0.0-20260603102736-08a9c38b00b7
+	github.com/OpenUdon/evidence v0.0.0-20260815084845-0c17258b9736
 	github.com/OpenUdon/tfconfig v0.0.0-20260528102647-6d61e0f2b562
 	github.com/OpenUdon/uws v0.0.0-20260826233246-9e676eaa469e
 	github.com/hashicorp/hcl/v2 v2.24.0
@@ -43,13 +43,13 @@ require (
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/theory/jsonpath v0.12.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
-	golang.org/x/crypto v0.48.0 // indirect
-	golang.org/x/mod v0.33.0 // indirect
-	golang.org/x/net v0.50.0 // indirect
-	golang.org/x/sync v0.20.0 // indirect
-	golang.org/x/sys v0.42.0 // indirect
-	golang.org/x/text v0.34.0 // indirect
-	golang.org/x/tools v0.42.0 // indirect
+	golang.org/x/crypto v0.53.0 // indirect
+	golang.org/x/mod v0.37.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
+	golang.org/x/sync v0.21.0 // indirect
+	golang.org/x/sys v0.46.0 // indirect
+	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/tools v0.47.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 	modernc.org/libc v1.72.3 // indirect
 	modernc.org/mathutil v1.7.1 // indirect

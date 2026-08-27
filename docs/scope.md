@@ -3,6 +3,8 @@
 Ramen owns desired-state reconciliation:
 
 - native UWS/Ramen project loading and validation;
+- preservation of optional UWS 1.9.1 `contentTrust` registries and explicit,
+  advisory data-flow analysis during `ramen validate`;
 - Ramen reconciliation metadata over UWS;
 - API source operation inventory consumption through public `apitools`;
 - Terraform/OpenTofu HCL conversion through public `tfconfig` via
@@ -22,6 +24,9 @@ apply, reconciliation, and state—is the product center. Terraform/OpenTofu and
 Ansible conversion plus assisted authoring are adapter paths into native
 artifacts. Imperative `run` is adjacent and does not create desired-state
 resources.
+
+Content-trust analysis is validation-only: it does not enter graphing,
+planning, approval, apply, run, reconciliation, state, or executor contracts.
 
 Static Ansible inventory selection is client-language analysis only: bounded
 host/group/variable facts may shape a workflow, while inventory plugins,

@@ -24,5 +24,12 @@ execution. Credentials belong to executor-owned configuration and must never be
 placed in Ramen projects, plans, state, examples, diagnostics, or issue
 reports.
 
+UWS 1.9.1 `contentTrust` declarations are reviewed integrity metadata, not an
+authorization mechanism. `ramen validate` analyzes declared projects without
+runtime values and emits only fixed-message, path-based advisory findings.
+Warnings do not authorize or block execution by default; explicit `--strict`
+promotion affects validation exit status only. Trusted-executor capability,
+approval, credential, and runtime confirmation checks remain separate.
+
 Ramen is pre-1.0 software and is provided without an operational response-time
 or support SLA.
