@@ -50,6 +50,7 @@ type Diagnostic struct {
 	Code          string `json:"code"`
 	Severity      string `json:"severity"`
 	Message       string `json:"message"`
+	Path          string `json:"path,omitempty"`
 	Address       string `json:"address,omitempty"`
 	APISourceKind string `json:"api_source_kind,omitempty"`
 	APISourceID   string `json:"api_source_id,omitempty"`
@@ -57,6 +58,12 @@ type Diagnostic struct {
 }
 
 func Run(ctx context.Context, opts Options) (*Result, error) {
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	result := &Result{
 		Version: Version,
 		Strict:  opts.Strict,
@@ -79,6 +86,11 @@ func Run(ctx context.Context, opts Options) (*Result, error) {
 	result.Diagnostics = append(result.Diagnostics, sourceDiagnostics...)
 	result.Diagnostics = append(result.Diagnostics, validateOperations(doc, sources)...)
 	result.Diagnostics = append(result.Diagnostics, unusedSourceDiagnostics(doc.Profile)...)
+	contentTrust, err := contentTrustDiagnostics(ctx, doc)
+	if err != nil {
+		return nil, err
+	}
+	result.Diagnostics = append(result.Diagnostics, contentTrust...)
 	if opts.Strict {
 		for i := range result.Diagnostics {
 			if result.Diagnostics[i].Severity == "warning" {
@@ -764,8 +776,8 @@ func sourceKey(kind, id string) string {
 
 func finalize(result *Result) {
 	slices.SortFunc(result.Diagnostics, func(a, b Diagnostic) int {
-		left := []string{a.Severity, a.Code, a.Address, a.APISourceKind, a.APISourceID, a.OperationID, a.Message}
-		right := []string{b.Severity, b.Code, b.Address, b.APISourceKind, b.APISourceID, b.OperationID, b.Message}
+		left := []string{a.Severity, a.Code, a.Path, a.Address, a.APISourceKind, a.APISourceID, a.OperationID, a.Message}
+		right := []string{b.Severity, b.Code, b.Path, b.Address, b.APISourceKind, b.APISourceID, b.OperationID, b.Message}
 		return slices.Compare(left, right)
 	})
 	for _, diag := range result.Diagnostics {

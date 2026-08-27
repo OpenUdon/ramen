@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	browserprofile "github.com/OpenUdon/browsertools/profile"
 	"github.com/OpenUdon/evidence/digest"
 	"github.com/OpenUdon/uws/browserauthentication"
 	"github.com/OpenUdon/uws/schemas"
@@ -92,6 +93,24 @@ func LoadProfile(anchorDir, path string) (*Profile, error) {
 		Contexts:           wire.Contexts,
 		Actions:            wire.Actions,
 	}, nil
+}
+
+// LoadContentTrustProfile returns the complete validated Browsertools profile
+// used by the advisory content-trust resolver. Runtime planning continues to
+// use Ramen's narrower Profile projection above.
+func LoadContentTrustProfile(anchorDir, path string) (*browserprofile.Profile, error) {
+	resolved, data, err := readContainedFile(anchorDir, path, "browser content-trust profile", maxBrowserProfileBytes)
+	if err != nil {
+		return nil, err
+	}
+	switch strings.ToLower(filepath.Ext(resolved)) {
+	case ".json":
+		return browserprofile.ParseJSON(data)
+	case ".yaml", ".yml":
+		return browserprofile.ParseYAML(data)
+	default:
+		return nil, fmt.Errorf("browser content-trust profile path has unsupported extension %q", filepath.Ext(resolved))
+	}
 }
 
 // LoadAuthenticationProfile validates and decodes a contained browser
